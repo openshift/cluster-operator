@@ -50,5 +50,3 @@ import:
   version: f9b476d61dbdf6474e3d42cc5e854d0d8b7f759e # release-1.8, latest (Oct 4, 2017)
 - package: k8s.io/code-generator
   version: 42f0582fc47a42652cfb1d4ea5d5306f765507e5 # release-1.8, latest (Oct 4, 2017)
-- package: github.com/coreos/etcd
-  version: ^3.2.9

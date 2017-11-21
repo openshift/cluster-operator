@@ -19,12 +19,12 @@ import (
 	"reflect"
 	"testing"
 
+	"golang.org/x/net/context"
+	"google.golang.org/grpc/naming"
+
 	etcd "github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/integration"
 	"github.com/coreos/etcd/pkg/testutil"
-
-	"golang.org/x/net/context"
-	"google.golang.org/grpc/naming"
 )
 
 func TestGRPCResolver(t *testing.T) {
@@ -66,13 +66,10 @@ func TestGRPCResolver(t *testing.T) {
 
 	delOp := naming.Update{Op: naming.Delete, Addr: "127.0.0.1"}
 	err = r.Update(context.TODO(), "foo", delOp)
-	if err != nil {
-		t.Fatalf("failed to udpate %v", err)
-	}
 
 	us, err = w.Next()
 	if err != nil {
-		t.Fatalf("failed to get udpate %v", err)
+		t.Fatal("failed to get udpate", err)
 	}
 
 	wu = &naming.Update{
@@ -86,7 +83,7 @@ func TestGRPCResolver(t *testing.T) {
 	}
 }
 
-// TestGRPCResolverMulti ensures the resolver will initialize
+// TestGRPCResolverMultiInit ensures the resolver will initialize
 // correctly with multiple hosts and correctly receive multiple
 // updates in a single revision.
 func TestGRPCResolverMulti(t *testing.T) {

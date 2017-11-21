@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"path/filepath"
 
-	bolt "github.com/coreos/bbolt"
+	"github.com/boltdb/bolt"
 	"github.com/coreos/etcd/mvcc"
 	"github.com/coreos/etcd/mvcc/backend"
 )

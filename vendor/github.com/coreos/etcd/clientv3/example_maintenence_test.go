@@ -18,8 +18,9 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/coreos/etcd/clientv3"
 	"golang.org/x/net/context"
+
+	"github.com/coreos/etcd/clientv3"
 )
 
 func ExampleMaintenance_status() {
@@ -33,15 +34,20 @@ func ExampleMaintenance_status() {
 		}
 		defer cli.Close()
 
-		resp, err := cli.Status(context.Background(), ep)
+		// resp, err := cli.Status(context.Background(), ep)
+		//
+		// or
+		//
+		mapi := clientv3.NewMaintenance(cli)
+		resp, err := mapi.Status(context.Background(), ep)
 		if err != nil {
 			log.Fatal(err)
 		}
-		fmt.Printf("endpoint: %s / Leader: %v\n", ep, resp.Header.MemberId == resp.Leader)
+		fmt.Printf("endpoint: %s / IsLeader: %v\n", ep, resp.Header.MemberId == resp.Leader)
 	}
-	// endpoint: localhost:2379 / Leader: false
-	// endpoint: localhost:22379 / Leader: false
-	// endpoint: localhost:32379 / Leader: true
+	// endpoint: localhost:2379 / IsLeader: false
+	// endpoint: localhost:22379 / IsLeader: false
+	// endpoint: localhost:32379 / IsLeader: true
 }
 
 func ExampleMaintenance_defragment() {

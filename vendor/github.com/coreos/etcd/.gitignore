@@ -1,4 +1,3 @@
-/agent-*
 /coverage
 /gopath
 /gopath.proto
@@ -13,4 +12,3 @@
 *.test
 tools/functional-tester/docker/bin
 hack/tls-setup/certs
-.idea

@@ -24,7 +24,6 @@ import (
 	"github.com/coreos/etcd/etcdserver/api/v3rpc/rpctypes"
 	"github.com/coreos/etcd/integration"
 	"github.com/coreos/etcd/pkg/testutil"
-
 	"golang.org/x/net/context"
 )
 
@@ -34,7 +33,7 @@ func TestTxnError(t *testing.T) {
 	clus := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 1})
 	defer clus.Terminate(t)
 
-	kv := clus.RandClient()
+	kv := clientv3.NewKV(clus.RandClient())
 	ctx := context.TODO()
 
 	_, err := kv.Txn(ctx).Then(clientv3.OpPut("foo", "bar1"), clientv3.OpPut("foo", "bar2")).Commit()
@@ -58,7 +57,7 @@ func TestTxnWriteFail(t *testing.T) {
 	clus := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 3})
 	defer clus.Terminate(t)
 
-	kv := clus.Client(0)
+	kv := clientv3.NewKV(clus.Client(0))
 
 	clus.Members[0].Stop(t)
 
@@ -101,14 +100,12 @@ func TestTxnWriteFail(t *testing.T) {
 }
 
 func TestTxnReadRetry(t *testing.T) {
-	t.Skipf("skipping txn read retry test: re-enable after we do retry on txn read request")
-
 	defer testutil.AfterTest(t)
 
 	clus := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 3})
 	defer clus.Terminate(t)
 
-	kv := clus.Client(0)
+	kv := clientv3.NewKV(clus.Client(0))
 	clus.Members[0].Stop(t)
 	<-clus.Members[0].StopNotify()
 
@@ -132,13 +129,14 @@ func TestTxnReadRetry(t *testing.T) {
 		t.Fatalf("waited too long")
 	}
 }
+
 func TestTxnSuccess(t *testing.T) {
 	defer testutil.AfterTest(t)
 
 	clus := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 3})
 	defer clus.Terminate(t)
 
-	kv := clus.Client(0)
+	kv := clientv3.NewKV(clus.Client(0))
 	ctx := context.TODO()
 
 	_, err := kv.Txn(ctx).Then(clientv3.OpPut("foo", "bar")).Commit()

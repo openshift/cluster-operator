@@ -17,25 +17,27 @@ limitations under the License.
 package main
 
 import (
-	"github.com/staebler/boatswain/cmd/apiserver/app/server"
+	//	"github.com/staebler/boatswain/cmd/apiserver/app/server"
 	"github.com/staebler/boatswain/pkg/hyperkube"
 )
 
 // NewAPIServer creates a new hyperkube Server object that includes the
 // description and flags.
 func NewAPIServer() *hyperkube.Server {
-	s := server.NewServiceCatalogServerOptions()
+	//	s := server.NewServiceCatalogServerOptions()
 
-	hks := hyperkube.Server{
-		PrimaryName:     "apiserver",
-		AlternativeName: "boatswain-apiserver",
-		SimpleUsage:     "apiserver",
-		Long:            "The main API entrypoint and interface to the storage system.  The API server is also the focal point for all authorization decisions.",
-		Run: func(_ *hyperkube.Server, args []string, stopCh <-chan struct{}) error {
-			return server.Run(s, stopCh)
-		},
-		RespectsStopCh: true,
-	}
-	s.AddFlags(hks.Flags())
-	return &hks
+	//	hks := hyperkube.Server{
+	//		PrimaryName:     "apiserver",
+	//		AlternativeName: "boatswain-apiserver",
+	//		SimpleUsage:     "apiserver",
+	//		Long:            "The main API entrypoint and interface to the storage system.  The API server is also the focal point for all authorization decisions.",
+	//		Run: func(_ *hyperkube.Server, args []string, stopCh <-chan struct{}) error {
+	//			return server.Run(s, stopCh)
+	//		},
+	//		RespectsStopCh: true,
+	//	}
+	//	s.AddFlags(hks.Flags())
+	//	return &hks
+
+	return nil
 }

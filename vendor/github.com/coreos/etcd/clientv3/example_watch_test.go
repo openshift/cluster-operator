@@ -19,7 +19,6 @@ import (
 	"log"
 
 	"github.com/coreos/etcd/clientv3"
-
 	"golang.org/x/net/context"
 )
 
