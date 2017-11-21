@@ -27,7 +27,8 @@ BINDIR        ?= bin
 BUILD_DIR     ?= build
 COVERAGE      ?= $(CURDIR)/coverage.html
 BOATSWAIN_PKG  = github.com/staebler/boatswain
-TOP_SRC_DIRS   = cmd contrib pkg plugin
+#TOP_SRC_DIRS   = cmd contrib pkg plugin
+TOP_SRC_DIRS = cmd pkg
 SRC_DIRS       = $(shell sh -c "find $(TOP_SRC_DIRS) -name \\*.go \
                    -exec dirname {} \\; | sort | uniq")
 TEST_DIRS     ?= $(shell sh -c "find $(TOP_SRC_DIRS) -name \\*_test.go \
@@ -215,7 +216,7 @@ verify: .init .generate_files verify-client-gen
 	    | grep -v ^pkg/kubernetes/ \
 	    | grep -v generated \
 	    | grep -v ^pkg/client/ \
-	    | grep -v v1beta1/defaults.go); \
+	    | grep -v v1alpha1/defaults.go); \
 	  do \
 	   golint --set_exit_status $$i || exit 1; \
 	  done'
