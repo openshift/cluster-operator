@@ -16,17 +16,7 @@ limitations under the License.
 
 package server
 
-import (
-	"github.com/golang/glog"
-)
-
 // Run runs the specified APIServer.  This should never exit.
 func Run(opts *BoatwsainServerOptions, stopCh <-chan struct{}) error {
-	storageType, err := opts.StorageType()
-	if err != nil {
-		glog.Fatalf("invalid storage type '%s' (%s)", storageType, err)
-		return err
-	}
-
 	return RunServer(opts, stopCh)
 }

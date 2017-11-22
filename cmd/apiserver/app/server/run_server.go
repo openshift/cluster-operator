@@ -27,31 +27,21 @@ import (
 	"github.com/golang/glog"
 	"github.com/staebler/boatswain/pkg/apiserver"
 	"github.com/staebler/boatswain/pkg/apiserver/options"
-	"github.com/staebler/boatswain/pkg/registry/boatswain/server"
 )
 
 // RunServer runs an API server with configuration according to opts
 func RunServer(opts *BoatwsainServerOptions, stopCh <-chan struct{}) error {
-	storageType, err := opts.StorageType()
-	if err != nil {
-		return err
-	}
 	if stopCh == nil {
 		/* the caller of RunServer should generate the stop channel
 		if there is a need to stop the API server */
 		stopCh = make(chan struct{})
 	}
 
-	err = opts.Validate()
-	if nil != err {
+	if err := opts.Validate(); err != nil {
 		return err
 	}
 
-	if storageType == server.StorageTypeEtcd {
-		return runEtcdServer(opts, stopCh)
-	}
-	// This should never happen, catch for potential bugs
-	panic("Unexpected storage type: " + storageType)
+	return runEtcdServer(opts, stopCh)
 }
 
 func runEtcdServer(opts *BoatwsainServerOptions, stopCh <-chan struct{}) error {

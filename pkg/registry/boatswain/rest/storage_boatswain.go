@@ -34,7 +34,6 @@ import (
 // the boatswain API group. It implements (./pkg/apiserver).RESTStorageProvider
 type StorageProvider struct {
 	DefaultNamespace string
-	StorageType      server.StorageType
 	RESTClient       restclient.Interface
 }
 
@@ -68,20 +67,17 @@ func (p StorageProvider) v1alpha1Storage(
 	if err != nil {
 		return nil, err
 	}
-	hostOpts := server.NewOptions(
-		etcd.Options{
-			RESTOptions:   hostRESTOptions,
-			Capacity:      1000,
-			ObjectType:    host.EmptyObject(),
-			ScopeStrategy: host.NewScopeStrategy(),
-			NewListFunc:   host.NewList,
-			GetAttrsFunc:  host.GetAttrs,
-			Trigger:       storage.NoTriggerPublisher,
-		},
-		p.StorageType,
-	)
+	hostOpts := etcd.Options{
+		RESTOptions:   hostRESTOptions,
+		Capacity:      1000,
+		ObjectType:    host.EmptyObject(),
+		ScopeStrategy: host.NewScopeStrategy(),
+		NewListFunc:   host.NewList,
+		GetAttrsFunc:  host.GetAttrs,
+		Trigger:       storage.NoTriggerPublisher,
+	}
 
-	hostStorage, hostStatusStorage := host.NewStorage(*hostOpts)
+	hostStorage, hostStatusStorage := host.NewStorage(hostOpts)
 
 	return map[string]rest.Storage{
 		"hosts":        hostStorage,

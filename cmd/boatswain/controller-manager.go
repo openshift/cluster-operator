@@ -17,28 +17,28 @@ limitations under the License.
 package main
 
 import (
-	//	"github.com/staebler/boatswain/cmd/controller-manager/app"
-	//	"github.com/staebler/boatswain/cmd/controller-manager/app/options"
+	"github.com/staebler/boatswain/cmd/controller-manager/app"
+	"github.com/staebler/boatswain/cmd/controller-manager/app/options"
 	"github.com/staebler/boatswain/pkg/hyperkube"
 )
 
 // NewControllerManager creates a new hyperkube Server object that includes the
 // description and flags.
 func NewControllerManager() *hyperkube.Server {
-	//	s := options.NewControllerManagerServer()
+	s := options.NewControllerManagerServer()
 
-	//	hks := hyperkube.Server{
-	//		PrimaryName:     "controller-manager",
-	//		AlternativeName: "boatswain-controller-manager",
-	//		SimpleUsage:     "controller-manager",
-	//		Long:            `The boatswain controller manager is a daemon that embeds the core control loops shipped with the boatswain.`,
-	//		Run: func(_ *hyperkube.Server, args []string, stopCh <-chan struct{}) error {
-	//			return app.Run(s)
-	//		},
-	//		RespectsStopCh: false,
-	//	}
-	//	s.AddFlags(hks.Flags())
-	//	return &hks
+	hks := hyperkube.Server{
+		PrimaryName:     "controller-manager",
+		AlternativeName: "boatswain-controller-manager",
+		SimpleUsage:     "controller-manager",
+		Long:            `The boatswain controller manager is a daemon that embeds the core control loops shipped with the boatswain.`,
+		Run: func(_ *hyperkube.Server, args []string, stopCh <-chan struct{}) error {
+			return app.Run(s)
+		},
+		RespectsStopCh: false,
+	}
+	s.AddFlags(hks.Flags())
+	return &hks
 
 	return nil
 }

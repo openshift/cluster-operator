@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// A binary that can morph into all of the other kubernetes boatswain
+// A binary that can morph into all of the other OpenShift boatswain
 // binaries. You can also soft-link to it busybox style.
 //
 package main
@@ -28,7 +28,7 @@ import (
 func main() {
 	hk := hyperkube.HyperKube{
 		Name: "boatswain",
-		Long: "This is an all-in-one binary that can run any of the various Kubernetes boatswain servers.",
+		Long: "This is an all-in-one binary that can run any of the various OpenShift boatswain servers.",
 	}
 
 	hk.AddServer(NewAPIServer())

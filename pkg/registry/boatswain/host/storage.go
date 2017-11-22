@@ -20,9 +20,10 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/staebler/boatswain/pkg/api"
 	boatswainmeta "github.com/staebler/boatswain/pkg/api/meta"
 	"github.com/staebler/boatswain/pkg/apis/boatswain"
-	"github.com/staebler/boatswain/pkg/registry/boatswain/server"
+	"github.com/staebler/boatswain/pkg/storage/etcd"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -103,13 +104,17 @@ func GetAttrs(obj runtime.Object) (labels.Set, fields.Set, bool, error) {
 
 // NewStorage creates a new rest.Storage responsible for accessing
 // Host resources
-func NewStorage(opts server.Options) (hosts, hostsStatus rest.Storage) {
-	prefix := "/" + opts.ResourcePrefix()
+func NewStorage(opts etcd.Options) (hosts, hostsStatus rest.Storage) {
+	restOpts := opts.RESTOptions
 
-	storageInterface, dFunc := opts.GetStorage(
+	prefix := "/" + restOpts.ResourcePrefix
+
+	storageInterface, dFunc := restOpts.Decorator(
+		api.Scheme,
+		restOpts.StorageConfig,
 		&boatswain.Host{},
 		prefix,
-		hostRESTStrategies,
+		nil, /* keyFunc for decorator -- looks to be unused everywhere */
 		NewList,
 		nil,
 		storage.NoTriggerPublisher,
@@ -118,8 +123,12 @@ func NewStorage(opts server.Options) (hosts, hostsStatus rest.Storage) {
 	store := registry.Store{
 		NewFunc:     EmptyObject,
 		NewListFunc: NewList,
-		KeyRootFunc: opts.KeyRootFunc(),
-		KeyFunc:     opts.KeyFunc(false),
+		KeyRootFunc: func(ctx genericapirequest.Context) string {
+			return registry.NamespaceKeyRootFunc(ctx, prefix)
+		},
+		KeyFunc: func(ctx genericapirequest.Context, name string) (string, error) {
+			return registry.NoNamespaceKeyFunc(ctx, prefix, name)
+		},
 		// Retrieve the name field of the resource.
 		ObjectNameFunc: func(obj runtime.Object) (string, error) {
 			return boatswainmeta.GetAccessor().Name(obj)
@@ -138,7 +147,7 @@ func NewStorage(opts server.Options) (hosts, hostsStatus rest.Storage) {
 		DestroyFunc: dFunc,
 	}
 
-	options := &generic.StoreOptions{RESTOptions: opts.EtcdOptions.RESTOptions, AttrFunc: GetAttrs}
+	options := &generic.StoreOptions{RESTOptions: restOpts, AttrFunc: GetAttrs}
 	if err := store.CompleteWithOptions(options); err != nil {
 		panic(err) // TODO: Propagate error up
 	}

@@ -20,7 +20,6 @@ import (
 	"os"
 
 	"github.com/golang/glog"
-	"github.com/staebler/boatswain/pkg/registry/boatswain/server"
 	"github.com/spf13/pflag"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	genericserveroptions "k8s.io/apiserver/pkg/server/options"
@@ -104,12 +103,6 @@ func (s *BoatwsainServerOptions) AddFlags(flags *pflag.FlagSet) {
 	s.AuditOptions.AddFlags(flags)
 }
 
-// StorageType returns the storage type configured on s, or a non-nil error if s holds an
-// invalid storage type
-func (s *BoatwsainServerOptions) StorageType() (server.StorageType, error) {
-	return server.StorageTypeFromString(s.StorageTypeString)
-}
-
 // Validate checks all subOptions flags have been set and that they
 // have not been set in a conflictory manner.
 func (s *BoatwsainServerOptions) Validate() error {
@@ -128,18 +121,16 @@ func (s *BoatwsainServerOptions) Validate() error {
 		}
 		errors = append(errors, etcdErrs...)
 	}
-	// TODO add alternative storage validation
-	// errors = append(errors, s.CRDOptions.Validate()...)
 	// TODO uncomment after 1.8 rebase expecting
 	// https://github.com/kubernetes/kubernetes/pull/47043
 	// errors = append(errors, s.AuditOptions.Validate()...)
 	return utilerrors.NewAggregate(errors)
 }
 
-// standaloneMode returns true if the env var SERVICE_CATALOG_STANALONE=true
+// standaloneMode returns true if the env var BOATSWAIN_STANALONE=true
 // If enabled, we will assume no integration with Kubernetes API server is performed.
 // It is intended for testing purposes only.
 func standaloneMode() bool {
-	val := os.Getenv("SERVICE_CATALOG_STANDALONE")
+	val := os.Getenv("BOATSWAIN_STANDALONE")
 	return val == "true"
 }

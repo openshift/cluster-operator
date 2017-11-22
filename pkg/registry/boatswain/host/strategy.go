@@ -18,7 +18,6 @@ package host
 
 import (
 	"github.com/staebler/boatswain/pkg/api"
-	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
@@ -26,7 +25,7 @@ import (
 	"k8s.io/apiserver/pkg/storage/names"
 
 	"github.com/golang/glog"
-	sc "github.com/staebler/boatswain/pkg/apis/boatswain"
+	"github.com/staebler/boatswain/pkg/apis/boatswain"
 	"github.com/staebler/boatswain/pkg/apis/boatswain/validation"
 )
 
@@ -87,16 +86,11 @@ func (hostRESTStrategy) PrepareForCreate(ctx genericapirequest.Context, obj runt
 	if !ok {
 		glog.Fatal("received a non-host object to create")
 	}
-	// Is there anything to pull out of the context `ctx`?
 
 	// Creating a brand new object, thus it must have no
 	// status. We can't fail here if they passed a status in, so
 	// we just wipe it clean.
 	host.Status = boatswain.HostStatus{}
-	// Fill in the first entry set to "creating"?
-	host.Status.Conditions = []boatswain.ServiceBrokerCondition{}
-	host.Finalizers = []string{boatswain.FinalizerServiceCatalog}
-	host.Generation = 1
 }
 
 func (hostRESTStrategy) Validate(ctx genericapirequest.Context, obj runtime.Object) field.ErrorList {
@@ -122,17 +116,6 @@ func (hostRESTStrategy) PrepareForUpdate(ctx genericapirequest.Context, new, old
 	}
 
 	newHost.Status = oldHost.Status
-
-	// Ignore the RelistRequests field when it is the default value
-	if newHost.Spec.RelistRequests == 0 {
-		newHost.Spec.RelistRequests = oldHost.Spec.RelistRequests
-	}
-
-	// Spec updates bump the generation so that we can distinguish between
-	// spec changes and other changes to the object.
-	if !apiequality.Semantic.DeepEqual(oldHost.Spec, newHost.Spec) {
-		newHost.Generation = oldHost.Generation + 1
-	}
 }
 
 func (hostRESTStrategy) ValidateUpdate(ctx genericapirequest.Context, new, old runtime.Object) field.ErrorList {

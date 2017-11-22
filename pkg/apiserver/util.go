@@ -19,7 +19,6 @@ package apiserver
 import (
 	"github.com/staebler/boatswain/pkg/api"
 	boatswainrest "github.com/staebler/boatswain/pkg/registry/boatswain/rest"
-	"github.com/staebler/boatswain/pkg/registry/boatswain/server"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/client-go/pkg/version"
 	restclient "k8s.io/client-go/rest"
@@ -31,13 +30,11 @@ const (
 
 func restStorageProviders(
 	defaultNamespace string,
-	storageType server.StorageType,
 	restClient restclient.Interface,
 ) []RESTStorageProvider {
 	return []RESTStorageProvider{
 		boatswainrest.StorageProvider{
 			DefaultNamespace: defaultNamespace,
-			StorageType:      storageType,
 			RESTClient:       restClient,
 		},
 	}
