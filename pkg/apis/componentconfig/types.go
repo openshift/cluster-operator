@@ -20,7 +20,7 @@ limitations under the License.
 package componentconfig
 
 import (
-	"time"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/staebler/boatswain/pkg/kubernetes/pkg/apis/componentconfig"
 )
@@ -28,6 +28,15 @@ import (
 // ControllerManagerConfiguration encapsulates configuration for the
 // controller manager.
 type ControllerManagerConfiguration struct {
+	metav1.TypeMeta
+
+	// Controllers is the list of controllers to enable or disable
+	// '*' means "all enabled by default controllers"
+	// 'foo' means "enable 'foo'"
+	// '-foo' means "disable 'foo'"
+	// first item for a particular name wins
+	Controllers []string
+
 	// Address is the IP address to serve on (set to 0.0.0.0 for all interfaces).
 	Address string
 	// Port is the port that the controller's http service runs on.
@@ -61,14 +70,14 @@ type ControllerManagerConfiguration struct {
 	// This should be used only for testing.
 	BoatswainInsecureSkipVerify bool
 
-	// ResyncInterval is the interval on which the controller should re-sync
-	// all informers.
-	ResyncInterval time.Duration
+	// minResyncPeriod is the resync period in reflectors; will be random between
+	// minResyncPeriod and 2*minResyncPeriod.
+	MinResyncPeriod metav1.Duration
 
-	// ConcurrentSyncs is the number of resources, per resource type,
-	// that are allowed to sync concurrently. Larger number = more responsive
-	// boatswain operations, but more CPU (and network) load.
-	ConcurrentSyncs int
+	// concurrentHostSyncs is the number of host objects that are
+	// allowed to sync concurrently. Larger number = more responsive hosts,
+	// but more CPU (and network) load.
+	ConcurrentHostSyncs int32
 
 	// leaderElection defines the configuration of leader election client.
 	LeaderElection componentconfig.LeaderElectionConfiguration
@@ -76,6 +85,9 @@ type ControllerManagerConfiguration struct {
 	// LeaderElectionNamespace is the namespace to use for the leader election
 	// lock.
 	LeaderElectionNamespace string
+
+	// How long to wait between starting controller managers
+	ControllerStartInterval metav1.Duration
 
 	// enableProfiling enables profiling via web interface host:port/debug/pprof/
 	EnableProfiling bool

@@ -17,6 +17,7 @@ limitations under the License.
 package controller
 
 import (
+	kubeclientset "k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 
 	"github.com/staebler/boatswain/pkg/client/clientset_generated/clientset"
@@ -35,9 +36,11 @@ type ClientBuilder interface {
 	// name.
 	Client(name string) (clientset.Interface, error)
 	// ClientOrDie returns a new clientset.Interface with the given user agent
-	// name or logs a fatal error, destroying the computer and killing the
-	// operator and programmer.
+	// name or logs a fatal error.
 	ClientOrDie(name string) clientset.Interface
+	// KubeClientOrDie returns a new kubeclientset.Interface with the given
+	// user agent name or logs a fatal error.
+	KubeClientOrDie(name string) kubeclientset.Interface
 }
 
 // SimpleClientBuilder returns a fixed client with different user agents
@@ -73,12 +76,23 @@ func (b SimpleClientBuilder) Client(name string) (clientset.Interface, error) {
 }
 
 // ClientOrDie returns a new clientset.Interface with the given user agent
-// name or logs a fatal error, destroying the computer and killing the
-// operator and programmer.
+// name or logs a fatal error.
 func (b SimpleClientBuilder) ClientOrDie(name string) clientset.Interface {
 	client, err := b.Client(name)
 	if err != nil {
 		glog.Fatal(err)
 	}
 	return client
+}
+
+// KubeClientOrDie returns a new kubeclientset.Interface with the given
+// user agent name or logs a fatal error.
+func (b SimpleClientBuilder) KubeClientOrDie(name string) kubeclientset.Interface {
+	clientConfigCopy := *b.ClientConfig
+	clientConfig := restclient.AddUserAgent(&clientConfigCopy, name)
+	kubeClient, err := kubeclientset.NewForConfig(clientConfig)
+	if err != nil {
+		glog.Fatal(err)
+	}
+	return kubeClient
 }

@@ -17,15 +17,15 @@ limitations under the License.
 package main
 
 import (
-	"github.com/staebler/boatswain/cmd/controller-manager/app"
-	"github.com/staebler/boatswain/cmd/controller-manager/app/options"
+	"github.com/staebler/boatswain/cmd/boatswain-controller-manager/app"
+	"github.com/staebler/boatswain/cmd/boatswain-controller-manager/app/options"
 	"github.com/staebler/boatswain/pkg/hyperkube"
 )
 
 // NewControllerManager creates a new hyperkube Server object that includes the
 // description and flags.
 func NewControllerManager() *hyperkube.Server {
-	s := options.NewControllerManagerServer()
+	s := options.NewCMServer()
 
 	hks := hyperkube.Server{
 		PrimaryName:     "controller-manager",
@@ -37,7 +37,7 @@ func NewControllerManager() *hyperkube.Server {
 		},
 		RespectsStopCh: false,
 	}
-	s.AddFlags(hks.Flags())
+	s.AddFlags(hks.Flags(), app.KnownControllers(), app.ControllersDisabledByDefault.List())
 	return &hks
 
 	return nil
