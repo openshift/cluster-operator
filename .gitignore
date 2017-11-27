@@ -11,7 +11,7 @@ coverage.html
 .idea/
 .DS_Store
 .glide
-.scBuildImage
+.boatswainBuildImage
 .init
 .generate*
 .envrc
