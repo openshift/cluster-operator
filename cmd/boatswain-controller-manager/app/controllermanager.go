@@ -48,13 +48,6 @@ import (
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
-	//	"k8s.io/kubernetes/pkg/api/legacyscheme"
-	//	"k8s.io/kubernetes/pkg/cloudprovider"
-	//	"k8s.io/kubernetes/pkg/controller"
-	//	serviceaccountcontroller "k8s.io/kubernetes/pkg/controller/serviceaccount"
-	//	"k8s.io/kubernetes/pkg/serviceaccount"
-	//	"k8s.io/kubernetes/pkg/util/configz"
-	//	"k8s.io/kubernetes/pkg/version"
 
 	"github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus"

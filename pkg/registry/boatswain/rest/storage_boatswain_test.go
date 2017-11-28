@@ -19,7 +19,6 @@ package rest
 import (
 	"testing"
 
-	"github.com/staebler/boatswain/pkg/registry/boatswain/server"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apiserver/pkg/registry/generic"
@@ -62,7 +61,6 @@ func testRESTOptionsGetter(
 func TestV1Alpha1Storage(t *testing.T) {
 	provider := StorageProvider{
 		DefaultNamespace: "test-default",
-		StorageType:      server.StorageTypeEtcd,
 		RESTClient:       nil,
 	}
 	configSource := serverstorage.NewResourceConfig()
