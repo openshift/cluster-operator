@@ -26,12 +26,13 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/diff"
 	apiserveroptions "k8s.io/apiserver/pkg/server/options"
+	genericoptions "k8s.io/apiserver/pkg/server/options"
 	"k8s.io/apiserver/pkg/storage/storagebackend"
-	utilconfig "k8s.io/apiserver/pkg/util/flag"
-	restclient "k8s.io/client-go/rest"
 	//	kapi "k8s.io/kubernetes/pkg/api"
 	//	kubeoptions "k8s.io/kubernetes/pkg/kubeapiserver/options"
 	//	kubeletclient "k8s.io/kubernetes/pkg/kubelet/client"
+
+	"github.com/staebler/boatswain/pkg/api"
 )
 
 func TestAddFlags(t *testing.T) {
@@ -43,8 +44,6 @@ func TestAddFlags(t *testing.T) {
 		"--admission-control=AlwaysDeny",
 		"--admission-control-config-file=/admission-control-config",
 		"--advertise-address=192.168.10.10",
-		"--allow-privileged=false",
-		"--anonymous-auth=false",
 		"--apiserver-count=5",
 		"--audit-log-maxage=11",
 		"--audit-log-maxbackup=12",
@@ -54,33 +53,18 @@ func TestAddFlags(t *testing.T) {
 		"--audit-webhook-config-file=/webhook-config",
 		"--audit-webhook-mode=blocking",
 		"--authentication-token-webhook-cache-ttl=3m",
-		"--authentication-token-webhook-config-file=/token-webhook-config",
-		"--authorization-mode=AlwaysDeny",
-		"--authorization-policy-file=/policy",
 		"--authorization-webhook-cache-authorized-ttl=3m",
 		"--authorization-webhook-cache-unauthorized-ttl=1m",
-		"--authorization-webhook-config-file=/webhook-config",
 		"--bind-address=192.168.10.20",
 		"--client-ca-file=/client-ca",
-		"--cloud-config=/cloud-config",
-		"--cloud-provider=azure",
 		"--cors-allowed-origins=10.10.10.100,10.10.10.200",
 		"--contention-profiling=true",
-		"--enable-aggregator-routing=true",
 		"--enable-logs-handler=false",
 		"--enable-swagger-ui=true",
 		"--etcd-quorum-read=false",
 		"--etcd-keyfile=/var/run/kubernetes/etcd.key",
 		"--etcd-certfile=/var/run/kubernetes/etcdce.crt",
 		"--etcd-cafile=/var/run/kubernetes/etcdca.crt",
-		"--kubelet-https=true",
-		"--kubelet-read-only-port=10255",
-		"--kubelet-timeout=5s",
-		"--kubelet-client-certificate=/var/run/kubernetes/ceserver.crt",
-		"--kubelet-client-key=/var/run/kubernetes/server.key",
-		"--kubelet-certificate-authority=/var/run/kubernetes/caserver.crt",
-		"--proxy-client-cert-file=/var/run/kubernetes/proxy.crt",
-		"--proxy-client-key-file=/var/run/kubernetes/proxy.key",
 		"--request-timeout=2m",
 		"--storage-backend=etcd2",
 	}
@@ -108,7 +92,7 @@ func TestAddFlags(t *testing.T) {
 				ServerList: nil,
 				Prefix:     "/boatswain",
 				DeserializationCacheSize: 0,
-				Copier:   kapi.Scheme,
+				Copier:   api.Scheme,
 				Quorum:   false,
 				KeyFile:  "/var/run/kubernetes/etcd.key",
 				CAFile:   "/var/run/kubernetes/etcdca.crt",
@@ -122,9 +106,9 @@ func TestAddFlags(t *testing.T) {
 		},
 		SecureServing: &apiserveroptions.SecureServingOptions{
 			BindAddress: net.ParseIP("192.168.10.20"),
-			BindPort:    6443,
+			BindPort:    443,
 			ServerCert: apiserveroptions.GeneratableKeyCert{
-				CertDirectory: "/var/run/kubernetes",
+				CertDirectory: "apiserver.local.config/certificates",
 				PairName:      "apiserver",
 			},
 		},
@@ -151,37 +135,20 @@ func TestAddFlags(t *testing.T) {
 			EnableProfiling:           true,
 			EnableContentionProfiling: true,
 		},
-		Authentication: &kubeoptions.BuiltInAuthenticationOptions{
-			Anonymous: &kubeoptions.AnonymousAuthenticationOptions{
-				Allow: false,
-			},
-			ClientCert: &apiserveroptions.ClientCertAuthenticationOptions{
+		Authentication: &genericoptions.DelegatingAuthenticationOptions{
+			CacheTTL: 3 * time.Minute,
+			ClientCert: genericoptions.ClientCertAuthenticationOptions{
 				ClientCA: "/client-ca",
 			},
-			WebHook: &kubeoptions.WebHookAuthenticationOptions{
-				CacheTTL:   180000000000,
-				ConfigFile: "/token-webhook-config",
+			RequestHeader: genericoptions.RequestHeaderAuthenticationOptions{
+				UsernameHeaders:     []string{"x-remote-user"},
+				GroupHeaders:        []string{"x-remote-group"},
+				ExtraHeaderPrefixes: []string{"x-remote-extra-"},
 			},
-			BootstrapToken: &kubeoptions.BootstrapTokenAuthenticationOptions{},
-			Keystone:       &kubeoptions.KeystoneAuthenticationOptions{},
-			OIDC: &kubeoptions.OIDCAuthenticationOptions{
-				UsernameClaim: "sub",
-			},
-			PasswordFile:  &kubeoptions.PasswordFileAuthenticationOptions{},
-			RequestHeader: &apiserveroptions.RequestHeaderAuthenticationOptions{},
-			ServiceAccounts: &kubeoptions.ServiceAccountAuthenticationOptions{
-				Lookup: true,
-			},
-			TokenFile:            &kubeoptions.TokenFileAuthenticationOptions{},
-			TokenSuccessCacheTTL: 10 * time.Second,
-			TokenFailureCacheTTL: 0,
 		},
-		Authorization: &kubeoptions.BuiltInAuthorizationOptions{
-			Mode:                        "AlwaysDeny",
-			PolicyFile:                  "/policy",
-			WebhookConfigFile:           "/webhook-config",
-			WebhookCacheAuthorizedTTL:   180000000000,
-			WebhookCacheUnauthorizedTTL: 60000000000,
+		Authorization: &genericoptions.DelegatingAuthorizationOptions{
+			AllowCacheTTL: 3 * time.Minute,
+			DenyCacheTTL:  1 * time.Minute,
 		},
 		EnableLogsHandler: false,
 	}

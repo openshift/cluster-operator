@@ -74,9 +74,4 @@ func TestV1Alpha1Storage(t *testing.T) {
 		t.Fatalf("no host storage found")
 	}
 	// TODO: do stuff with host storage
-	_, hostStatusStorageExists := storageMap["host/status"]
-	if !hostStatusStorageExists {
-		t.Fatalf("no host status storage found")
-	}
-	// TODO: do stuff with host status storage
 }

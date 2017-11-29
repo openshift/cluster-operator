@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package server
+package app
 
 import (
 	"fmt"
@@ -43,15 +43,22 @@ func Run(opts *options.BoatswainServerRunOptions, stopCh <-chan struct{}) error 
 		return utilerrors.NewAggregate(errs)
 	}
 
-	return runEtcdServer(opts, stopCh)
+	server, err := CreateServer(opts, stopCh)
+	if err != nil {
+		return err
+	}
+
+	// do we need to do any post api installation setup? We should have set up the api already?
+	glog.Infoln("Running the API server")
+	return server.PrepareRun().Run(stopCh)
 }
 
-func runEtcdServer(opts *options.BoatswainServerRunOptions, stopCh <-chan struct{}) error {
+func CreateServer(opts *options.BoatswainServerRunOptions, stopCh <-chan struct{}) (*apiserver.ServiceCatalogAPIServer, error) {
 	etcdOpts := opts.Etcd
 	glog.V(4).Infoln("Preparing to run API server")
 	genericConfig, scConfig, err := buildGenericConfig(opts)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	glog.V(4).Infoln("Creating storage factory")
@@ -63,7 +70,7 @@ func runEtcdServer(opts *options.BoatswainServerRunOptions, stopCh <-chan struct
 	// the API server uses to store that group.
 	storageGroupsToEncodingVersion, err := apiserveroptions.NewStorageSerializationOptions().StorageGroupsToEncodingVersion()
 	if err != nil {
-		return fmt.Errorf("error generating storage version map: %s", err)
+		return nil, fmt.Errorf("error generating storage version map: %s", err)
 	}
 
 	// Build the default storage factory.
@@ -82,7 +89,7 @@ func runEtcdServer(opts *options.BoatswainServerRunOptions, stopCh <-chan struct
 	)
 	if err != nil {
 		glog.Errorf("error creating storage factory: %v", err)
-		return err
+		return nil, err
 	}
 
 	// // Set the finalized generic and storage configs
@@ -95,7 +102,7 @@ func runEtcdServer(opts *options.BoatswainServerRunOptions, stopCh <-chan struct
 	glog.V(4).Infoln("Completing API server configuration")
 	server, err := completed.NewServer()
 	if err != nil {
-		return fmt.Errorf("error completing API server configuration: %v", err)
+		return nil, fmt.Errorf("error completing API server configuration: %v", err)
 	}
 	addPostStartHooks(server.GenericAPIServer, scConfig, stopCh)
 
@@ -107,11 +114,7 @@ func runEtcdServer(opts *options.BoatswainServerRunOptions, stopCh <-chan struct
 	// run in addition the checkers being installed here.
 	server.GenericAPIServer.AddHealthzChecks(etcdChecker)
 
-	// do we need to do any post api installation setup? We should have set up the api already?
-	glog.Infoln("Running the API server")
-	server.PrepareRun().Run(stopCh)
-
-	return nil
+	return server, nil
 }
 
 // checkEtcdConnectable is a HealthzChecker that makes sure the

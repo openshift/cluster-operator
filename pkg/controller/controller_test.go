@@ -17,101 +17,55 @@ limitations under the License.
 package controller
 
 import (
-	"encoding/json"
-	"fmt"
 	"reflect"
 	"runtime/debug"
 	"testing"
-	"time"
-
-	"github.com/ghodss/yaml"
-	osb "github.com/pmorie/go-open-service-broker-client/v2"
-	fakeosb "github.com/pmorie/go-open-service-broker-client/v2/fake"
 
 	"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1"
 	boatswaininformers "github.com/staebler/boatswain/pkg/client/informers_generated/externalversions"
 	v1alpha1informers "github.com/staebler/boatswain/pkg/client/informers_generated/externalversions/boatswain/v1alpha1"
 
 	boatswainclientset "github.com/staebler/boatswain/pkg/client/clientset_generated/clientset/fake"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/diff"
 
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
-	"k8s.io/apimachinery/pkg/util/sets"
 	clientgofake "k8s.io/client-go/kubernetes/fake"
 	clientgotesting "k8s.io/client-go/testing"
-	"k8s.io/client-go/tools/record"
 )
 
-// NOTE:
-//
-// This file contains:
-//
-// - tests for the methods on controller.go
-// - test fixtures used in other controller_*_test.go files
-//
-// Other controller_*_test.go files contain tests related to the reconciliation
-// loops for the different catalog API resources.
-
-// newTestController creates a new test controller injected with fake clients
-// and returns:
+// newTestHostController creates a new test host controller injected with
+// fake clients and returns:
 //
 // - a fake kubernetes core api client
 // - a fake boatswain api client
 // - a test controller
 // - the shared informers for the boatswain v1alpha1 api
 //
-// If there is an error, newTestController calls 'Fatal' on the injected
+// If there is an error, newTestHostController calls 'Fatal' on the injected
 // testing.T.
-func newTestController(t *testing.T) (
+func newTestHostController(t *testing.T) (
 	*clientgofake.Clientset,
-	*fake.Clientset,
-	*controller,
+	*boatswainclientset.Clientset,
+	*HostController,
 	v1alpha1informers.Interface) {
 	// create a fake kube client
 	fakeKubeClient := &clientgofake.Clientset{}
 	// create a fake boatswain client
-	fakeBoatswainClient := &fake.Clientset{&boatswainclientset.Clientset{}}
+	fakeBoatswainClient := &boatswainclientset.Clientset{}
 
 	// create informers
 	informerFactory := boatswaininformers.NewSharedInformerFactory(fakeBoatswainClient, 0)
 	boatswainSharedInformers := informerFactory.Boatswain().V1alpha1()
 
-	fakeRecorder := record.NewFakeRecorder(5)
-
 	// create a test controller
-	testController, err := NewController(
-		fakeKubeClient,
-		fakeBoatswainClient.BoatswainV1alpha1(),
+	testController := NewHostController(
 		boatswainSharedInformers.Hosts(),
-		24*time.Hour,
-		fakeRecorder,
-		7*24*time.Hour,
+		fakeKubeClient,
+		fakeBoatswainClient,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
 
-	return fakeKubeClient, fakeBoatswainClient, testController.(*controller), boatswainSharedInformers
-}
-
-func getRecordedEvents(testController *controller) []string {
-	source := testController.recorder.(*record.FakeRecorder).Events
-	done := false
-	events := []string{}
-	for !done {
-		select {
-		case event := <-source:
-			events = append(events, event)
-		default:
-			done = true
-		}
-	}
-	return events
+	return fakeKubeClient, fakeBoatswainClient, testController, boatswainSharedInformers
 }
 
 func assertNumEvents(t *testing.T, strings []string, number int) {
@@ -341,26 +295,4 @@ func assertListRestrictions(t *testing.T, e, a clientgotesting.ListRestrictions)
 	if ef, af := e.Fields.String(), a.Fields.String(); ef != af {
 		fatalf(t, "ListRestrictions.Fields don't match, expected %q got %q", ef, af)
 	}
-}
-
-func addGetNamespaceReaction(fakeKubeClient *clientgofake.Clientset) {
-	fakeKubeClient.AddReactor("get", "namespaces", func(action clientgotesting.Action) (bool, runtime.Object, error) {
-		return true, &corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				UID: types.UID(testNamespaceGUID),
-			},
-		}, nil
-	})
-}
-
-func addGetSecretNotFoundReaction(fakeKubeClient *clientgofake.Clientset) {
-	fakeKubeClient.AddReactor("get", "secrets", func(action clientgotesting.Action) (bool, runtime.Object, error) {
-		return true, nil, apierrors.NewNotFound(action.GetResource().GroupResource(), action.(clientgotesting.GetAction).GetName())
-	})
-}
-
-func addGetSecretReaction(fakeKubeClient *clientgofake.Clientset, secret *corev1.Secret) {
-	fakeKubeClient.AddReactor("get", "secrets", func(action clientgotesting.Action) (bool, runtime.Object, error) {
-		return true, secret, nil
-	})
 }

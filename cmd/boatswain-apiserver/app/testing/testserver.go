@@ -75,31 +75,28 @@ func StartTestServer(t *testing.T) (result *restclient.Config, tearDownForCaller
 	}
 
 	s := options.NewServerRunOptions()
-	s.InsecureServing.BindPort = 0
+	//	s.InsecureServing.BindPort = 0
 	s.SecureServing.BindPort = freePort()
 	s.SecureServing.ServerCert.CertDirectory = tmpDir
-	s.ServiceClusterIPRange.IP = net.IPv4(10, 0, 0, 0)
-	s.ServiceClusterIPRange.Mask = net.CIDRMask(16, 32)
 	s.Etcd.StorageConfig = *storageConfig
 	s.Etcd.DefaultStorageMediaType = "application/json"
-	s.Admission.PluginNames = strings.Split("Initializers,NamespaceLifecycle,LimitRanger,ServiceAccount,PersistentVolumeLabel,DefaultStorageClass,ResourceQuota,DefaultTolerationSeconds", ",")
-	s.APIEnablement.RuntimeConfig.Set("api/all=true")
+	s.Admission.PluginNames = strings.Split("", ",")
 
 	t.Logf("Starting kube-apiserver...")
 	runErrCh := make(chan error, 1)
-	server, err := app.CreateServerChain(s, stopCh)
+	server, err := app.CreateServer(s, stopCh)
 	if err != nil {
-		return nil, nil, fmt.Errorf("Failed to create server chain: %v", err)
+		return nil, nil, fmt.Errorf("Failed to create server: %v", err)
 	}
 	go func(stopCh <-chan struct{}) {
 		if err := server.PrepareRun().Run(stopCh); err != nil {
-			t.Logf("kube-apiserver exited uncleanly: %v", err)
+			t.Logf("boatswain-apiserver exited uncleanly: %v", err)
 			runErrCh <- err
 		}
 	}(stopCh)
 
 	t.Logf("Waiting for /healthz to be ok...")
-	client, err := kubernetes.NewForConfig(server.LoopbackClientConfig)
+	client, err := kubernetes.NewForConfig(server.GenericAPIServer.LoopbackClientConfig)
 	if err != nil {
 		return nil, nil, fmt.Errorf("Failed to create a client: %v", err)
 	}
@@ -123,7 +120,7 @@ func StartTestServer(t *testing.T) (result *restclient.Config, tearDownForCaller
 	}
 
 	// from here the caller must call tearDown
-	return server.LoopbackClientConfig, tearDown, nil
+	return server.GenericAPIServer.LoopbackClientConfig, tearDown, nil
 }
 
 // StartTestServerOrDie calls StartTestServer with up to 5 retries on bind error and dies with

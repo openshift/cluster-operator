@@ -17,7 +17,7 @@ limitations under the License.
 package main
 
 import (
-	app "github.com/staebler/boatswain/cmd/boatswain-apiserver/app"
+	"github.com/staebler/boatswain/cmd/boatswain-apiserver/app"
 	"github.com/staebler/boatswain/cmd/boatswain-apiserver/app/options"
 	"github.com/staebler/boatswain/pkg/hyperkube"
 )
