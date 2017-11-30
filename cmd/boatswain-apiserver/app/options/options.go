@@ -36,6 +36,10 @@ import (
 )
 
 const (
+	// Store generated SSL certificates in a place that won't collide with the
+	// k8s core API server.
+	certDirectory = "/var/run/openshift-boatswain"
+
 	// DefaultEtcdPathPrefix is the default prefix that is prepended to all
 	// resource paths in etcd.  It is intended to allow an operator to
 	// differentiate the storage of different API servers from one another in
@@ -82,6 +86,8 @@ func NewServerRunOptions() *BoatswainServerRunOptions {
 	}
 	// Overwrite the default for storage data format.
 	s.Etcd.DefaultStorageMediaType = "application/vnd.kubernetes.protobuf"
+	// Set generated SSL cert path correctly
+	s.SecureServing.ServerCert.CertDirectory = certDirectory
 
 	// register all admission plugins
 	RegisterAllAdmissionPlugins(s.Admission.Plugins)

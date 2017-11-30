@@ -108,7 +108,7 @@ func TestAddFlags(t *testing.T) {
 			BindAddress: net.ParseIP("192.168.10.20"),
 			BindPort:    443,
 			ServerCert: apiserveroptions.GeneratableKeyCert{
-				CertDirectory: "apiserver.local.config/certificates",
+				CertDirectory: "/var/run/openshift-boatswain",
 				PairName:      "apiserver",
 			},
 		},

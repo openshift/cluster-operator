@@ -21,3 +21,11 @@ contrib/build/*/tmp/*
 .kube
 .var
 .vscode
+apiserver-key.pem
+apiserver.csr
+apiserver.pem
+boatswain-ca.json
+ca-key.pem
+ca.csr
+ca.pem
+server-ca-config.json
