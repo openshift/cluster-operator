@@ -151,7 +151,7 @@ func Run(s *options.CMServer) error {
 	}
 
 	rl, err := resourcelock.New(s.LeaderElection.ResourceLock,
-		"kube-system",
+		s.LeaderElectionNamespace,
 		"boatswain-controller-manager",
 		leaderElectionClient.CoreV1(),
 		resourcelock.ResourceLockConfig{
@@ -395,7 +395,7 @@ func StartControllers(ctx ControllerContext, controllers map[string]InitFunc) er
 }
 
 func startHostController(ctx ControllerContext) (bool, error) {
-	if !ctx.AvailableResources[schema.GroupVersionResource{Group: "boatswain.openshift.io", Version: "v1alpha1", Resource: "host"}] {
+	if !ctx.AvailableResources[schema.GroupVersionResource{Group: "boatswain.openshift.io", Version: "v1alpha1", Resource: "hosts"}] {
 		return false, nil
 	}
 	go controller.NewHostController(

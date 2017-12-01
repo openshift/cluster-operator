@@ -1,33 +1,38 @@
+########
+#
+# Template for deploying the Boatswain.
+#
+# Parameters:
+#   BOATSWAIN_NAMESPACE: namespace to which to deploy the Boatswain. Defaults to "boatswain".
+#   SERVING_CERT: base-64-encoded, pem cert to use for ssl communication with the Boatswain API Server. Required.
+#   SERVING_KEY: base-64-encoded, pem private key for the cert to use for ssl communication with the Boatswain API Server. Required.
+#   SERVING_CA: base-64-encoded, pem CA cert for the ssl certs. Required.
+#
+########
+
 apiVersion: v1
 kind: Template
 metadata:
   name: boatswain-deploy-template
   namespace: ${BOATSWAIN_NAMESPACE}
 objects:
+
+# Service account for the API Server
 - apiVersion: v1
   kind: ServiceAccount
   metadata:
     name: boatswain-apiserver
     namespace: ${BOATSWAIN_NAMESPACE}
 
-# API-server service-account gets its own role
-- apiVersion: rbac.authorization.k8s.io/v1
-  kind: ClusterRoleBinding
+# Service account for the Controller Manager
+- apiVersion: v1
+  kind: ServiceAccount
   metadata:
-    name: "boatswain.openshift.io:apiserver"
-    namespace: ${BOATSWAIN_NAMESPACE}
-  roleRef:
-    apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: "boatswain.openshift.io:apiserver"
-  subjects:
-  - apiGroup: ""
-    kind: ServiceAccount
-    name: boatswain-apiserver
+    name: boatswain-controller-manager
     namespace: ${BOATSWAIN_NAMESPACE}
 
-# apiserver gets the auth-delegator role to delegate auth decisions to
-# the core apiserver
+# API Server gets the auth-delegator role to delegate auth decisions to
+# the core API Server
 - apiVersion: rbac.authorization.k8s.io/v1
   kind: ClusterRoleBinding
   metadata:
@@ -43,7 +48,7 @@ objects:
     name: boatswain-apiserver
     namespace: ${BOATSWAIN_NAMESPACE}
 
-# apiserver gets the ability to read authentication. This allows it to
+# API Server gets the ability to read authentication. This allows it to
 # read the specific configmap that has the requestheader-* entries to
 # enable api aggregation
 - apiVersion: rbac.authorization.k8s.io/v1
@@ -61,6 +66,50 @@ objects:
     name: boatswain-apiserver
     namespace: ${BOATSWAIN_NAMESPACE}
 
+# Create a role for the Controller Manager to give it permissions to manage
+# the resources of the Boatswain
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRole
+  metadata:
+    name: "boatswain.openshift.io:controller-manager"
+  rules:
+  # configmpas for leader election
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs:     ["create"]
+  - apiGroups:     [""]
+    resources:     ["configmaps"]
+    resourceNames: ["boatswain-controller-manager"]
+    verbs: ["get","update"]
+  # events for recording events
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs:     ["create","patch","update"]
+  # get, list, and watch boatswain resources
+  - apiGroups: ["boatswain.openshift.io"]
+    resources: ["hosts"]
+    verbs:     ["get", "list", "watch"]
+  # update boatswain resources
+  - apiGroups: ["boatswain.openshift.io"]
+    resources: ["hosts"]
+    verbs:     ["update"]
+    
+# Bind the Controller Manager service account to the role created for it
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRoleBinding
+  metadata:
+    name: "boatswain.openshift.io:controller-manager"
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: "boatswain.openshift.io:controller-manager"
+  subjects:
+  - apiGroup: ""
+    kind: ServiceAccount
+    name: boatswain-controller-manager
+    namespace: ${BOATSWAIN_NAMESPACE}
+
+# Secret to pass the SSL certs to the API Server
 - apiVersion: v1
   kind: Secret
   metadata:
@@ -73,13 +122,14 @@ objects:
     tls.crt: ${SERVING_CERT}
     tls.key: ${SERVING_KEY}
 
+# Deployment of the API Server pod
 - apiVersion: apps/v1beta1
   kind: Deployment
   metadata:
-    labels:
-      app: boatswain-apiserver
     name: boatswain-apiserver
     namespace: ${BOATSWAIN_NAMESPACE}
+    labels:
+      app: boatswain-apiserver
   spec:
     selector:
       matchLabels:
@@ -98,20 +148,8 @@ objects:
           - "6443"
           - --etcd-servers
           - http://localhost:2379
-###          - --etcd-cafile
-###          - {{ etcd_cafile }}
-###          - --etcd-certfile
-###          - /etc/origin/master/master.etcd-client.crt
-###          - --etcd-keyfile
-###          - /etc/origin/master/master.etcd-client.key
           - -v
           - "10"
-###          - --cors-allowed-origins
-###          - {{ cors_allowed_origin }}
-###          - --admission-control
-###          - KubernetesNamespaceLifecycle,DefaultServicePlan,ServiceBindingsLifecycle,ServicePlanChangeValidator,BrokerAuthSarCheck
-###          - --feature-gates
-###          - OriginatingIdentity=true
           image: boatswain:canary
           command: ["/opt/services/boatswain"]
           imagePullPolicy: Never
@@ -125,9 +163,6 @@ objects:
           - mountPath: /var/run/openshift-boatswain
             name: apiserver-ssl
             readOnly: true
-###          - mountPath: /etc/origin/master
-###            name: etcd-host-cert
-###            readOnly: true
           readinessProbe:
             httpGet:
               port: 6443
@@ -204,12 +239,74 @@ objects:
               path: apiserver.crt
             - key: tls.key
               path: apiserver.key
-###        - hostPath:
-###            path: /etc/origin/master
-###          name: etcd-host-cert
         - emptyDir: {}
           name: etcd-data-dir
 
+# Deployment of the Controller Manager pod
+- kind: Deployment
+  apiVersion: extensions/v1beta1
+  metadata:
+    name: boatswain-controller-manager
+    namespace: ${BOATSWAIN_NAMESPACE}
+    labels:
+      app: boatswain-controller-manager
+  spec:
+    selector:
+      matchLabels:
+        app: boatswain-controller-manager
+    template:
+      metadata:
+        labels:
+          app: boatswain-controller-manager
+      spec:
+        serviceAccountName: boatswain-controller-manager
+        containers:
+        - name: controller-manager
+          image: boatswain:canary
+          imagePullPolicy: Never
+          resources:
+            requests:
+              cpu: 100m
+              memory: 20Mi
+            limits:
+              cpu: 100m
+              memory: 30Mi
+          args:
+          - controller-manager
+          - --port
+          - "8080"
+          - --leader-election-namespace
+          - ${BOATSWAIN_NAMESPACE}
+          - --leader-elect-resource-lock
+          - "configmaps"
+          - --profiling
+          - "false"
+          - --contention-profiling
+          - "false"
+          - -v
+          - "10"
+          ports:
+          - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              port: 8080
+              path: /healthz
+            failureThreshold: 1
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 2
+          livenessProbe:
+            httpGet:
+              port: 8080
+              path: /healthz
+            failureThreshold: 3
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 2
+
+# Service for the API Server
 - kind: Service
   apiVersion: v1
   metadata:
@@ -228,6 +325,7 @@ objects:
       targetPort: 6443
       nodePort: 30443
 
+# Registration of the Boatswain API with the aggregator
 - apiVersion: apiregistration.k8s.io/v1beta1
   kind: APIService
   metadata:
@@ -244,10 +342,15 @@ objects:
     versionPriority: 20
 
 parameters:
+# Namespace to use for Boatswain
 - name: BOATSWAIN_NAMESPACE
   value: boatswain
+# Namespace of kube-system. Do not change.
 - name: KUBE_SYSTEM_NAMESPACE
   value: kube-system
+# CA cert for API Server SSL cert
 - name: SERVING_CA
+# Private key for API Server SSL cert
 - name: SERVING_CERT
+# Public API Server SSL cert
 - name: SERVING_KEY
