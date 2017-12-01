@@ -84,15 +84,11 @@ func NewServerRunOptions() *BoatswainServerRunOptions {
 		EnableLogsHandler: true,
 		MasterCount:       1,
 	}
-	// Overwrite the default for storage data format.
-	s.Etcd.DefaultStorageMediaType = "application/vnd.kubernetes.protobuf"
 	// Set generated SSL cert path correctly
 	s.SecureServing.ServerCert.CertDirectory = certDirectory
 
 	// register all admission plugins
 	RegisterAllAdmissionPlugins(s.Admission.Plugins)
-	// Set the default for admission plugins names
-	s.Admission.PluginNames = []string{"AlwaysAdmit"}
 	return &s
 }
 

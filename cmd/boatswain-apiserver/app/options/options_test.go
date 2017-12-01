@@ -98,7 +98,7 @@ func TestAddFlags(t *testing.T) {
 				CAFile:   "/var/run/kubernetes/etcdca.crt",
 				CertFile: "/var/run/kubernetes/etcdce.crt",
 			},
-			DefaultStorageMediaType: "application/vnd.kubernetes.protobuf",
+			DefaultStorageMediaType: "application/json",
 			DeleteCollectionWorkers: 1,
 			EnableGarbageCollection: true,
 			EnableWatchCache:        true,

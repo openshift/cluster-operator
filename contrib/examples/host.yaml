@@ -1,0 +1,4 @@
+apiVersion: boatswain.openshift.io/v1alpha1
+kind: Host
+metadata:
+  name: host1
