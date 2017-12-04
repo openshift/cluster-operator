@@ -20,7 +20,9 @@ import (
 	"github.com/staebler/boatswain/pkg/api"
 	"github.com/staebler/boatswain/pkg/apis/boatswain"
 	boatswainv1alpha1 "github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1"
-	"github.com/staebler/boatswain/pkg/registry/boatswain/host"
+	"github.com/staebler/boatswain/pkg/registry/boatswain/cluster"
+	"github.com/staebler/boatswain/pkg/registry/boatswain/node"
+	"github.com/staebler/boatswain/pkg/registry/boatswain/nodegroup"
 	"github.com/staebler/boatswain/pkg/storage/etcd"
 	"k8s.io/apiserver/pkg/registry/generic"
 	"k8s.io/apiserver/pkg/registry/rest"
@@ -63,25 +65,61 @@ func (p StorageProvider) v1alpha1Storage(
 	apiResourceConfigSource serverstorage.APIResourceConfigSource,
 	restOptionsGetter generic.RESTOptionsGetter,
 ) (map[string]rest.Storage, error) {
-	hostRESTOptions, err := restOptionsGetter.GetRESTOptions(boatswain.Resource("hosts"))
+	clusterRESTOptions, err := restOptionsGetter.GetRESTOptions(boatswain.Resource("clusters"))
 	if err != nil {
 		return nil, err
 	}
-	hostOpts := etcd.Options{
-		RESTOptions:   hostRESTOptions,
+	clusterOpts := etcd.Options{
+		RESTOptions:   clusterRESTOptions,
 		Capacity:      1000,
-		ObjectType:    host.EmptyObject(),
-		ScopeStrategy: host.NewScopeStrategy(),
-		NewListFunc:   host.NewList,
-		GetAttrsFunc:  host.GetAttrs,
+		ObjectType:    cluster.EmptyObject(),
+		ScopeStrategy: cluster.NewScopeStrategy(),
+		NewListFunc:   cluster.NewList,
+		GetAttrsFunc:  cluster.GetAttrs,
 		Trigger:       storage.NoTriggerPublisher,
 	}
 
-	hostStorage, hostStatusStorage := host.NewStorage(hostOpts)
+	clusterStorage, clusterStatusStorage := cluster.NewStorage(clusterOpts)
+
+	nodeGroupRESTOptions, err := restOptionsGetter.GetRESTOptions(boatswain.Resource("nodegroups"))
+	if err != nil {
+		return nil, err
+	}
+	nodeGroupOpts := etcd.Options{
+		RESTOptions:   nodeGroupRESTOptions,
+		Capacity:      1000,
+		ObjectType:    nodegroup.EmptyObject(),
+		ScopeStrategy: nodegroup.NewScopeStrategy(),
+		NewListFunc:   nodegroup.NewList,
+		GetAttrsFunc:  nodegroup.GetAttrs,
+		Trigger:       storage.NoTriggerPublisher,
+	}
+
+	nodeGroupStorage, nodeGroupStatusStorage := nodegroup.NewStorage(nodeGroupOpts)
+
+	nodeRESTOptions, err := restOptionsGetter.GetRESTOptions(boatswain.Resource("nodes"))
+	if err != nil {
+		return nil, err
+	}
+	nodeOpts := etcd.Options{
+		RESTOptions:   nodeRESTOptions,
+		Capacity:      1000,
+		ObjectType:    node.EmptyObject(),
+		ScopeStrategy: node.NewScopeStrategy(),
+		NewListFunc:   node.NewList,
+		GetAttrsFunc:  node.GetAttrs,
+		Trigger:       storage.NoTriggerPublisher,
+	}
+
+	nodeStorage, nodeStatusStorage := node.NewStorage(nodeOpts)
 
 	return map[string]rest.Storage{
-		"hosts":        hostStorage,
-		"hosts/status": hostStatusStorage,
+		"clusters":          clusterStorage,
+		"clusters/status":   clusterStatusStorage,
+		"nodegroups":        nodeGroupStorage,
+		"nodegroups/status": nodeGroupStatusStorage,
+		"nodes":             nodeStorage,
+		"nodes/status":      nodeStatusStorage,
 	}, nil
 }
 

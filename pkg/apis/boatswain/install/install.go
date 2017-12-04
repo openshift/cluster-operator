@@ -33,7 +33,7 @@ func Install(groupFactoryRegistry announced.APIGroupFactoryRegistry, registry *r
 		&announced.GroupMetaFactoryArgs{
 			GroupName:                  boatswain.GroupName,
 			VersionPreferenceOrder:     []string{v1alpha1.SchemeGroupVersion.Version},
-			RootScopedKinds:            sets.NewString("Host"),
+			RootScopedKinds:            sets.NewString(),
 			AddInternalObjectsToScheme: boatswain.AddToScheme,
 		},
 		announced.VersionToSchemeFunc{

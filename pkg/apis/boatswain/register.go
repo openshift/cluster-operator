@@ -48,8 +48,12 @@ var (
 
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
-		&Host{},
-		&HostList{},
+		&Cluster{},
+		&ClusterList{},
+		&NodeGroup{},
+		&NodeGroupList{},
+		&Node{},
+		&NodeList{},
 	)
 	return nil
 }

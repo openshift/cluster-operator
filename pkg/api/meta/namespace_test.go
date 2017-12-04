@@ -25,7 +25,7 @@ import (
 
 func TestGetNamespace(t *testing.T) {
 	const namespace = "testns"
-	obj := &boatswain.Host{
+	obj := &boatswain.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
 		},

@@ -26,8 +26,16 @@ type FakeBoatswain struct {
 	*testing.Fake
 }
 
-func (c *FakeBoatswain) Hosts() internalversion.HostInterface {
-	return &FakeHosts{c}
+func (c *FakeBoatswain) Clusters(namespace string) internalversion.ClusterInterface {
+	return &FakeClusters{c, namespace}
+}
+
+func (c *FakeBoatswain) Nodes(namespace string) internalversion.NodeInterface {
+	return &FakeNodes{c, namespace}
+}
+
+func (c *FakeBoatswain) NodeGroups(namespace string) internalversion.NodeGroupInterface {
+	return &FakeNodeGroups{c, namespace}
 }
 
 // RESTClient returns a RESTClient that is used to communicate

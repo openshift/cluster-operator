@@ -24,6 +24,14 @@ func addDefaultingFuncs(scheme *runtime.Scheme) error {
 	return RegisterDefaults(scheme)
 }
 
-func SetDefaults_HostSpec(spec *HostSpec) {
+func SetDefaults_ClusterSpec(spec *ClusterSpec) {
+	// No defaults
+}
+
+func SetDefaults_NodeGroupSpec(spec *NodeGroupSpec) {
+	// No defaults
+}
+
+func SetDefaults_NodeSpec(spec *NodeSpec) {
 	// No defaults
 }

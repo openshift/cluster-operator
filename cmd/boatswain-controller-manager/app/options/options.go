@@ -43,13 +43,12 @@ type CMServer struct {
 }
 
 const (
-	defaultResyncInterval          = 5 * time.Minute
 	defaultContentType             = "application/json"
 	defaultBindAddress             = "0.0.0.0"
 	defaultPort                    = 10000
 	defaultK8sKubeconfigPath       = "./kubeconfig"
 	defaultBoatswainKubeconfigPath = "./boatswain-kubeconfig"
-	defaultConcurrentHostSyncs     = 5
+	defaultConcurrentSyncs         = 5
 	defaultLeaderElectionNamespace = "kube-system"
 )
 
@@ -64,7 +63,10 @@ func NewCMServer() *CMServer {
 			K8sKubeconfigPath:         defaultK8sKubeconfigPath,
 			BoatswainKubeconfigPath:   defaultBoatswainKubeconfigPath,
 			MinResyncPeriod:           metav1.Duration{Duration: 12 * time.Hour},
-			ConcurrentHostSyncs:       defaultConcurrentHostSyncs,
+			ConcurrentClusterSyncs:    defaultConcurrentSyncs,
+			ConcurrentNodeGroupSyncs:  defaultConcurrentSyncs,
+			ConcurrentNodeSyncs:       defaultConcurrentSyncs,
+			ConcurrentMasterNodeSyncs: defaultConcurrentSyncs,
 			LeaderElection:            leaderelectionconfig.DefaultLeaderElectionConfiguration(),
 			LeaderElectionNamespace:   defaultLeaderElectionNamespace,
 			ControllerStartInterval:   metav1.Duration{Duration: 0 * time.Second},
@@ -91,7 +93,10 @@ func (s *CMServer) AddFlags(fs *pflag.FlagSet, allControllers []string, disabled
 	fs.StringVar(&s.BoatswainKubeconfigPath, "boatswain-kubeconfig", "", "Path to boatswain kubeconfig")
 	fs.BoolVar(&s.BoatswainInsecureSkipVerify, "boatswain-insecure-skip-verify", s.BoatswainInsecureSkipVerify, "Skip verification of the TLS certificate for the boatswain API server")
 	fs.DurationVar(&s.MinResyncPeriod.Duration, "min-resync-period", s.MinResyncPeriod.Duration, "The resync period in reflectors will be random between MinResyncPeriod and 2*MinResyncPeriod")
-	fs.Int32Var(&s.ConcurrentHostSyncs, "concurrent-host-syncs", s.ConcurrentHostSyncs, "The number of host objects that are allowed to sync concurrently. Larger number = more responsive hosts, but more CPU (and network) load")
+	fs.Int32Var(&s.ConcurrentClusterSyncs, "concurrent-cluster-syncs", s.ConcurrentClusterSyncs, "The number of cluster objects that are allowed to sync concurrently. Larger number = more responsive clusters, but more CPU (and network) load")
+	fs.Int32Var(&s.ConcurrentNodeGroupSyncs, "concurrent-node-group-syncs", s.ConcurrentNodeGroupSyncs, "The number of node group objects that are allowed to sync concurrently. Larger number = more responsive node groups, but more CPU (and network) load")
+	fs.Int32Var(&s.ConcurrentNodeSyncs, "concurrent-node-syncs", s.ConcurrentNodeSyncs, "The number of node objects that are allowed to sync concurrently. Larger number = more responsive nodes, but more CPU (and network) load")
+	fs.Int32Var(&s.ConcurrentMasterNodeSyncs, "concurrent-master-node-syncs", s.ConcurrentMasterNodeSyncs, "The number of master node objects that are allowed to sync concurrently. Larger number = more responsive master nodes, but more CPU (and network) load")
 	fs.BoolVar(&s.EnableProfiling, "profiling", s.EnableProfiling, "Enable profiling via web interface host:port/debug/pprof/")
 	fs.BoolVar(&s.EnableContentionProfiling, "contention-profiling", s.EnableContentionProfiling, "Enable lock contention profiling, if profiling is enabled")
 	leaderelectionconfig.BindFlags(&s.LeaderElection, fs)

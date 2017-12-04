@@ -21,30 +21,127 @@ import (
 )
 
 // +genclient
-// +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// Host represents a AWS host
-type Host struct {
-	metav1.TypeMeta   `json:",inline"`
+// Cluster represents a cluster that boatswain manages
+type Cluster struct {
+	// +optional
+	metav1.TypeMeta `json:",inline"`
+	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   HostSpec   `json:"spec"`
-	Status HostStatus `json:"status"`
+	// +optional
+	Spec ClusterSpec `json:"spec,omitempty"`
+	// +optional
+	Status ClusterStatus `json:"status,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// HostList is a list of Hosts.
-type HostList struct {
-	metav1.TypeMeta
-	metav1.ListMeta
+// ClusterList is a list of Clusters.
+type ClusterList struct {
+	metav1.TypeMeta `json:",inline"`
+	// +optional
+	metav1.ListMeta `json:"metadata,omitempty"`
 
-	Items []Host
+	Items []Cluster `json:"items"`
 }
 
-type HostSpec struct {
+type ClusterSpec struct {
+	MasterNodes ClusterNodeGroup `json:"masterNodes"`
+
+	// +optional
+	ComputeNodeGroups []ClusterNodeGroup `json:"computeNodeGroups,omitempty"`
 }
 
-type HostStatus struct {
+type ClusterStatus struct {
 }
+
+// ClusterNodeGroup is a node group defined in a Cluster resource
+type ClusterNodeGroup struct {
+	Size int `json:"size"`
+}
+
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// NodeGroup represents a group of nodes in a cluster that boatswain manages
+type NodeGroup struct {
+	// +optional
+	metav1.TypeMeta `json:",inline"`
+	// +optional
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	// +optional
+	Spec NodeGroupSpec `json:"spec,omitempty"`
+	// +optional
+	Status NodeGroupStatus `json:"status,omitempty"`
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// NodeGroupList is a list of NodeGroups.
+type NodeGroupList struct {
+	metav1.TypeMeta `json:",inline"`
+	// +optional
+	metav1.ListMeta `json:"metadata,omitempty"`
+
+	Items []NodeGroup `json:"items"`
+}
+
+type NodeGroupSpec struct {
+	ClusterName string `json:"clusterName"`
+
+	// NodeType is the type of nodes that comprised the NodeGroup
+	NodeType NodeType `json:"nodeType"`
+}
+
+type NodeGroupStatus struct {
+}
+
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// Node represents a node in a cluster that boatswain manages
+type Node struct {
+	// +optional
+	metav1.TypeMeta `json:",inline"`
+	// +optional
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	// +optional
+	Spec NodeSpec `json:"spec,omitempty"`
+	// +optional
+	Status NodeStatus `json:"status,omitempty"`
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// NodeList is a list of Nodes.
+type NodeList struct {
+	metav1.TypeMeta `json:",inline"`
+	// +optional
+	metav1.ListMeta `json:"metadata,omitempty"`
+
+	Items []Node `json:"items"`
+}
+
+type NodeSpec struct {
+	NodeGroupName string `json:"nodeGroupName"`
+
+	// NodeType is the type of the node
+	NodeType NodeType `json:"nodeType"`
+}
+
+type NodeStatus struct {
+}
+
+// NodeType is the type of the Node
+type NodeType string
+
+const (
+	// NodeTypeMaster is a node that is a master in the cluster
+	NodeTypeMaster NodeType = "Master"
+	// NodeTypeCompute is a node that is a compute node in the cluster
+	NodeTypeCompute NodeType = "Compute"
+)

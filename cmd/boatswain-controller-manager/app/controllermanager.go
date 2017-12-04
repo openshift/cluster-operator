@@ -59,7 +59,11 @@ import (
 	"github.com/staebler/boatswain/cmd/boatswain-controller-manager/app/options"
 	"github.com/staebler/boatswain/pkg/api"
 	boatswaininformers "github.com/staebler/boatswain/pkg/client/informers_generated/externalversions"
-	controller "github.com/staebler/boatswain/pkg/controller"
+	"github.com/staebler/boatswain/pkg/controller"
+	"github.com/staebler/boatswain/pkg/controller/cluster"
+	"github.com/staebler/boatswain/pkg/controller/masternode"
+	"github.com/staebler/boatswain/pkg/controller/node"
+	"github.com/staebler/boatswain/pkg/controller/nodegroup"
 	"github.com/staebler/boatswain/pkg/version"
 )
 
@@ -80,7 +84,7 @@ loop is a non-terminating loop that regulates the state of the system. In OpenSh
 a controller is a control loop that watches the shared state of the cluster through
 the apiserver and makes changes attempting to move the current state towards the
 desired state. Examples of controllers that ship with OpenShift Boatswain today are
-the host controller.`,
+the cluster controller, node group controller, and master node controller.`,
 		Run: func(cmd *cobra.Command, args []string) {
 		},
 	}
@@ -289,7 +293,10 @@ var ControllersDisabledByDefault = sets.NewString()
 // paired to their InitFunc.  This allows for structured downstream composition and subdivision.
 func NewControllerInitializers() map[string]InitFunc {
 	controllers := map[string]InitFunc{}
-	controllers["host"] = startHostController
+	controllers["cluster"] = startClusterController
+	controllers["nodegroup"] = startNodeGroupController
+	controllers["node"] = startNodeController
+	controllers["masternode"] = startMasterNodeController
 	return controllers
 }
 
@@ -394,14 +401,50 @@ func StartControllers(ctx ControllerContext, controllers map[string]InitFunc) er
 	return nil
 }
 
-func startHostController(ctx ControllerContext) (bool, error) {
-	if !ctx.AvailableResources[schema.GroupVersionResource{Group: "boatswain.openshift.io", Version: "v1alpha1", Resource: "hosts"}] {
+func startClusterController(ctx ControllerContext) (bool, error) {
+	if !ctx.AvailableResources[schema.GroupVersionResource{Group: "boatswain.openshift.io", Version: "v1alpha1", Resource: "clusters"}] {
 		return false, nil
 	}
-	go controller.NewHostController(
-		ctx.InformerFactory.Boatswain().V1alpha1().Hosts(),
-		ctx.ClientBuilder.KubeClientOrDie("boatswain-host-controller"),
-		ctx.ClientBuilder.ClientOrDie("boatswain-host-controller"),
-	).Run(int(ctx.Options.ConcurrentHostSyncs), ctx.Stop)
+	go cluster.NewClusterController(
+		ctx.InformerFactory.Boatswain().V1alpha1().Clusters(),
+		ctx.ClientBuilder.KubeClientOrDie("boatswain-cluster-controller"),
+		ctx.ClientBuilder.ClientOrDie("boatswain-cluster-controller"),
+	).Run(int(ctx.Options.ConcurrentClusterSyncs), ctx.Stop)
+	return true, nil
+}
+
+func startNodeGroupController(ctx ControllerContext) (bool, error) {
+	if !ctx.AvailableResources[schema.GroupVersionResource{Group: "boatswain.openshift.io", Version: "v1alpha1", Resource: "nodeGroups"}] {
+		return false, nil
+	}
+	go nodegroup.NewNodeGroupController(
+		ctx.InformerFactory.Boatswain().V1alpha1().NodeGroups(),
+		ctx.ClientBuilder.KubeClientOrDie("boatswain-node-group-controller"),
+		ctx.ClientBuilder.ClientOrDie("boatswain-node-group-controller"),
+	).Run(int(ctx.Options.ConcurrentNodeGroupSyncs), ctx.Stop)
+	return true, nil
+}
+
+func startNodeController(ctx ControllerContext) (bool, error) {
+	if !ctx.AvailableResources[schema.GroupVersionResource{Group: "boatswain.openshift.io", Version: "v1alpha1", Resource: "nodes"}] {
+		return false, nil
+	}
+	go node.NewNodeController(
+		ctx.InformerFactory.Boatswain().V1alpha1().Nodes(),
+		ctx.ClientBuilder.KubeClientOrDie("boatswain-node-controller"),
+		ctx.ClientBuilder.ClientOrDie("boatswain-node-controller"),
+	).Run(int(ctx.Options.ConcurrentNodeSyncs), ctx.Stop)
+	return true, nil
+}
+
+func startMasterNodeController(ctx ControllerContext) (bool, error) {
+	if !ctx.AvailableResources[schema.GroupVersionResource{Group: "boatswain.openshift.io", Version: "v1alpha1", Resource: "nodes"}] {
+		return false, nil
+	}
+	go masternode.NewMasterNodeController(
+		ctx.InformerFactory.Boatswain().V1alpha1().Nodes(),
+		ctx.ClientBuilder.KubeClientOrDie("boatswain-master-node-controller"),
+		ctx.ClientBuilder.ClientOrDie("boatswain-master-node-controller"),
+	).Run(int(ctx.Options.ConcurrentMasterNodeSyncs), ctx.Stop)
 	return true, nil
 }

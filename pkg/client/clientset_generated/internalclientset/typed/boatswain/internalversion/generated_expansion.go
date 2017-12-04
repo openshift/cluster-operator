@@ -16,4 +16,8 @@ limitations under the License.
 
 package internalversion
 
-type HostExpansion interface{}
+type ClusterExpansion interface{}
+
+type NodeExpansion interface{}
+
+type NodeGroupExpansion interface{}
