@@ -39,11 +39,8 @@ func nodeWithNewSpec() *clusteroperator.Node {
 // TestNodeStrategyTrivial is the testing of the trivial hardcoded
 // boolean flags.
 func TestNodeStrategyTrivial(t *testing.T) {
-	if nodeRESTStrategies.NamespaceScoped() {
-		t.Errorf("node create must not be namespace scoped")
-	}
-	if nodeRESTStrategies.NamespaceScoped() {
-		t.Errorf("node update must not be namespace scoped")
+	if !nodeRESTStrategies.NamespaceScoped() {
+		t.Errorf("node update must be namespace scoped")
 	}
 	if nodeRESTStrategies.AllowCreateOnUpdate() {
 		t.Errorf("node should not allow create on update")
