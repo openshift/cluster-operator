@@ -39,11 +39,8 @@ func clusterWithNewSpec() *clusteroperator.Cluster {
 // TestClusterStrategyTrivial is the testing of the trivial hardcoded
 // boolean flags.
 func TestClusterStrategyTrivial(t *testing.T) {
-	if clusterRESTStrategies.NamespaceScoped() {
-		t.Errorf("cluster create must not be namespace scoped")
-	}
-	if clusterRESTStrategies.NamespaceScoped() {
-		t.Errorf("cluster update must not be namespace scoped")
+	if !clusterRESTStrategies.NamespaceScoped() {
+		t.Errorf("cluster create must be namespace scoped")
 	}
 	if clusterRESTStrategies.AllowCreateOnUpdate() {
 		t.Errorf("cluster should not allow create on update")

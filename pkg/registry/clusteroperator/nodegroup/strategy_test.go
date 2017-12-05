@@ -39,11 +39,8 @@ func nodegroupWithNewSpec() *clusteroperator.NodeGroup {
 // TestNodeGroupStrategyTrivial is the testing of the trivial hardcoded
 // boolean flags.
 func TestNodeGroupStrategyTrivial(t *testing.T) {
-	if nodegroupRESTStrategies.NamespaceScoped() {
-		t.Errorf("nodegroup create must not be namespace scoped")
-	}
-	if nodegroupRESTStrategies.NamespaceScoped() {
-		t.Errorf("nodegroup update must not be namespace scoped")
+	if !nodegroupRESTStrategies.NamespaceScoped() {
+		t.Errorf("nodegroup create must be namespace scoped")
 	}
 	if nodegroupRESTStrategies.AllowCreateOnUpdate() {
 		t.Errorf("nodegroup should not allow create on update")
