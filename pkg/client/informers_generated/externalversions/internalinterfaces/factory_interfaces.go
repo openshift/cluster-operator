@@ -19,7 +19,7 @@ limitations under the License.
 package internalinterfaces
 
 import (
-	clientset "github.com/staebler/boatswain/pkg/client/clientset_generated/clientset"
+	clientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	cache "k8s.io/client-go/tools/cache"
 	time "time"

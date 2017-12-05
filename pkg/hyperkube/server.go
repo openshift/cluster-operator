@@ -20,7 +20,7 @@ import (
 	"io/ioutil"
 	"strings"
 
-	utiltemplate "github.com/staebler/boatswain/pkg/kubernetes/pkg/util/template"
+	utiltemplate "github.com/openshift/cluster-operator/pkg/kubernetes/pkg/util/template"
 	"k8s.io/apiserver/pkg/util/flag"
 
 	"github.com/spf13/pflag"

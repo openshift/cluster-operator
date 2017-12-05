@@ -20,7 +20,7 @@ package internalversion
 
 import (
 	"fmt"
-	boatswain "github.com/staebler/boatswain/pkg/apis/boatswain"
+	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
 )
@@ -51,13 +51,13 @@ func (f *genericInformer) Lister() cache.GenericLister {
 // TODO extend this to unknown resources with a client pool
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
-	// Group=Boatswain, Version=InternalVersion
-	case boatswain.SchemeGroupVersion.WithResource("clusters"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Boatswain().InternalVersion().Clusters().Informer()}, nil
-	case boatswain.SchemeGroupVersion.WithResource("nodes"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Boatswain().InternalVersion().Nodes().Informer()}, nil
-	case boatswain.SchemeGroupVersion.WithResource("nodegroups"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Boatswain().InternalVersion().NodeGroups().Informer()}, nil
+	// Group=Clusteroperator, Version=InternalVersion
+	case clusteroperator.SchemeGroupVersion.WithResource("clusters"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Clusteroperator().InternalVersion().Clusters().Informer()}, nil
+	case clusteroperator.SchemeGroupVersion.WithResource("nodes"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Clusteroperator().InternalVersion().Nodes().Informer()}, nil
+	case clusteroperator.SchemeGroupVersion.WithResource("nodegroups"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Clusteroperator().InternalVersion().NodeGroups().Informer()}, nil
 
 	}
 

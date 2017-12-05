@@ -15,14 +15,14 @@ limitations under the License.
 */
 
 // The controller is responsible for running control loops that reconcile
-// the state of boatswain API resources.
+// the state of clusteroperator API resources.
 
 package componentconfig
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/staebler/boatswain/pkg/kubernetes/pkg/apis/componentconfig"
+	"github.com/openshift/cluster-operator/pkg/kubernetes/pkg/apis/componentconfig"
 )
 
 // ControllerManagerConfiguration encapsulates configuration for the
@@ -56,19 +56,19 @@ type ControllerManagerConfiguration struct {
 	// information.
 	K8sKubeconfigPath string
 
-	// BoatswainAPIServerURL is the URL for the boatswain API
+	// ClusterOperatorAPIServerURL is the URL for the clusteroperator API
 	// server.
-	BoatswainAPIServerURL string
-	// BoatswainKubeconfigPath is the path to the kubeconfig file with
-	// information about the boatswain API server.
-	BoatswainKubeconfigPath string
-	// BoatswainInsecureSkipVerify controls whether a client verifies the
+	ClusterOperatorAPIServerURL string
+	// ClusterOperatorKubeconfigPath is the path to the kubeconfig file with
+	// information about the clusteroperator API server.
+	ClusterOperatorKubeconfigPath string
+	// ClusterOperatorInsecureSkipVerify controls whether a client verifies the
 	// server's certificate chain and host name.
-	// If BoatswainInsecureSkipVerify is true, TLS accepts any certificate
+	// If ClusterOperatorInsecureSkipVerify is true, TLS accepts any certificate
 	// presented by the server and any host name in that certificate.
 	// In this mode, TLS is susceptible to man-in-the-middle attacks.
 	// This should be used only for testing.
-	BoatswainInsecureSkipVerify bool
+	ClusterOperatorInsecureSkipVerify bool
 
 	// minResyncPeriod is the resync period in reflectors; will be random between
 	// minResyncPeriod and 2*minResyncPeriod.

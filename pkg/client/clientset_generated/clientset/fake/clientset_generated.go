@@ -17,9 +17,9 @@ limitations under the License.
 package fake
 
 import (
-	clientset "github.com/staebler/boatswain/pkg/client/clientset_generated/clientset"
-	boatswainv1alpha1 "github.com/staebler/boatswain/pkg/client/clientset_generated/clientset/typed/boatswain/v1alpha1"
-	fakeboatswainv1alpha1 "github.com/staebler/boatswain/pkg/client/clientset_generated/clientset/typed/boatswain/v1alpha1/fake"
+	clientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
+	clusteroperatorv1alpha1 "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset/typed/clusteroperator/v1alpha1"
+	fakeclusteroperatorv1alpha1 "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset/typed/clusteroperator/v1alpha1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
@@ -60,12 +60,12 @@ func (c *Clientset) Discovery() discovery.DiscoveryInterface {
 
 var _ clientset.Interface = &Clientset{}
 
-// BoatswainV1alpha1 retrieves the BoatswainV1alpha1Client
-func (c *Clientset) BoatswainV1alpha1() boatswainv1alpha1.BoatswainV1alpha1Interface {
-	return &fakeboatswainv1alpha1.FakeBoatswainV1alpha1{Fake: &c.Fake}
+// ClusteroperatorV1alpha1 retrieves the ClusteroperatorV1alpha1Client
+func (c *Clientset) ClusteroperatorV1alpha1() clusteroperatorv1alpha1.ClusteroperatorV1alpha1Interface {
+	return &fakeclusteroperatorv1alpha1.FakeClusteroperatorV1alpha1{Fake: &c.Fake}
 }
 
-// Boatswain retrieves the BoatswainV1alpha1Client
-func (c *Clientset) Boatswain() boatswainv1alpha1.BoatswainV1alpha1Interface {
-	return &fakeboatswainv1alpha1.FakeBoatswainV1alpha1{Fake: &c.Fake}
+// Clusteroperator retrieves the ClusteroperatorV1alpha1Client
+func (c *Clientset) Clusteroperator() clusteroperatorv1alpha1.ClusteroperatorV1alpha1Interface {
+	return &fakeclusteroperatorv1alpha1.FakeClusteroperatorV1alpha1{Fake: &c.Fake}
 }

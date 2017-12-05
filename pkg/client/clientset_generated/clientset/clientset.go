@@ -18,7 +18,7 @@ package clientset
 
 import (
 	glog "github.com/golang/glog"
-	boatswainv1alpha1 "github.com/staebler/boatswain/pkg/client/clientset_generated/clientset/typed/boatswain/v1alpha1"
+	clusteroperatorv1alpha1 "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset/typed/clusteroperator/v1alpha1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
@@ -26,27 +26,27 @@ import (
 
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
-	BoatswainV1alpha1() boatswainv1alpha1.BoatswainV1alpha1Interface
+	ClusteroperatorV1alpha1() clusteroperatorv1alpha1.ClusteroperatorV1alpha1Interface
 	// Deprecated: please explicitly pick a version if possible.
-	Boatswain() boatswainv1alpha1.BoatswainV1alpha1Interface
+	Clusteroperator() clusteroperatorv1alpha1.ClusteroperatorV1alpha1Interface
 }
 
 // Clientset contains the clients for groups. Each group has exactly one
 // version included in a Clientset.
 type Clientset struct {
 	*discovery.DiscoveryClient
-	boatswainV1alpha1 *boatswainv1alpha1.BoatswainV1alpha1Client
+	clusteroperatorV1alpha1 *clusteroperatorv1alpha1.ClusteroperatorV1alpha1Client
 }
 
-// BoatswainV1alpha1 retrieves the BoatswainV1alpha1Client
-func (c *Clientset) BoatswainV1alpha1() boatswainv1alpha1.BoatswainV1alpha1Interface {
-	return c.boatswainV1alpha1
+// ClusteroperatorV1alpha1 retrieves the ClusteroperatorV1alpha1Client
+func (c *Clientset) ClusteroperatorV1alpha1() clusteroperatorv1alpha1.ClusteroperatorV1alpha1Interface {
+	return c.clusteroperatorV1alpha1
 }
 
-// Deprecated: Boatswain retrieves the default version of BoatswainClient.
+// Deprecated: Clusteroperator retrieves the default version of ClusteroperatorClient.
 // Please explicitly pick a version.
-func (c *Clientset) Boatswain() boatswainv1alpha1.BoatswainV1alpha1Interface {
-	return c.boatswainV1alpha1
+func (c *Clientset) Clusteroperator() clusteroperatorv1alpha1.ClusteroperatorV1alpha1Interface {
+	return c.clusteroperatorV1alpha1
 }
 
 // Discovery retrieves the DiscoveryClient
@@ -65,7 +65,7 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 	}
 	var cs Clientset
 	var err error
-	cs.boatswainV1alpha1, err = boatswainv1alpha1.NewForConfig(&configShallowCopy)
+	cs.clusteroperatorV1alpha1, err = clusteroperatorv1alpha1.NewForConfig(&configShallowCopy)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +82,7 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 // panics if there is an error in the config.
 func NewForConfigOrDie(c *rest.Config) *Clientset {
 	var cs Clientset
-	cs.boatswainV1alpha1 = boatswainv1alpha1.NewForConfigOrDie(c)
+	cs.clusteroperatorV1alpha1 = clusteroperatorv1alpha1.NewForConfigOrDie(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClientForConfigOrDie(c)
 	return &cs
@@ -91,7 +91,7 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 // New creates a new Clientset for the given RESTClient.
 func New(c rest.Interface) *Clientset {
 	var cs Clientset
-	cs.boatswainV1alpha1 = boatswainv1alpha1.New(c)
+	cs.clusteroperatorV1alpha1 = clusteroperatorv1alpha1.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)
 	return &cs

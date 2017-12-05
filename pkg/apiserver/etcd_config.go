@@ -24,7 +24,7 @@ import (
 )
 
 // EtcdConfig contains a generic API server Config along with config specific to
-// the boatswain API server.
+// the clusteroperator API server.
 type etcdConfig struct {
 	genericConfig *genericapiserver.RecommendedConfig
 	extraConfig   *extraConfig

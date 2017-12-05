@@ -17,7 +17,7 @@ limitations under the License.
 package apiserver
 
 import (
-	boatswainv1alpha1 "github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1"
+	cov1alpha1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	serverstorage "k8s.io/apiserver/pkg/server/storage"
 )
@@ -37,7 +37,7 @@ func (s ServiceCatalogAPIServer) PrepareRun() RunnableServer {
 func DefaultAPIResourceConfigSource() *serverstorage.ResourceConfig {
 	ret := serverstorage.NewResourceConfig()
 	ret.EnableVersions(
-		boatswainv1alpha1.SchemeGroupVersion,
+		cov1alpha1.SchemeGroupVersion,
 	)
 
 	return ret

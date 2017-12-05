@@ -28,7 +28,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/wait"
 
-	"github.com/staebler/boatswain/test/util"
+	"github.com/openshift/cluster-operator/test/util"
 )
 
 type result struct {

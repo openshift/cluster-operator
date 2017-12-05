@@ -17,7 +17,7 @@ limitations under the License.
 package scheme
 
 import (
-	boatswain "github.com/staebler/boatswain/pkg/apis/boatswain/install"
+	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/install"
 	announced "k8s.io/apimachinery/pkg/apimachinery/announced"
 	registered "k8s.io/apimachinery/pkg/apimachinery/registered"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -41,6 +41,6 @@ func init() {
 
 // Install registers the API group and adds types to a scheme
 func Install(groupFactoryRegistry announced.APIGroupFactoryRegistry, registry *registered.APIRegistrationManager, scheme *runtime.Scheme) {
-	boatswain.Install(groupFactoryRegistry, registry, scheme)
+	clusteroperator.Install(groupFactoryRegistry, registry, scheme)
 
 }

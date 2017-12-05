@@ -19,7 +19,7 @@ package options
 import (
 	"strings"
 
-	"github.com/staebler/boatswain/pkg/api"
+	"github.com/openshift/cluster-operator/pkg/api"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/spf13/pflag"

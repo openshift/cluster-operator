@@ -26,30 +26,30 @@ BINDIR=${REPO_ROOT}/bin
 
 # Generate the internal clientset (pkg/client/clientset_generated/internalclientset)
 ${BINDIR}/client-gen "$@" \
-	      --input-base "github.com/staebler/boatswain/pkg/apis/" \
-	      --input boatswain/ \
-	      --clientset-path "github.com/staebler/boatswain/pkg/client/clientset_generated/" \
+	      --input-base "github.com/openshift/cluster-operator/pkg/apis/" \
+	      --input clusteroperator/ \
+	      --clientset-path "github.com/openshift/cluster-operator/pkg/client/clientset_generated/" \
 	      --clientset-name internalclientset \
 	      --go-header-file "vendor/github.com/kubernetes/repo-infra/verify/boilerplate/boilerplate.go.txt"
 # Generate the versioned clientset (pkg/client/clientset_generated/clientset)
 ${BINDIR}/client-gen "$@" \
-              --input-base "github.com/staebler/boatswain/pkg/apis/" \
-	      --input "boatswain/v1alpha1" \
-	      --clientset-path "github.com/staebler/boatswain/pkg/client/clientset_generated/" \
+              --input-base "github.com/openshift/cluster-operator/pkg/apis/" \
+	      --input "clusteroperator/v1alpha1" \
+	      --clientset-path "github.com/openshift/cluster-operator/pkg/client/clientset_generated/" \
 	      --clientset-name "clientset" \
 	      --go-header-file "vendor/github.com/kubernetes/repo-infra/verify/boilerplate/boilerplate.go.txt"
 # generate lister
 ${BINDIR}/lister-gen "$@" \
-	      --input-dirs="github.com/staebler/boatswain/pkg/apis/boatswain" \
-	      --input-dirs="github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1" \
-	      --output-package "github.com/staebler/boatswain/pkg/client/listers_generated" \
+	      --input-dirs="github.com/openshift/cluster-operator/pkg/apis/clusteroperator" \
+	      --input-dirs="github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1" \
+	      --output-package "github.com/openshift/cluster-operator/pkg/client/listers_generated" \
 	      --go-header-file "vendor/github.com/kubernetes/repo-infra/verify/boilerplate/boilerplate.go.txt"
 # generate informer
 ${BINDIR}/informer-gen "$@" \
 	      --go-header-file "vendor/github.com/kubernetes/repo-infra/verify/boilerplate/boilerplate.go.txt" \
-	      --input-dirs "github.com/staebler/boatswain/pkg/apis/boatswain" \
-	      --input-dirs "github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1" \
-	      --internal-clientset-package "github.com/staebler/boatswain/pkg/client/clientset_generated/internalclientset" \
-	      --versioned-clientset-package "github.com/staebler/boatswain/pkg/client/clientset_generated/clientset" \
-	      --listers-package "github.com/staebler/boatswain/pkg/client/listers_generated" \
-	      --output-package "github.com/staebler/boatswain/pkg/client/informers_generated"
+	      --input-dirs "github.com/openshift/cluster-operator/pkg/apis/clusteroperator" \
+	      --input-dirs "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1" \
+	      --internal-clientset-package "github.com/openshift/cluster-operator/pkg/client/clientset_generated/internalclientset" \
+	      --versioned-clientset-package "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset" \
+	      --listers-package "github.com/openshift/cluster-operator/pkg/client/listers_generated" \
+	      --output-package "github.com/openshift/cluster-operator/pkg/client/informers_generated"

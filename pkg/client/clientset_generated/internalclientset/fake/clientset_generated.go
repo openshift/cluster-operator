@@ -17,9 +17,9 @@ limitations under the License.
 package fake
 
 import (
-	clientset "github.com/staebler/boatswain/pkg/client/clientset_generated/internalclientset"
-	boatswaininternalversion "github.com/staebler/boatswain/pkg/client/clientset_generated/internalclientset/typed/boatswain/internalversion"
-	fakeboatswaininternalversion "github.com/staebler/boatswain/pkg/client/clientset_generated/internalclientset/typed/boatswain/internalversion/fake"
+	clientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/internalclientset"
+	clusteroperatorinternalversion "github.com/openshift/cluster-operator/pkg/client/clientset_generated/internalclientset/typed/clusteroperator/internalversion"
+	fakeclusteroperatorinternalversion "github.com/openshift/cluster-operator/pkg/client/clientset_generated/internalclientset/typed/clusteroperator/internalversion/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
@@ -60,7 +60,7 @@ func (c *Clientset) Discovery() discovery.DiscoveryInterface {
 
 var _ clientset.Interface = &Clientset{}
 
-// Boatswain retrieves the BoatswainClient
-func (c *Clientset) Boatswain() boatswaininternalversion.BoatswainInterface {
-	return &fakeboatswaininternalversion.FakeBoatswain{Fake: &c.Fake}
+// Clusteroperator retrieves the ClusteroperatorClient
+func (c *Clientset) Clusteroperator() clusteroperatorinternalversion.ClusteroperatorInterface {
+	return &fakeclusteroperatorinternalversion.FakeClusteroperator{Fake: &c.Fake}
 }

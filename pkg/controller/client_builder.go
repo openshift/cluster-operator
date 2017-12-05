@@ -20,7 +20,7 @@ import (
 	kubeclientset "k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 
-	"github.com/staebler/boatswain/pkg/client/clientset_generated/clientset"
+	"github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
 
 	"github.com/golang/glog"
 )

@@ -17,7 +17,7 @@ limitations under the License.
 package fake
 
 import (
-	boatswaininternalversion "github.com/staebler/boatswain/pkg/apis/boatswain"
+	clusteroperatorinternalversion "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -48,6 +48,6 @@ func init() {
 // After this, RawExtensions in Kubernetes types will serialize kube-aggregator types
 // correctly.
 func AddToScheme(scheme *runtime.Scheme) {
-	boatswaininternalversion.AddToScheme(scheme)
+	clusteroperatorinternalversion.AddToScheme(scheme)
 
 }

@@ -19,13 +19,13 @@ package meta
 import (
 	"testing"
 
-	boatswain "github.com/staebler/boatswain/pkg/apis/boatswain"
+	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestGetNamespace(t *testing.T) {
 	const namespace = "testns"
-	obj := &boatswain.Cluster{
+	obj := &clusteroperator.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
 		},

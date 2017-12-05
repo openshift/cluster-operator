@@ -31,13 +31,13 @@ import (
 
 	"github.com/golang/glog"
 
-	"github.com/staebler/boatswain/pkg/kubernetes/pkg/util/metrics"
+	"github.com/openshift/cluster-operator/pkg/kubernetes/pkg/util/metrics"
 
-	boatswain "github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1"
-	boatswainclientset "github.com/staebler/boatswain/pkg/client/clientset_generated/clientset"
-	informers "github.com/staebler/boatswain/pkg/client/informers_generated/externalversions/boatswain/v1alpha1"
-	lister "github.com/staebler/boatswain/pkg/client/listers_generated/boatswain/v1alpha1"
-	"github.com/staebler/boatswain/pkg/controller"
+	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	clusteroperatorclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
+	informers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions/clusteroperator/v1alpha1"
+	lister "github.com/openshift/cluster-operator/pkg/client/listers_generated/clusteroperator/v1alpha1"
+	"github.com/openshift/cluster-operator/pkg/controller"
 )
 
 const (
@@ -50,18 +50,18 @@ const (
 )
 
 // NewNodeGroupController returns a new *NodeGroupController.
-func NewNodeGroupController(nodeGroupInformer informers.NodeGroupInformer, kubeClient kubeclientset.Interface, boatswainClient boatswainclientset.Interface) *NodeGroupController {
+func NewNodeGroupController(nodeGroupInformer informers.NodeGroupInformer, kubeClient kubeclientset.Interface, clusteroperatorClient clusteroperatorclientset.Interface) *NodeGroupController {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(glog.Infof)
 	// TODO: remove the wrapper when every clients have moved to use the clientset.
 	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: v1core.New(kubeClient.CoreV1().RESTClient()).Events("")})
 
 	if kubeClient != nil && kubeClient.CoreV1().RESTClient().GetRateLimiter() != nil {
-		metrics.RegisterMetricAndTrackRateLimiterUsage("boatswain_node_group_controller", kubeClient.CoreV1().RESTClient().GetRateLimiter())
+		metrics.RegisterMetricAndTrackRateLimiterUsage("clusteroperator_node_group_controller", kubeClient.CoreV1().RESTClient().GetRateLimiter())
 	}
 
 	c := &NodeGroupController{
-		client: boatswainClient,
+		client: clusteroperatorClient,
 		queue:  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "nodeGroup"),
 	}
 
@@ -81,12 +81,12 @@ func NewNodeGroupController(nodeGroupInformer informers.NodeGroupInformer, kubeC
 
 // NodeGroupController manages provisioning node groups.
 type NodeGroupController struct {
-	client boatswainclientset.Interface
+	client clusteroperatorclientset.Interface
 
 	// To allow injection of syncNodeGroup for testing.
 	syncHandler func(hKey string) error
 	// used for unit testing
-	enqueueNodeGroup func(nodeGroup *boatswain.NodeGroup)
+	enqueueNodeGroup func(nodeGroup *clusteroperator.NodeGroup)
 
 	// nodeGroupsLister is able to list/get node groups and is populated by the shared informer passed to
 	// NewNodeGroupController.
@@ -100,27 +100,27 @@ type NodeGroupController struct {
 }
 
 func (c *NodeGroupController) addNodeGroup(obj interface{}) {
-	h := obj.(*boatswain.NodeGroup)
+	h := obj.(*clusteroperator.NodeGroup)
 	glog.V(4).Infof("Adding node group %s", h.Name)
 	c.enqueueNodeGroup(h)
 }
 
 func (c *NodeGroupController) updateNodeGroup(old, cur interface{}) {
-	oldNg := old.(*boatswain.NodeGroup)
-	curNg := cur.(*boatswain.NodeGroup)
+	oldNg := old.(*clusteroperator.NodeGroup)
+	curNg := cur.(*clusteroperator.NodeGroup)
 	glog.V(4).Infof("Updating node group %s", oldNg.Name)
 	c.enqueueNodeGroup(curNg)
 }
 
 func (c *NodeGroupController) deleteNodeGroup(obj interface{}) {
-	ng, ok := obj.(*boatswain.NodeGroup)
+	ng, ok := obj.(*clusteroperator.NodeGroup)
 	if !ok {
 		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("Couldn't get object from tombstone %#v", obj))
 			return
 		}
-		ng, ok = tombstone.Obj.(*boatswain.NodeGroup)
+		ng, ok = tombstone.Obj.(*clusteroperator.NodeGroup)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("Tombstone contained object that is not a NodeGroup %#v", obj))
 			return
@@ -150,7 +150,7 @@ func (c *NodeGroupController) Run(workers int, stopCh <-chan struct{}) {
 	<-stopCh
 }
 
-func (c *NodeGroupController) enqueue(nodeGroup *boatswain.NodeGroup) {
+func (c *NodeGroupController) enqueue(nodeGroup *clusteroperator.NodeGroup) {
 	key, err := controller.KeyFunc(nodeGroup)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("Couldn't get key for object %#v: %v", nodeGroup, err))
@@ -160,7 +160,7 @@ func (c *NodeGroupController) enqueue(nodeGroup *boatswain.NodeGroup) {
 	c.queue.Add(key)
 }
 
-func (c *NodeGroupController) enqueueRateLimited(nodeGroup *boatswain.NodeGroup) {
+func (c *NodeGroupController) enqueueRateLimited(nodeGroup *clusteroperator.NodeGroup) {
 	key, err := controller.KeyFunc(nodeGroup)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("Couldn't get key for object %#v: %v", nodeGroup, err))
@@ -171,7 +171,7 @@ func (c *NodeGroupController) enqueueRateLimited(nodeGroup *boatswain.NodeGroup)
 }
 
 // enqueueAfter will enqueue a node group after the provided amount of time.
-func (c *NodeGroupController) enqueueAfter(nodeGroup *boatswain.NodeGroup, after time.Duration) {
+func (c *NodeGroupController) enqueueAfter(nodeGroup *clusteroperator.NodeGroup, after time.Duration) {
 	key, err := controller.KeyFunc(nodeGroup)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("Couldn't get key for object %#v: %v", nodeGroup, err))

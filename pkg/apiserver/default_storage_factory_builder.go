@@ -21,7 +21,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/staebler/boatswain/pkg/api"
+	"github.com/openshift/cluster-operator/pkg/api"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	serverstorage "k8s.io/apiserver/pkg/server/storage"

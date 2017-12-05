@@ -11,7 +11,7 @@ coverage.html
 .idea/
 .DS_Store
 .glide
-.boatswainBuildImage
+.clusterOperatorBuildImage
 .init
 .generate*
 .envrc
@@ -24,7 +24,7 @@ contrib/build/*/tmp/*
 apiserver-key.pem
 apiserver.csr
 apiserver.pem
-boatswain-ca.json
+cluster-operator-ca.json
 ca-key.pem
 ca.csr
 ca.pem

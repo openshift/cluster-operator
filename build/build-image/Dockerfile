@@ -19,7 +19,7 @@ RUN printf "[trusted]\nusers = *\n" > /root/.hgrc
 
 # Install glide as root
 ENV GLIDE_VERSION=v0.12.3 \
-    GLIDE_HOME=/go/src/github.com/staebler/boatswain/.glide
+    GLIDE_HOME=/go/src/github.com/openshift/cluster-operator/.glide
 RUN curl -sSL https://github.com/Masterminds/glide/releases/download/$GLIDE_VERSION/glide-$GLIDE_VERSION-linux-amd64.tar.gz \
     | tar -vxz -C /usr/local/bin --strip=1
 
@@ -35,7 +35,7 @@ RUN git clone https://github.com/duglin/vlinker.git /vlinker
 ENV PATH=$PATH:/vlinker/bin
 
 # Create the full dir tree that we'll mount our src into when we run the image
-RUN mkdir -p /go/src/github.com/staebler/boatswain
+RUN mkdir -p /go/src/github.com/openshift/cluster-operator
 
 # Default to our src dir
-WORKDIR /go/src/github.com/staebler/boatswain
+WORKDIR /go/src/github.com/openshift/cluster-operator
