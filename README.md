@@ -1,1 +1,1 @@
-# boatswain
+# cluster operator
