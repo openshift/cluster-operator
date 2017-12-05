@@ -1,11 +1,11 @@
 ########
 #
-# Template for deploying the Boatswain.
+# Template for deploying the Cluster Operator.
 #
 # Parameters:
-#   BOATSWAIN_NAMESPACE: namespace to which to deploy the Boatswain. Defaults to "boatswain".
-#   SERVING_CERT: base-64-encoded, pem cert to use for ssl communication with the Boatswain API Server. Required.
-#   SERVING_KEY: base-64-encoded, pem private key for the cert to use for ssl communication with the Boatswain API Server. Required.
+#   CLUSTER_OPERATOR_NAMESPACE: namespace to which to deploy the cluster operator. Defaults to "cluster-operator".
+#   SERVING_CERT: base-64-encoded, pem cert to use for ssl communication with the Cluster Operator API Server. Required.
+#   SERVING_KEY: base-64-encoded, pem private key for the cert to use for ssl communication with the Cluster Operator API Server. Required.
 #   SERVING_CA: base-64-encoded, pem CA cert for the ssl certs. Required.
 #
 ########
@@ -13,31 +13,31 @@
 apiVersion: v1
 kind: Template
 metadata:
-  name: boatswain-deploy-template
-  namespace: ${BOATSWAIN_NAMESPACE}
+  name: cluster-operator-deploy-template
+  namespace: ${CLUSTER_OPERATOR_NAMESPACE}
 objects:
 
 # Service account for the API Server
 - apiVersion: v1
   kind: ServiceAccount
   metadata:
-    name: boatswain-apiserver
-    namespace: ${BOATSWAIN_NAMESPACE}
+    name: cluster-operator-apiserver
+    namespace: ${CLUSTER_OPERATOR_NAMESPACE}
 
 # Service account for the Controller Manager
 - apiVersion: v1
   kind: ServiceAccount
   metadata:
-    name: boatswain-controller-manager
-    namespace: ${BOATSWAIN_NAMESPACE}
+    name: cluster-operator-controller-manager
+    namespace: ${CLUSTER_OPERATOR_NAMESPACE}
 
 # API Server gets the auth-delegator role to delegate auth decisions to
 # the core API Server
 - apiVersion: rbac.authorization.k8s.io/v1
   kind: ClusterRoleBinding
   metadata:
-    name: "boatswain.openshift.io:apiserver-auth-delegator"
-    namespace: ${BOATSWAIN_NAMESPACE}
+    name: "clusteroperator.openshift.io:apiserver-auth-delegator"
+    namespace: ${CLUSTER_OPERATOR_NAMESPACE}
   roleRef:
     apiGroup: rbac.authorization.k8s.io
     kind: ClusterRole
@@ -45,8 +45,8 @@ objects:
   subjects:
   - apiGroup: ""
     kind: ServiceAccount
-    name: boatswain-apiserver
-    namespace: ${BOATSWAIN_NAMESPACE}
+    name: cluster-operator-apiserver
+    namespace: ${CLUSTER_OPERATOR_NAMESPACE}
 
 # API Server gets the ability to read authentication. This allows it to
 # read the specific configmap that has the requestheader-* entries to
@@ -54,7 +54,7 @@ objects:
 - apiVersion: rbac.authorization.k8s.io/v1
   kind: RoleBinding
   metadata:
-    name: "boatswain.openshift.io:apiserver-authentication-reader"
+    name: "clusteroperator.openshift.io:apiserver-authentication-reader"
     namespace: ${KUBE_SYSTEM_NAMESPACE}
   roleRef:
     apiGroup: rbac.authorization.k8s.io
@@ -63,15 +63,15 @@ objects:
   subjects:
   - apiGroup: ""
     kind: ServiceAccount
-    name: boatswain-apiserver
-    namespace: ${BOATSWAIN_NAMESPACE}
+    name: cluster-operator-apiserver
+    namespace: ${CLUSTER_OPERATOR_NAMESPACE}
 
 # Create a role for the Controller Manager to give it permissions to manage
-# the resources of the Boatswain
+# the resources of the clusteroperator
 - apiVersion: rbac.authorization.k8s.io/v1
   kind: ClusterRole
   metadata:
-    name: "boatswain.openshift.io:controller-manager"
+    name: "clusteroperator.openshift.io:controller-manager"
   rules:
   # configmpas for leader election
   - apiGroups: [""]
@@ -79,44 +79,44 @@ objects:
     verbs:     ["create"]
   - apiGroups:     [""]
     resources:     ["configmaps"]
-    resourceNames: ["boatswain-controller-manager"]
+    resourceNames: ["cluster-operator-controller-manager"]
     verbs: ["get","update"]
   # events for recording events
   - apiGroups: [""]
     resources: ["events"]
     verbs:     ["create","patch","update"]
-  # get, list, and watch boatswain resources
-  - apiGroups: ["boatswain.openshift.io"]
+  # get, list, and watch cluster-operator resources
+  - apiGroups: ["clusteroperator.openshift.io"]
     resources: ["hosts"]
     verbs:     ["get", "list", "watch"]
-  # update boatswain resources
-  - apiGroups: ["boatswain.openshift.io"]
+  # update cluster-operator resources
+  - apiGroups: ["clusteroperator.openshift.io"]
     resources: ["hosts"]
     verbs:     ["update"]
-    
+
 # Bind the Controller Manager service account to the role created for it
 - apiVersion: rbac.authorization.k8s.io/v1
   kind: ClusterRoleBinding
   metadata:
-    name: "boatswain.openshift.io:controller-manager"
+    name: "clusteroperator.openshift.io:controller-manager"
   roleRef:
     apiGroup: rbac.authorization.k8s.io
     kind: ClusterRole
-    name: "boatswain.openshift.io:controller-manager"
+    name: "clusteroperator.openshift.io:controller-manager"
   subjects:
   - apiGroup: ""
     kind: ServiceAccount
-    name: boatswain-controller-manager
-    namespace: ${BOATSWAIN_NAMESPACE}
+    name: cluster-operator-controller-manager
+    namespace: ${CLUSTER_OPERATOR_NAMESPACE}
 
 # Secret to pass the SSL certs to the API Server
 - apiVersion: v1
   kind: Secret
   metadata:
-    name: boatswain-apiserver-cert
-    namespace: ${BOATSWAIN_NAMESPACE}
+    name: cluster-operator-apiserver-cert
+    namespace: ${CLUSTER_OPERATOR_NAMESPACE}
     labels:
-      app: boatswain-apiserver
+      app: cluster-operator-apiserver
   type: Opaque
   data:
     tls.crt: ${SERVING_CERT}
@@ -126,20 +126,20 @@ objects:
 - apiVersion: apps/v1beta1
   kind: Deployment
   metadata:
-    name: boatswain-apiserver
-    namespace: ${BOATSWAIN_NAMESPACE}
+    name: cluster-operator-apiserver
+    namespace: ${CLUSTER_OPERATOR_NAMESPACE}
     labels:
-      app: boatswain-apiserver
+      app: cluster-operator-apiserver
   spec:
     selector:
       matchLabels:
-        app: boatswain-apiserver
+        app: cluster-operator-apiserver
     template:
       metadata:
         labels:
-          app: boatswain-apiserver
+          app: cluster-operator-apiserver
       spec:
-        serviceAccountName: boatswain-apiserver
+        serviceAccountName: cluster-operator-apiserver
         containers:
         - name: apiserver
           args:
@@ -150,8 +150,8 @@ objects:
           - http://localhost:2379
           - -v
           - "10"
-          image: boatswain:canary
-          command: ["/opt/services/boatswain"]
+          image: cluster-operator:canary
+          command: ["/opt/services/cluster-operator"]
           imagePullPolicy: Never
           name: apiserver
           ports:
@@ -160,7 +160,7 @@ objects:
           resources: {}
           terminationMessagePath: /dev/termination-log
           volumeMounts:
-          - mountPath: /var/run/openshift-boatswain
+          - mountPath: /var/run/openshift-cluster-operator
             name: apiserver-ssl
             readOnly: true
           readinessProbe:
@@ -233,7 +233,7 @@ objects:
         - name: apiserver-ssl
           secret:
             defaultMode: 420
-            secretName: boatswain-apiserver-cert
+            secretName: cluster-operator-apiserver-cert
             items:
             - key: tls.crt
               path: apiserver.crt
@@ -246,23 +246,23 @@ objects:
 - kind: Deployment
   apiVersion: extensions/v1beta1
   metadata:
-    name: boatswain-controller-manager
-    namespace: ${BOATSWAIN_NAMESPACE}
+    name: cluster-operator-controller-manager
+    namespace: ${CLUSTER_OPERATOR_NAMESPACE}
     labels:
-      app: boatswain-controller-manager
+      app: cluster-operator-controller-manager
   spec:
     selector:
       matchLabels:
-        app: boatswain-controller-manager
+        app: cluster-operator-controller-manager
     template:
       metadata:
         labels:
-          app: boatswain-controller-manager
+          app: cluster-operator-controller-manager
       spec:
-        serviceAccountName: boatswain-controller-manager
+        serviceAccountName: cluster-operator-controller-manager
         containers:
         - name: controller-manager
-          image: boatswain:canary
+          image: cluster-operator:canary
           imagePullPolicy: Never
           resources:
             requests:
@@ -276,7 +276,7 @@ objects:
           - --port
           - "8080"
           - --leader-election-namespace
-          - ${BOATSWAIN_NAMESPACE}
+          - ${CLUSTER_OPERATOR_NAMESPACE}
           - --leader-elect-resource-lock
           - "configmaps"
           - --profiling
@@ -310,14 +310,14 @@ objects:
 - kind: Service
   apiVersion: v1
   metadata:
-    name: boatswain-apiserver
-    namespace: ${BOATSWAIN_NAMESPACE}
+    name: cluster-operator-apiserver
+    namespace: ${CLUSTER_OPERATOR_NAMESPACE}
     labels:
-      app: boatswain-apiserver
+      app: cluster-operator-apiserver
   spec:
     type: NodePort
     selector:
-      app: boatswain-apiserver
+      app: cluster-operator-apiserver
     ports:
     - name: secure
       protocol: TCP
@@ -325,26 +325,26 @@ objects:
       targetPort: 6443
       nodePort: 30443
 
-# Registration of the Boatswain API with the aggregator
+# Registration of the cluster-operator API with the aggregator
 - apiVersion: apiregistration.k8s.io/v1beta1
   kind: APIService
   metadata:
-    name: v1alpha1.boatswain.openshift.io
+    name: v1alpha1.clusteroperator.openshift.io
     namespace: ${KUBE_SYSTEM_NAMESPACE}
   spec:
-    group: boatswain.openshift.io
+    group: clusteroperator.openshift.io
     version: v1alpha1
     service:
-      namespace: ${BOATSWAIN_NAMESPACE}
-      name: boatswain-apiserver
-    caBundle: ${SERVING_CA} 
-    groupPriorityMinimum: 10000 
+      namespace: ${CLUSTER_OPERATOR_NAMESPACE}
+      name: cluster-operator-apiserver
+    caBundle: ${SERVING_CA}
+    groupPriorityMinimum: 10000
     versionPriority: 20
 
 parameters:
-# Namespace to use for Boatswain
-- name: BOATSWAIN_NAMESPACE
-  value: boatswain
+# Namespace to use for cluster-operator
+- name: CLUSTER_OPERATOR_NAMESPACE
+  value: cluster-operator
 # Namespace of kube-system. Do not change.
 - name: KUBE_SYSTEM_NAMESPACE
   value: kube-system

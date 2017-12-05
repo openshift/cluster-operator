@@ -1,10 +1,10 @@
-# Create namespace for boatswain resources
-oc create namespace boatswain
+# Create namespace for cluster-operator resources
+oc create namespace cluster-operator
 
 # Create ssl certs for api server
 ./contrib/apiserver-aggregation-tls-setup.sh
 
-# Create boatswain resources
+# Create cluster-operator resources
 oc process -f contrib/examples/deploy.yaml -o yaml \
   -p SERVING_CA=$(base64 --wrap 0 ca.pem) \
   -p SERVING_CERT=$(base64 --wrap 0 apiserver.pem) \

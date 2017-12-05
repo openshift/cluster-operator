@@ -24,7 +24,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 
-	"github.com/staebler/boatswain/pkg/apis/boatswain/install"
+	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/install"
 )
 
 var (

@@ -19,7 +19,7 @@ package meta
 import (
 	"testing"
 
-	boatswain "github.com/staebler/boatswain/pkg/apis/boatswain"
+	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -28,7 +28,7 @@ const (
 )
 
 func TestGetFinalizers(t *testing.T) {
-	obj := &boatswain.Cluster{
+	obj := &clusteroperator.Cluster{
 		ObjectMeta: metav1.ObjectMeta{Finalizers: []string{testFinalizer}},
 	}
 	finalizers, err := GetFinalizers(obj)
@@ -44,7 +44,7 @@ func TestGetFinalizers(t *testing.T) {
 }
 
 func TestAddFinalizer(t *testing.T) {
-	obj := &boatswain.Cluster{
+	obj := &clusteroperator.Cluster{
 		ObjectMeta: metav1.ObjectMeta{},
 	}
 	if err := AddFinalizer(obj, testFinalizer); err != nil {
@@ -59,7 +59,7 @@ func TestAddFinalizer(t *testing.T) {
 }
 
 func TestRemoveFinalizer(t *testing.T) {
-	obj := &boatswain.Cluster{
+	obj := &clusteroperator.Cluster{
 		ObjectMeta: metav1.ObjectMeta{Finalizers: []string{testFinalizer}},
 	}
 	newFinalizers, err := RemoveFinalizer(obj, testFinalizer+"-noexist")

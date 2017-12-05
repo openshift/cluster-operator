@@ -17,15 +17,15 @@ limitations under the License.
 package apiserver
 
 import (
-	"github.com/staebler/boatswain/pkg/api"
-	boatswainrest "github.com/staebler/boatswain/pkg/registry/boatswain/rest"
+	"github.com/openshift/cluster-operator/pkg/api"
+	clusteroperatorrest "github.com/openshift/cluster-operator/pkg/registry/clusteroperator/rest"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/client-go/pkg/version"
 	restclient "k8s.io/client-go/rest"
 )
 
 const (
-	apiServerName = "boatswain-apiserver"
+	apiServerName = "cluster-operator-apiserver"
 )
 
 func restStorageProviders(
@@ -33,7 +33,7 @@ func restStorageProviders(
 	restClient restclient.Interface,
 ) []RESTStorageProvider {
 	return []RESTStorageProvider{
-		boatswainrest.StorageProvider{
+		clusteroperatorrest.StorageProvider{
 			DefaultNamespace: defaultNamespace,
 			RESTClient:       restClient,
 		},

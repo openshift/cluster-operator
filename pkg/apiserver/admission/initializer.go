@@ -22,19 +22,19 @@ import (
 	kubeinformers "k8s.io/client-go/informers"
 	kubeclientset "k8s.io/client-go/kubernetes"
 
-	"github.com/staebler/boatswain/pkg/client/clientset_generated/internalclientset"
-	informers "github.com/staebler/boatswain/pkg/client/informers_generated/internalversion"
+	"github.com/openshift/cluster-operator/pkg/client/clientset_generated/internalclientset"
+	informers "github.com/openshift/cluster-operator/pkg/client/informers_generated/internalversion"
 )
 
-// WantsInternalBoatswainClientSet defines a function which sets ClientSet for admission plugins that need it
-type WantsInternalBoatswainClientSet interface {
-	SetInternalBoatswainClientSet(internalclientset.Interface)
+// WantsInternalClusterOperatorClientSet defines a function which sets ClientSet for admission plugins that need it
+type WantsInternalClusterOperatorClientSet interface {
+	SetInternalClusterOperatorClientSet(internalclientset.Interface)
 	admission.Validator
 }
 
-// WantsInternalBoatswainInformerFactory defines a function which sets InformerFactory for admission plugins that need it
-type WantsInternalBoatswainInformerFactory interface {
-	SetInternalBoatswainInformerFactory(informers.SharedInformerFactory)
+// WantsInternalClusterOperatorInformerFactory defines a function which sets InformerFactory for admission plugins that need it
+type WantsInternalClusterOperatorInformerFactory interface {
+	SetInternalClusterOperatorInformerFactory(informers.SharedInformerFactory)
 	admission.Validator
 }
 
@@ -74,12 +74,12 @@ func NewPluginInitializer(internalClient internalclientset.Interface, sharedInfo
 // Initialize checks the initialization interfaces implemented by each plugin
 // and provide the appropriate initialization data
 func (i pluginInitializer) Initialize(plugin admission.Interface) {
-	if wants, ok := plugin.(WantsInternalBoatswainClientSet); ok {
-		wants.SetInternalBoatswainClientSet(i.internalClient)
+	if wants, ok := plugin.(WantsInternalClusterOperatorClientSet); ok {
+		wants.SetInternalClusterOperatorClientSet(i.internalClient)
 	}
 
-	if wants, ok := plugin.(WantsInternalBoatswainInformerFactory); ok {
-		wants.SetInternalBoatswainInformerFactory(i.informers)
+	if wants, ok := plugin.(WantsInternalClusterOperatorInformerFactory); ok {
+		wants.SetInternalClusterOperatorInformerFactory(i.informers)
 	}
 
 	if wants, ok := plugin.(WantsKubeClientSet); ok {

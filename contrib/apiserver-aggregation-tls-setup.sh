@@ -14,15 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-export BOATSWAIN_NAMESPACE=${BOATSWAIN_NAMESPACE:-boatswain}
-BOATSWAIN_SERVICE_NAME=boatswain-apiserver
+export CLUSTER_OPERATOR_NAMESPACE=${CLUSTER_OPERATOR_NAMESPACE:-cluster-operator}
+CLUSTER_OPERATOR_SERVICE_NAME=cluster-operator-apiserver
 
 CA_NAME=ca
 
-ALT_NAMES="\"${BOATSWAIN_SERVICE_NAME}.${BOATSWAIN_NAMESPACE}\",\"${BOATSWAIN_SERVICE_NAME}.${BOATSWAIN_NAMESPACE}.svc"\"
+ALT_NAMES="\"${CLUSTER_OPERATOR_SERVICE_NAME}.${CLUSTER_OPERATOR_NAMESPACE}\",\"${CLUSTER_OPERATOR_SERVICE_NAME}.${CLUSTER_OPERATOR_NAMESPACE}.svc"\"
 
-BOATSWAIN_CA_SETUP=boatswain-ca.json
-cat > ${BOATSWAIN_CA_SETUP} << EOF
+CLUSTER_OPERATOR_CA_SETUP=cluster-operator-ca.json
+cat > ${CLUSTER_OPERATOR_CA_SETUP} << EOF
 {
     "hosts": [ ${ALT_NAMES} ],
     "key": {
@@ -42,20 +42,20 @@ cat > ${BOATSWAIN_CA_SETUP} << EOF
 EOF
 
 
-cfssl genkey --initca ${BOATSWAIN_CA_SETUP} | cfssljson -bare ${CA_NAME}
+cfssl genkey --initca ${CLUSTER_OPERATOR_CA_SETUP} | cfssljson -bare ${CA_NAME}
 # now the files 'ca.csr  ca-key.pem  ca.pem' exist
 
-BOATSWAIN_CA_CERT=${CA_NAME}.pem
-BOATSWAIN_CA_KEY=${CA_NAME}-key.pem
+CLUSTER_OPERATOR_CA_CERT=${CA_NAME}.pem
+CLUSTER_OPERATOR_CA_KEY=${CA_NAME}-key.pem
 
 PURPOSE=server
 echo '{"signing":{"default":{"expiry":"43800h","usages":["signing","key encipherment","'${PURPOSE}'"]}}}' > "${PURPOSE}-ca-config.json"
 
-echo '{"CN":"'${BOATSWAIN_SERVICE_NAME}'","hosts":['${ALT_NAMES}'],"key":{"algo":"rsa","size":2048}}' \
- | cfssl gencert -ca=${BOATSWAIN_CA_CERT} -ca-key=${BOATSWAIN_CA_KEY} -config=server-ca-config.json - \
+echo '{"CN":"'${CLUSTER_OPERATOR_SERVICE_NAME}'","hosts":['${ALT_NAMES}'],"key":{"algo":"rsa","size":2048}}' \
+ | cfssl gencert -ca=${CLUSTER_OPERATOR_CA_CERT} -ca-key=${CLUSTER_OPERATOR_CA_KEY} -config=server-ca-config.json - \
  | cfssljson -bare apiserver
 
-export BOATSWAIN_SERVING_CA=${BOATSWAN_CA_CERT}
-export BOATWSAIN_SERVING_CERT=apiserver.pem
-export BOATSWAIN_SERVING_KEY=apiserver-key.pem
+export CLUSTER_OPERATOR_SERVING_CA=${CLUSTER_OPERATOR_CA_CERT}
+export CLUSTER_OPERATOR_SERVING_CERT=apiserver.pem
+export CLUSTER_OPERATOR_SERVING_KEY=apiserver-key.pem
 

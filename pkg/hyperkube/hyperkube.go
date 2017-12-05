@@ -27,13 +27,13 @@ import (
 
 	"github.com/spf13/pflag"
 
-	utiltemplate "github.com/staebler/boatswain/pkg/kubernetes/pkg/util/template"
+	utiltemplate "github.com/openshift/cluster-operator/pkg/kubernetes/pkg/util/template"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apiserver/pkg/server"
 	utilflag "k8s.io/apiserver/pkg/util/flag"
 	"k8s.io/apiserver/pkg/util/logs"
 
-	"github.com/staebler/boatswain/pkg"
+	"github.com/openshift/cluster-operator/pkg"
 )
 
 // HyperKube represents a single binary that can morph/manage into multiple

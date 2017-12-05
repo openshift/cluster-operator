@@ -19,9 +19,9 @@ limitations under the License.
 package internalversion
 
 import (
-	internalclientset "github.com/staebler/boatswain/pkg/client/clientset_generated/internalclientset"
-	boatswain "github.com/staebler/boatswain/pkg/client/informers_generated/internalversion/boatswain"
-	internalinterfaces "github.com/staebler/boatswain/pkg/client/informers_generated/internalversion/internalinterfaces"
+	internalclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/internalclientset"
+	clusteroperator "github.com/openshift/cluster-operator/pkg/client/informers_generated/internalversion/clusteroperator"
+	internalinterfaces "github.com/openshift/cluster-operator/pkg/client/informers_generated/internalversion/internalinterfaces"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
@@ -110,9 +110,9 @@ type SharedInformerFactory interface {
 	ForResource(resource schema.GroupVersionResource) (GenericInformer, error)
 	WaitForCacheSync(stopCh <-chan struct{}) map[reflect.Type]bool
 
-	Boatswain() boatswain.Interface
+	Clusteroperator() clusteroperator.Interface
 }
 
-func (f *sharedInformerFactory) Boatswain() boatswain.Interface {
-	return boatswain.New(f)
+func (f *sharedInformerFactory) Clusteroperator() clusteroperator.Interface {
+	return clusteroperator.New(f)
 }

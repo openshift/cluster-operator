@@ -26,7 +26,7 @@ ROOT           = $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 BINDIR        ?= bin
 BUILD_DIR     ?= build
 COVERAGE      ?= $(CURDIR)/coverage.html
-BOATSWAIN_PKG  = github.com/staebler/boatswain
+CLUSTER_OPERATOR_PKG  = github.com/openshift/cluster-operator
 #TOP_SRC_DIRS   = cmd contrib pkg plugin
 TOP_SRC_DIRS = cmd pkg
 SRC_DIRS       = $(shell sh -c "find $(TOP_SRC_DIRS) -name \\*.go \
@@ -34,7 +34,7 @@ SRC_DIRS       = $(shell sh -c "find $(TOP_SRC_DIRS) -name \\*.go \
 TEST_DIRS     ?= $(shell sh -c "find $(TOP_SRC_DIRS) -name \\*_test.go \
                    -exec dirname {} \\; | sort | uniq")
 VERSION       ?= $(shell git describe --always --abbrev=7 --dirty)
-BUILD_LDFLAGS  = $(shell build/version.sh $(ROOT) $(BOATSWAIN_PKG))
+BUILD_LDFLAGS  = $(shell build/version.sh $(ROOT) $(CLUSTER_OPERATOR_PKG))
 
 # Run stat against /dev/null and check if it has any stdout output.
 # If stdout is blank, we are detecting bsd-stat because stat it has
@@ -63,13 +63,13 @@ ARCH?=amd64
 BASEIMAGE?=gcr.io/google-containers/debian-base-$(ARCH):0.2
 
 GO_BUILD       = env GOOS=$(PLATFORM) GOARCH=$(ARCH) go build -i $(GOFLAGS) \
-                   -ldflags "-X $(BOATSWAIN_PKG)/pkg.VERSION=$(VERSION) $(BUILD_LDFLAGS)"
-BASE_PATH      = $(ROOT:/src/github.com/staebler/boatswain/=)
+                   -ldflags "-X $(CLUSTER_OPERATOR_PKG)/pkg.VERSION=$(VERSION) $(BUILD_LDFLAGS)"
+BASE_PATH      = $(ROOT:/src/github.com/openshift/cluster-operator/=)
 export GOPATH  = $(BASE_PATH):$(ROOT)/vendor
 
 MUTABLE_TAG                      ?= canary
-BOATSWAIN_IMAGE                   = $(REGISTRY)boatswain-$(ARCH):$(VERSION)
-BOATSWAIN_MUTABLE_IMAGE           = $(REGISTRY)boatswain-$(ARCH):$(MUTABLE_TAG)
+CLUSTER_OPERATOR_IMAGE            = $(REGISTRY)cluster-operator-$(ARCH):$(VERSION)
+CLUSTER_OPERATOR_MUTABLE_IMAGE           = $(REGISTRY)cluster-operator-$(ARCH):$(MUTABLE_TAG)
 
 $(if $(realpath vendor/k8s.io/apimachinery/vendor), \
 	$(error the vendor directory exists in the apimachinery \
@@ -92,27 +92,27 @@ endif
 
 ifdef NO_DOCKER
 	DOCKER_CMD =
-	boatswainBuildImageTarget =
+	clusterOperatorBuildImageTarget =
 else
 	# Mount .pkg as pkg so that we save our cached "go build" output files
-	DOCKER_CMD = docker run --rm -v $(PWD):/go/src/$(BOATSWAIN_PKG) \
-	  -v $(PWD)/.pkg:/go/pkg boatswainbuildimage
-	boatswainBuildImageTarget = .boatswainBuildImage
+	DOCKER_CMD = docker run --rm -v $(PWD):/go/src/$(CLUSTER_OPERATOR_PKG) \
+	  -v $(PWD)/.pkg:/go/pkg clusteroperatorbuildimage
+	clusterOperatorBuildImageTarget = .clusterOperatorBuildImage
 endif
 
 NON_VENDOR_DIRS = $(shell $(DOCKER_CMD) glide nv)
 
 # This section builds the output binaries.
 # Some will have dedicated targets to make it easier to type, for example
-# "boatswain" instead of "bin/boatswain".
+# "cluster-operator" instead of "bin/cluster-operator".
 #########################################################################
 build: .init .generate_files \
-	$(BINDIR)/boatswain
-	
-# We'll rebuild boatswain if any go file has changed (ie. NEWEST_GO_FILE)
-boatswain: $(BINDIR)/boatswain
-$(BINDIR)/boatswain: .init .generate_files cmd/boatswain $(NEWEST_GO_FILE)
-	$(DOCKER_CMD) $(GO_BUILD) -o $@ $(BOATSWAIN_PKG)/cmd/boatswain
+	$(BINDIR)/cluster-operator
+
+# We'll rebuild cluster-operator if any go file has changed (ie. NEWEST_GO_FILE)
+cluster-operator: $(BINDIR)/cluster-operator
+$(BINDIR)/cluster-operator: .init .generate_files cmd/cluster-operator $(NEWEST_GO_FILE)
+	$(DOCKER_CMD) $(GO_BUILD) -o $@ $(CLUSTER_OPERATOR_PKG)/cmd/cluster-operator
 
 # This section contains the code generation stuff
 #################################################
@@ -126,28 +126,28 @@ $(BINDIR)/boatswain: .init .generate_files cmd/boatswain $(NEWEST_GO_FILE)
 	touch $@
 
 $(BINDIR)/defaulter-gen: .init
-	$(DOCKER_CMD) go build -o $@ $(BOATSWAIN_PKG)/vendor/k8s.io/code-generator/cmd/defaulter-gen
+	$(DOCKER_CMD) go build -o $@ $(CLUSTER_OPERATOR_PKG)/vendor/k8s.io/code-generator/cmd/defaulter-gen
 
 $(BINDIR)/deepcopy-gen: .init
-	$(DOCKER_CMD) go build -o $@ $(BOATSWAIN_PKG)/vendor/k8s.io/code-generator/cmd/deepcopy-gen
+	$(DOCKER_CMD) go build -o $@ $(CLUSTER_OPERATOR_PKG)/vendor/k8s.io/code-generator/cmd/deepcopy-gen
 
 $(BINDIR)/conversion-gen: .init
-	$(DOCKER_CMD) go build -o $@ $(BOATSWAIN_PKG)/vendor/k8s.io/code-generator/cmd/conversion-gen
+	$(DOCKER_CMD) go build -o $@ $(CLUSTER_OPERATOR_PKG)/vendor/k8s.io/code-generator/cmd/conversion-gen
 
 $(BINDIR)/client-gen: .init
-	$(DOCKER_CMD) go build -o $@ $(BOATSWAIN_PKG)/vendor/k8s.io/code-generator/cmd/client-gen
+	$(DOCKER_CMD) go build -o $@ $(CLUSTER_OPERATOR_PKG)/vendor/k8s.io/code-generator/cmd/client-gen
 
 $(BINDIR)/lister-gen: .init
-	$(DOCKER_CMD) go build -o $@ $(BOATSWAIN_PKG)/vendor/k8s.io/code-generator/cmd/lister-gen
+	$(DOCKER_CMD) go build -o $@ $(CLUSTER_OPERATOR_PKG)/vendor/k8s.io/code-generator/cmd/lister-gen
 
 $(BINDIR)/informer-gen: .init
-	$(DOCKER_CMD) go build -o $@ $(BOATSWAIN_PKG)/vendor/k8s.io/code-generator/cmd/informer-gen
+	$(DOCKER_CMD) go build -o $@ $(CLUSTER_OPERATOR_PKG)/vendor/k8s.io/code-generator/cmd/informer-gen
 
 $(BINDIR)/openapi-gen: vendor/k8s.io/code-generator/cmd/openapi-gen
-	$(DOCKER_CMD) go build -o $@ $(BOATSWAIN_PKG)/$^
+	$(DOCKER_CMD) go build -o $@ $(CLUSTER_OPERATOR_PKG)/$^
 
 $(BINDIR)/e2e.test: .init $(NEWEST_E2ETEST_SOURCE) $(NEWEST_GO_FILE)
-	$(DOCKER_CMD) go test -c -o $@ $(BOATSWAIN_PKG)/test/e2e
+	$(DOCKER_CMD) go test -c -o $@ $(CLUSTER_OPERATOR_PKG)/test/e2e
 
 # Regenerate all files if the gen exes changed or any "types.go" files changed
 .generate_files: .init .generate_exes $(TYPES_FILES)
@@ -155,26 +155,26 @@ $(BINDIR)/e2e.test: .init $(NEWEST_E2ETEST_SOURCE) $(NEWEST_GO_FILE)
 	$(DOCKER_CMD) $(BINDIR)/defaulter-gen \
 		--v 1 --logtostderr \
 		--go-header-file "vendor/github.com/kubernetes/repo-infra/verify/boilerplate/boilerplate.go.txt" \
-		--input-dirs "$(BOATSWAIN_PKG)/pkg/apis/boatswain" \
-		--input-dirs "$(BOATSWAIN_PKG)/pkg/apis/boatswain/v1alpha1" \
-	  	--extra-peer-dirs "$(BOATSWAIN_PKG)/pkg/apis/boatswain" \
-		--extra-peer-dirs "$(BOATSWAIN_PKG)/pkg/apis/boatswain/v1alpha1" \
+		--input-dirs "$(CLUSTER_OPERATOR_PKG)/pkg/apis/clusteroperator" \
+		--input-dirs "$(CLUSTER_OPERATOR_PKG)/pkg/apis/clusteroperator/v1alpha1" \
+	  	--extra-peer-dirs "$(CLUSTER_OPERATOR_PKG)/pkg/apis/clusteroperator" \
+		--extra-peer-dirs "$(CLUSTER_OPERATOR_PKG)/pkg/apis/clusteroperator/v1alpha1" \
 		--output-file-base "zz_generated.defaults"
 	# Generate deep copies
 	$(DOCKER_CMD) $(BINDIR)/deepcopy-gen \
 		--v 1 --logtostderr \
 		--go-header-file "vendor/github.com/kubernetes/repo-infra/verify/boilerplate/boilerplate.go.txt" \
-		--input-dirs "$(BOATSWAIN_PKG)/pkg/apis/boatswain" \
-		--input-dirs "$(BOATSWAIN_PKG)/pkg/apis/boatswain/v1alpha1" \
-		--bounding-dirs "github.com/staebler/boatswain" \
+		--input-dirs "$(CLUSTER_OPERATOR_PKG)/pkg/apis/clusteroperator" \
+		--input-dirs "$(CLUSTER_OPERATOR_PKG)/pkg/apis/clusteroperator/v1alpha1" \
+		--bounding-dirs "github.com/openshift/cluster-operator" \
 		--output-file-base zz_generated.deepcopy
 	# Generate conversions
 	$(DOCKER_CMD) $(BINDIR)/conversion-gen \
 		--v 1 --logtostderr \
 		--extra-peer-dirs k8s.io/api/core/v1,k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/apimachinery/pkg/conversion,k8s.io/apimachinery/pkg/runtime \
 		--go-header-file "vendor/github.com/kubernetes/repo-infra/verify/boilerplate/boilerplate.go.txt" \
-		--input-dirs "$(BOATSWAIN_PKG)/pkg/apis/boatswain" \
-		--input-dirs "$(BOATSWAIN_PKG)/pkg/apis/boatswain/v1alpha1" \
+		--input-dirs "$(CLUSTER_OPERATOR_PKG)/pkg/apis/clusteroperator" \
+		--input-dirs "$(CLUSTER_OPERATOR_PKG)/pkg/apis/clusteroperator/v1alpha1" \
 		--output-file-base zz_generated.conversion
 	# generate all pkg/client contents
 	$(DOCKER_CMD) $(BUILD_DIR)/update-client-gen.sh
@@ -182,19 +182,19 @@ $(BINDIR)/e2e.test: .init $(NEWEST_E2ETEST_SOURCE) $(NEWEST_GO_FILE)
 	$(DOCKER_CMD) $(BINDIR)/openapi-gen \
 		--v 1 --logtostderr \
 		--go-header-file "vendor/github.com/kubernetes/repo-infra/verify/boilerplate/boilerplate.go.txt" \
-		--input-dirs "github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1,k8s.io/api/core/v1,k8s.io/apimachinery/pkg/apis/meta/v1" \
-		--output-package "github.com/staebler/boatswain/pkg/openapi"
+		--input-dirs "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1,k8s.io/api/core/v1,k8s.io/apimachinery/pkg/apis/meta/v1" \
+		--output-package "github.com/openshift/cluster-operator/pkg/openapi"
 	touch $@
 
 # Some prereq stuff
 ###################
 
-.init: $(boatswainBuildImageTarget)
+.init: $(clusterOperatorBuildImageTarget)
 	touch $@
 
-.boatswainBuildImage: build/build-image/Dockerfile
+.clusterOperatorBuildImage: build/build-image/Dockerfile
 	sed "s/GO_VERSION/$(GO_VERSION)/g" < build/build-image/Dockerfile | \
-	  docker build -t boatswainbuildimage -
+	  docker build -t clusteroperatorbuildimage -
 	touch $@
 
 # Util targets
@@ -250,17 +250,17 @@ check-go:
 	  exit 1; \
 	fi
 
-# this target uses the host-local go installation to test 
+# this target uses the host-local go installation to test
 .PHONY: test-unit-native
 test-unit-native: check-go
-	go test $(addprefix ${BOATSWAIN_PKG}/,${TEST_DIRS})
+	go test $(addprefix ${CLUSTER_OPERATOR_PKG}/,${TEST_DIRS})
 
 test-unit: .init build
 	@echo Running tests:
 	$(DOCKER_CMD) go test -race $(UNIT_TEST_FLAGS) \
-	  $(addprefix $(BOATSWAIN_PKG)/,$(TEST_DIRS)) $(UNIT_TEST_LOG_FLAGS)
+	  $(addprefix $(CLUSTER_OPERATOR_PKG)/,$(TEST_DIRS)) $(UNIT_TEST_LOG_FLAGS)
 
-test-integration: .init $(boatswainBuildImageTarget) build
+test-integration: .init $(clusterOperatorBuildImageTarget) build
 	# test kubectl
 	contrib/hack/setup-kubectl.sh
 	contrib/hack/test-apiserver.sh
@@ -281,8 +281,8 @@ clean-bin:
 
 clean-build-image:
 	$(DOCKER_CMD) rm -rf .pkg
-	rm -f .boatswainBuildImage
-	docker rmi -f boatswainbuildimage > /dev/null 2>&1 || true
+	rm -f .clusterOperatorBuildImage
+	docker rmi -f clusteroperatorbuildimage > /dev/null 2>&1 || true
 
 # clean-generated does a `git checkout --` on all generated files and
 # directories.  May not work correctly if you have staged some of these files
@@ -303,14 +303,14 @@ purge-generated:
 	find $(TOP_SRC_DIRS) -name zz_generated* -exec rm {} \;
 	find $(TOP_SRC_DIRS) -type d -name *_generated -exec rm -rf {} \;
 	rm -f pkg/openapi/openapi_generated.go
-	echo 'package v1alpha1' > pkg/apis/boatswain/v1alpha1/types.generated.go
+	echo 'package v1alpha1' > pkg/apis/clusteroperator/v1alpha1/types.generated.go
 
 clean-coverage:
 	rm -f $(COVERAGE)
 
 # Building Docker Images for our executables
 ############################################
-images: boatswain-image
+images: cluster-operator-image
 
 images-all: $(addprefix arch-image-,$(ALL_ARCH))
 arch-image-%:
@@ -333,24 +333,24 @@ define build-and-tag # (service, image, mutable_image, prefix)
 	rm -rf $(tmp_build_path)
 endef
 
-boatswain-image: build/boatswain/Dockerfile $(BINDIR)/boatswain
-	$(call build-and-tag,"boatswain",$(BOATSWAIN_IMAGE),$(BOATSWAIN_MUTABLE_IMAGE))
+cluster-operator-image: build/cluster-operator/Dockerfile $(BINDIR)/cluster-operator
+	$(call build-and-tag,"cluster-operator",$(CLUSTER_OPERATOR_IMAGE),$(CLUSTER_OPERATOR_MUTABLE_IMAGE))
 ifeq ($(ARCH),amd64)
-	docker tag $(BOATSWAIN_IMAGE) $(REGISTRY)boatswain:$(VERSION)
-	docker tag $(BOATSWAIN_MUTABLE_IMAGE) $(REGISTRY)boatswain:$(MUTABLE_TAG)
+	docker tag $(CLUSTER_OPERATOR_IMAGE) $(REGISTRY)cluster-operator:$(VERSION)
+	docker tag $(CLUSTER_OPERATOR_MUTABLE_IMAGE) $(REGISTRY)cluster-operator:$(MUTABLE_TAG)
 endif
 
 
 # Push our Docker Images to a registry
 ######################################
-push: boatswain-push
+push: cluster-operator-push
 
-boatswain-push: boatswain-image
-	docker push $(BOATSWAIN_IMAGE)
-	docker push $(BOATSWAIN_MUTABLE_IMAGE)
+cluster-operator-push: cluster-operator-image
+	docker push $(CLUSTER_OPERATOR_IMAGE)
+	docker push $(CLUSTER_OPERATOR_MUTABLE_IMAGE)
 ifeq ($(ARCH),amd64)
-	docker push $(REGISTRY)boatswain:$(VERSION)
-	docker push $(REGISTRY)boatswain:$(MUTABLE_TAG)
+	docker push $(REGISTRY)cluster-operator:$(VERSION)
+	docker push $(REGISTRY)cluster-operator:$(MUTABLE_TAG)
 endif
 
 

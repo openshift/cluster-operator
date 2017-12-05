@@ -1,4 +1,4 @@
-apiVersion: boatswain.openshift.io/v1alpha1
+apiVersion: clusteroperator.openshift.io/v1alpha1
 kind: Cluster
 metadata:
   name: cluster1

@@ -20,12 +20,12 @@ import (
 	"testing"
 	"time"
 
-	boatswain "github.com/staebler/boatswain/pkg/apis/boatswain"
+	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestDeletionTimestampExists(t *testing.T) {
-	obj := &boatswain.Cluster{
+	obj := &clusteroperator.Cluster{
 		ObjectMeta: metav1.ObjectMeta{},
 	}
 	exists, err := DeletionTimestampExists(obj)
@@ -49,7 +49,7 @@ func TestDeletionTimestampExists(t *testing.T) {
 func TestRoundTripDeletionTimestamp(t *testing.T) {
 	t1 := metav1.NewTime(time.Now())
 	t2 := metav1.NewTime(time.Now().Add(1 * time.Hour))
-	obj := &boatswain.Cluster{
+	obj := &clusteroperator.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
 			DeletionTimestamp: &t1,
 		},

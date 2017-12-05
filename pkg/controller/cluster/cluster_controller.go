@@ -31,13 +31,13 @@ import (
 
 	"github.com/golang/glog"
 
-	"github.com/staebler/boatswain/pkg/kubernetes/pkg/util/metrics"
+	"github.com/openshift/cluster-operator/pkg/kubernetes/pkg/util/metrics"
 
-	boatswain "github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1"
-	boatswainclientset "github.com/staebler/boatswain/pkg/client/clientset_generated/clientset"
-	informers "github.com/staebler/boatswain/pkg/client/informers_generated/externalversions/boatswain/v1alpha1"
-	lister "github.com/staebler/boatswain/pkg/client/listers_generated/boatswain/v1alpha1"
-	"github.com/staebler/boatswain/pkg/controller"
+	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	clusteroperatorclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
+	informers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions/clusteroperator/v1alpha1"
+	lister "github.com/openshift/cluster-operator/pkg/client/listers_generated/clusteroperator/v1alpha1"
+	"github.com/openshift/cluster-operator/pkg/controller"
 )
 
 const (
@@ -50,18 +50,18 @@ const (
 )
 
 // NewClusterController returns a new *ClusterController.
-func NewClusterController(clusterInformer informers.ClusterInformer, kubeClient kubeclientset.Interface, boatswainClient boatswainclientset.Interface) *ClusterController {
+func NewClusterController(clusterInformer informers.ClusterInformer, kubeClient kubeclientset.Interface, clusteroperatorClient clusteroperatorclientset.Interface) *ClusterController {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(glog.Infof)
 	// TODO: remove the wrapper when every clients have moved to use the clientset.
 	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: v1core.New(kubeClient.CoreV1().RESTClient()).Events("")})
 
 	if kubeClient != nil && kubeClient.CoreV1().RESTClient().GetRateLimiter() != nil {
-		metrics.RegisterMetricAndTrackRateLimiterUsage("boatswain_cluster_controller", kubeClient.CoreV1().RESTClient().GetRateLimiter())
+		metrics.RegisterMetricAndTrackRateLimiterUsage("clusteroperator_cluster_controller", kubeClient.CoreV1().RESTClient().GetRateLimiter())
 	}
 
 	c := &ClusterController{
-		client: boatswainClient,
+		client: clusteroperatorClient,
 		queue:  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "cluster"),
 	}
 
@@ -81,12 +81,12 @@ func NewClusterController(clusterInformer informers.ClusterInformer, kubeClient 
 
 // ClusterController manages clusters.
 type ClusterController struct {
-	client boatswainclientset.Interface
+	client clusteroperatorclientset.Interface
 
 	// To allow injection of syncCluster for testing.
 	syncHandler func(hKey string) error
 	// used for unit testing
-	enqueueCluster func(cluster *boatswain.Cluster)
+	enqueueCluster func(cluster *clusteroperator.Cluster)
 
 	// clustersLister is able to list/get clusters and is populated by the shared informer passed to
 	// NewClusterController.
@@ -100,27 +100,27 @@ type ClusterController struct {
 }
 
 func (c *ClusterController) addCluster(obj interface{}) {
-	cluster := obj.(*boatswain.Cluster)
+	cluster := obj.(*clusteroperator.Cluster)
 	glog.V(4).Infof("Adding cluster %s", cluster.Name)
 	c.enqueueCluster(cluster)
 }
 
 func (c *ClusterController) updateCluster(old, cur interface{}) {
-	oldCluster := old.(*boatswain.Cluster)
-	curCluster := cur.(*boatswain.Cluster)
+	oldCluster := old.(*clusteroperator.Cluster)
+	curCluster := cur.(*clusteroperator.Cluster)
 	glog.V(4).Infof("Updating cluster %s", oldCluster.Name)
 	c.enqueueCluster(curCluster)
 }
 
 func (c *ClusterController) deleteCluster(obj interface{}) {
-	cluster, ok := obj.(*boatswain.Cluster)
+	cluster, ok := obj.(*clusteroperator.Cluster)
 	if !ok {
 		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("Couldn't get object from tombstone %#v", obj))
 			return
 		}
-		cluster, ok = tombstone.Obj.(*boatswain.Cluster)
+		cluster, ok = tombstone.Obj.(*clusteroperator.Cluster)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("Tombstone contained object that is not a Cluster %#v", obj))
 			return
@@ -150,7 +150,7 @@ func (c *ClusterController) Run(workers int, stopCh <-chan struct{}) {
 	<-stopCh
 }
 
-func (c *ClusterController) enqueue(cluster *boatswain.Cluster) {
+func (c *ClusterController) enqueue(cluster *clusteroperator.Cluster) {
 	key, err := controller.KeyFunc(cluster)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("Couldn't get key for object %#v: %v", cluster, err))
@@ -160,7 +160,7 @@ func (c *ClusterController) enqueue(cluster *boatswain.Cluster) {
 	c.queue.Add(key)
 }
 
-func (c *ClusterController) enqueueRateLimited(cluster *boatswain.Cluster) {
+func (c *ClusterController) enqueueRateLimited(cluster *clusteroperator.Cluster) {
 	key, err := controller.KeyFunc(cluster)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("Couldn't get key for object %#v: %v", cluster, err))
@@ -171,7 +171,7 @@ func (c *ClusterController) enqueueRateLimited(cluster *boatswain.Cluster) {
 }
 
 // enqueueAfter will enqueue a cluster after the provided amount of time.
-func (c *ClusterController) enqueueAfter(cluster *boatswain.Cluster, after time.Duration) {
+func (c *ClusterController) enqueueAfter(cluster *clusteroperator.Cluster, after time.Duration) {
 	key, err := controller.KeyFunc(cluster)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("Couldn't get key for object %#v: %v", cluster, err))

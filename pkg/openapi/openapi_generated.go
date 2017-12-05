@@ -28,10 +28,10 @@ import (
 
 func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	return map[string]common.OpenAPIDefinition{
-		"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.Cluster": {
+		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.Cluster": {
 			Schema: spec.Schema{
 				SchemaProps: spec.SchemaProps{
-					Description: "Cluster represents a cluster that boatswain manages",
+					Description: "Cluster represents a cluster that clusteroperator manages",
 					Properties: map[string]spec.Schema{
 						"kind": {
 							SchemaProps: spec.SchemaProps{
@@ -54,21 +54,21 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 						},
 						"spec": {
 							SchemaProps: spec.SchemaProps{
-								Ref: ref("github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.ClusterSpec"),
+								Ref: ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterSpec"),
 							},
 						},
 						"status": {
 							SchemaProps: spec.SchemaProps{
-								Ref: ref("github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.ClusterStatus"),
+								Ref: ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterStatus"),
 							},
 						},
 					},
 				},
 			},
 			Dependencies: []string{
-				"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.ClusterSpec", "github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.ClusterStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 		},
-		"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.ClusterList": {
+		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterList": {
 			Schema: spec.Schema{
 				SchemaProps: spec.SchemaProps{
 					Description: "ClusterList is a list of Clusters.",
@@ -98,7 +98,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Items: &spec.SchemaOrArray{
 									Schema: &spec.Schema{
 										SchemaProps: spec.SchemaProps{
-											Ref: ref("github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.Cluster"),
+											Ref: ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.Cluster"),
 										},
 									},
 								},
@@ -109,9 +109,9 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 				},
 			},
 			Dependencies: []string{
-				"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.Cluster", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.Cluster", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
 		},
-		"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.ClusterNodeGroup": {
+		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterNodeGroup": {
 			Schema: spec.Schema{
 				SchemaProps: spec.SchemaProps{
 					Description: "ClusterNodeGroup is a node group defined in a Cluster resource",
@@ -128,13 +128,13 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 			},
 			Dependencies: []string{},
 		},
-		"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.ClusterSpec": {
+		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterSpec": {
 			Schema: spec.Schema{
 				SchemaProps: spec.SchemaProps{
 					Properties: map[string]spec.Schema{
 						"masterNodes": {
 							SchemaProps: spec.SchemaProps{
-								Ref: ref("github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.ClusterNodeGroup"),
+								Ref: ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterNodeGroup"),
 							},
 						},
 						"computeNodeGroups": {
@@ -143,7 +143,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Items: &spec.SchemaOrArray{
 									Schema: &spec.Schema{
 										SchemaProps: spec.SchemaProps{
-											Ref: ref("github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.ClusterNodeGroup"),
+											Ref: ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterNodeGroup"),
 										},
 									},
 								},
@@ -154,9 +154,9 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 				},
 			},
 			Dependencies: []string{
-				"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.ClusterNodeGroup"},
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterNodeGroup"},
 		},
-		"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.ClusterStatus": {
+		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterStatus": {
 			Schema: spec.Schema{
 				SchemaProps: spec.SchemaProps{
 					Properties: map[string]spec.Schema{},
@@ -164,10 +164,10 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 			},
 			Dependencies: []string{},
 		},
-		"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.Node": {
+		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.Node": {
 			Schema: spec.Schema{
 				SchemaProps: spec.SchemaProps{
-					Description: "Node represents a node in a cluster that boatswain manages",
+					Description: "Node represents a node in a cluster that clusteroperator manages",
 					Properties: map[string]spec.Schema{
 						"kind": {
 							SchemaProps: spec.SchemaProps{
@@ -190,24 +190,24 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 						},
 						"spec": {
 							SchemaProps: spec.SchemaProps{
-								Ref: ref("github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.NodeSpec"),
+								Ref: ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.NodeSpec"),
 							},
 						},
 						"status": {
 							SchemaProps: spec.SchemaProps{
-								Ref: ref("github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.NodeStatus"),
+								Ref: ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.NodeStatus"),
 							},
 						},
 					},
 				},
 			},
 			Dependencies: []string{
-				"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.NodeSpec", "github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.NodeStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.NodeSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.NodeStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 		},
-		"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.NodeGroup": {
+		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.NodeGroup": {
 			Schema: spec.Schema{
 				SchemaProps: spec.SchemaProps{
-					Description: "NodeGroup represents a group of nodes in a cluster that boatswain manages",
+					Description: "NodeGroup represents a group of nodes in a cluster that clusteroperator manages",
 					Properties: map[string]spec.Schema{
 						"kind": {
 							SchemaProps: spec.SchemaProps{
@@ -230,21 +230,21 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 						},
 						"spec": {
 							SchemaProps: spec.SchemaProps{
-								Ref: ref("github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.NodeGroupSpec"),
+								Ref: ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.NodeGroupSpec"),
 							},
 						},
 						"status": {
 							SchemaProps: spec.SchemaProps{
-								Ref: ref("github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.NodeGroupStatus"),
+								Ref: ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.NodeGroupStatus"),
 							},
 						},
 					},
 				},
 			},
 			Dependencies: []string{
-				"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.NodeGroupSpec", "github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.NodeGroupStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.NodeGroupSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.NodeGroupStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 		},
-		"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.NodeGroupList": {
+		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.NodeGroupList": {
 			Schema: spec.Schema{
 				SchemaProps: spec.SchemaProps{
 					Description: "NodeGroupList is a list of NodeGroups.",
@@ -274,7 +274,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Items: &spec.SchemaOrArray{
 									Schema: &spec.Schema{
 										SchemaProps: spec.SchemaProps{
-											Ref: ref("github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.NodeGroup"),
+											Ref: ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.NodeGroup"),
 										},
 									},
 								},
@@ -285,9 +285,9 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 				},
 			},
 			Dependencies: []string{
-				"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.NodeGroup", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.NodeGroup", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
 		},
-		"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.NodeGroupSpec": {
+		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.NodeGroupSpec": {
 			Schema: spec.Schema{
 				SchemaProps: spec.SchemaProps{
 					Properties: map[string]spec.Schema{
@@ -310,7 +310,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 			},
 			Dependencies: []string{},
 		},
-		"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.NodeGroupStatus": {
+		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.NodeGroupStatus": {
 			Schema: spec.Schema{
 				SchemaProps: spec.SchemaProps{
 					Properties: map[string]spec.Schema{},
@@ -318,7 +318,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 			},
 			Dependencies: []string{},
 		},
-		"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.NodeList": {
+		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.NodeList": {
 			Schema: spec.Schema{
 				SchemaProps: spec.SchemaProps{
 					Description: "NodeList is a list of Nodes.",
@@ -348,7 +348,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Items: &spec.SchemaOrArray{
 									Schema: &spec.Schema{
 										SchemaProps: spec.SchemaProps{
-											Ref: ref("github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.Node"),
+											Ref: ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.Node"),
 										},
 									},
 								},
@@ -359,9 +359,9 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 				},
 			},
 			Dependencies: []string{
-				"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.Node", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.Node", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
 		},
-		"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.NodeSpec": {
+		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.NodeSpec": {
 			Schema: spec.Schema{
 				SchemaProps: spec.SchemaProps{
 					Properties: map[string]spec.Schema{
@@ -384,7 +384,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 			},
 			Dependencies: []string{},
 		},
-		"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.NodeStatus": {
+		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.NodeStatus": {
 			Schema: spec.Schema{
 				SchemaProps: spec.SchemaProps{
 					Properties: map[string]spec.Schema{},

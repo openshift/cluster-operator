@@ -19,7 +19,7 @@ package leaderelectionconfig
 import (
 	"time"
 
-	"github.com/staebler/boatswain/pkg/kubernetes/pkg/apis/componentconfig"
+	"github.com/openshift/cluster-operator/pkg/kubernetes/pkg/apis/componentconfig"
 	"github.com/spf13/pflag"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"

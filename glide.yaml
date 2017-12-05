@@ -1,4 +1,4 @@
-package: github.com/staebler/boatswain
+package: github.com/openshift/cluster-operator
 import:
 - package: k8s.io/client-go
   version: kubernetes-1.8.2

@@ -18,7 +18,7 @@ package internalclientset
 
 import (
 	glog "github.com/golang/glog"
-	boatswaininternalversion "github.com/staebler/boatswain/pkg/client/clientset_generated/internalclientset/typed/boatswain/internalversion"
+	clusteroperatorinternalversion "github.com/openshift/cluster-operator/pkg/client/clientset_generated/internalclientset/typed/clusteroperator/internalversion"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
@@ -26,19 +26,19 @@ import (
 
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
-	Boatswain() boatswaininternalversion.BoatswainInterface
+	Clusteroperator() clusteroperatorinternalversion.ClusteroperatorInterface
 }
 
 // Clientset contains the clients for groups. Each group has exactly one
 // version included in a Clientset.
 type Clientset struct {
 	*discovery.DiscoveryClient
-	boatswain *boatswaininternalversion.BoatswainClient
+	clusteroperator *clusteroperatorinternalversion.ClusteroperatorClient
 }
 
-// Boatswain retrieves the BoatswainClient
-func (c *Clientset) Boatswain() boatswaininternalversion.BoatswainInterface {
-	return c.boatswain
+// Clusteroperator retrieves the ClusteroperatorClient
+func (c *Clientset) Clusteroperator() clusteroperatorinternalversion.ClusteroperatorInterface {
+	return c.clusteroperator
 }
 
 // Discovery retrieves the DiscoveryClient
@@ -57,7 +57,7 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 	}
 	var cs Clientset
 	var err error
-	cs.boatswain, err = boatswaininternalversion.NewForConfig(&configShallowCopy)
+	cs.clusteroperator, err = clusteroperatorinternalversion.NewForConfig(&configShallowCopy)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +74,7 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 // panics if there is an error in the config.
 func NewForConfigOrDie(c *rest.Config) *Clientset {
 	var cs Clientset
-	cs.boatswain = boatswaininternalversion.NewForConfigOrDie(c)
+	cs.clusteroperator = clusteroperatorinternalversion.NewForConfigOrDie(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClientForConfigOrDie(c)
 	return &cs
@@ -83,7 +83,7 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 // New creates a new Clientset for the given RESTClient.
 func New(c rest.Interface) *Clientset {
 	var cs Clientset
-	cs.boatswain = boatswaininternalversion.New(c)
+	cs.clusteroperator = clusteroperatorinternalversion.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)
 	return &cs
