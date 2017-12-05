@@ -3,5 +3,10 @@ kind: Cluster
 metadata:
   name: cluster1
 spec:
-  masterNodes:
+  masterNodeGroup:
     size: 1
+  computeNodeGroups:
+    - name: alpha
+      size: 1
+    - name: beta
+      size: 2

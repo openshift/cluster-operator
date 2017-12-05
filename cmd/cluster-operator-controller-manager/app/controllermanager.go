@@ -417,6 +417,7 @@ func startClusterController(ctx ControllerContext) (bool, error) {
 	}
 	go cluster.NewClusterController(
 		ctx.InformerFactory.Clusteroperator().V1alpha1().Clusters(),
+		ctx.InformerFactory.Clusteroperator().V1alpha1().NodeGroups(),
 		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-cluster-controller"),
 		ctx.ClientBuilder.ClientOrDie("clusteroperator-cluster-controller"),
 	).Run(int(ctx.Options.ConcurrentClusterSyncs), ctx.Stop)
