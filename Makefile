@@ -16,7 +16,7 @@ all: build test verify
 
 # Some env vars that devs might find useful:
 #  GOFLAGS      : extra "go build" flags to use - e.g. -v   (for verbose)
-#  NO_DOCKER=1  : execute each step natively, not in a Docker container
+#  USE_DOCKER=1 : execute each step in a Docker container, not natively
 #  TEST_DIRS=   : only run the unit tests from the specified dirs
 #  UNIT_TESTS=  : only run the unit tests matching the specified regexp
 
@@ -90,14 +90,14 @@ ifdef TEST_LOG_LEVEL
 	INT_TEST_FLAGS+=--alsologtostderr --v=$(TEST_LOG_LEVEL)
 endif
 
-ifdef NO_DOCKER
-	DOCKER_CMD =
-	clusterOperatorBuildImageTarget =
-else
+ifdef USE_DOCKER
 	# Mount .pkg as pkg so that we save our cached "go build" output files
 	DOCKER_CMD = docker run --rm -v $(PWD):/go/src/$(CLUSTER_OPERATOR_PKG) \
 	  -v $(PWD)/.pkg:/go/pkg clusteroperatorbuildimage
 	clusterOperatorBuildImageTarget = .clusterOperatorBuildImage
+else
+	DOCKER_CMD =
+	clusterOperatorBuildImageTarget =
 endif
 
 NON_VENDOR_DIRS = $(shell $(DOCKER_CMD) glide nv)
