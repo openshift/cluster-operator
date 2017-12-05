@@ -43,17 +43,18 @@ func TestRun(t *testing.T) {
 	}
 
 	// test whether the server is really healthy after /healthz told us so
-	t.Logf("Creating Host directly after being healthy")
-	_, err = client.Hosts().Create(&boatswain.Host{
+	t.Logf("Creating Cluster directly after being healthy")
+	_, err = client.Clusters("kube-system").Create(&boatswain.Cluster{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       "Host",
+			Kind:       "Cluster",
 			APIVersion: "boatswain.openshift.io/v1alpha1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "host1",
+			Namespace: "kube-system",
+			Name:      "cluster1",
 		},
 	})
 	if err != nil {
-		t.Fatalf("Failed to create host: %v", err)
+		t.Fatalf("Failed to create cluster: %v", err)
 	}
 }

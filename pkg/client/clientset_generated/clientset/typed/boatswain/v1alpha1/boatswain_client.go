@@ -25,7 +25,9 @@ import (
 
 type BoatswainV1alpha1Interface interface {
 	RESTClient() rest.Interface
-	HostsGetter
+	ClustersGetter
+	NodesGetter
+	NodeGroupsGetter
 }
 
 // BoatswainV1alpha1Client is used to interact with features provided by the boatswain.openshift.io group.
@@ -33,8 +35,16 @@ type BoatswainV1alpha1Client struct {
 	restClient rest.Interface
 }
 
-func (c *BoatswainV1alpha1Client) Hosts() HostInterface {
-	return newHosts(c)
+func (c *BoatswainV1alpha1Client) Clusters(namespace string) ClusterInterface {
+	return newClusters(c, namespace)
+}
+
+func (c *BoatswainV1alpha1Client) Nodes(namespace string) NodeInterface {
+	return newNodes(c, namespace)
+}
+
+func (c *BoatswainV1alpha1Client) NodeGroups(namespace string) NodeGroupInterface {
+	return newNodeGroups(c, namespace)
 }
 
 // NewForConfig creates a new BoatswainV1alpha1Client for the given config.

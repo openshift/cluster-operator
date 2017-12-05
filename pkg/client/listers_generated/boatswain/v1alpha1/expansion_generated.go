@@ -18,6 +18,26 @@ limitations under the License.
 
 package v1alpha1
 
-// HostListerExpansion allows custom methods to be added to
-// HostLister.
-type HostListerExpansion interface{}
+// ClusterListerExpansion allows custom methods to be added to
+// ClusterLister.
+type ClusterListerExpansion interface{}
+
+// ClusterNamespaceListerExpansion allows custom methods to be added to
+// ClusterNamespaceLister.
+type ClusterNamespaceListerExpansion interface{}
+
+// NodeListerExpansion allows custom methods to be added to
+// NodeLister.
+type NodeListerExpansion interface{}
+
+// NodeNamespaceListerExpansion allows custom methods to be added to
+// NodeNamespaceLister.
+type NodeNamespaceListerExpansion interface{}
+
+// NodeGroupListerExpansion allows custom methods to be added to
+// NodeGroupLister.
+type NodeGroupListerExpansion interface{}
+
+// NodeGroupNamespaceListerExpansion allows custom methods to be added to
+// NodeGroupNamespaceLister.
+type NodeGroupNamespaceListerExpansion interface{}

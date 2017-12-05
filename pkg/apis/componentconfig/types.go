@@ -74,10 +74,25 @@ type ControllerManagerConfiguration struct {
 	// minResyncPeriod and 2*minResyncPeriod.
 	MinResyncPeriod metav1.Duration
 
-	// concurrentHostSyncs is the number of host objects that are
-	// allowed to sync concurrently. Larger number = more responsive hosts,
+	// concurrentClusterSyncs is the number of cluster objects that are
+	// allowed to sync concurrently. Larger number = more responsive clusters,
 	// but more CPU (and network) load.
-	ConcurrentHostSyncs int32
+	ConcurrentClusterSyncs int32
+
+	// concurrentNodeGroupSyncs is the number of node group objects that are
+	// allowed to sync concurrently. Larger number = more responsive node groups,
+	// but more CPU (and network) load.
+	ConcurrentNodeGroupSyncs int32
+
+	// concurrentNodeSyncs is the number of node objects that are
+	// allowed to sync concurrently. Larger number = more responsive nodes,
+	// but more CPU (and network) load.
+	ConcurrentNodeSyncs int32
+
+	// concurrentMasterNodeSyncs is the number of master node objects that are
+	// allowed to sync concurrently. Larger number = more responsive master nodes,
+	// but more CPU (and network) load.
+	ConcurrentMasterNodeSyncs int32
 
 	// leaderElection defines the configuration of leader election client.
 	LeaderElection componentconfig.LeaderElectionConfiguration

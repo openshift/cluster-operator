@@ -24,8 +24,12 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
-	// Hosts returns a HostInformer.
-	Hosts() HostInformer
+	// Clusters returns a ClusterInformer.
+	Clusters() ClusterInformer
+	// Nodes returns a NodeInformer.
+	Nodes() NodeInformer
+	// NodeGroups returns a NodeGroupInformer.
+	NodeGroups() NodeGroupInformer
 }
 
 type version struct {
@@ -37,7 +41,17 @@ func New(f internalinterfaces.SharedInformerFactory) Interface {
 	return &version{f}
 }
 
-// Hosts returns a HostInformer.
-func (v *version) Hosts() HostInformer {
-	return &hostInformer{factory: v.SharedInformerFactory}
+// Clusters returns a ClusterInformer.
+func (v *version) Clusters() ClusterInformer {
+	return &clusterInformer{factory: v.SharedInformerFactory}
+}
+
+// Nodes returns a NodeInformer.
+func (v *version) Nodes() NodeInformer {
+	return &nodeInformer{factory: v.SharedInformerFactory}
+}
+
+// NodeGroups returns a NodeGroupInformer.
+func (v *version) NodeGroups() NodeGroupInformer {
+	return &nodeGroupInformer{factory: v.SharedInformerFactory}
 }

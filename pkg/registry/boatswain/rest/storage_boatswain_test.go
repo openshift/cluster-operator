@@ -69,9 +69,31 @@ func TestV1Alpha1Storage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error getting v1alpha1 storage (%s)", err)
 	}
-	_, hostStorageExists := storageMap["hosts"]
-	if !hostStorageExists {
-		t.Fatalf("no host storage found")
+
+	_, clusterStorageExists := storageMap["clusters"]
+	if !clusterStorageExists {
+		t.Fatalf("no clusters storage found")
 	}
-	// TODO: do stuff with host storage
+	_, clusterStatusStorageExists := storageMap["clusters/status"]
+	if !clusterStatusStorageExists {
+		t.Fatalf("no clusters/status storage found")
+	}
+
+	_, nodeGroupStorageExists := storageMap["nodegroups"]
+	if !nodeGroupStorageExists {
+		t.Fatalf("no nodegroups storage found")
+	}
+	_, nodeGroupStatusStorageExists := storageMap["nodegroups/status"]
+	if !nodeGroupStatusStorageExists {
+		t.Fatalf("no nodegroups/status storage found")
+	}
+
+	_, nodeStorageExists := storageMap["nodes"]
+	if !nodeStorageExists {
+		t.Fatalf("no nodes storage found")
+	}
+	_, nodeStatusStorageExists := storageMap["nodes/status"]
+	if !nodeStatusStorageExists {
+		t.Fatalf("no nodes/status storage found")
+	}
 }

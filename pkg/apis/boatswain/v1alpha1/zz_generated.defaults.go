@@ -28,18 +28,44 @@ import (
 // Public to allow building arbitrary schemes.
 // All generated defaulters are covering - they call all nested defaulters.
 func RegisterDefaults(scheme *runtime.Scheme) error {
-	scheme.AddTypeDefaultingFunc(&Host{}, func(obj interface{}) { SetObjectDefaults_Host(obj.(*Host)) })
-	scheme.AddTypeDefaultingFunc(&HostList{}, func(obj interface{}) { SetObjectDefaults_HostList(obj.(*HostList)) })
+	scheme.AddTypeDefaultingFunc(&Cluster{}, func(obj interface{}) { SetObjectDefaults_Cluster(obj.(*Cluster)) })
+	scheme.AddTypeDefaultingFunc(&ClusterList{}, func(obj interface{}) { SetObjectDefaults_ClusterList(obj.(*ClusterList)) })
+	scheme.AddTypeDefaultingFunc(&Node{}, func(obj interface{}) { SetObjectDefaults_Node(obj.(*Node)) })
+	scheme.AddTypeDefaultingFunc(&NodeGroup{}, func(obj interface{}) { SetObjectDefaults_NodeGroup(obj.(*NodeGroup)) })
+	scheme.AddTypeDefaultingFunc(&NodeGroupList{}, func(obj interface{}) { SetObjectDefaults_NodeGroupList(obj.(*NodeGroupList)) })
+	scheme.AddTypeDefaultingFunc(&NodeList{}, func(obj interface{}) { SetObjectDefaults_NodeList(obj.(*NodeList)) })
 	return nil
 }
 
-func SetObjectDefaults_Host(in *Host) {
-	SetDefaults_HostSpec(&in.Spec)
+func SetObjectDefaults_Cluster(in *Cluster) {
+	SetDefaults_ClusterSpec(&in.Spec)
 }
 
-func SetObjectDefaults_HostList(in *HostList) {
+func SetObjectDefaults_ClusterList(in *ClusterList) {
 	for i := range in.Items {
 		a := &in.Items[i]
-		SetObjectDefaults_Host(a)
+		SetObjectDefaults_Cluster(a)
+	}
+}
+
+func SetObjectDefaults_Node(in *Node) {
+	SetDefaults_NodeSpec(&in.Spec)
+}
+
+func SetObjectDefaults_NodeGroup(in *NodeGroup) {
+	SetDefaults_NodeGroupSpec(&in.Spec)
+}
+
+func SetObjectDefaults_NodeGroupList(in *NodeGroupList) {
+	for i := range in.Items {
+		a := &in.Items[i]
+		SetObjectDefaults_NodeGroup(a)
+	}
+}
+
+func SetObjectDefaults_NodeList(in *NodeList) {
+	for i := range in.Items {
+		a := &in.Items[i]
+		SetObjectDefaults_Node(a)
 	}
 }

@@ -50,12 +50,18 @@ var (
 
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
-		&Host{},
-		&HostList{},
+		&Cluster{},
+		&ClusterList{},
+		&NodeGroup{},
+		&NodeGroupList{},
+		&Node{},
+		&NodeList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	scheme.AddKnownTypes(schema.GroupVersion{Version: "v1"}, &metav1.Status{})
-	scheme.AddFieldLabelConversionFunc("boatswain.openshift.io/v1alpha1", "Host", HostFieldLabelConversionFunc)
+	scheme.AddFieldLabelConversionFunc("boatswain.openshift.io/v1alpha1", "Cluster", ClusterFieldLabelConversionFunc)
+	scheme.AddFieldLabelConversionFunc("boatswain.openshift.io/v1alpha1", "NodeGroup", NodeGroupFieldLabelConversionFunc)
+	scheme.AddFieldLabelConversionFunc("boatswain.openshift.io/v1alpha1", "Node", NodeFieldLabelConversionFunc)
 
 	return nil
 }

@@ -1,0 +1,7 @@
+apiVersion: boatswain.openshift.io/v1alpha1
+kind: Cluster
+metadata:
+  name: cluster1
+spec:
+  masterNodes:
+    size: 1

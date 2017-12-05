@@ -28,10 +28,10 @@ import (
 
 func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	return map[string]common.OpenAPIDefinition{
-		"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.Host": {
+		"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.Cluster": {
 			Schema: spec.Schema{
 				SchemaProps: spec.SchemaProps{
-					Description: "Host represents a AWS host",
+					Description: "Cluster represents a cluster that boatswain manages",
 					Properties: map[string]spec.Schema{
 						"kind": {
 							SchemaProps: spec.SchemaProps{
@@ -54,56 +54,109 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 						},
 						"spec": {
 							SchemaProps: spec.SchemaProps{
-								Ref: ref("github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.HostSpec"),
+								Ref: ref("github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.ClusterSpec"),
 							},
 						},
 						"status": {
 							SchemaProps: spec.SchemaProps{
-								Ref: ref("github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.HostStatus"),
+								Ref: ref("github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.ClusterStatus"),
 							},
 						},
 					},
-					Required: []string{"spec", "status"},
 				},
 			},
 			Dependencies: []string{
-				"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.HostSpec", "github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.HostStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+				"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.ClusterSpec", "github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.ClusterStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 		},
-		"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.HostList": {
+		"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.ClusterList": {
 			Schema: spec.Schema{
 				SchemaProps: spec.SchemaProps{
-					Description: "HostList is a list of Hosts.",
+					Description: "ClusterList is a list of Clusters.",
 					Properties: map[string]spec.Schema{
-						"TypeMeta": {
+						"kind": {
 							SchemaProps: spec.SchemaProps{
-								Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.TypeMeta"),
+								Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds",
+								Type:        []string{"string"},
+								Format:      "",
 							},
 						},
-						"ListMeta": {
+						"apiVersion": {
+							SchemaProps: spec.SchemaProps{
+								Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"metadata": {
 							SchemaProps: spec.SchemaProps{
 								Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
 							},
 						},
-						"Items": {
+						"items": {
 							SchemaProps: spec.SchemaProps{
 								Type: []string{"array"},
 								Items: &spec.SchemaOrArray{
 									Schema: &spec.Schema{
 										SchemaProps: spec.SchemaProps{
-											Ref: ref("github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.Host"),
+											Ref: ref("github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.Cluster"),
 										},
 									},
 								},
 							},
 						},
 					},
-					Required: []string{"TypeMeta", "ListMeta", "Items"},
+					Required: []string{"items"},
 				},
 			},
 			Dependencies: []string{
-				"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.Host", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta", "k8s.io/apimachinery/pkg/apis/meta/v1.TypeMeta"},
+				"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.Cluster", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
 		},
-		"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.HostSpec": {
+		"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.ClusterNodeGroup": {
+			Schema: spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Description: "ClusterNodeGroup is a node group defined in a Cluster resource",
+					Properties: map[string]spec.Schema{
+						"size": {
+							SchemaProps: spec.SchemaProps{
+								Type:   []string{"integer"},
+								Format: "int32",
+							},
+						},
+					},
+					Required: []string{"size"},
+				},
+			},
+			Dependencies: []string{},
+		},
+		"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.ClusterSpec": {
+			Schema: spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Properties: map[string]spec.Schema{
+						"masterNodes": {
+							SchemaProps: spec.SchemaProps{
+								Ref: ref("github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.ClusterNodeGroup"),
+							},
+						},
+						"computeNodeGroups": {
+							SchemaProps: spec.SchemaProps{
+								Type: []string{"array"},
+								Items: &spec.SchemaOrArray{
+									Schema: &spec.Schema{
+										SchemaProps: spec.SchemaProps{
+											Ref: ref("github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.ClusterNodeGroup"),
+										},
+									},
+								},
+							},
+						},
+					},
+					Required: []string{"masterNodes"},
+				},
+			},
+			Dependencies: []string{
+				"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.ClusterNodeGroup"},
+		},
+		"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.ClusterStatus": {
 			Schema: spec.Schema{
 				SchemaProps: spec.SchemaProps{
 					Properties: map[string]spec.Schema{},
@@ -111,7 +164,227 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 			},
 			Dependencies: []string{},
 		},
-		"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.HostStatus": {
+		"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.Node": {
+			Schema: spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Description: "Node represents a node in a cluster that boatswain manages",
+					Properties: map[string]spec.Schema{
+						"kind": {
+							SchemaProps: spec.SchemaProps{
+								Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"apiVersion": {
+							SchemaProps: spec.SchemaProps{
+								Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"metadata": {
+							SchemaProps: spec.SchemaProps{
+								Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+							},
+						},
+						"spec": {
+							SchemaProps: spec.SchemaProps{
+								Ref: ref("github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.NodeSpec"),
+							},
+						},
+						"status": {
+							SchemaProps: spec.SchemaProps{
+								Ref: ref("github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.NodeStatus"),
+							},
+						},
+					},
+				},
+			},
+			Dependencies: []string{
+				"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.NodeSpec", "github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.NodeStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+		},
+		"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.NodeGroup": {
+			Schema: spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Description: "NodeGroup represents a group of nodes in a cluster that boatswain manages",
+					Properties: map[string]spec.Schema{
+						"kind": {
+							SchemaProps: spec.SchemaProps{
+								Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"apiVersion": {
+							SchemaProps: spec.SchemaProps{
+								Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"metadata": {
+							SchemaProps: spec.SchemaProps{
+								Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+							},
+						},
+						"spec": {
+							SchemaProps: spec.SchemaProps{
+								Ref: ref("github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.NodeGroupSpec"),
+							},
+						},
+						"status": {
+							SchemaProps: spec.SchemaProps{
+								Ref: ref("github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.NodeGroupStatus"),
+							},
+						},
+					},
+				},
+			},
+			Dependencies: []string{
+				"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.NodeGroupSpec", "github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.NodeGroupStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+		},
+		"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.NodeGroupList": {
+			Schema: spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Description: "NodeGroupList is a list of NodeGroups.",
+					Properties: map[string]spec.Schema{
+						"kind": {
+							SchemaProps: spec.SchemaProps{
+								Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"apiVersion": {
+							SchemaProps: spec.SchemaProps{
+								Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"metadata": {
+							SchemaProps: spec.SchemaProps{
+								Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
+							},
+						},
+						"items": {
+							SchemaProps: spec.SchemaProps{
+								Type: []string{"array"},
+								Items: &spec.SchemaOrArray{
+									Schema: &spec.Schema{
+										SchemaProps: spec.SchemaProps{
+											Ref: ref("github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.NodeGroup"),
+										},
+									},
+								},
+							},
+						},
+					},
+					Required: []string{"items"},
+				},
+			},
+			Dependencies: []string{
+				"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.NodeGroup", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+		},
+		"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.NodeGroupSpec": {
+			Schema: spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Properties: map[string]spec.Schema{
+						"clusterName": {
+							SchemaProps: spec.SchemaProps{
+								Type:   []string{"string"},
+								Format: "",
+							},
+						},
+						"nodeType": {
+							SchemaProps: spec.SchemaProps{
+								Description: "NodeType is the type of nodes that comprised the NodeGroup",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+					},
+					Required: []string{"clusterName", "nodeType"},
+				},
+			},
+			Dependencies: []string{},
+		},
+		"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.NodeGroupStatus": {
+			Schema: spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Properties: map[string]spec.Schema{},
+				},
+			},
+			Dependencies: []string{},
+		},
+		"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.NodeList": {
+			Schema: spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Description: "NodeList is a list of Nodes.",
+					Properties: map[string]spec.Schema{
+						"kind": {
+							SchemaProps: spec.SchemaProps{
+								Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"apiVersion": {
+							SchemaProps: spec.SchemaProps{
+								Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"metadata": {
+							SchemaProps: spec.SchemaProps{
+								Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
+							},
+						},
+						"items": {
+							SchemaProps: spec.SchemaProps{
+								Type: []string{"array"},
+								Items: &spec.SchemaOrArray{
+									Schema: &spec.Schema{
+										SchemaProps: spec.SchemaProps{
+											Ref: ref("github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.Node"),
+										},
+									},
+								},
+							},
+						},
+					},
+					Required: []string{"items"},
+				},
+			},
+			Dependencies: []string{
+				"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.Node", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+		},
+		"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.NodeSpec": {
+			Schema: spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Properties: map[string]spec.Schema{
+						"nodeGroupName": {
+							SchemaProps: spec.SchemaProps{
+								Type:   []string{"string"},
+								Format: "",
+							},
+						},
+						"nodeType": {
+							SchemaProps: spec.SchemaProps{
+								Description: "NodeType is the type of the node",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+					},
+					Required: []string{"nodeGroupName", "nodeType"},
+				},
+			},
+			Dependencies: []string{},
+		},
+		"github.com/staebler/boatswain/pkg/apis/boatswain/v1alpha1.NodeStatus": {
 			Schema: spec.Schema{
 				SchemaProps: spec.SchemaProps{
 					Properties: map[string]spec.Schema{},

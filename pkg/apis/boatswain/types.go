@@ -21,30 +21,127 @@ import (
 )
 
 // +genclient
-// +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// Host represents a AWS host
-type Host struct {
+// Cluster represents a cluster that boatswain manages
+type Cluster struct {
+	// +optional
 	metav1.TypeMeta
+	// +optional
 	metav1.ObjectMeta
 
-	Spec   HostSpec
-	Status HostStatus
+	// +optional
+	Spec ClusterSpec
+	// +optional
+	Status ClusterStatus
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// HostList is a list of Hosts.
-type HostList struct {
+// ClusterList is a list of Clusters.
+type ClusterList struct {
 	metav1.TypeMeta
+	// +optional
 	metav1.ListMeta
 
-	Items []Host
+	Items []Cluster
 }
 
-type HostSpec struct {
+type ClusterSpec struct {
+	MasterNodes ClusterNodeGroup
+
+	// +optional
+	ComputeNodeGroups []ClusterNodeGroup
 }
 
-type HostStatus struct {
+type ClusterStatus struct {
 }
+
+// ClusterNodeGroup is a node group defined in a Cluster resource
+type ClusterNodeGroup struct {
+	Size int
+}
+
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// NodeGroup represents a group of nodes in a cluster that boatswain manages
+type NodeGroup struct {
+	// +optional
+	metav1.TypeMeta
+	// +optional
+	metav1.ObjectMeta
+
+	// +optional
+	Spec NodeGroupSpec
+	// +optional
+	Status NodeGroupStatus
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// NodeGroupList is a list of NodeGroups.
+type NodeGroupList struct {
+	metav1.TypeMeta
+	// +optional
+	metav1.ListMeta
+
+	Items []NodeGroup
+}
+
+type NodeGroupSpec struct {
+	ClusterName string
+
+	// NodeType is the type of nodes that comprised the NodeGroup
+	NodeType NodeType
+}
+
+type NodeGroupStatus struct {
+}
+
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// Node represents a node in a cluster that boatswain manages
+type Node struct {
+	// +optional
+	metav1.TypeMeta
+	// +optional
+	metav1.ObjectMeta
+
+	// +optional
+	Spec NodeSpec
+	// +optional
+	Status NodeStatus
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// NodeList is a list of Nodes.
+type NodeList struct {
+	metav1.TypeMeta
+	// +optional
+	metav1.ListMeta
+
+	Items []Node
+}
+
+type NodeSpec struct {
+	NodeGroupName string `json:"nodeGroupName"`
+
+	// NodeType is the type of the node
+	NodeType NodeType
+}
+
+type NodeStatus struct {
+}
+
+// NodeType is the type of the Node
+type NodeType string
+
+const (
+	// NodeTypeMaster is a node that is a master in the cluster
+	NodeTypeMaster NodeType = "Master"
+	// NodeTypeCompute is a node that is a compute node in the cluster
+	NodeTypeCompute NodeType = "Compute"
+)
