@@ -436,7 +436,7 @@ func startInfraController(ctx ControllerContext) (bool, error) {
 }
 
 func startNodeGroupController(ctx ControllerContext) (bool, error) {
-	if !ctx.AvailableResources[schema.GroupVersionResource{Group: "clusteroperator.openshift.io", Version: "v1alpha1", Resource: "nodeGroups"}] {
+	if !ctx.AvailableResources[schema.GroupVersionResource{Group: "clusteroperator.openshift.io", Version: "v1alpha1", Resource: "nodegroups"}] {
 		return false, nil
 	}
 	go nodegroup.NewNodeGroupController(
