@@ -19,3 +19,5 @@ import:
   version: 9ff6c6923cfffbcd502984b8e0c80539a94968b7 # version uesd by kube 1.8.2
 - package: github.com/golang/glog
   version: 44145f04b68cf362d9c4df2182967c2275eaefed # version used by kube 1.8.2
+- package: github.com/sirupsen/logrus
+  version: v1.0.3
