@@ -2,6 +2,7 @@
 
 # Development Setup
 
+  1. get cfssl: go get -u github.com/cloudflare/cfssl/cmd/...
   1. Download recent 3.8 oc client binary: https://github.com/openshift/origin/releases/tag/v3.8.0-alpha.0 or compile from source.
   1. oc cluster up --version v3.8.0-alpha.1
     * Check for newer 3.8 tags here if desired: https://hub.docker.com/r/openshift/origin/tags/
