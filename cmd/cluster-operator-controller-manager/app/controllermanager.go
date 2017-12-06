@@ -32,13 +32,13 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	"k8s.io/apiserver/pkg/server/healthz"
 
 	"k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/discovery"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	restclient "k8s.io/client-go/rest"
@@ -314,9 +314,12 @@ func NewControllerInitializers() map[string]InitFunc {
 //  users don't have to restart their controller manager if they change the apiserver.
 // Until we get there, the structure here needs to be exposed for the construction of a proper ControllerContext.
 func GetAvailableResources(clientBuilder controller.ClientBuilder) (map[schema.GroupVersionResource]bool, error) {
-	var discoveryClient discovery.DiscoveryInterface
+	var (
+		discoveryClient discovery.DiscoveryInterface
+		resourceMap     []*metav1.APIResourceList
+		healthzContent  string
+	)
 
-	var healthzContent string
 	// If apiserver is not running we should wait for some time and fail only then. This is particularly
 	// important when we start apiserver and controller manager at the same time.
 	err := wait.PollImmediate(time.Second, 10*time.Second, func() (bool, error) {
@@ -336,16 +339,19 @@ func GetAvailableResources(clientBuilder controller.ClientBuilder) (map[schema.G
 		healthzContent = string(content)
 
 		discoveryClient = client.Discovery()
+
+		resourceMap, err = discoveryClient.ServerResources()
+		if err != nil {
+			glog.Errorf("API Extensions have not all been registered yet. Waiting a little while. %v", err)
+			return false, nil
+		}
+
 		return true, nil
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get api versions from server: %v: %v", healthzContent, err)
 	}
 
-	resourceMap, err := discoveryClient.ServerResources()
-	if err != nil {
-		utilruntime.HandleError(fmt.Errorf("unable to get all supported resources from server: %v", err))
-	}
 	if len(resourceMap) == 0 {
 		return nil, fmt.Errorf("unable to get any supported resources from server")
 	}
