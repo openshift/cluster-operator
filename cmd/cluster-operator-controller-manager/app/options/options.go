@@ -40,6 +40,7 @@ import (
 // CMServer is the main context object for the controller manager.
 type CMServer struct {
 	componentconfig.ControllerManagerConfiguration
+	LogLevel string
 }
 
 const (
@@ -50,6 +51,7 @@ const (
 	defaultClusterOperatorKubeconfigPath = "./clusteroperator-kubeconfig"
 	defaultConcurrentSyncs               = 5
 	defaultLeaderElectionNamespace       = "kube-system"
+	defaultLogLevel                      = "info"
 )
 
 // NewCMServer creates a new CMServer with a default config.
@@ -75,6 +77,7 @@ func NewCMServer() *CMServer {
 		},
 	}
 	s.LeaderElection.LeaderElect = true
+	s.LogLevel = defaultLogLevel
 	return &s
 }
 
@@ -101,6 +104,7 @@ func (s *CMServer) AddFlags(fs *pflag.FlagSet, allControllers []string, disabled
 	fs.BoolVar(&s.EnableContentionProfiling, "contention-profiling", s.EnableContentionProfiling, "Enable lock contention profiling, if profiling is enabled")
 	leaderelectionconfig.BindFlags(&s.LeaderElection, fs)
 	fs.StringVar(&s.LeaderElectionNamespace, "leader-election-namespace", s.LeaderElectionNamespace, "Namespace to use for leader election lock")
+	fs.StringVar(&s.LogLevel, "log-level", defaultLogLevel, "Log level (debug,info,warn,error,fatal)")
 	fs.DurationVar(&s.ControllerStartInterval.Duration, "controller-start-interval", s.ControllerStartInterval.Duration, "Interval between starting controller managers.")
 
 	utilfeature.DefaultFeatureGate.AddFlag(fs)

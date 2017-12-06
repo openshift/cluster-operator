@@ -51,6 +51,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
@@ -108,6 +109,13 @@ func Run(s *options.CMServer) error {
 	glog.Infof("Version: %+v", version.Get())
 	if err := s.Validate(KnownControllers(), ControllersDisabledByDefault.List()); err != nil {
 		return err
+	}
+
+	log.SetOutput(os.Stdout)
+	if lvl, err := log.ParseLevel(s.LogLevel); err != nil {
+		log.Panic(err)
+	} else {
+		log.SetLevel(lvl)
 	}
 
 	if c, err := configz.New("componentconfig"); err == nil {

@@ -285,6 +285,8 @@ objects:
           - "false"
           - -v
           - "10"
+          - --log-level
+          - "debug"
           ports:
           - containerPort: 8080
           readinessProbe:
