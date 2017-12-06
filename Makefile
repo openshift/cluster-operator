@@ -240,7 +240,7 @@ coverage: .init
 	$(DOCKER_CMD) contrib/hack/coverage.sh --html "$(COVERAGE)" \
 	  $(addprefix ./,$(TEST_DIRS))
 
-test: .init build test-unit test-integration
+test: .init build test-unit # test-integration # turn off test-integration until integration tests are set up
 
 # this target checks to see if the go binary is installed on the host
 .PHONY: check-go
