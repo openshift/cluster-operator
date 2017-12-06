@@ -2,7 +2,12 @@
 oc create namespace cluster-operator
 
 # Create ssl certs for api server
-./contrib/apiserver-aggregation-tls-setup.sh
+if [ ! -e apiserver.pem ]
+then
+	./contrib/apiserver-aggregation-tls-setup.sh
+else
+	echo "Re-using existing certs."
+fi
 
 # Create cluster-operator resources
 oc process -f contrib/examples/deploy.yaml -o yaml \

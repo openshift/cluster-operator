@@ -85,14 +85,10 @@ objects:
   - apiGroups: [""]
     resources: ["events"]
     verbs:     ["create","patch","update"]
-  # get, list, and watch cluster-operator resources
+  # allow all operations on all resources in our API group
   - apiGroups: ["clusteroperator.openshift.io"]
-    resources: ["hosts"]
-    verbs:     ["get", "list", "watch"]
-  # update cluster-operator resources
-  - apiGroups: ["clusteroperator.openshift.io"]
-    resources: ["hosts"]
-    verbs:     ["update"]
+    resources: ["*"]
+    verbs:     ["create", "get", "list", "watch", "update", "delete"]
 
 # Bind the Controller Manager service account to the role created for it
 - apiVersion: rbac.authorization.k8s.io/v1
@@ -284,7 +280,9 @@ objects:
           - --contention-profiling
           - "false"
           - -v
-          - "10"
+          - "0"
+          - --log-level
+          - "debug"
           ports:
           - containerPort: 8080
           readinessProbe:
