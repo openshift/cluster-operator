@@ -62,6 +62,7 @@ import (
 	clusteroperatorinformers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions"
 	"github.com/openshift/cluster-operator/pkg/controller"
 	"github.com/openshift/cluster-operator/pkg/controller/cluster"
+	"github.com/openshift/cluster-operator/pkg/controller/infra"
 	"github.com/openshift/cluster-operator/pkg/controller/masternode"
 	"github.com/openshift/cluster-operator/pkg/controller/node"
 	"github.com/openshift/cluster-operator/pkg/controller/nodegroup"
@@ -302,6 +303,7 @@ var ControllersDisabledByDefault = sets.NewString()
 func NewControllerInitializers() map[string]InitFunc {
 	controllers := map[string]InitFunc{}
 	controllers["cluster"] = startClusterController
+	controllers["infra"] = startInfraController
 	controllers["nodegroup"] = startNodeGroupController
 	controllers["node"] = startNodeController
 	controllers["masternode"] = startMasterNodeController
@@ -417,6 +419,18 @@ func startClusterController(ctx ControllerContext) (bool, error) {
 		ctx.InformerFactory.Clusteroperator().V1alpha1().Clusters(),
 		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-cluster-controller"),
 		ctx.ClientBuilder.ClientOrDie("clusteroperator-cluster-controller"),
+	).Run(int(ctx.Options.ConcurrentClusterSyncs), ctx.Stop)
+	return true, nil
+}
+
+func startInfraController(ctx ControllerContext) (bool, error) {
+	if !ctx.AvailableResources[schema.GroupVersionResource{Group: "clusteroperator.openshift.io", Version: "v1alpha1", Resource: "clusters"}] {
+		return false, nil
+	}
+	go infra.NewInfraController(
+		ctx.InformerFactory.Clusteroperator().V1alpha1().Clusters(),
+		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-infra-controller"),
+		ctx.ClientBuilder.ClientOrDie("clusteroperator-infra-controller"),
 	).Run(int(ctx.Options.ConcurrentClusterSyncs), ctx.Stop)
 	return true, nil
 }
