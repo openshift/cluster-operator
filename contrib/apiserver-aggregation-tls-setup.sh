@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+set -e
+
 export CLUSTER_OPERATOR_NAMESPACE=${CLUSTER_OPERATOR_NAMESPACE:-cluster-operator}
 CLUSTER_OPERATOR_SERVICE_NAME=cluster-operator-apiserver
 

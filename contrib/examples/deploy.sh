@@ -1,5 +1,6 @@
+#!/bin/bash -e
 # Create namespace for cluster-operator resources
-oc create namespace cluster-operator
+oc create namespace cluster-operator || :
 
 # Create ssl certs for api server
 ./contrib/apiserver-aggregation-tls-setup.sh
