@@ -68,6 +68,29 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 			Dependencies: []string{
 				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 		},
+		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterComputeNodeGroup": {
+			Schema: spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Description: "ClusterComputeNodeGroup is a compute node group defined in a Cluster resource",
+					Properties: map[string]spec.Schema{
+						"size": {
+							SchemaProps: spec.SchemaProps{
+								Type:   []string{"integer"},
+								Format: "int32",
+							},
+						},
+						"name": {
+							SchemaProps: spec.SchemaProps{
+								Type:   []string{"string"},
+								Format: "",
+							},
+						},
+					},
+					Required: []string{"size", "name"},
+				},
+			},
+			Dependencies: []string{},
+		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterList": {
 			Schema: spec.Schema{
 				SchemaProps: spec.SchemaProps{
@@ -132,34 +155,52 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 			Schema: spec.Schema{
 				SchemaProps: spec.SchemaProps{
 					Properties: map[string]spec.Schema{
-						"masterNodes": {
+						"masterNodeGroup": {
 							SchemaProps: spec.SchemaProps{
-								Ref: ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterNodeGroup"),
+								Description: "MasterNodeGroup specificies the configuration of the master node group",
+								Ref:         ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterNodeGroup"),
 							},
 						},
 						"computeNodeGroups": {
 							SchemaProps: spec.SchemaProps{
-								Type: []string{"array"},
+								Description: "ComputeNodeGroups specify the configurations of the compute node groups",
+								Type:        []string{"array"},
 								Items: &spec.SchemaOrArray{
 									Schema: &spec.Schema{
 										SchemaProps: spec.SchemaProps{
-											Ref: ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterNodeGroup"),
+											Ref: ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterComputeNodeGroup"),
 										},
 									},
 								},
 							},
 						},
 					},
-					Required: []string{"masterNodes"},
+					Required: []string{"masterNodeGroup"},
 				},
 			},
 			Dependencies: []string{
-				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterNodeGroup"},
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterComputeNodeGroup", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterNodeGroup"},
 		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterStatus": {
 			Schema: spec.Schema{
 				SchemaProps: spec.SchemaProps{
-					Properties: map[string]spec.Schema{},
+					Properties: map[string]spec.Schema{
+						"masterNodeGroups": {
+							SchemaProps: spec.SchemaProps{
+								Description: "MasterNodeGroups is the number of actual master node groups that are active for the cluster",
+								Type:        []string{"integer"},
+								Format:      "int32",
+							},
+						},
+						"computeNodeGroups": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ComputeNodeGroups is the number of actual compute node groups that are active for the cluster",
+								Type:        []string{"integer"},
+								Format:      "int32",
+							},
+						},
+					},
+					Required: []string{"masterNodeGroups", "computeNodeGroups"},
 				},
 			},
 			Dependencies: []string{},
@@ -291,12 +332,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 			Schema: spec.Schema{
 				SchemaProps: spec.SchemaProps{
 					Properties: map[string]spec.Schema{
-						"clusterName": {
-							SchemaProps: spec.SchemaProps{
-								Type:   []string{"string"},
-								Format: "",
-							},
-						},
 						"nodeType": {
 							SchemaProps: spec.SchemaProps{
 								Description: "NodeType is the type of nodes that comprised the NodeGroup",
@@ -304,8 +339,15 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Format:      "",
 							},
 						},
+						"size": {
+							SchemaProps: spec.SchemaProps{
+								Description: "Size is the number of nodes that the node group should contain",
+								Type:        []string{"integer"},
+								Format:      "int32",
+							},
+						},
 					},
-					Required: []string{"clusterName", "nodeType"},
+					Required: []string{"nodeType", "size"},
 				},
 			},
 			Dependencies: []string{},

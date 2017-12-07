@@ -48,18 +48,35 @@ type ClusterList struct {
 }
 
 type ClusterSpec struct {
-	MasterNodes ClusterNodeGroup `json:"masterNodes"`
+	// MasterNodeGroup specificies the configuration of the master node group
+	MasterNodeGroup ClusterNodeGroup `json:"masterNodeGroup"`
 
+	// ComputeNodeGroups specify the configurations of the compute node groups
 	// +optional
-	ComputeNodeGroups []ClusterNodeGroup `json:"computeNodeGroups,omitempty"`
+	ComputeNodeGroups []ClusterComputeNodeGroup `json:"computeNodeGroups,omitempty"`
 }
 
 type ClusterStatus struct {
+	// MasterNodeGroups is the number of actual master node groups that are
+	// active for the cluster
+	MasterNodeGroups int `json:"masterNodeGroups"`
+
+	// ComputeNodeGroups is the number of actual compute node groups that are
+	// active for the cluster
+	ComputeNodeGroups int `json:"computeNodeGroups"`
 }
 
 // ClusterNodeGroup is a node group defined in a Cluster resource
 type ClusterNodeGroup struct {
 	Size int `json:"size"`
+}
+
+// ClusterComputeNodeGroup is a compute node group defined in a Cluster
+// resource
+type ClusterComputeNodeGroup struct {
+	ClusterNodeGroup `json:",inline"`
+
+	Name string `json:"name"`
 }
 
 // +genclient
@@ -90,10 +107,11 @@ type NodeGroupList struct {
 }
 
 type NodeGroupSpec struct {
-	ClusterName string `json:"clusterName"`
-
 	// NodeType is the type of nodes that comprised the NodeGroup
 	NodeType NodeType `json:"nodeType"`
+
+	// Size is the number of nodes that the node group should contain
+	Size int `json:"size"`
 }
 
 type NodeGroupStatus struct {

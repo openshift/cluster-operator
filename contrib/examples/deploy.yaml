@@ -280,7 +280,7 @@ objects:
           - --contention-profiling
           - "false"
           - -v
-          - "0"
+          - "10"
           - --log-level
           - "debug"
           ports:
