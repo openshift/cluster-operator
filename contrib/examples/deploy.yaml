@@ -73,7 +73,7 @@ objects:
   metadata:
     name: "clusteroperator.openshift.io:controller-manager"
   rules:
-  # configmpas for leader election
+  # configmaps for leader election
   - apiGroups: [""]
     resources: ["configmaps"]
     verbs:     ["create"]
@@ -85,6 +85,13 @@ objects:
   - apiGroups: [""]
     resources: ["events"]
     verbs:     ["create","patch","update"]
+  # allow operations on required resources in our namespace
+  - apiGroups:     [""]
+    resources:     ["configmaps", "pods", "secrets"]
+    verbs: ["*"]
+  - apiGroups:     ["batch"]
+    resources:     ["jobs"]
+    verbs: ["*"]
   # allow all operations on all resources in our API group
   - apiGroups: ["clusteroperator.openshift.io"]
     resources: ["*"]
@@ -104,6 +111,19 @@ objects:
     kind: ServiceAccount
     name: cluster-operator-controller-manager
     namespace: ${CLUSTER_OPERATOR_NAMESPACE}
+
+# Allow our service account to run Ansible pods as UID 0:
+- kind: SecurityContextConstraints
+  apiVersion: v1
+  metadata:
+    name: cluster-operator-runasuser
+  allowPrivilegedContainer: true
+  runAsUser:
+    type: RunAsAny
+  seLinuxContext:
+    type: RunAsAny
+  users:
+  - system:serviceaccount:${CLUSTER_OPERATOR_NAMESPACE}:cluster-operator-controller-manager
 
 # Secret to pass the SSL certs to the API Server
 - apiVersion: v1
@@ -294,7 +314,7 @@ objects:
           - --contention-profiling
           - "false"
           - -v
-          - "10"
+          - "1"
           - --log-level
           - "debug"
           ports:

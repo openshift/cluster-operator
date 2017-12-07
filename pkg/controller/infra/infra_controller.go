@@ -32,6 +32,7 @@ import (
 	"github.com/golang/glog"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/openshift/cluster-operator/pkg/ansible"
 	"github.com/openshift/cluster-operator/pkg/kubernetes/pkg/util/metrics"
 
 	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
@@ -50,7 +51,27 @@ const (
 	maxRetries = 15
 
 	controllerLogName = "infra"
+
+	infraPlaybook = "playbooks/aws/openshift-cluster/prerequisites.yml"
+	// jobPrefix is used when generating a name for the configmap and job used for each
+	// Ansible execution.
+	jobPrefix = "job-infra-"
 )
+
+const provisionInventoryTemplate = `
+[OSEv3:children]
+masters
+nodes
+etcd
+
+[OSEv3:vars]
+
+[masters]
+
+[etcd]
+
+[nodes]
+`
 
 // NewInfraController returns a new *InfraController.
 func NewInfraController(clusterInformer informers.ClusterInformer, kubeClient kubeclientset.Interface, clusteroperatorClient clusteroperatorclientset.Interface) *InfraController {
@@ -65,9 +86,10 @@ func NewInfraController(clusterInformer informers.ClusterInformer, kubeClient ku
 
 	logger := log.WithField("controller", controllerLogName)
 	c := &InfraController{
-		coClient: clusteroperatorClient,
-		queue:    workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "cluster"),
-		logger:   logger,
+		coClient:   clusteroperatorClient,
+		kubeClient: kubeClient,
+		queue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "cluster"),
+		logger:     logger,
 	}
 
 	clusterInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -84,7 +106,8 @@ func NewInfraController(clusterInformer informers.ClusterInformer, kubeClient ku
 
 // InfraController manages clusters.
 type InfraController struct {
-	coClient clusteroperatorclientset.Interface
+	coClient   clusteroperatorclientset.Interface
+	kubeClient kubeclientset.Interface
 
 	// To allow injection of syncCluster for testing.
 	syncHandler func(hKey string) error
@@ -140,29 +163,6 @@ func (c *InfraController) enqueue(cluster *clusteroperator.Cluster) {
 
 	c.queue.Add(key)
 }
-
-/*
-func (c *InfraController) enqueueRateLimited(cluster *clusteroperator.Cluster) {
-	key, err := controller.KeyFunc(cluster)
-	if err != nil {
-		utilruntime.HandleError(fmt.Errorf("Couldn't get key for object %#v: %v", cluster, err))
-		return
-	}
-
-	c.queue.AddRateLimited(key)
-}
-
-// enqueueAfter will enqueue a cluster after the provided amount of time.
-func (c *InfraController) enqueueAfter(cluster *clusteroperator.Cluster, after time.Duration) {
-	key, err := controller.KeyFunc(cluster)
-	if err != nil {
-		utilruntime.HandleError(fmt.Errorf("Couldn't get key for object %#v: %v", cluster, err))
-		return
-	}
-
-	c.queue.AddAfter(key, after)
-}
-*/
 
 // worker runs a worker thread that just dequeues items, processes them, and marks them done.
 // It enforces that the syncHandler is never invoked concurrently with the same key.
@@ -222,7 +222,6 @@ func (c *InfraController) syncCluster(key string) error {
 
 	cluster, err := c.clustersLister.Clusters(ns).Get(name)
 	if errors.IsNotFound(err) {
-		cLog.Warnln("cluster has been deleted")
 		return nil
 	}
 	if err != nil {
@@ -233,8 +232,19 @@ func (c *InfraController) syncCluster(key string) error {
 	// TODO: Deep-copy only when needed.
 	cluster = cluster.DeepCopy()
 
-	c.logger.WithField("cluster", cluster.Name).Infoln("provisioning cluster")
-	// TODO
+	clusterLogger := c.logger.WithField("cluster", cluster.Name)
+	clusterLogger.Infoln("provisioning cluster infrastructure")
+	ansibleRunner := ansible.NewAnsibleRunner(c.kubeClient)
+	varsGenerator := ansible.NewVarsGenerator(cluster)
+	vars, err := varsGenerator.GenerateVars()
+	if err != nil {
+		return err
+	}
+
+	err = ansibleRunner.RunPlaybook(cluster.Name, jobPrefix, infraPlaybook, provisionInventoryTemplate, vars)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
