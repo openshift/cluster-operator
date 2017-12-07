@@ -17,7 +17,6 @@ limitations under the License.
 package testing
 
 import (
-	"os"
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,13 +26,6 @@ import (
 )
 
 func TestRun(t *testing.T) {
-	if _, found := os.LookupEnv("KUBERNETES_SERVICE_HOST"); !found {
-		t.Skip("KUBERNETES_SERVICE_HOST not found in environment. Skipping because kube is not running.")
-	}
-	if _, found := os.LookupEnv("KUBERNETES_SERVICE_PORT"); !found {
-		t.Skip("KUBERNETES_SERVICE_PORT not found in environment. Skipping because kube is not running.")
-	}
-
 	config, tearDown := StartTestServerOrDie(t)
 	defer tearDown()
 
@@ -44,13 +36,13 @@ func TestRun(t *testing.T) {
 
 	// test whether the server is really healthy after /healthz told us so
 	t.Logf("Creating Cluster directly after being healthy")
-	_, err = client.Clusters("kube-system").Create(&clusteroperator.Cluster{
+	_, err = client.Clusters("default").Create(&clusteroperator.Cluster{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Cluster",
 			APIVersion: "clusteroperator.openshift.io/v1alpha1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "kube-system",
+			Namespace: "default",
 			Name:      "cluster1",
 		},
 	})

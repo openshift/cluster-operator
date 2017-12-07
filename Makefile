@@ -15,10 +15,11 @@
 all: build test verify
 
 # Some env vars that devs might find useful:
-#  GOFLAGS      : extra "go build" flags to use - e.g. -v   (for verbose)
-#  USE_DOCKER=1 : execute each step in a Docker container, not natively
-#  TEST_DIRS=   : only run the unit tests from the specified dirs
-#  UNIT_TESTS=  : only run the unit tests matching the specified regexp
+#  GOFLAGS         : extra "go build" flags to use - e.g. -v   (for verbose)
+#  USE_DOCKER=1    : execute each step in a Docker container, not natively
+#  UNIT_TEST_DIRS= : only run the unit tests from the specified dirs
+#  INT_TEST_DIRS=  : only run the integration tests from the specified dirs
+#  TEST_FLAGS=     : add flags to the go test command
 
 # Define some constants
 #######################
@@ -26,15 +27,16 @@ ROOT           = $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 BINDIR        ?= bin
 BUILD_DIR     ?= build
 COVERAGE      ?= $(CURDIR)/coverage.html
-CLUSTER_OPERATOR_PKG  = github.com/openshift/cluster-operator
-#TOP_SRC_DIRS   = cmd contrib pkg plugin
-TOP_SRC_DIRS = cmd pkg
+CLUSTER_OPERATOR_PKG = github.com/openshift/cluster-operator
+TOP_SRC_DIRS   = cmd pkg
 SRC_DIRS       = $(shell sh -c "find $(TOP_SRC_DIRS) -name \\*.go \
                    -exec dirname {} \\; | sort | uniq")
-TEST_DIRS     ?= $(shell sh -c "find $(TOP_SRC_DIRS) -name \\*_test.go \
+UNIT_TEST_DIRS ?= $(shell sh -c "find $(TOP_SRC_DIRS) -name \\*_test.go \
                    -exec dirname {} \\; | sort | uniq")
-VERSION       ?= $(shell git describe --always --abbrev=7 --dirty)
-BUILD_LDFLAGS  = $(shell build/version.sh $(ROOT) $(CLUSTER_OPERATOR_PKG))
+INT_TEST_DIRS  ?= $(shell sh -c "find test/integration -name \\*_test.go \
+                   -exec dirname {} \\; | sort | uniq")
+VERSION        ?= $(shell git describe --always --abbrev=7 --dirty)
+BUILD_LDFLAGS   = $(shell build/version.sh $(ROOT) $(CLUSTER_OPERATOR_PKG))
 
 # Run stat against /dev/null and check if it has any stdout output.
 # If stdout is blank, we are detecting bsd-stat because stat it has
@@ -69,25 +71,16 @@ export GOPATH  = $(BASE_PATH):$(ROOT)/vendor
 
 MUTABLE_TAG                      ?= canary
 CLUSTER_OPERATOR_IMAGE            = $(REGISTRY)cluster-operator-$(ARCH):$(VERSION)
-CLUSTER_OPERATOR_MUTABLE_IMAGE           = $(REGISTRY)cluster-operator-$(ARCH):$(MUTABLE_TAG)
+CLUSTER_OPERATOR_MUTABLE_IMAGE    = $(REGISTRY)cluster-operator-$(ARCH):$(MUTABLE_TAG)
 
 $(if $(realpath vendor/k8s.io/apimachinery/vendor), \
 	$(error the vendor directory exists in the apimachinery \
 		vendored source and must be flattened. \
 		run 'glide i -v'))
 
-ifdef UNIT_TESTS
-	UNIT_TEST_FLAGS=-run $(UNIT_TESTS) -v
-endif
-
-ifdef INT_TESTS
-	INT_TEST_FLAGS=--test.run=$(INT_TESTS)
-endif
-
 ifdef TEST_LOG_LEVEL
-	UNIT_TEST_FLAGS+=-v
-	UNIT_TEST_LOG_FLAGS=-args --alsologtostderr --v=$(TEST_LOG_LEVEL)
-	INT_TEST_FLAGS+=--alsologtostderr --v=$(TEST_LOG_LEVEL)
+	TEST_FLAGS+=-v
+	TEST_LOG_FLAGS=-args --alsologtostderr --v=$(TEST_LOG_LEVEL)
 endif
 
 ifdef USE_DOCKER
@@ -202,7 +195,7 @@ $(BINDIR)/e2e.test: .init $(NEWEST_E2ETEST_SOURCE) $(NEWEST_GO_FILE)
 .PHONY: verify verify-client-gen
 verify: .init .generate_files verify-client-gen
 	@echo Running gofmt:
-	@$(DOCKER_CMD) gofmt -l -s $(TOP_TEST_DIRS) $(TOP_SRC_DIRS)>.out 2>&1||true
+	@$(DOCKER_CMD) gofmt -l -s $(TOP_SRC_DIRS)>.out 2>&1||true
 	@[ ! -s .out ] || \
 	  (echo && echo "*** Please 'gofmt' the following:" && \
 	  cat .out && echo && rm .out && false)
@@ -238,9 +231,9 @@ format: .init
 
 coverage: .init
 	$(DOCKER_CMD) contrib/hack/coverage.sh --html "$(COVERAGE)" \
-	  $(addprefix ./,$(TEST_DIRS))
+	  $(addprefix ./,$(UNIT_TEST_DIRS))
 
-test: .init build test-unit # test-integration # turn off test-integration until integration tests are set up
+test: .init build test-unit test-integration
 
 # this target checks to see if the go binary is installed on the host
 .PHONY: check-go
@@ -253,19 +246,17 @@ check-go:
 # this target uses the host-local go installation to test
 .PHONY: test-unit-native
 test-unit-native: check-go
-	go test $(addprefix ${CLUSTER_OPERATOR_PKG}/,${TEST_DIRS})
+	go test $(addprefix ${CLUSTER_OPERATOR_PKG}/,${UNIT_TEST_DIRS})
 
 test-unit: .init build
-	@echo Running tests:
-	$(DOCKER_CMD) go test -race $(UNIT_TEST_FLAGS) \
-	  $(addprefix $(CLUSTER_OPERATOR_PKG)/,$(TEST_DIRS)) $(UNIT_TEST_LOG_FLAGS)
+	@echo Running unit tests:
+	$(DOCKER_CMD) go test -race $(TEST_FLAGS) \
+	  $(addprefix $(CLUSTER_OPERATOR_PKG)/,$(UNIT_TEST_DIRS)) $(TEST_LOG_FLAGS)
 
-test-integration: .init $(clusterOperatorBuildImageTarget) build
-	# test kubectl
-	contrib/hack/setup-kubectl.sh
-	contrib/hack/test-apiserver.sh
-	# golang integration tests
-	$(DOCKER_CMD) test/integration.sh $(INT_TEST_FLAGS)
+test-integration: .init build
+	@echo Running integration tests:
+	$(DOCKER_CMD) go test -race $(TEST_FLAGS) \
+	  $(addprefix $(CLUSTER_OPERATOR_PKG)/,$(INT_TEST_DIRS)) $(TEST_LOG_FLAGS)
 
 clean-e2e:
 	rm -f $(BINDIR)/e2e.test
