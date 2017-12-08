@@ -17,41 +17,48 @@ limitations under the License.
 package validation
 
 import (
-	apivalidation "k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
-	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
+	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
 )
 
-// ValidateNodeName is the validation function for Node names.
-var ValidateNodeName = apivalidation.NameIsDNSSubdomain
-
-// ValidateNode implements the validation rules for a Node.
+// ValidateNode validates a node being created.
 func ValidateNode(node *clusteroperator.Node) field.ErrorList {
 	allErrs := field.ErrorList{}
 
-	allErrs = append(allErrs,
-		apivalidation.ValidateObjectMeta(&node.ObjectMeta,
-			true, /* namespace required */
-			ValidateNodeName,
-			field.NewPath("metadata"))...)
-
 	allErrs = append(allErrs, validateNodeSpec(&node.Spec, field.NewPath("spec"))...)
+
 	return allErrs
 }
 
+// validateNodeSpec validates the spec of a node.
 func validateNodeSpec(spec *clusteroperator.NodeSpec, fldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	allErrs = append(allErrs, validateNodeType(spec.NodeType, fldPath.Child("nodeType"))...)
+
+	return allErrs
+}
+
+// validateNodeStatus validates the status of a node.
+func validateNodeStatus(status *clusteroperator.NodeStatus, fldPath *field.Path) field.ErrorList {
 	return field.ErrorList{}
 }
 
-// ValidateNodeUpdate checks that when changing from an older node to a newer node is okay ?
+// ValidateNodeUpdate validates an update to the spec of a node.
 func ValidateNodeUpdate(new *clusteroperator.Node, old *clusteroperator.Node) field.ErrorList {
-	return field.ErrorList{}
+	allErrs := field.ErrorList{}
+
+	allErrs = append(allErrs, validateNodeSpec(&new.Spec, field.NewPath("spec"))...)
+
+	return allErrs
 }
 
-// ValidateNodeStatusUpdate checks that when changing from an older node to a newer node is okay.
+// ValidateNodeStatusUpdate validates an update to the status of a node.
 func ValidateNodeStatusUpdate(new *clusteroperator.Node, old *clusteroperator.Node) field.ErrorList {
 	allErrs := field.ErrorList{}
-	allErrs = append(allErrs, ValidateNodeUpdate(new, old)...)
+
+	allErrs = append(allErrs, validateNodeStatus(&new.Status, field.NewPath("status"))...)
+
 	return allErrs
 }

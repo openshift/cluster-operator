@@ -70,7 +70,7 @@ import (
 )
 
 const (
-	// Jitter used when starting controller managers
+	// ControllerStartJitter used when starting controller managers
 	ControllerStartJitter = 1.0
 )
 
@@ -237,6 +237,8 @@ func createClients(s *options.CMServer) (*clientset.Clientset, *clientset.Client
 	return kubeClient, leaderElectionClient, kubeconfig, nil
 }
 
+// ControllerContext contains references to resources needed by the
+// controllers.
 type ControllerContext struct {
 	// ClientBuilder will provide a client for this controller to use
 	ClientBuilder controller.ClientBuilder
@@ -258,10 +260,14 @@ type ControllerContext struct {
 	InformersStarted chan struct{}
 }
 
+// IsControllerEnabled returns true is the controller with the specified name
+// is enabled by default.
 func (c ControllerContext) IsControllerEnabled(name string) bool {
 	return IsControllerEnabled(name, ControllersDisabledByDefault, c.Options.Controllers...)
 }
 
+// IsControllerEnabled returns true is the controller with the specified name
+// is enabled given the list of controllers and which are disabled by default.
 func IsControllerEnabled(name string, disabledByDefaultControllers sets.String, controllers ...string) bool {
 	hasStar := false
 	for _, ctrl := range controllers {
@@ -292,10 +298,13 @@ func IsControllerEnabled(name string, disabledByDefaultControllers sets.String, 
 // The bool indicates whether the controller was enabled.
 type InitFunc func(ctx ControllerContext) (bool, error)
 
+// KnownControllers returns the known controllers.
 func KnownControllers() []string {
 	return sets.StringKeySet(NewControllerInitializers()).List()
 }
 
+// ControllersDisabledByDefault are the names of the controllers that are
+// disabled by default.
 var ControllersDisabledByDefault = sets.NewString()
 
 // NewControllerInitializers is a public map of named controller groups (you can start more than one in an init func)
@@ -310,6 +319,8 @@ func NewControllerInitializers() map[string]InitFunc {
 	return controllers
 }
 
+// GetAvailableResources gets the available resources registered in the API
+// Server.
 // TODO: In general, any controller checking this needs to be dynamic so
 //  users don't have to restart their controller manager if they change the apiserver.
 // Until we get there, the structure here needs to be exposed for the construction of a proper ControllerContext.
@@ -392,6 +403,7 @@ func CreateControllerContext(s *options.CMServer, clientBuilder controller.Clien
 	return ctx, nil
 }
 
+// StartControllers starts all of the specified controllers.
 func StartControllers(ctx ControllerContext, controllers map[string]InitFunc) error {
 	for controllerName, initFn := range controllers {
 		if !ctx.IsControllerEnabled(controllerName) {

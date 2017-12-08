@@ -467,7 +467,7 @@ func (c *ClusterController) manageNodeGroups(nodeGroups []*clusteroperator.NodeG
 		nodeGroupsToDelete = append(nodeGroupsToDelete, masterNodeGroup)
 	}
 	// Sync compute node groups
-	for i, _ := range cluster.Spec.ComputeNodeGroups {
+	for i := range cluster.Spec.ComputeNodeGroups {
 		nodeGroupToCreate, deleteNodeGroup, err := c.manageNodeGroup(cluster, computeNodeGroups[i], cluster.Spec.ComputeNodeGroups[i].ClusterNodeGroup, clusteroperator.NodeTypeCompute, computeNodeGroupsPrefixes[i])
 		if err != nil {
 			errCh <- err

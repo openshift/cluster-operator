@@ -19,11 +19,21 @@ package validation
 import (
 	"testing"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
 )
 
+// getValidNode gets a node that passes all validity checks.
+func getValidNode() *clusteroperator.Node {
+	return &clusteroperator.Node{
+		Spec: clusteroperator.NodeSpec{
+			NodeType: clusteroperator.NodeTypeMaster,
+		},
+	}
+}
+
+// TestValidateNode tests the ValidateNode function.
 func TestValidateNode(t *testing.T) {
 	cases := []struct {
 		name  string
@@ -31,18 +41,125 @@ func TestValidateNode(t *testing.T) {
 		valid bool
 	}{
 		{
-			name: "invalid node - node without namespace",
-			node: &clusteroperator.Node{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-node",
-				},
-			},
-			valid: false,
+			name:  "valid",
+			node:  getValidNode(),
+			valid: true,
 		},
 	}
 
 	for _, tc := range cases {
 		errs := ValidateNode(tc.node)
+		if len(errs) != 0 && tc.valid {
+			t.Errorf("%v: unexpected error: %v", tc.name, errs)
+			continue
+		} else if len(errs) == 0 && !tc.valid {
+			t.Errorf("%v: unexpected success", tc.name)
+		}
+	}
+}
+
+// TestValidateNodeUpdate tests the ValidateNodeUpdate function.
+func TestValidateNodeUpdate(t *testing.T) {
+	cases := []struct {
+		name  string
+		old   *clusteroperator.Node
+		new   *clusteroperator.Node
+		valid bool
+	}{
+		{
+			name:  "valid",
+			old:   getValidNode(),
+			new:   getValidNode(),
+			valid: true,
+		},
+	}
+
+	for _, tc := range cases {
+		errs := ValidateNodeUpdate(tc.new, tc.old)
+		if len(errs) != 0 && tc.valid {
+			t.Errorf("%v: unexpected error: %v", tc.name, errs)
+			continue
+		} else if len(errs) == 0 && !tc.valid {
+			t.Errorf("%v: unexpected success", tc.name)
+		}
+	}
+}
+
+// TestValidateNodeStatusUpdate tests the ValidateNodeStatus function.
+func TestValidateNodeStatusUpdate(t *testing.T) {
+	cases := []struct {
+		name  string
+		old   *clusteroperator.Node
+		new   *clusteroperator.Node
+		valid bool
+	}{
+		{
+			name:  "valid",
+			old:   getValidNode(),
+			new:   getValidNode(),
+			valid: true,
+		},
+	}
+
+	for _, tc := range cases {
+		errs := ValidateNodeStatusUpdate(tc.new, tc.old)
+		if len(errs) != 0 && tc.valid {
+			t.Errorf("%v: unexpected error: %v", tc.name, errs)
+			continue
+		} else if len(errs) == 0 && !tc.valid {
+			t.Errorf("%v: unexpected success", tc.name)
+		}
+	}
+}
+
+// TestValidateNodeSpec tests the validateNodeSpec function.
+func TestValidateNodeSpec(t *testing.T) {
+	cases := []struct {
+		name  string
+		spec  *clusteroperator.NodeSpec
+		valid bool
+	}{
+		{
+			name: "valid",
+			spec: &clusteroperator.NodeSpec{
+				NodeType: clusteroperator.NodeTypeMaster,
+			},
+			valid: true,
+		},
+		{
+			name:  "invalid node type",
+			spec:  &clusteroperator.NodeSpec{},
+			valid: false,
+		},
+	}
+
+	for _, tc := range cases {
+		errs := validateNodeSpec(tc.spec, field.NewPath("spec"))
+		if len(errs) != 0 && tc.valid {
+			t.Errorf("%v: unexpected error: %v", tc.name, errs)
+			continue
+		} else if len(errs) == 0 && !tc.valid {
+			t.Errorf("%v: unexpected success", tc.name)
+		}
+	}
+}
+
+// TestValidateNodeStatus tests the validateNodeStatus function.
+func TestValidateNodeStatus(t *testing.T) {
+	cases := []struct {
+		name   string
+		status *clusteroperator.NodeStatus
+		valid  bool
+	}{
+		{
+			name:   "valid",
+			status: &clusteroperator.NodeStatus{},
+			valid:  true,
+		},
+	}
+
+	for _, tc := range cases {
+		errs := validateNodeStatus(tc.status, field.NewPath("status"))
 		if len(errs) != 0 && tc.valid {
 			t.Errorf("%v: unexpected error: %v", tc.name, errs)
 			continue
