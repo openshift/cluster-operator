@@ -69,7 +69,7 @@ func StartTestServer(t *testing.T) (result *restclient.Config, tearDownForCaller
 	t.Logf("Starting etcd...")
 	etcdServer, storageConfig := etcdtesting.NewUnsecuredEtcd3TestClientServer(t, api.Scheme)
 
-	tmpDir, err = ioutil.TempDir("", "kubernetes-kube-apiserver")
+	tmpDir, err = ioutil.TempDir("", "openshift-cluster-operator-apiserver")
 	if err != nil {
 		return nil, nil, fmt.Errorf("Failed to create temp dir: %v", err)
 	}
@@ -81,8 +81,9 @@ func StartTestServer(t *testing.T) (result *restclient.Config, tearDownForCaller
 	s.Etcd.StorageConfig = *storageConfig
 	s.Etcd.DefaultStorageMediaType = "application/json"
 	s.Admission.PluginNames = strings.Split("", ",")
+	s.StandaloneMode = true
 
-	t.Logf("Starting kube-apiserver...")
+	t.Logf("Starting cluster-operator-apiserver...")
 	runErrCh := make(chan error, 1)
 	server, err := app.CreateServer(s, stopCh)
 	if err != nil {

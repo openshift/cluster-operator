@@ -18,6 +18,8 @@ limitations under the License.
 package options
 
 import (
+	"os"
+
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	genericoptions "k8s.io/apiserver/pkg/server/options"
 	//	"k8s.io/kubernetes/pkg/api"
@@ -66,6 +68,8 @@ type ClusterOperatorServerRunOptions struct {
 	MasterCount       int
 	// DisableAuth disables delegating authentication and authorization for testing scenarios
 	DisableAuth bool
+	// StandaloneMode if true asserts that we will not depend on a kube-apiserver
+	StandaloneMode bool
 }
 
 // NewServerRunOptions creates a new ServerRunOptions object with default parameters
@@ -83,6 +87,7 @@ func NewServerRunOptions() *ClusterOperatorServerRunOptions {
 
 		EnableLogsHandler: true,
 		MasterCount:       1,
+		StandaloneMode:    standaloneMode(),
 	}
 	// Set generated SSL cert path correctly
 	s.SecureServing.ServerCert.CertDirectory = certDirectory
@@ -123,4 +128,12 @@ func (s *ClusterOperatorServerRunOptions) AddFlags(fs *pflag.FlagSet) {
 // NewEtcdOptions creates a new, empty, EtcdOptions instance
 func NewEtcdOptions() *genericoptions.EtcdOptions {
 	return genericoptions.NewEtcdOptions(storagebackend.NewDefaultConfig(DefaultEtcdPathPrefix, api.Scheme, nil))
+}
+
+// standaloneMode returns true if the env var CLUSTER_OPERATOR_STANALONE=true
+// If enabled, we will assume no integration with Kubernetes API server is performed.
+// It is intended for testing purposes only.
+func standaloneMode() bool {
+	val := os.Getenv("CLUSTER_OPERATOR_STANALONE")
+	return val == "true"
 }

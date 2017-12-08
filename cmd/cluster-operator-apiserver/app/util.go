@@ -54,6 +54,11 @@ type clusteroperatorConfig struct {
 
 // buildGenericConfig takes the server options and produces the genericapiserver.RecommendedConfig associated with it
 func buildGenericConfig(s *options.ClusterOperatorServerRunOptions) (*genericapiserver.RecommendedConfig, *clusteroperatorConfig, error) {
+	// check if we are running in standalone mode (for test scenarios)
+	inCluster := !s.StandaloneMode
+	if !inCluster {
+		glog.Infof("cluster-operator is in standalone mode")
+	}
 	// server configuration options
 	if err := s.SecureServing.MaybeDefaultWithSelfSignedCerts(s.GenericServerRunOptions.AdvertiseAddress.String(), nil /*alternateDNS*/, []net.IP{net.ParseIP("127.0.0.1")}); err != nil {
 		return nil, nil, err
@@ -65,7 +70,7 @@ func buildGenericConfig(s *options.ClusterOperatorServerRunOptions) (*genericapi
 	if err := s.SecureServing.ApplyTo(&genericConfig.Config); err != nil {
 		return nil, nil, err
 	}
-	if !s.DisableAuth {
+	if !s.DisableAuth && inCluster {
 		if err := s.Authentication.ApplyTo(&genericConfig.Config); err != nil {
 			return nil, nil, err
 		}
@@ -106,32 +111,33 @@ func buildGenericConfig(s *options.ClusterOperatorServerRunOptions) (*genericapi
 		client:          client,
 		sharedInformers: sharedInformers,
 	}
+	if inCluster {
+		inClusterConfig, err := restclient.InClusterConfig()
+		if err != nil {
+			glog.Errorf("Failed to get kube client config: %v", err)
+			return nil, nil, err
+		}
+		inClusterConfig.GroupVersion = &schema.GroupVersion{}
 
-	inClusterConfig, err := restclient.InClusterConfig()
-	if err != nil {
-		glog.Errorf("Failed to get kube client config: %v", err)
-		return nil, nil, err
+		kubeClient, err := kubeclientset.NewForConfig(inClusterConfig)
+		if err != nil {
+			glog.Errorf("Failed to create clientset interface: %v", err)
+			return nil, nil, err
+		}
+
+		kubeSharedInformers := kubeinformers.NewSharedInformerFactory(kubeClient, 10*time.Minute)
+		genericConfig.SharedInformerFactory = kubeSharedInformers
+
+		// TODO: we need upstream to package AlwaysAdmit, or stop defaulting to it!
+		// NOTE: right now, we only run admission controllers when on kube cluster.
+		genericConfig.AdmissionControl, err = buildAdmission(s, client, sharedInformers, kubeClient, kubeSharedInformers)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to initialize admission: %v", err)
+		}
+
+		clusteroperatorConfig.kubeClient = kubeClient
+		clusteroperatorConfig.kubeSharedInformers = kubeSharedInformers
 	}
-	inClusterConfig.GroupVersion = &schema.GroupVersion{}
-
-	kubeClient, err := kubeclientset.NewForConfig(inClusterConfig)
-	if err != nil {
-		glog.Errorf("Failed to create clientset interface: %v", err)
-		return nil, nil, err
-	}
-
-	kubeSharedInformers := kubeinformers.NewSharedInformerFactory(kubeClient, 10*time.Minute)
-	genericConfig.SharedInformerFactory = kubeSharedInformers
-
-	// TODO: we need upstream to package AlwaysAdmit, or stop defaulting to it!
-	// NOTE: right now, we only run admission controllers when on kube cluster.
-	genericConfig.AdmissionControl, err = buildAdmission(s, client, sharedInformers, kubeClient, kubeSharedInformers)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to initialize admission: %v", err)
-	}
-
-	clusteroperatorConfig.kubeClient = kubeClient
-	clusteroperatorConfig.kubeSharedInformers = kubeSharedInformers
 
 	return genericConfig, clusteroperatorConfig, nil
 }
@@ -153,7 +159,7 @@ func buildAdmission(s *options.ClusterOperatorServerRunOptions,
 	return s.Admission.Plugins.NewFromPlugins(admissionControlPluginNames, admissionConfigProvider, pluginInitializer)
 }
 
-// addPostStartHooks adds the common post start hooks we invoke when using either server storage option.
+// addPostStartHooks adds the common post start hooks we invoke.
 func addPostStartHooks(server *genericapiserver.GenericAPIServer, scConfig *clusteroperatorConfig, stopCh <-chan struct{}) {
 	server.AddPostStartHook("start-cluster-operator-apiserver-informers", func(context genericapiserver.PostStartHookContext) error {
 		glog.Infof("Starting shared informers")
