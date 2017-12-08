@@ -134,6 +134,6 @@ func NewEtcdOptions() *genericoptions.EtcdOptions {
 // If enabled, we will assume no integration with Kubernetes API server is performed.
 // It is intended for testing purposes only.
 func standaloneMode() bool {
-	val := os.Getenv("CLUSTER_OPREATOR_STANDALONE")
+	val := os.Getenv("CLUSTER_OPERATOR_STANALONE")
 	return val == "true"
 }
