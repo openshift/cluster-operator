@@ -118,6 +118,20 @@ objects:
     tls.crt: ${SERVING_CERT}
     tls.key: ${SERVING_KEY}
 
+# Secret for AWS credentials to provision with.
+# NOTE: likely will be replaced by a set of credentials per cluster
+- apiVersion: v1
+  kind: Secret
+  metadata:
+    name: aws-credentials
+    namespace: ${CLUSTER_OPERATOR_NAMESPACE}
+    labels:
+      app: cluster-operator
+  type: Opaque
+  data:
+    aws_access_key_id: ${AWS_ACCESS_KEY_ID}
+    aws_secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+
 # Deployment of the API Server pod
 - apiVersion: apps/v1beta1
   kind: Deployment
@@ -352,3 +366,5 @@ parameters:
 - name: SERVING_CERT
 # Public API Server SSL cert
 - name: SERVING_KEY
+- name: AWS_ACCESS_KEY_ID
+- name: AWS_SECRET_ACCESS_KEY

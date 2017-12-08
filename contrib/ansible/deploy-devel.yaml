@@ -1,0 +1,34 @@
+#!/usr/bin/ansible-playbook
+---
+- hosts: localhost
+  connection: local
+  gather_facts: no
+  tasks:
+  - name: create cluster-operator namespace
+    command: oc create namespace cluster-operator
+    register: createns_reg
+    failed_when: createns_reg.rc > 0 and "AlreadyExists" not in createns_reg.stderr
+    changed_when: createns_reg.rc == 0
+
+  - name: generate apiserver certs
+    command: "{{ playbook_dir }}/../apiserver-aggregation-tls-setup.sh"
+    args:
+      # ensure these land in the top level of the project where expected
+      chdir: "{{ playbook_dir }}/../../"
+      # only runs if this file does not exist
+      creates: "{{ playbook_dir }}/../../apiserver.pem"
+
+  - set_fact:
+      l_serving_ca: "{{ lookup('file', playbook_dir + '/../../ca.pem') | b64encode }}"
+      l_serving_cert: "{{ lookup('file', playbook_dir + '/../../apiserver.pem') | b64encode }}"
+      l_serving_key: "{{ lookup('file', playbook_dir + '/../../apiserver-key.pem') | b64encode }}"
+      l_aws_access_key_id: "{{ lookup('ini', 'aws_access_key_id section=default file=~/.aws/credentials') | b64encode }}"
+      l_aws_secret_access_key: "{{ lookup('ini', 'aws_secret_access_key section=default file=~/.aws/credentials') | b64encode }}"
+
+  # TODO: not accurately reflecting 'changed' status as apply doesn't report until upstream PRs merge.
+  - name: deploy application template
+    shell: "oc process -f {{ playbook_dir }}/../examples/deploy.yaml -o yaml -p SERVING_CA={{ l_serving_ca }} -p SERVING_CERT={{ l_serving_cert }} -p SERVING_KEY={{ l_serving_key }} AWS_ACCESS_KEY_ID={{ l_aws_access_key_id }} AWS_SECRET_ACCESS_KEY={{ l_aws_secret_access_key }} | oc apply -f -"
+
+
+
+
