@@ -43,7 +43,7 @@ func validateNodeGroupClusterOwner(ownerRefs []metav1.OwnerReference, fldPath *f
 	if len(ownerRefs) != 0 {
 		ownerRef := ownerRefs[0]
 		if ownerRef.APIVersion != cov1alpha1.SchemeGroupVersion.String() ||
-			ownerRef.Kind != "clusters" {
+			ownerRef.Kind != "Cluster" {
 			allErrs = append(allErrs, field.Invalid(fldPath.Index(0), ownerRef, "first owner of nodegroup must be a cluster"))
 		}
 		if ownerRef.Controller == nil || !*ownerRef.Controller {

@@ -31,7 +31,7 @@ func getValidClusterOwnerRef() metav1.OwnerReference {
 	truePtr := func() *bool { b := true; return &b }
 	return metav1.OwnerReference{
 		APIVersion: "clusteroperator.openshift.io/v1alpha1",
-		Kind:       "clusters",
+		Kind:       "Cluster",
 		UID:        "cluster-owner",
 		Controller: truePtr(),
 	}
