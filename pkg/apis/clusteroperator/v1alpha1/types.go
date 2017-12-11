@@ -145,8 +145,6 @@ type NodeList struct {
 }
 
 type NodeSpec struct {
-	NodeGroupName string `json:"nodeGroupName"`
-
 	// NodeType is the type of the node
 	NodeType NodeType `json:"nodeType"`
 }

@@ -53,6 +53,7 @@ func Run(opts *options.ClusterOperatorServerRunOptions, stopCh <-chan struct{}) 
 	return server.PrepareRun().Run(stopCh)
 }
 
+// CreateServer create an API server according to opts.
 func CreateServer(opts *options.ClusterOperatorServerRunOptions, stopCh <-chan struct{}) (*apiserver.ServiceCatalogAPIServer, error) {
 	etcdOpts := opts.Etcd
 	glog.V(4).Infoln("Preparing to run API server")

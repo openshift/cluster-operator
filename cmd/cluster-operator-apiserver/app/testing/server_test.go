@@ -37,13 +37,13 @@ func TestRun(t *testing.T) {
 	// test whether the server is really healthy after /healthz told us so
 	t.Logf("Creating Cluster directly after being healthy")
 	_, err = client.Clusters("default").Create(&clusteroperator.Cluster{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Cluster",
-			APIVersion: "clusteroperator.openshift.io/v1alpha1",
-		},
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "default",
-			Name:      "cluster1",
+			Name: "cluster1",
+		},
+		Spec: clusteroperator.ClusterSpec{
+			MasterNodeGroup: clusteroperator.ClusterNodeGroup{
+				Size: 1,
+			},
 		},
 	})
 	if err != nil {

@@ -363,7 +363,6 @@ func Convert_clusteroperator_NodeList_To_v1alpha1_NodeList(in *clusteroperator.N
 }
 
 func autoConvert_v1alpha1_NodeSpec_To_clusteroperator_NodeSpec(in *NodeSpec, out *clusteroperator.NodeSpec, s conversion.Scope) error {
-	out.NodeGroupName = in.NodeGroupName
 	out.NodeType = clusteroperator.NodeType(in.NodeType)
 	return nil
 }
@@ -374,7 +373,6 @@ func Convert_v1alpha1_NodeSpec_To_clusteroperator_NodeSpec(in *NodeSpec, out *cl
 }
 
 func autoConvert_clusteroperator_NodeSpec_To_v1alpha1_NodeSpec(in *clusteroperator.NodeSpec, out *NodeSpec, s conversion.Scope) error {
-	out.NodeGroupName = in.NodeGroupName
 	out.NodeType = NodeType(in.NodeType)
 	return nil
 }

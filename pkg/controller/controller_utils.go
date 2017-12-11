@@ -26,6 +26,7 @@ import (
 )
 
 var (
+	// KeyFunc returns the key identifying a cluster-operator resource.
 	KeyFunc = cache.DeletionHandlingMetaNamespaceKeyFunc
 )
 

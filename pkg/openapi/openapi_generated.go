@@ -407,12 +407,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 			Schema: spec.Schema{
 				SchemaProps: spec.SchemaProps{
 					Properties: map[string]spec.Schema{
-						"nodeGroupName": {
-							SchemaProps: spec.SchemaProps{
-								Type:   []string{"string"},
-								Format: "",
-							},
-						},
 						"nodeType": {
 							SchemaProps: spec.SchemaProps{
 								Description: "NodeType is the type of the node",
@@ -421,7 +415,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 							},
 						},
 					},
-					Required: []string{"nodeGroupName", "nodeType"},
+					Required: []string{"nodeType"},
 				},
 			},
 			Dependencies: []string{},
