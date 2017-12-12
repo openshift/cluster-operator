@@ -14,6 +14,9 @@
 package promhttp
 
 import (
+	"bufio"
+	"io"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -54,9 +57,6 @@ func InstrumentHandlerInFlight(g prometheus.Gauge, next http.Handler) http.Handl
 // If the wrapped Handler does not set a status code, a status code of 200 is assumed.
 //
 // If the wrapped Handler panics, no values are reported.
-//
-// Note that this method is only guaranteed to never observe negative durations
-// if used with Go1.9+.
 func InstrumentHandlerDuration(obs prometheus.ObserverVec, next http.Handler) http.HandlerFunc {
 	code, method := checkLabels(obs)
 
@@ -122,9 +122,6 @@ func InstrumentHandlerCounter(counter *prometheus.CounterVec, next http.Handler)
 //
 // If the wrapped Handler panics before calling WriteHeader, no value is
 // reported.
-//
-// Note that this method is only guaranteed to never observe negative durations
-// if used with Go1.9+.
 //
 // See the example for InstrumentHandlerDuration for example usage.
 func InstrumentHandlerTimeToWriteHeader(obs prometheus.ObserverVec, next http.Handler) http.HandlerFunc {
@@ -437,4 +434,72 @@ func sanitizeCode(s int) string {
 	default:
 		return strconv.Itoa(s)
 	}
+}
+
+type delegator interface {
+	Status() int
+	Written() int64
+
+	http.ResponseWriter
+}
+
+type responseWriterDelegator struct {
+	http.ResponseWriter
+
+	handler, method    string
+	status             int
+	written            int64
+	wroteHeader        bool
+	observeWriteHeader func(int)
+}
+
+func (r *responseWriterDelegator) Status() int {
+	return r.status
+}
+
+func (r *responseWriterDelegator) Written() int64 {
+	return r.written
+}
+
+func (r *responseWriterDelegator) WriteHeader(code int) {
+	r.status = code
+	r.wroteHeader = true
+	r.ResponseWriter.WriteHeader(code)
+	if r.observeWriteHeader != nil {
+		r.observeWriteHeader(code)
+	}
+}
+
+func (r *responseWriterDelegator) Write(b []byte) (int, error) {
+	if !r.wroteHeader {
+		r.WriteHeader(http.StatusOK)
+	}
+	n, err := r.ResponseWriter.Write(b)
+	r.written += int64(n)
+	return n, err
+}
+
+type fancyDelegator struct {
+	*responseWriterDelegator
+}
+
+func (r *fancyDelegator) CloseNotify() <-chan bool {
+	return r.ResponseWriter.(http.CloseNotifier).CloseNotify()
+}
+
+func (r *fancyDelegator) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	return r.ResponseWriter.(http.Hijacker).Hijack()
+}
+
+func (r *fancyDelegator) Flush() {
+	r.ResponseWriter.(http.Flusher).Flush()
+}
+
+func (r *fancyDelegator) ReadFrom(re io.Reader) (int64, error) {
+	if !r.wroteHeader {
+		r.WriteHeader(http.StatusOK)
+	}
+	n, err := r.ResponseWriter.(io.ReaderFrom).ReadFrom(re)
+	r.written += n
+	return n, err
 }
