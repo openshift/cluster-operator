@@ -26,19 +26,13 @@ func newDelegator(w http.ResponseWriter, observeWriteHeaderFunc func(int)) deleg
 		observeWriteHeader: observeWriteHeaderFunc,
 	}
 
-	id := 0
-	if _, ok := w.(http.CloseNotifier); ok {
-		id += closeNotifier
-	}
-	if _, ok := w.(http.Flusher); ok {
-		id += flusher
-	}
-	if _, ok := w.(http.Hijacker); ok {
-		id += hijacker
-	}
-	if _, ok := w.(io.ReaderFrom); ok {
-		id += readerFrom
+	_, cn := w.(http.CloseNotifier)
+	_, fl := w.(http.Flusher)
+	_, hj := w.(http.Hijacker)
+	_, rf := w.(io.ReaderFrom)
+	if cn && fl && hj && rf {
+		return &fancyDelegator{d}
 	}
 
-	return pickDelegator[id](d)
+	return d
 }
