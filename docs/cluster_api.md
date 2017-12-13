@@ -54,7 +54,6 @@ In more detail:
       - AMIName [string]
   - OpenShift Configuration:
     - NodeLabels [array of String]
-    - Variables [array of Variable]
 
 #### Status:
 * Access
@@ -84,7 +83,6 @@ In more detail:
     - AMIName [string]
 - OpenShift Configuration:
   - NodeLabels [array of string]
-  - Variables [array of Variable]
 
 #### Status
 * NodeCount [int]
@@ -97,9 +95,3 @@ In more detail:
   - Message [string]
   - Reason [string]
 * Phase [string]
-
-
-### Variable
-
-- Name [string]
-- Value [string]
