@@ -27,6 +27,8 @@
     * `oc login -u system:admin`
   * Grant admin rights to login to the [WebUI](https://localhost:8443)
     * `oc adm policy add-cluster-role-to-user cluster-admin admin`
+  * Create a temporary ssh key secret for use when connecting to hosts with ansible:
+    * `kubectl create -n cluster-operator secret generic ssh-private-key --from-file=ssh-privatekey=/home/dgoodwin/libra.pem`
 
 
 ## Deploy / Re-deploy Cluster Operator
@@ -36,3 +38,19 @@
     * `ansible-playbook contrib/ansible/deploy-devel.yaml`
   * If your image changed, but the kubernetes config did not, it is often required to delete all pods:
     * `oc delete pod --all -n cluster-operator`
+
+## Testing Provisioning
+
+Provisioning code is currently disabled to avoid doing anything unintentional
+until we have a better handle on getting it working and cleaning up what it
+creates.
+
+To enable and test:
+
+  1. Uncomment the correct Command in the pod definition in pkg/ansible/runner.py.
+  1. `cp ./contrib/examples/cluster.yaml ./contrib/examples/mycluster.yaml`
+  1. Edit mycluster.yaml and change the name to your username. This will allow you to find objects created in the AWS account to clean up.
+  1. `kubectl create -n cluster-operator -f ./contrib/examples/dgoodwin-cluster.yaml`
+    * Ability to create the cluster in any namespace will be coming shortly but for now, must be cluster-operator.
+  1. You should see some action in the controller manager logs, and a provisioning job and associated pod.
+
