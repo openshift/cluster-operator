@@ -44,17 +44,8 @@ import (
 	"github.com/openshift/cluster-operator/pkg/controller"
 )
 
-const (
-	// maxRetries is the number of times a service will be retried before it is dropped out of the queue.
-	// With the current rate-limiter in use (5ms*2^(maxRetries-1)) the following numbers represent the
-	// sequence of delays between successive queuings of a service.
-	//
-	// 5ms, 10ms, 20ms, 40ms, 80ms, 160ms, 320ms, 640ms, 1.3s, 2.6s, 5.1s, 10.2s, 20.4s, 41s, 82s
-	maxRetries = 15
-)
-
 // controllerKind contains the schema.GroupVersionKind for this controller type.
-var controllerKind = clusteroperator.SchemeGroupVersion.WithKind("clusters")
+var controllerKind = clusteroperator.SchemeGroupVersion.WithKind("Cluster")
 
 // NewClusterController returns a new *ClusterController.
 func NewClusterController(clusterInformer informers.ClusterInformer, nodeGroupInformer informers.NodeGroupInformer, kubeClient kubeclientset.Interface, clusteroperatorClient clusteroperatorclientset.Interface) *ClusterController {
@@ -316,26 +307,15 @@ func (c *ClusterController) processNextWorkItem() bool {
 	defer c.queue.Done(key)
 
 	err := c.syncHandler(key.(string))
-	c.handleErr(err, key)
-
-	return true
-}
-
-func (c *ClusterController) handleErr(err error, key interface{}) {
 	if err == nil {
 		c.queue.Forget(key)
-		return
+		return true
 	}
 
-	if c.queue.NumRequeues(key) < maxRetries {
-		glog.V(2).Infof("Error syncing cluster %v: %v", key, err)
-		c.queue.AddRateLimited(key)
-		return
-	}
+	utilruntime.HandleError(fmt.Errorf("Sync %q failed with %v", key, err))
+	c.queue.AddRateLimited(key)
 
-	utilruntime.HandleError(err)
-	glog.V(2).Infof("Dropping cluster %q out of the queue: %v", key, err)
-	c.queue.Forget(key)
+	return true
 }
 
 // syncCluster will sync the cluster with the given key.
@@ -390,10 +370,9 @@ func (c *ClusterController) syncCluster(key string) error {
 	cluster = cluster.DeepCopy()
 
 	newStatus := calculateStatus(cluster, filteredNodeGroups, manageNodeGroupsErr)
-	cluster.Status = newStatus
 
 	// Always updates status as node groups come up or die.
-	if _, err := c.client.ClusteroperatorV1alpha1().Clusters(cluster.Namespace).UpdateStatus(cluster); err != nil {
+	if _, err := c.updateClusterStatus(cluster, newStatus); err != nil {
 		// Multiple things could lead to this update failing. Requeuing the cluster ensures
 		// returning an error causes a requeue without forcing a hotloop
 		return err
@@ -432,7 +411,7 @@ func (c *ClusterController) manageNodeGroups(nodeGroups []*clusteroperator.NodeG
 			if masterNodeGroup == nil {
 				masterNodeGroup = nodeGroup
 			} else {
-				glog.Warningf("Found two active master node groups for cluster %s/%s: %s and %s", cluster.Namespace, cluster.Name, masterNodeGroup.Name, nodeGroup.Name)
+				utilruntime.HandleError(fmt.Errorf("Found two active master node groups for cluster %s/%s: %s and %s", cluster.Namespace, cluster.Name, masterNodeGroup.Name, nodeGroup.Name))
 				nodeGroupsToDelete = append(nodeGroupsToDelete, nodeGroup)
 			}
 		case clusteroperator.NodeTypeCompute:
@@ -442,7 +421,7 @@ func (c *ClusterController) manageNodeGroups(nodeGroups []*clusteroperator.NodeG
 					if computeNodeGroups[i] == nil {
 						computeNodeGroups[i] = nodeGroup
 					} else {
-						glog.Warningf("Found two active conflicting compute node groups for cluster %s/%s: %s and %s", cluster.Namespace, cluster.Name, computeNodeGroups[i].Name, nodeGroup.Name)
+						utilruntime.HandleError(fmt.Errorf("Found two active conflicting compute node groups for cluster %s/%s: %s and %s", cluster.Namespace, cluster.Name, computeNodeGroups[i].Name, nodeGroup.Name))
 						nodeGroupsToDelete = append(nodeGroupsToDelete, nodeGroup)
 					}
 					found = true
@@ -480,8 +459,16 @@ func (c *ClusterController) manageNodeGroups(nodeGroups []*clusteroperator.NodeG
 		}
 	}
 
+	// Snapshot the UIDs (ns/name) of the node groups we're expecting to see
+	// deleted, so we know to record their expectations exactly once either
+	// when we see it as an update of the deletion timestamp, or as a delete.
+	deletedNodeGroupKeys := make([]string, len(nodeGroupsToDelete))
+	for i, ng := range nodeGroupsToDelete {
+		deletedNodeGroupKeys[i] = getNodeGroupKey(ng)
+	}
+	c.expectations.SetExpectations(clusterKey, len(nodeGroupsToCreate), deletedNodeGroupKeys)
+
 	if len(nodeGroupsToCreate) > 0 {
-		c.expectations.ExpectCreations(clusterKey, len(nodeGroupsToCreate))
 		var wg sync.WaitGroup
 		glog.V(2).Infof("Creating %d new node groups for cluster %q/%q", len(nodeGroupsToCreate), cluster.Namespace, cluster.Name)
 		wg.Add(len(nodeGroupsToCreate))
@@ -511,14 +498,6 @@ func (c *ClusterController) manageNodeGroups(nodeGroups []*clusteroperator.NodeG
 	}
 
 	if len(nodeGroupsToDelete) > 0 {
-		// Snapshot the UIDs (ns/name) of the node groups we're expecting to see
-		// deleted, so we know to record their expectations exactly once either
-		// when we see it as an update of the deletion timestamp, or as a delete.
-		deletedNodeGroupKeys := make([]string, len(nodeGroupsToDelete))
-		for i, ng := range nodeGroupsToDelete {
-			deletedNodeGroupKeys[i] = getNodeGroupKey(ng)
-		}
-		c.expectations.ExpectDeletions(clusterKey, deletedNodeGroupKeys)
 		var wg sync.WaitGroup
 		wg.Add(len(nodeGroupsToDelete))
 		for i, ng := range nodeGroupsToDelete {
@@ -641,4 +620,14 @@ func includesNodeGroupWithPrefix(nodeGroups []*clusteroperator.NodeGroup, prefix
 
 func getNodeGroupKey(nodeGroup *clusteroperator.NodeGroup) string {
 	return fmt.Sprintf("%s/%s", nodeGroup.Namespace, nodeGroup.Name)
+}
+
+func (c *ClusterController) updateClusterStatus(cluster *clusteroperator.Cluster, newStatus clusteroperator.ClusterStatus) (*clusteroperator.Cluster, error) {
+	if cluster.Status.MasterNodeGroups == newStatus.MasterNodeGroups &&
+		cluster.Status.ComputeNodeGroups == newStatus.ComputeNodeGroups {
+		return cluster, nil
+	}
+
+	cluster.Status = newStatus
+	return c.client.ClusteroperatorV1alpha1().Clusters(cluster.Namespace).UpdateStatus(cluster)
 }
