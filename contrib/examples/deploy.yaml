@@ -85,17 +85,17 @@ objects:
   - apiGroups: [""]
     resources: ["events"]
     verbs:     ["create","patch","update"]
-  # allow operations on required resources in our namespace
+  # allow all operations on all resources in our API group
+  - apiGroups: ["clusteroperator.openshift.io"]
+    resources: ["*"]
+    verbs:     ["create", "get", "list", "watch", "update", "delete"]
+  # allow operations on required resources in any namespace a cluster is created
   - apiGroups:     [""]
     resources:     ["configmaps", "pods", "secrets"]
     verbs: ["*"]
   - apiGroups:     ["batch"]
     resources:     ["jobs"]
     verbs: ["*"]
-  # allow all operations on all resources in our API group
-  - apiGroups: ["clusteroperator.openshift.io"]
-    resources: ["*"]
-    verbs:     ["create", "get", "list", "watch", "update", "delete"]
 
 # Bind the Controller Manager service account to the role created for it
 - apiVersion: rbac.authorization.k8s.io/v1
@@ -111,19 +111,6 @@ objects:
     kind: ServiceAccount
     name: cluster-operator-controller-manager
     namespace: ${CLUSTER_OPERATOR_NAMESPACE}
-
-# Allow our service account to run Ansible pods as UID 0:
-- kind: SecurityContextConstraints
-  apiVersion: v1
-  metadata:
-    name: cluster-operator-runasuser
-  allowPrivilegedContainer: true
-  runAsUser:
-    type: RunAsAny
-  seLinuxContext:
-    type: RunAsAny
-  users:
-  - system:serviceaccount:${CLUSTER_OPERATOR_NAMESPACE}:cluster-operator-controller-manager
 
 # Secret to pass the SSL certs to the API Server
 - apiVersion: v1

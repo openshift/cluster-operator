@@ -241,7 +241,8 @@ func (c *InfraController) syncCluster(key string) error {
 		return err
 	}
 
-	err = ansibleRunner.RunPlaybook(cluster.Name, jobPrefix, infraPlaybook, provisionInventoryTemplate, vars)
+	err = ansibleRunner.RunPlaybook(cluster.Namespace, cluster.Name, jobPrefix, infraPlaybook,
+		provisionInventoryTemplate, vars)
 	if err != nil {
 		return err
 	}
