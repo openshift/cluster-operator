@@ -47,7 +47,7 @@ In more detail:
 * NodeGroups [array of NodeGroupSpec]:
   - Type: (Master, Compute) [string]
   - Infra: [boolean]
-  - Count [usigned int]
+  - Count: [usigned int]
   - Hardware spec (cloud-specific):
     - AWSConfig:
       - InstanceType [string]
@@ -65,9 +65,7 @@ In more detail:
   - LastTransitionTime [string]
   - Message [string]
   - Reason [string]
-* NodeGroupCounts [array]
-  - Name [string]
-  - Count [unsigned int]
+* NodeGroupCount [unsigned int]
 * Phase [string]
 
 
