@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -47,109 +48,315 @@ type ClusterList struct {
 	Items []Cluster `json:"items"`
 }
 
+// ClusterSpec is the specification of a cluster's hardware and configuration
 type ClusterSpec struct {
-	// MasterNodeGroup specificies the configuration of the master node group
-	MasterNodeGroup ClusterNodeGroup `json:"masterNodeGroup"`
+	// Hardware specifies the hardware that the cluster will run on
+	Hardware ClusterHardwareSpec `json:"hardware"`
 
-	// ComputeNodeGroups specify the configurations of the compute node groups
+	// Config specifies cluster-wide OpenShift configuration
+	Config ClusterConfigSpec `json:"config"`
+
+	// DefaultHardwareSpec specifies hardware defaults for all machine sets
+	// in this cluster
 	// +optional
-	ComputeNodeGroups []ClusterComputeNodeGroup `json:"computeNodeGroups,omitempty"`
+	DefaultHardwareSpec *MachineSetHardwareSpec `json:"defaultHardwareSpec,omitempty"`
+
+	// MachineSets specifies the configuration of all machine sets for the cluster
+	MachineSets []ClusterMachineSet `json:"machineSets"`
 }
 
+// ClusterHardwareSpec specifies hardware for a cluster. The specification will
+// be specific to each cloud provider.
+type ClusterHardwareSpec struct {
+	// AWS specifies cluster hardware configuration on AWS
+	// +optional
+	AWS *AWSClusterSpec `json:"aws,omitempty"`
+
+	// TODO: Add other cloud-specific Specs as needed
+}
+
+// AWSClusterSpec contains cluster-wide configuration for a cluster on AWS
+type AWSClusterSpec struct {
+	// AccountSeceret refers to a secret that contains the AWS account access
+	// credentials
+	AccountSecret corev1.LocalObjectReference `json:"accountSecret"`
+
+	// Region specifies the AWS region where the cluster will be created
+	Region string `json:"region"`
+
+	// VPCName specifies the name of the VPC to associate with the cluster.
+	// If a value is specified, a VPC will be created with that name if it
+	// does not already exist in the cloud provider. If it does exist, the
+	// existing VPC will be used.
+	// If no name is specified, a VPC name will be generated using the
+	// cluster name and created in the cloud provider.
+	// +optional
+	VPCName string `json:"vpcName,omitempty"`
+
+	// VPCSubnet specifies the subnet to use for the cluster's VPC. Only used
+	// when a new VPC is created for the cluster
+	// +optional
+	VPCSubnet string `json:"vpcSubnet,omitempty"`
+}
+
+// ClusterConfigSpec contains OpenShift configuration for a cluster
+type ClusterConfigSpec struct {
+	// DeploymentType indicates the type of OpenShift deployment to create
+	DeploymentType ClusterDeploymentType `json:"deploymentType"`
+
+	// OpenShiftVersion is the version of OpenShift to install
+	OpenshiftVersion string `json:"openshiftVersion"`
+
+	// SDNPluginName is the name of the SDN plugin to use for this install
+	SDNPluginName string `json:"sdnPluginName"`
+
+	// ServiceNetworkSubnet is the CIDR to use for service IPs in the cluster
+	// +optional
+	ServiceNetworkSubnet string `json:"serviceNetowrkSubnet,omitempty"`
+
+	// PodNetworkSubnet is the CIDR to use for pod IPs in the cluster
+	// +optional
+	PodNetworkSubnet string `json:"podNetworkSubnet,omitempty"`
+}
+
+// ClusterDeploymentType is a valid value for ClusterConfigSpec.DeploymentType
+type ClusterDeploymentType string
+
+// These are valid values for cluster deployment type
+const (
+	// ClusterDeploymentTypeOrigin is a deployment type of origin
+	ClusterDeploymentTypeOrigin ClusterDeploymentType = "origin"
+	// ClusterDeploymentTypeEnterprise is a deployment type of openshift enterprise
+	ClusterDeploymentTypeEnterprise ClusterDeploymentType = "openshift-enterprise"
+)
+
+// ClusterStatus contains the status for a cluster
 type ClusterStatus struct {
-	// MasterNodeGroups is the number of actual master node groups that are
-	// active for the cluster
-	MasterNodeGroups int `json:"masterNodeGroups"`
+	// MachineSetCount is the number of actual machine sets that are active for the cluster
+	MachineSetCount int `json:"machineSetCount"`
 
-	// ComputeNodeGroups is the number of actual compute node groups that are
-	// active for the cluster
-	ComputeNodeGroups int `json:"computeNodeGroups"`
+	// MasterMachineSetName is the name of the master machine set
+	MasterMachineSetName string `json:"masterMachineSetName,omitempty"`
+
+	// InfraMachineSetName is the name of the infra machine set
+	InfraMachineSetName string `json:"infraMachineSetName,omitempty"`
+
+	// AdminKubeconfig points to a secret containing a cluster administrator
+	// kubeconfig to access the cluster. The secret can be used for bootstrapping
+	// and subsequent access to the cluster API.
+	// +optional
+	AdminKubeconfig *corev1.LocalObjectReference `json:"adminKubeconfig,omitempty"`
+
+	// Provisioned is true if the hardware pre-reqs for the cluster have been provisioned
+	// For machine set hardware, see the status of each machine set resource.
+	Provisioned bool `json:"provisioned"`
+
+	// Running is true if the master of the cluster is running and can be accessed using
+	// the KubeconfigSecret
+	Running bool `json:"running"`
+
+	// Conditions includes more detailed status for the cluster
+	Conditions []ClusterCondition `json:"conditions"`
 }
 
-// ClusterNodeGroup is a node group defined in a Cluster resource
-type ClusterNodeGroup struct {
-	Size int `json:"size"`
+// ClusterCondition contains details for the current condition of a cluster
+type ClusterCondition struct {
+	// Type is the type of the condition.
+	Type ClusterConditionType `json:"type"`
+	// Status is the status of the condition.
+	Status corev1.ConditionStatus `json:"status"`
+	// LastProbeTime is the last time we probed the condition.
+	// +optional
+	LastProbeTime metav1.Time `json:"lastProbeTime,omitempty"`
+	// LastTransitionTime is the last time the condition transitioned from one status to another.
+	// +optional
+	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
+	// Reason is a unique, one-word, CamelCase reason for the condition's last transition.
+	// +optional
+	Reason string `json:"reason,omitempty"`
+	// Message is a human-readable message indicating details about last transition.
+	// +optional
+	Message string `json:"message,omitempty"`
 }
 
-// ClusterComputeNodeGroup is a compute node group defined in a Cluster
-// resource
-type ClusterComputeNodeGroup struct {
-	ClusterNodeGroup `json:",inline"`
+// ClusterConditionType is a valid value for ClusterCondition.Type
+type ClusterConditionType string
 
-	Name string `json:"name"`
-}
+// These are valid conditions for a cluster
+const (
+	// ClusterHardwareProvisioned represents status of the hardware provisioning status for this cluster.
+	ClusterHardwareProvisioned ClusterConditionType = "HardwareProvisioned"
+	// ClusterReady means the cluster is able to service requests
+	ClusterReady ClusterConditionType = "Ready"
+)
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// NodeGroup represents a group of nodes in a cluster that clusteroperator manages
-type NodeGroup struct {
+// MachineSet represents a group of machines in a cluster that clusteroperator manages
+type MachineSet struct {
 	// +optional
 	metav1.TypeMeta `json:",inline"`
 	// +optional
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.ObjectMeta `json:"metadata"`
 
+	// Spec is the specification for the MachineSet
 	// +optional
-	Spec NodeGroupSpec `json:"spec,omitempty"`
+	Spec MachineSetSpec `json:"spec,omitempty"`
+
+	// Status is the status for the MachineSet
 	// +optional
-	Status NodeGroupStatus `json:"status,omitempty"`
+	Status MachineSetStatus `json:"status,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// NodeGroupList is a list of NodeGroups.
-type NodeGroupList struct {
+// MachineSetList is a list of MachineSets.
+type MachineSetList struct {
 	metav1.TypeMeta `json:",inline"`
 	// +optional
 	metav1.ListMeta `json:"metadata,omitempty"`
 
-	Items []NodeGroup `json:"items"`
+	Items []MachineSet `json:"items"`
 }
 
-type NodeGroupSpec struct {
-	// NodeType is the type of nodes that comprised the NodeGroup
+// ClusterMachineSet is the specification of a machine set in a cluster
+type ClusterMachineSet struct {
+	// Name is a unique name for the machine set within the cluster
+	Name string `json:"name"`
+
+	// MachineSetConfig is the configuration for the MachineSet
+	MachineSetConfig `json:",inline"`
+}
+
+// MachineSetConfig contains configuration for a MachineSet
+type MachineSetConfig struct {
+	// NodeType is the type of nodes that comprise the MachineSet
 	NodeType NodeType `json:"nodeType"`
+
+	// Infra indicates whether this machine set should contain infrastructure
+	// pods
+	Infra bool `json:"infra"`
 
 	// Size is the number of nodes that the node group should contain
 	Size int `json:"size"`
+
+	// Hardware defines what the hardware should look like for this
+	// MachineSet. The specification will vary based on the cloud provider.
+	Hardware MachineSetHardwareSpec `json:"hardware"`
+
+	// NodeLabels specifies the labels that will be applied to nodes in this
+	// MachineSet
+	NodeLabels map[string]string `json:"nodeLabels"`
 }
 
-type NodeGroupStatus struct {
+// MachineSetSpec is the specification for a MachineSet
+type MachineSetSpec struct {
+	// MachineSetConfig is the configuration for the MachineSet
+	MachineSetConfig `json:",inline"`
 }
+
+// MachineSetHardwareSpec specifies the hardware for a MachineSet
+type MachineSetHardwareSpec struct {
+	// AWS specifies the hardware spec for an AWS machine set
+	// +optional
+	AWS *MachineSetAWSHardwareSpec `json:"aws,omitempty"`
+}
+
+// MachineSetAWSHardwareSpec specifies AWS hardware for a MachineSet
+type MachineSetAWSHardwareSpec struct {
+	// InstanceType is the type of instance to use for machines in this MachineSet
+	// +optional
+	InstanceType string `json:"instanceType,omitempty"`
+
+	// AMIName is the name of the AMI to use for machines in this MachineSet
+	// +optional
+	AMIName string `json:"amiName,omitempty"`
+}
+
+// MachineSetStatus is the status of a MachineSet
+type MachineSetStatus struct {
+	// MachinesProvisioned is the count of provisioned machines for the MachineSet
+	MachinesProvisioned int `json:"machineCount"`
+
+	// MachinesReady is the number of machines that are ready
+	MachinesReady int `json:"machinesReady"`
+
+	// Conditions includes more detailed status of the MachineSet
+	Conditions []MachineSetCondition `json:"conditions"`
+}
+
+// MachineSetCondition contains details for the current condition of a MachineSet
+type MachineSetCondition struct {
+	// Type is the type of the condition.
+	Type MachineSetConditionType `json:"type"`
+	// Status is the status of the condition.
+	Status corev1.ConditionStatus `json:"status"`
+	// LastProbeTime is the last time we probed the condition.
+	// +optional
+	LastProbeTime metav1.Time `json:"lastProbeTime,omitempty"`
+	// LastTransitionTime is the last time the condition transitioned from one status to another.
+	// +optional
+	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
+	// Reason is a unique, one-word, CamelCase reason for the condition's last transition.
+	// +optional
+	Reason string `json:"reason,omitempty"`
+	// Message is a human-readable message indicating details about last transition.
+	// +optional
+	Message string `json:"message,omitempty"`
+}
+
+// MachineSetConditionType is a valid value for MachineSetCondition.Type
+type MachineSetConditionType string
+
+// These are valid conditions for a node group
+const (
+	// MachineSetHardwareCreated is true if the corresponding cloud resource(s) for
+	// this nodegroup have been created (ie. AWS autoscaling group)
+	MachineSetHardwareCreated MachineSetConditionType = "HardwareCreated"
+
+	// MachineSetHardwareReady is true if the hardware for the nodegroup is in ready
+	// state (is started and healthy)
+	MachineSetHardwareReady MachineSetConditionType = "HardwareReady"
+
+	// MachineSetReady is true if the nodes of this nodegroup are ready for work
+	// (have joined the cluster and have a healthy node status)
+	MachineSetReady ClusterConditionType = "Ready"
+)
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// Node represents a node in a cluster that clusteroperator manages
-type Node struct {
+// Machine represents a node in a cluster that clusteroperator manages
+type Machine struct {
 	// +optional
 	metav1.TypeMeta `json:",inline"`
 	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	// +optional
-	Spec NodeSpec `json:"spec,omitempty"`
+	Spec MachineSpec `json:"spec,omitempty"`
 	// +optional
-	Status NodeStatus `json:"status,omitempty"`
+	Status MachineStatus `json:"status,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// NodeList is a list of Nodes.
-type NodeList struct {
+// MachineList is a list of Nodes.
+type MachineList struct {
 	metav1.TypeMeta `json:",inline"`
 	// +optional
 	metav1.ListMeta `json:"metadata,omitempty"`
 
-	Items []Node `json:"items"`
+	Items []Machine `json:"items"`
 }
 
-type NodeSpec struct {
+type MachineSpec struct {
 	// NodeType is the type of the node
 	NodeType NodeType `json:"nodeType"`
 }
 
-type NodeStatus struct {
+type MachineStatus struct {
 }
 
 // NodeType is the type of the Node

@@ -79,21 +79,21 @@ func TestV1Alpha1Storage(t *testing.T) {
 		t.Fatalf("no clusters/status storage found")
 	}
 
-	_, nodeGroupStorageExists := storageMap["nodegroups"]
-	if !nodeGroupStorageExists {
-		t.Fatalf("no nodegroups storage found")
+	_, machineGroupStorageExists := storageMap["machinesets"]
+	if !machineGroupStorageExists {
+		t.Fatalf("no machinesets storage found")
 	}
-	_, nodeGroupStatusStorageExists := storageMap["nodegroups/status"]
-	if !nodeGroupStatusStorageExists {
-		t.Fatalf("no nodegroups/status storage found")
+	_, machineGroupStatusStorageExists := storageMap["machinesets/status"]
+	if !machineGroupStatusStorageExists {
+		t.Fatalf("no machinesets/status storage found")
 	}
 
-	_, nodeStorageExists := storageMap["nodes"]
-	if !nodeStorageExists {
-		t.Fatalf("no nodes storage found")
+	_, machineStorageExists := storageMap["machines"]
+	if !machineStorageExists {
+		t.Fatalf("no machines storage found")
 	}
-	_, nodeStatusStorageExists := storageMap["nodes/status"]
-	if !nodeStatusStorageExists {
-		t.Fatalf("no nodes/status storage found")
+	_, machineStatusStorageExists := storageMap["machines/status"]
+	if !machineStatusStorageExists {
+		t.Fatalf("no machines/status storage found")
 	}
 }

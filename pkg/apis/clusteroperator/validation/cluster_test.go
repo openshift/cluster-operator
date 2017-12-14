@@ -32,20 +32,32 @@ func getValidCluster() *clusteroperator.Cluster {
 			Name: "test-cluster",
 		},
 		Spec: clusteroperator.ClusterSpec{
-			MasterNodeGroup: clusteroperator.ClusterNodeGroup{
-				Size: 1,
+			MachineSets: []clusteroperator.ClusterMachineSet{
+				{
+					Name: "master",
+					MachineSetConfig: clusteroperator.MachineSetConfig{
+						NodeType: clusteroperator.NodeTypeMaster,
+						Infra:    true,
+						Size:     1,
+					},
+				},
 			},
 		},
 	}
 }
 
-// getTestClusterComputeNodeGroup gets a ClusterComputeNodeGroup with the
-// specified name and size.
-func getTestClusterComputeNodeGroup(name string, size int) clusteroperator.ClusterComputeNodeGroup {
-	return clusteroperator.ClusterComputeNodeGroup{
+// getTestMachineSet gets a ClusterMachineSet initialized with either compute or master node type
+func getTestMachineSet(size int, name string, master bool, infra bool) clusteroperator.ClusterMachineSet {
+	nodeType := clusteroperator.NodeTypeCompute
+	if master {
+		nodeType = clusteroperator.NodeTypeMaster
+	}
+	return clusteroperator.ClusterMachineSet{
 		Name: name,
-		ClusterNodeGroup: clusteroperator.ClusterNodeGroup{
-			Size: size,
+		MachineSetConfig: clusteroperator.MachineSetConfig{
+			NodeType: nodeType,
+			Size:     size,
+			Infra:    infra,
 		},
 	}
 }
@@ -75,7 +87,7 @@ func TestValidateCluster(t *testing.T) {
 			name: "invalid spec",
 			cluster: func() *clusteroperator.Cluster {
 				c := getValidCluster()
-				c.Spec.MasterNodeGroup.Size = 0
+				c.Spec.MachineSets[0].Size = 0
 				return c
 			}(),
 			valid: false,
@@ -84,7 +96,7 @@ func TestValidateCluster(t *testing.T) {
 			name: "invalid status",
 			cluster: func() *clusteroperator.Cluster {
 				c := getValidCluster()
-				c.Status.MasterNodeGroups = -1
+				c.Status.MachineSetCount = -1
 				return c
 			}(),
 			valid: false,
@@ -121,7 +133,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			old:  getValidCluster(),
 			new: func() *clusteroperator.Cluster {
 				c := getValidCluster()
-				c.Spec.MasterNodeGroup.Size = 0
+				c.Spec.MachineSets[0].Size = 0
 				return c
 			}(),
 			valid: false,
@@ -158,7 +170,7 @@ func TestValidateClusterStatusUpdate(t *testing.T) {
 			old:  getValidCluster(),
 			new: func() *clusteroperator.Cluster {
 				c := getValidCluster()
-				c.Status.MasterNodeGroups = -1
+				c.Status.MachineSetCount = -1
 				return c
 			}(),
 			valid: false,
@@ -186,8 +198,8 @@ func TestValidateClusterSpec(t *testing.T) {
 		{
 			name: "valid master only",
 			spec: &clusteroperator.ClusterSpec{
-				MasterNodeGroup: clusteroperator.ClusterNodeGroup{
-					Size: 1,
+				MachineSets: []clusteroperator.ClusterMachineSet{
+					getTestMachineSet(1, "master", true, true),
 				},
 			},
 			valid: true,
@@ -195,8 +207,8 @@ func TestValidateClusterSpec(t *testing.T) {
 		{
 			name: "invalid master size",
 			spec: &clusteroperator.ClusterSpec{
-				MasterNodeGroup: clusteroperator.ClusterNodeGroup{
-					Size: 0,
+				MachineSets: []clusteroperator.ClusterMachineSet{
+					getTestMachineSet(0, "master", true, true),
 				},
 			},
 			valid: false,
@@ -204,11 +216,9 @@ func TestValidateClusterSpec(t *testing.T) {
 		{
 			name: "valid single compute",
 			spec: &clusteroperator.ClusterSpec{
-				MasterNodeGroup: clusteroperator.ClusterNodeGroup{
-					Size: 1,
-				},
-				ComputeNodeGroups: []clusteroperator.ClusterComputeNodeGroup{
-					getTestClusterComputeNodeGroup("first", 1),
+				MachineSets: []clusteroperator.ClusterMachineSet{
+					getTestMachineSet(1, "master", true, false),
+					getTestMachineSet(1, "one", false, true),
 				},
 			},
 			valid: true,
@@ -216,13 +226,11 @@ func TestValidateClusterSpec(t *testing.T) {
 		{
 			name: "valid multiple computes",
 			spec: &clusteroperator.ClusterSpec{
-				MasterNodeGroup: clusteroperator.ClusterNodeGroup{
-					Size: 1,
-				},
-				ComputeNodeGroups: []clusteroperator.ClusterComputeNodeGroup{
-					getTestClusterComputeNodeGroup("first", 1),
-					getTestClusterComputeNodeGroup("second", 5),
-					getTestClusterComputeNodeGroup("third", 2),
+				MachineSets: []clusteroperator.ClusterMachineSet{
+					getTestMachineSet(1, "master", true, true),
+					getTestMachineSet(1, "one", false, false),
+					getTestMachineSet(5, "two", false, false),
+					getTestMachineSet(2, "three", false, false),
 				},
 			},
 			valid: true,
@@ -230,13 +238,11 @@ func TestValidateClusterSpec(t *testing.T) {
 		{
 			name: "invalid compute name",
 			spec: &clusteroperator.ClusterSpec{
-				MasterNodeGroup: clusteroperator.ClusterNodeGroup{
-					Size: 1,
-				},
-				ComputeNodeGroups: []clusteroperator.ClusterComputeNodeGroup{
-					getTestClusterComputeNodeGroup("first", 1),
-					getTestClusterComputeNodeGroup("", 5),
-					getTestClusterComputeNodeGroup("third", 2),
+				MachineSets: []clusteroperator.ClusterMachineSet{
+					getTestMachineSet(1, "master", true, true),
+					getTestMachineSet(1, "one", false, false),
+					getTestMachineSet(5, "", false, false),
+					getTestMachineSet(2, "three", false, false),
 				},
 			},
 			valid: false,
@@ -244,13 +250,11 @@ func TestValidateClusterSpec(t *testing.T) {
 		{
 			name: "invalid compute size",
 			spec: &clusteroperator.ClusterSpec{
-				MasterNodeGroup: clusteroperator.ClusterNodeGroup{
-					Size: 1,
-				},
-				ComputeNodeGroups: []clusteroperator.ClusterComputeNodeGroup{
-					getTestClusterComputeNodeGroup("first", 1),
-					getTestClusterComputeNodeGroup("second", 0),
-					getTestClusterComputeNodeGroup("third", 2),
+				MachineSets: []clusteroperator.ClusterMachineSet{
+					getTestMachineSet(1, "master", true, true),
+					getTestMachineSet(1, "one", false, false),
+					getTestMachineSet(0, "two", false, false),
+					getTestMachineSet(2, "three", false, false),
 				},
 			},
 			valid: false,
@@ -258,13 +262,58 @@ func TestValidateClusterSpec(t *testing.T) {
 		{
 			name: "invalid duplicate compute name",
 			spec: &clusteroperator.ClusterSpec{
-				MasterNodeGroup: clusteroperator.ClusterNodeGroup{
-					Size: 1,
+				MachineSets: []clusteroperator.ClusterMachineSet{
+					getTestMachineSet(1, "master", true, true),
+					getTestMachineSet(1, "one", false, false),
+					getTestMachineSet(5, "one", false, false),
+					getTestMachineSet(2, "three", false, false),
 				},
-				ComputeNodeGroups: []clusteroperator.ClusterComputeNodeGroup{
-					getTestClusterComputeNodeGroup("first", 1),
-					getTestClusterComputeNodeGroup("first", 5),
-					getTestClusterComputeNodeGroup("third", 2),
+			},
+			valid: false,
+		},
+		{
+			name: "no master machineset",
+			spec: &clusteroperator.ClusterSpec{
+				MachineSets: []clusteroperator.ClusterMachineSet{
+					getTestMachineSet(1, "one", false, true),
+					getTestMachineSet(5, "two", false, false),
+					getTestMachineSet(2, "three", false, false),
+				},
+			},
+			valid: false,
+		},
+		{
+			name: "no infra machineset",
+			spec: &clusteroperator.ClusterSpec{
+				MachineSets: []clusteroperator.ClusterMachineSet{
+					getTestMachineSet(1, "master", true, false),
+					getTestMachineSet(1, "one", false, false),
+					getTestMachineSet(5, "one", false, false),
+					getTestMachineSet(2, "three", false, false),
+				},
+			},
+			valid: false,
+		},
+		{
+			name: "more than one master",
+			spec: &clusteroperator.ClusterSpec{
+				MachineSets: []clusteroperator.ClusterMachineSet{
+					getTestMachineSet(1, "master1", true, true),
+					getTestMachineSet(1, "master2", true, false),
+					getTestMachineSet(5, "one", false, false),
+					getTestMachineSet(2, "two", false, false),
+				},
+			},
+			valid: false,
+		},
+		{
+			name: "more than one infra",
+			spec: &clusteroperator.ClusterSpec{
+				MachineSets: []clusteroperator.ClusterMachineSet{
+					getTestMachineSet(1, "master1", true, false),
+					getTestMachineSet(1, "one", false, true),
+					getTestMachineSet(5, "two", false, true),
+					getTestMachineSet(2, "three", false, false),
 				},
 			},
 			valid: false,
@@ -295,38 +344,16 @@ func TestValidateClusterStatus(t *testing.T) {
 			valid:  true,
 		},
 		{
-			name: "positive masters",
+			name: "positive machinesets",
 			status: &clusteroperator.ClusterStatus{
-				MasterNodeGroups: 1,
+				MachineSetCount: 1,
 			},
 			valid: true,
 		},
 		{
-			name: "positive computes",
+			name: "negative machinesets",
 			status: &clusteroperator.ClusterStatus{
-				ComputeNodeGroups: 1,
-			},
-			valid: true,
-		},
-		{
-			name: "positive masters and computes",
-			status: &clusteroperator.ClusterStatus{
-				MasterNodeGroups:  1,
-				ComputeNodeGroups: 1,
-			},
-			valid: true,
-		},
-		{
-			name: "negative masters",
-			status: &clusteroperator.ClusterStatus{
-				MasterNodeGroups: -1,
-			},
-			valid: false,
-		},
-		{
-			name: "negative computes",
-			status: &clusteroperator.ClusterStatus{
-				ComputeNodeGroups: -1,
+				MachineSetCount: -1,
 			},
 			valid: false,
 		},

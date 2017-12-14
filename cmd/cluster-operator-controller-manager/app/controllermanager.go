@@ -63,9 +63,9 @@ import (
 	"github.com/openshift/cluster-operator/pkg/controller"
 	"github.com/openshift/cluster-operator/pkg/controller/cluster"
 	"github.com/openshift/cluster-operator/pkg/controller/infra"
-	"github.com/openshift/cluster-operator/pkg/controller/masternode"
-	"github.com/openshift/cluster-operator/pkg/controller/node"
-	"github.com/openshift/cluster-operator/pkg/controller/nodegroup"
+	"github.com/openshift/cluster-operator/pkg/controller/machine"
+	"github.com/openshift/cluster-operator/pkg/controller/machineset"
+	"github.com/openshift/cluster-operator/pkg/controller/master"
 	"github.com/openshift/cluster-operator/pkg/version"
 )
 
@@ -313,9 +313,9 @@ func NewControllerInitializers() map[string]InitFunc {
 	controllers := map[string]InitFunc{}
 	controllers["cluster"] = startClusterController
 	controllers["infra"] = startInfraController
-	controllers["nodegroup"] = startNodeGroupController
-	controllers["node"] = startNodeController
-	controllers["masternode"] = startMasterNodeController
+	controllers["machineset"] = startMachineSetController
+	controllers["machine"] = startMachineController
+	controllers["master"] = startMasterController
 	return controllers
 }
 
@@ -435,7 +435,7 @@ func startClusterController(ctx ControllerContext) (bool, error) {
 	}
 	go cluster.NewClusterController(
 		ctx.InformerFactory.Clusteroperator().V1alpha1().Clusters(),
-		ctx.InformerFactory.Clusteroperator().V1alpha1().NodeGroups(),
+		ctx.InformerFactory.Clusteroperator().V1alpha1().MachineSets(),
 		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-cluster-controller"),
 		ctx.ClientBuilder.ClientOrDie("clusteroperator-cluster-controller"),
 	).Run(int(ctx.Options.ConcurrentClusterSyncs), ctx.Stop)
@@ -456,38 +456,38 @@ func startInfraController(ctx ControllerContext) (bool, error) {
 	return true, nil
 }
 
-func startNodeGroupController(ctx ControllerContext) (bool, error) {
-	if !ctx.AvailableResources[schema.GroupVersionResource{Group: "clusteroperator.openshift.io", Version: "v1alpha1", Resource: "nodegroups"}] {
+func startMachineSetController(ctx ControllerContext) (bool, error) {
+	if !ctx.AvailableResources[schema.GroupVersionResource{Group: "clusteroperator.openshift.io", Version: "v1alpha1", Resource: "machinesets"}] {
 		return false, nil
 	}
-	go nodegroup.NewNodeGroupController(
-		ctx.InformerFactory.Clusteroperator().V1alpha1().NodeGroups(),
+	go machineset.NewMachineSetController(
+		ctx.InformerFactory.Clusteroperator().V1alpha1().MachineSets(),
 		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-node-group-controller"),
 		ctx.ClientBuilder.ClientOrDie("clusteroperator-node-group-controller"),
-	).Run(int(ctx.Options.ConcurrentNodeGroupSyncs), ctx.Stop)
+	).Run(int(ctx.Options.ConcurrentMachineSetSyncs), ctx.Stop)
 	return true, nil
 }
 
-func startNodeController(ctx ControllerContext) (bool, error) {
+func startMachineController(ctx ControllerContext) (bool, error) {
 	if !ctx.AvailableResources[schema.GroupVersionResource{Group: "clusteroperator.openshift.io", Version: "v1alpha1", Resource: "nodes"}] {
 		return false, nil
 	}
-	go node.NewNodeController(
-		ctx.InformerFactory.Clusteroperator().V1alpha1().Nodes(),
+	go machine.NewMachineController(
+		ctx.InformerFactory.Clusteroperator().V1alpha1().Machines(),
 		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-node-controller"),
 		ctx.ClientBuilder.ClientOrDie("clusteroperator-node-controller"),
-	).Run(int(ctx.Options.ConcurrentNodeSyncs), ctx.Stop)
+	).Run(int(ctx.Options.ConcurrentMachineSyncs), ctx.Stop)
 	return true, nil
 }
 
-func startMasterNodeController(ctx ControllerContext) (bool, error) {
+func startMasterController(ctx ControllerContext) (bool, error) {
 	if !ctx.AvailableResources[schema.GroupVersionResource{Group: "clusteroperator.openshift.io", Version: "v1alpha1", Resource: "nodes"}] {
 		return false, nil
 	}
-	go masternode.NewMasterNodeController(
-		ctx.InformerFactory.Clusteroperator().V1alpha1().Nodes(),
+	go master.NewMasterController(
+		ctx.InformerFactory.Clusteroperator().V1alpha1().Machines(),
 		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-master-node-controller"),
 		ctx.ClientBuilder.ClientOrDie("clusteroperator-master-node-controller"),
-	).Run(int(ctx.Options.ConcurrentMasterNodeSyncs), ctx.Stop)
+	).Run(int(ctx.Options.ConcurrentMasterSyncs), ctx.Stop)
 	return true, nil
 }

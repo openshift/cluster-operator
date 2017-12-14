@@ -21,8 +21,8 @@ import (
 	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
 	clusteroperatorv1alpha1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	"github.com/openshift/cluster-operator/pkg/registry/clusteroperator/cluster"
-	"github.com/openshift/cluster-operator/pkg/registry/clusteroperator/node"
-	"github.com/openshift/cluster-operator/pkg/registry/clusteroperator/nodegroup"
+	"github.com/openshift/cluster-operator/pkg/registry/clusteroperator/machine"
+	"github.com/openshift/cluster-operator/pkg/registry/clusteroperator/machineset"
 	"github.com/openshift/cluster-operator/pkg/storage/etcd"
 	"k8s.io/apiserver/pkg/registry/generic"
 	"k8s.io/apiserver/pkg/registry/rest"
@@ -81,45 +81,45 @@ func (p StorageProvider) v1alpha1Storage(
 
 	clusterStorage, clusterStatusStorage := cluster.NewStorage(clusterOpts)
 
-	nodeGroupRESTOptions, err := restOptionsGetter.GetRESTOptions(clusteroperator.Resource("nodegroups"))
+	machineGroupRESTOptions, err := restOptionsGetter.GetRESTOptions(clusteroperator.Resource("machinesets"))
 	if err != nil {
 		return nil, err
 	}
-	nodeGroupOpts := etcd.Options{
-		RESTOptions:   nodeGroupRESTOptions,
+	machineGroupOpts := etcd.Options{
+		RESTOptions:   machineGroupRESTOptions,
 		Capacity:      1000,
-		ObjectType:    nodegroup.EmptyObject(),
-		ScopeStrategy: nodegroup.NewScopeStrategy(),
-		NewListFunc:   nodegroup.NewList,
-		GetAttrsFunc:  nodegroup.GetAttrs,
+		ObjectType:    machineset.EmptyObject(),
+		ScopeStrategy: machineset.NewScopeStrategy(),
+		NewListFunc:   machineset.NewList,
+		GetAttrsFunc:  machineset.GetAttrs,
 		Trigger:       storage.NoTriggerPublisher,
 	}
 
-	nodeGroupStorage, nodeGroupStatusStorage := nodegroup.NewStorage(nodeGroupOpts)
+	machineGroupStorage, machineGroupStatusStorage := machineset.NewStorage(machineGroupOpts)
 
-	nodeRESTOptions, err := restOptionsGetter.GetRESTOptions(clusteroperator.Resource("nodes"))
+	machineRESTOptions, err := restOptionsGetter.GetRESTOptions(clusteroperator.Resource("machines"))
 	if err != nil {
 		return nil, err
 	}
-	nodeOpts := etcd.Options{
-		RESTOptions:   nodeRESTOptions,
+	machineOpts := etcd.Options{
+		RESTOptions:   machineRESTOptions,
 		Capacity:      1000,
-		ObjectType:    node.EmptyObject(),
-		ScopeStrategy: node.NewScopeStrategy(),
-		NewListFunc:   node.NewList,
-		GetAttrsFunc:  node.GetAttrs,
+		ObjectType:    machine.EmptyObject(),
+		ScopeStrategy: machine.NewScopeStrategy(),
+		NewListFunc:   machine.NewList,
+		GetAttrsFunc:  machine.GetAttrs,
 		Trigger:       storage.NoTriggerPublisher,
 	}
 
-	nodeStorage, nodeStatusStorage := node.NewStorage(nodeOpts)
+	machineStorage, machineStatusStorage := machine.NewStorage(machineOpts)
 
 	return map[string]rest.Storage{
-		"clusters":          clusterStorage,
-		"clusters/status":   clusterStatusStorage,
-		"nodegroups":        nodeGroupStorage,
-		"nodegroups/status": nodeGroupStatusStorage,
-		"nodes":             nodeStorage,
-		"nodes/status":      nodeStatusStorage,
+		"clusters":           clusterStorage,
+		"clusters/status":    clusterStatusStorage,
+		"machinesets":        machineGroupStorage,
+		"machinesets/status": machineGroupStatusStorage,
+		"machines":           machineStorage,
+		"machines/status":    machineStatusStorage,
 	}, nil
 }
 

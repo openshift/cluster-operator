@@ -34,7 +34,7 @@ func ClusterFieldLabelConversionFunc(label, value string) (string, string, error
 
 // NodeGroupFieldLabelConversionFunc does not convert anything, just returns
 // what it's given for the supported fields, and errors for unsupported.
-func NodeGroupFieldLabelConversionFunc(label, value string) (string, string, error) {
+func MachineSetFieldLabelConversionFunc(label, value string) (string, string, error) {
 	switch label {
 	case "spec.sampleField":
 		return label, value, nil
@@ -43,9 +43,9 @@ func NodeGroupFieldLabelConversionFunc(label, value string) (string, string, err
 	}
 }
 
-// NodeFieldLabelConversionFunc does not convert anything, just returns
+// MachineFieldLabelConversionFunc does not convert anything, just returns
 // what it's given for the supported fields, and errors for unsupported.
-func NodeFieldLabelConversionFunc(label, value string) (string, string, error) {
+func MachineFieldLabelConversionFunc(label, value string) (string, string, error) {
 	switch label {
 	case "spec.sampleField":
 		return label, value, nil

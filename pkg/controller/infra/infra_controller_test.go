@@ -90,8 +90,15 @@ func newCluster() *clusteroperator.Cluster {
 			Namespace: testNamespace,
 		},
 		Spec: clusteroperator.ClusterSpec{
-			MasterNodeGroup: clusteroperator.ClusterNodeGroup{
-				Size: 3,
+			MachineSets: []clusteroperator.ClusterMachineSet{
+				{
+					Name: "master",
+					MachineSetConfig: clusteroperator.MachineSetConfig{
+						NodeType: clusteroperator.NodeTypeMaster,
+						Infra:    true,
+						Size:     3,
+					},
+				},
 			},
 		},
 	}
