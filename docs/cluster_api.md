@@ -19,7 +19,7 @@ The cluster resource should allow 2 levels/scopes of spec:
 
 Furthermore, each scope can be described in 2 parts:
 - Hardware spec (needed to instantiate the proper virtual hardware)
-- Config (openshift-specific configuration)
+- OpenShift config (openshift-specific configuration)
 
 For the Status part, if the cluster has been instantiated, we need to know how to access it (Kubeconfig may be sufficient)
 
@@ -66,7 +66,8 @@ In more detail:
   - Message [string]
   - Reason [string]
 * NodeGroupCount [unsigned int]
-* Phase [string]
+* Provisioned [boolean]
+* Running [boolean]
 
 
 ### NodeGroup
@@ -92,4 +93,3 @@ In more detail:
   - LastTransitionTime [string]
   - Message [string]
   - Reason [string]
-* Phase [string]
