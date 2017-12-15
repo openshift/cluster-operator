@@ -8,17 +8,17 @@ import (
 
 	kbatch "k8s.io/api/batch/v1"
 	kapi "k8s.io/api/core/v1"
+	kapierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
 
 const (
-	openshiftAnsibleImage          = "openshift/origin-ansible:v3.7"
-	openshiftAnsibleServiceAccount = "cluster-operator-controller-manager"
-	sshPrivateKeySecret            = "ssh-private-key"
-	operatorNamespace              = "cluster-operator"
-	openshiftAnsibleContainerDir   = "/usr/share/ansible/openshift-ansible/"
-	awsCredentialsSecret           = "aws-credentials"
+	openshiftAnsibleImage        = "openshift/origin-ansible:v3.8"
+	operatorNamespace            = "cluster-operator"
+	openshiftAnsibleContainerDir = "/usr/share/ansible/openshift-ansible/"
+	sshKeySecretName             = "ssh-private-key"
+	awsCredsSecretName           = "aws-credentials"
 )
 
 type ansibleRunner struct {
@@ -32,7 +32,7 @@ func NewAnsibleRunner(kubeClient kubernetes.Interface) *ansibleRunner {
 		Image:      openshiftAnsibleImage,
 	}
 }
-func (r *ansibleRunner) createInventoryConfigMap(clusterName, jobPrefix, inventory, vars string) (*kapi.ConfigMap, error) {
+func (r *ansibleRunner) createInventoryConfigMap(namespace, clusterName, jobPrefix, inventory, vars string) (*kapi.ConfigMap, error) {
 	log.Debugln("Creating inventory/vars ConfigMap")
 	genNamePrefix := fmt.Sprintf("%s%s-", jobPrefix, clusterName)
 	cfgmap := &kapi.ConfigMap{
@@ -44,7 +44,7 @@ func (r *ansibleRunner) createInventoryConfigMap(clusterName, jobPrefix, invento
 			"vars":  vars,
 		},
 	}
-	cfgMap, err := r.KubeClient.CoreV1().ConfigMaps(operatorNamespace).Create(cfgmap)
+	cfgMap, err := r.KubeClient.CoreV1().ConfigMaps(namespace).Create(cfgmap)
 	if err != nil {
 		return cfgMap, err
 	}
@@ -53,19 +53,99 @@ func (r *ansibleRunner) createInventoryConfigMap(clusterName, jobPrefix, invento
 	return cfgMap, err
 }
 
-func (r *ansibleRunner) RunPlaybook(clusterName, jobPrefix, playbook, inventory, vars string) error {
+// copySecrets copies the AWS credentials and SSH key secrets from the cluster-operator
+// namespace, to the namespace where the cluster is being created. This allows us to
+// run ansible jobs/pods in the cluster's namespace and keep the data together. This is temporary,
+// eventually the AWS credentials secret will be provided before creating the cluster,
+// and the SSH key may be generated.
+func (r *ansibleRunner) copySecrets(namespace string) error {
+	awsSecret, err := r.KubeClient.CoreV1().Secrets(operatorNamespace).Get(awsCredsSecretName, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+
+	sshKeySecret, err := r.KubeClient.CoreV1().Secrets(operatorNamespace).Get(sshKeySecretName, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+
+	if namespace == operatorNamespace {
+		// No need to copy secrets, we expect them to already exist in this ns. We let the above
+		// run to make sure they exist however.
+		return nil
+	}
+
+	destAwsSecret := &kapi.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: awsCredsSecretName,
+		},
+		Data: awsSecret.Data,
+		Type: awsSecret.Type,
+	}
+	_, err = r.KubeClient.CoreV1().Secrets(namespace).Create(destAwsSecret)
+	if err != nil {
+		if kapierrors.IsAlreadyExists(err) {
+			log.WithFields(log.Fields{
+				"secret":    awsCredsSecretName,
+				"namespace": namespace,
+			}).Debugln("secret already exists, skipping copy")
+		} else {
+			return err
+		}
+	}
+
+	log.WithFields(log.Fields{
+		"secret":    awsCredsSecretName,
+		"namespace": namespace,
+	}).Debugln("secret copied")
+
+	destSshSecret := &kapi.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: sshKeySecretName,
+		},
+		Data: sshKeySecret.Data,
+		Type: sshKeySecret.Type,
+	}
+	_, err = r.KubeClient.CoreV1().Secrets(namespace).Create(destSshSecret)
+	if err != nil {
+		if kapierrors.IsAlreadyExists(err) {
+			log.WithFields(log.Fields{
+				"secret":    sshKeySecretName,
+				"namespace": namespace,
+			}).Debugln("secret already exists, skipping copy")
+		} else {
+			return err
+		}
+	}
+	log.WithFields(log.Fields{
+		"secret":    sshKeySecretName,
+		"namespace": namespace,
+	}).Debugln("secret copied")
+
+	return nil
+}
+
+func (r *ansibleRunner) RunPlaybook(namespace, clusterName, jobPrefix, playbook,
+	inventory, vars string) error {
+
 	logger := log.WithFields(log.Fields{
 		"cluster":  clusterName,
 		"playbook": playbook,
 	})
 	logger.Infoln("running ansible playbook")
 
-	// TODO: cleanup configmaps when their job is deleted
-	cfgMap, err := r.createInventoryConfigMap(clusterName, jobPrefix, inventory, vars)
+	err := r.copySecrets(namespace)
 	if err != nil {
 		return err
 	}
 
+	// TODO: cleanup configmaps when their job is deleted
+	cfgMap, err := r.createInventoryConfigMap(namespace, clusterName, jobPrefix, inventory, vars)
+	if err != nil {
+		return err
+	}
+
+	playbookPath := path.Join(openshiftAnsibleContainerDir, playbook)
 	env := []kapi.EnvVar{
 		{
 			Name:  "INVENTORY_FILE",
@@ -73,7 +153,7 @@ func (r *ansibleRunner) RunPlaybook(clusterName, jobPrefix, playbook, inventory,
 		},
 		{
 			Name:  "PLAYBOOK_FILE",
-			Value: playbook,
+			Value: playbookPath,
 		},
 		{
 			Name:  "ANSIBLE_HOST_KEY_CHECKING",
@@ -87,7 +167,7 @@ func (r *ansibleRunner) RunPlaybook(clusterName, jobPrefix, playbook, inventory,
 			Name: "AWS_ACCESS_KEY_ID",
 			ValueFrom: &kapi.EnvVarSource{
 				SecretKeyRef: &kapi.SecretKeySelector{
-					LocalObjectReference: kapi.LocalObjectReference{Name: awsCredentialsSecret},
+					LocalObjectReference: kapi.LocalObjectReference{Name: awsCredsSecretName},
 					Key:                  "aws_access_key_id",
 				},
 			},
@@ -96,28 +176,22 @@ func (r *ansibleRunner) RunPlaybook(clusterName, jobPrefix, playbook, inventory,
 			Name: "AWS_SECRET_ACCESS_KEY",
 			ValueFrom: &kapi.EnvVarSource{
 				SecretKeyRef: &kapi.SecretKeySelector{
-					LocalObjectReference: kapi.LocalObjectReference{Name: awsCredentialsSecret},
+					LocalObjectReference: kapi.LocalObjectReference{Name: awsCredsSecretName},
 					Key:                  "aws_secret_access_key",
 				},
 			},
 		},
 	}
-	runAsUser := int64(0)
 	sshKeyFileMode := int32(0600)
-	playbookPath := path.Join(openshiftAnsibleContainerDir, playbook)
 	podSpec := kapi.PodSpec{
-		DNSPolicy:          kapi.DNSClusterFirst,
-		RestartPolicy:      kapi.RestartPolicyNever,
-		ServiceAccountName: openshiftAnsibleServiceAccount,
+		DNSPolicy:     kapi.DNSClusterFirst,
+		RestartPolicy: kapi.RestartPolicyNever,
 
 		Containers: []kapi.Container{
 			{
 				Name:  "ansible",
 				Image: r.Image,
 				Env:   env,
-				SecurityContext: &kapi.SecurityContext{
-					RunAsUser: &runAsUser,
-				},
 				VolumeMounts: []kapi.VolumeMount{
 					{
 						Name:      "inventory",
@@ -129,10 +203,8 @@ func (r *ansibleRunner) RunPlaybook(clusterName, jobPrefix, playbook, inventory,
 					},
 				},
 
-				// TODO: possibly drop this once https://github.com/openshift/openshift-ansible/pull/6320 merges, the default run script should then work, minus the vars file :(
-				//Command: []string{"ansible-playbook", "-i", "/ansible/inventory/hosts", "--private-key", "/ansible/ssh/privatekey.pem", playbookPath, "-e", "@/ansible/inventory/vars"},
-
-				// TODO: committing as no-op for now, uncomment command above to start testing provisioning
+				// TODO: committing as no-op for now, comment this out to use the default
+				// origin-ansible container entrypoint and actually run playbooks.
 				Command: []string{"echo", playbookPath},
 			},
 		},
@@ -152,7 +224,7 @@ func (r *ansibleRunner) RunPlaybook(clusterName, jobPrefix, playbook, inventory,
 				Name: "sshkey",
 				VolumeSource: kapi.VolumeSource{
 					Secret: &kapi.SecretVolumeSource{
-						SecretName: sshPrivateKeySecret,
+						SecretName: sshKeySecretName,
 						Items: []kapi.KeyToPath{
 							{
 								Key:  "ssh-privatekey",
@@ -186,7 +258,7 @@ func (r *ansibleRunner) RunPlaybook(clusterName, jobPrefix, playbook, inventory,
 	}
 
 	// Create the job client
-	jobClient := r.KubeClient.Batch().Jobs(operatorNamespace)
+	jobClient := r.KubeClient.Batch().Jobs(namespace)
 
 	// Submit the job
 	job, err = jobClient.Create(job)

@@ -23,8 +23,9 @@ const varsTemplate = `---
 # Common/Cluster Variables #
 # ------------------------ #
 # Variables in this section affect all areas of the cluster
+# TODO:
 ansible_ssh_user: centos
-ansible_become: true
+
 ################################################################################
 # Ensure these variables are set for bootstrap
 ################################################################################
