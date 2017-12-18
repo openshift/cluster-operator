@@ -20,13 +20,17 @@ const (
 	awsCredsSecretName           = "aws-credentials"
 )
 
+type AnsibleRunnerInterface interface {
+	RunPlaybook(namespace, clusterName, jobPrefix, playbook, inventory, vars string) error
+}
+
 type ansibleRunner struct {
 	KubeClient      kubernetes.Interface
 	Image           string
 	ImagePullPolicy kapi.PullPolicy
 }
 
-func NewAnsibleRunner(kubeClient kubernetes.Interface, openshiftAnsibleImage string, openshiftAnsibleImagePullPolicy kapi.PullPolicy) *ansibleRunner {
+func NewAnsibleRunner(kubeClient kubernetes.Interface, openshiftAnsibleImage string, openshiftAnsibleImagePullPolicy kapi.PullPolicy) AnsibleRunnerInterface {
 	return &ansibleRunner{
 		KubeClient:      kubeClient,
 		Image:           openshiftAnsibleImage,
