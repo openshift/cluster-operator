@@ -30,10 +30,10 @@ import (
 func RegisterDefaults(scheme *runtime.Scheme) error {
 	scheme.AddTypeDefaultingFunc(&Cluster{}, func(obj interface{}) { SetObjectDefaults_Cluster(obj.(*Cluster)) })
 	scheme.AddTypeDefaultingFunc(&ClusterList{}, func(obj interface{}) { SetObjectDefaults_ClusterList(obj.(*ClusterList)) })
-	scheme.AddTypeDefaultingFunc(&Node{}, func(obj interface{}) { SetObjectDefaults_Node(obj.(*Node)) })
-	scheme.AddTypeDefaultingFunc(&NodeGroup{}, func(obj interface{}) { SetObjectDefaults_NodeGroup(obj.(*NodeGroup)) })
-	scheme.AddTypeDefaultingFunc(&NodeGroupList{}, func(obj interface{}) { SetObjectDefaults_NodeGroupList(obj.(*NodeGroupList)) })
-	scheme.AddTypeDefaultingFunc(&NodeList{}, func(obj interface{}) { SetObjectDefaults_NodeList(obj.(*NodeList)) })
+	scheme.AddTypeDefaultingFunc(&Machine{}, func(obj interface{}) { SetObjectDefaults_Machine(obj.(*Machine)) })
+	scheme.AddTypeDefaultingFunc(&MachineList{}, func(obj interface{}) { SetObjectDefaults_MachineList(obj.(*MachineList)) })
+	scheme.AddTypeDefaultingFunc(&MachineSet{}, func(obj interface{}) { SetObjectDefaults_MachineSet(obj.(*MachineSet)) })
+	scheme.AddTypeDefaultingFunc(&MachineSetList{}, func(obj interface{}) { SetObjectDefaults_MachineSetList(obj.(*MachineSetList)) })
 	return nil
 }
 
@@ -48,24 +48,24 @@ func SetObjectDefaults_ClusterList(in *ClusterList) {
 	}
 }
 
-func SetObjectDefaults_Node(in *Node) {
-	SetDefaults_NodeSpec(&in.Spec)
+func SetObjectDefaults_Machine(in *Machine) {
+	SetDefaults_MachineSpec(&in.Spec)
 }
 
-func SetObjectDefaults_NodeGroup(in *NodeGroup) {
-	SetDefaults_NodeGroupSpec(&in.Spec)
-}
-
-func SetObjectDefaults_NodeGroupList(in *NodeGroupList) {
+func SetObjectDefaults_MachineList(in *MachineList) {
 	for i := range in.Items {
 		a := &in.Items[i]
-		SetObjectDefaults_NodeGroup(a)
+		SetObjectDefaults_Machine(a)
 	}
 }
 
-func SetObjectDefaults_NodeList(in *NodeList) {
+func SetObjectDefaults_MachineSet(in *MachineSet) {
+	SetDefaults_MachineSetSpec(&in.Spec)
+}
+
+func SetObjectDefaults_MachineSetList(in *MachineSetList) {
 	for i := range in.Items {
 		a := &in.Items[i]
-		SetObjectDefaults_Node(a)
+		SetObjectDefaults_MachineSet(a)
 	}
 }

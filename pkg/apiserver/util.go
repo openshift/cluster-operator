@@ -52,13 +52,13 @@ func completeGenericConfig(cfg *genericapiserver.RecommendedConfig) genericapise
 	return completedCfg
 }
 
-func createSkeletonServer(genericCfg genericapiserver.CompletedConfig) (*ServiceCatalogAPIServer, error) {
+func createSkeletonServer(genericCfg genericapiserver.CompletedConfig) (*ClusterOperatorAPIServer, error) {
 	genericServer, err := genericCfg.New(apiServerName, genericapiserver.EmptyDelegate)
 	if err != nil {
 		return nil, err
 	}
 
-	return &ServiceCatalogAPIServer{
+	return &ClusterOperatorAPIServer{
 		GenericAPIServer: genericServer,
 	}, nil
 }

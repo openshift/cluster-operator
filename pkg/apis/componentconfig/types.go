@@ -79,20 +79,20 @@ type ControllerManagerConfiguration struct {
 	// but more CPU (and network) load.
 	ConcurrentClusterSyncs int32
 
-	// concurrentNodeGroupSyncs is the number of node group objects that are
-	// allowed to sync concurrently. Larger number = more responsive node groups,
+	// concurrentMachineSetSyncs is the number of machine set objects that are
+	// allowed to sync concurrently. Larger number = more responsive machine sets,
 	// but more CPU (and network) load.
-	ConcurrentNodeGroupSyncs int32
+	ConcurrentMachineSetSyncs int32
 
-	// concurrentNodeSyncs is the number of node objects that are
-	// allowed to sync concurrently. Larger number = more responsive nodes,
+	// concurrentMachineSyncs is the number of machine objects that are
+	// allowed to sync concurrently. Larger number = more responsive machines,
 	// but more CPU (and network) load.
-	ConcurrentNodeSyncs int32
+	ConcurrentMachineSyncs int32
 
-	// concurrentMasterNodeSyncs is the number of master node objects that are
-	// allowed to sync concurrently. Larger number = more responsive master nodes,
+	// concurrentMasterSyncs is the number of master machine objects that are
+	// allowed to sync concurrently. Larger number = more responsive master machines,
 	// but more CPU (and network) load.
-	ConcurrentMasterNodeSyncs int32
+	ConcurrentMasterSyncs int32
 
 	// leaderElection defines the configuration of leader election client.
 	LeaderElection componentconfig.LeaderElectionConfiguration

@@ -26,18 +26,18 @@ type ClusterListerExpansion interface{}
 // ClusterNamespaceLister.
 type ClusterNamespaceListerExpansion interface{}
 
-// NodeListerExpansion allows custom methods to be added to
-// NodeLister.
-type NodeListerExpansion interface{}
+// MachineListerExpansion allows custom methods to be added to
+// MachineLister.
+type MachineListerExpansion interface{}
 
-// NodeNamespaceListerExpansion allows custom methods to be added to
-// NodeNamespaceLister.
-type NodeNamespaceListerExpansion interface{}
+// MachineNamespaceListerExpansion allows custom methods to be added to
+// MachineNamespaceLister.
+type MachineNamespaceListerExpansion interface{}
 
-// NodeGroupListerExpansion allows custom methods to be added to
-// NodeGroupLister.
-type NodeGroupListerExpansion interface{}
+// MachineSetListerExpansion allows custom methods to be added to
+// MachineSetLister.
+type MachineSetListerExpansion interface{}
 
-// NodeGroupNamespaceListerExpansion allows custom methods to be added to
-// NodeGroupNamespaceLister.
-type NodeGroupNamespaceListerExpansion interface{}
+// MachineSetNamespaceListerExpansion allows custom methods to be added to
+// MachineSetNamespaceLister.
+type MachineSetNamespaceListerExpansion interface{}

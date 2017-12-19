@@ -18,6 +18,6 @@ package v1alpha1
 
 type ClusterExpansion interface{}
 
-type NodeExpansion interface{}
+type MachineExpansion interface{}
 
-type NodeGroupExpansion interface{}
+type MachineSetExpansion interface{}

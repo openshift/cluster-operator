@@ -50,10 +50,10 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
 		&Cluster{},
 		&ClusterList{},
-		&NodeGroup{},
-		&NodeGroupList{},
-		&Node{},
-		&NodeList{},
+		&MachineSet{},
+		&MachineSetList{},
+		&Machine{},
+		&MachineList{},
 	)
 	return nil
 }

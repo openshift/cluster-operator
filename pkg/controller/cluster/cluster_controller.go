@@ -17,15 +17,18 @@ limitations under the License.
 package cluster
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
 	"time"
 
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/apimachinery/pkg/util/wait"
 	kubeclientset "k8s.io/client-go/kubernetes"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -48,7 +51,7 @@ import (
 var controllerKind = clusteroperator.SchemeGroupVersion.WithKind("Cluster")
 
 // NewClusterController returns a new *ClusterController.
-func NewClusterController(clusterInformer informers.ClusterInformer, nodeGroupInformer informers.NodeGroupInformer, kubeClient kubeclientset.Interface, clusteroperatorClient clusteroperatorclientset.Interface) *ClusterController {
+func NewClusterController(clusterInformer informers.ClusterInformer, machineSetInformer informers.MachineSetInformer, kubeClient kubeclientset.Interface, clusteroperatorClient clusteroperatorclientset.Interface) *ClusterController {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(glog.Infof)
 	// TODO: remove the wrapper when every clients have moved to use the clientset.
@@ -72,13 +75,13 @@ func NewClusterController(clusterInformer informers.ClusterInformer, nodeGroupIn
 	c.clustersLister = clusterInformer.Lister()
 	c.clustersSynced = clusterInformer.Informer().HasSynced
 
-	nodeGroupInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    c.addNodeGroup,
-		UpdateFunc: c.updateNodeGroup,
-		DeleteFunc: c.deleteNodeGroup,
+	machineSetInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    c.addMachineSet,
+		UpdateFunc: c.updateMachineSet,
+		DeleteFunc: c.deleteMachineSet,
 	})
-	c.nodeGroupsLister = nodeGroupInformer.Lister()
-	c.nodeGroupsSynced = nodeGroupInformer.Informer().HasSynced
+	c.machineSetsLister = machineSetInformer.Lister()
+	c.machineSetsSynced = machineSetInformer.Informer().HasSynced
 
 	c.syncHandler = c.syncCluster
 	c.enqueueCluster = c.enqueue
@@ -95,7 +98,7 @@ type ClusterController struct {
 	// used for unit testing
 	enqueueCluster func(cluster *clusteroperator.Cluster)
 
-	// A TTLCache of node group creates/deletes each cluster expects to see.
+	// A TTLCache of machine set creates/deletes each cluster expects to see.
 	expectations *controller.UIDTrackingControllerExpectations
 
 	// clustersLister is able to list/get clusters and is populated by the shared informer passed to
@@ -105,12 +108,12 @@ type ClusterController struct {
 	// Added as a member to the struct to allow injection for testing.
 	clustersSynced cache.InformerSynced
 
-	// nodeGroupsLister is able to list/get node groups and is populated by the shared informer passed to
+	// machineSetsLister is able to list/get machine sets and is populated by the shared informer passed to
 	// NewClusterController.
-	nodeGroupsLister lister.NodeGroupLister
-	// nodeGroupsSynced returns true if the node group shared informer has been synced at least once.
+	machineSetsLister lister.MachineSetLister
+	// machineSetsSynced returns true if the machine set shared informer has been synced at least once.
 	// Added as a member to the struct to allow injection for testing.
-	nodeGroupsSynced cache.InformerSynced
+	machineSetsSynced cache.InformerSynced
 
 	// Clusters that need to be synced
 	queue workqueue.RateLimitingInterface
@@ -147,22 +150,22 @@ func (c *ClusterController) deleteCluster(obj interface{}) {
 	c.enqueueCluster(cluster)
 }
 
-// When a node group is created, enqueue the cluster that manages it and update its expectations.
-func (c *ClusterController) addNodeGroup(obj interface{}) {
-	nodeGroup := obj.(*clusteroperator.NodeGroup)
+// When a machine set is created, enqueue the cluster that manages it and update its expectations.
+func (c *ClusterController) addMachineSet(obj interface{}) {
+	machineSet := obj.(*clusteroperator.MachineSet)
 
-	if nodeGroup.DeletionTimestamp != nil {
-		// on a restart of the controller manager, it's possible a new node group shows up in a state that
-		// is already pending deletion. Prevent the node group from being a creation observation.
-		c.deleteNodeGroup(nodeGroup)
+	if machineSet.DeletionTimestamp != nil {
+		// on a restart of the controller manager, it's possible a new machine set shows up in a state that
+		// is already pending deletion. Prevent the machine set from being a creation observation.
+		c.deleteMachineSet(machineSet)
 		return
 	}
 
-	controllerRef := metav1.GetControllerOf(nodeGroup)
+	controllerRef := metav1.GetControllerOf(machineSet)
 	if controllerRef == nil {
 		return
 	}
-	cluster := c.resolveControllerRef(nodeGroup.Namespace, controllerRef)
+	cluster := c.resolveControllerRef(machineSet.Namespace, controllerRef)
 	if cluster == nil {
 		return
 	}
@@ -170,65 +173,65 @@ func (c *ClusterController) addNodeGroup(obj interface{}) {
 	if err != nil {
 		return
 	}
-	glog.V(4).Infof("Node group %s created: %#v.", nodeGroup.Name, nodeGroup)
+	glog.V(4).Infof("Machine set %s created: %#v.", machineSet.Name, machineSet)
 	c.expectations.CreationObserved(clusterKey)
 	c.enqueueCluster(cluster)
 }
 
-// When a node group is updated, figure out what cluster manages it and wake it
+// When a machine set is updated, figure out what cluster manages it and wake it
 // up.
-func (c *ClusterController) updateNodeGroup(old, cur interface{}) {
-	oldNodeGroup := old.(*clusteroperator.NodeGroup)
-	curNodeGroup := cur.(*clusteroperator.NodeGroup)
-	if curNodeGroup.ResourceVersion == oldNodeGroup.ResourceVersion {
-		// Periodic resync will send update events for all known node groups.
-		// Two different versions of the same node group will always have different RVs.
+func (c *ClusterController) updateMachineSet(old, cur interface{}) {
+	oldMachineSet := old.(*clusteroperator.MachineSet)
+	curMachineSet := cur.(*clusteroperator.MachineSet)
+	if curMachineSet.ResourceVersion == oldMachineSet.ResourceVersion {
+		// Periodic resync will send update events for all known machine sets.
+		// Two different versions of the same machine set will always have different RVs.
 		return
 	}
 
-	if curNodeGroup.DeletionTimestamp != nil {
-		// when a node group is deleted gracefully it's deletion timestamp is first modified to reflect a grace period,
+	if curMachineSet.DeletionTimestamp != nil {
+		// when a machine set is deleted gracefully it's deletion timestamp is first modified to reflect a grace period,
 		// and after such time has passed, the kubelet actually deletes it from the store. We receive an update
-		// for modification of the deletion timestamp and expect a cluster to create a replacement node group asap, not wait
-		// until the kubelet actually deletes the node group. This is different from the Phase of a node group changing, because
+		// for modification of the deletion timestamp and expect a cluster to create a replacement machine set asap, not wait
+		// until the kubelet actually deletes the machine set. This is different from the Phase of a machine set changing, because
 		// a cluster never initiates a phase change, and so is never asleep waiting for the same.
-		c.deleteNodeGroup(curNodeGroup)
+		c.deleteMachineSet(curMachineSet)
 		return
 	}
 
-	controllerRef := metav1.GetControllerOf(curNodeGroup)
+	controllerRef := metav1.GetControllerOf(curMachineSet)
 	if controllerRef == nil {
 		return
 	}
-	cluster := c.resolveControllerRef(curNodeGroup.Namespace, controllerRef)
+	cluster := c.resolveControllerRef(curMachineSet.Namespace, controllerRef)
 	if cluster == nil {
 		return
 	}
-	glog.V(4).Infof("Node group %s updated, objectMeta %+v -> %+v.", curNodeGroup.Name, oldNodeGroup.ObjectMeta, curNodeGroup.ObjectMeta)
+	glog.V(4).Infof("Machine set %s updated, objectMeta %+v -> %+v.", curMachineSet.Name, oldMachineSet.ObjectMeta, curMachineSet.ObjectMeta)
 	c.enqueueCluster(cluster)
 }
 
-// When a node group is deleted, enqueue the cluster that manages the node group and update its expectations.
-func (c *ClusterController) deleteNodeGroup(obj interface{}) {
-	nodeGroup, ok := obj.(*clusteroperator.NodeGroup)
+// When a machine set is deleted, enqueue the cluster that manages the machine set and update its expectations.
+func (c *ClusterController) deleteMachineSet(obj interface{}) {
+	machineSet, ok := obj.(*clusteroperator.MachineSet)
 	if !ok {
 		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("Couldn't get object from tombstone %#v", obj))
 			return
 		}
-		nodeGroup, ok = tombstone.Obj.(*clusteroperator.NodeGroup)
+		machineSet, ok = tombstone.Obj.(*clusteroperator.MachineSet)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("Tombstone contained object that is not a Cluster %#v", obj))
 			return
 		}
 	}
 
-	controllerRef := metav1.GetControllerOf(nodeGroup)
+	controllerRef := metav1.GetControllerOf(machineSet)
 	if controllerRef == nil {
 		return
 	}
-	cluster := c.resolveControllerRef(nodeGroup.Namespace, controllerRef)
+	cluster := c.resolveControllerRef(machineSet.Namespace, controllerRef)
 	if cluster == nil {
 		return
 	}
@@ -236,8 +239,8 @@ func (c *ClusterController) deleteNodeGroup(obj interface{}) {
 	if err != nil {
 		return
 	}
-	glog.V(4).Infof("Node group %s/%s deleted through %v, timestamp %+v: %#v.", nodeGroup.Namespace, nodeGroup.Name, utilruntime.GetCaller(), nodeGroup.DeletionTimestamp, nodeGroup)
-	c.expectations.DeletionObserved(clusterKey, getNodeGroupKey(nodeGroup))
+	glog.V(4).Infof("Machine set %s/%s deleted through %v, timestamp %+v: %#v.", machineSet.Namespace, machineSet.Name, utilruntime.GetCaller(), machineSet.DeletionTimestamp, machineSet)
+	c.expectations.DeletionObserved(clusterKey, getMachineSetKey(machineSet))
 	c.enqueueCluster(cluster)
 }
 
@@ -342,49 +345,49 @@ func (c *ClusterController) syncCluster(key string) error {
 
 	clusterNeedsSync := c.expectations.SatisfiedExpectations(key)
 
-	// List all active node groups controller by the cluster
-	allNodeGroups, err := c.nodeGroupsLister.NodeGroups(cluster.Namespace).List(labels.Everything())
+	// List all active machine sets controller by the cluster
+	allMachineSets, err := c.machineSetsLister.MachineSets(cluster.Namespace).List(labels.Everything())
 	if err != nil {
 		return err
 	}
-	var filteredNodeGroups []*clusteroperator.NodeGroup
-	for _, nodeGroup := range allNodeGroups {
-		if nodeGroup.DeletionTimestamp != nil {
+	var filteredMachineSets []*clusteroperator.MachineSet
+	for _, machineSet := range allMachineSets {
+		if machineSet.DeletionTimestamp != nil {
 			continue
 		}
-		controllerRef := metav1.GetControllerOf(nodeGroup)
+		controllerRef := metav1.GetControllerOf(machineSet)
 		if controllerRef == nil {
 			continue
 		}
 		if cluster.UID != controllerRef.UID {
 			continue
 		}
-		filteredNodeGroups = append(filteredNodeGroups, nodeGroup)
+		filteredMachineSets = append(filteredMachineSets, machineSet)
 	}
 
-	var manageNodeGroupsErr error
+	var manageMachineSetsErr error
 	if clusterNeedsSync && cluster.DeletionTimestamp == nil {
-		manageNodeGroupsErr = c.manageNodeGroups(filteredNodeGroups, cluster)
+		manageMachineSetsErr = c.manageMachineSets(filteredMachineSets, cluster)
 	}
 
 	cluster = cluster.DeepCopy()
 
-	newStatus := calculateStatus(cluster, filteredNodeGroups, manageNodeGroupsErr)
+	newStatus := calculateStatus(cluster, filteredMachineSets, manageMachineSetsErr)
 
-	// Always updates status as node groups come up or die.
+	// Always updates status as machine sets come up or die.
 	if _, err := c.updateClusterStatus(cluster, newStatus); err != nil {
 		// Multiple things could lead to this update failing. Requeuing the cluster ensures
 		// returning an error causes a requeue without forcing a hotloop
 		return err
 	}
 
-	return manageNodeGroupsErr
+	return manageMachineSetsErr
 }
 
-// manageNodeGroups checks and updates node groups for the given cluster.
-// Does NOT modify <nodeGroups>.
-// It will requeue the cluster in case of an error while creating/deleting node groups.
-func (c *ClusterController) manageNodeGroups(nodeGroups []*clusteroperator.NodeGroup, cluster *clusteroperator.Cluster) error {
+// manageMachineSets checks and updates machine sets for the given cluster.
+// Does NOT modify <machineSets>.
+// It will requeue the cluster in case of an error while creating/deleting machine sets.
+func (c *ClusterController) manageMachineSets(machineSets []*clusteroperator.MachineSet, cluster *clusteroperator.Cluster) error {
 	clusterKey, err := controller.KeyFunc(cluster)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("Couldn't get key for Cluster %#v: %v", cluster, err))
@@ -393,101 +396,77 @@ func (c *ClusterController) manageNodeGroups(nodeGroups []*clusteroperator.NodeG
 
 	var errCh chan error
 
-	masterNodeGroupPrefix := getNamePrefixForMasterNodeGroup(cluster)
-	computeNodeGroupsPrefixes := make([]string, len(cluster.Spec.ComputeNodeGroups))
-	for i, ng := range cluster.Spec.ComputeNodeGroups {
-		computeNodeGroupsPrefixes[i] = getNamePrefixForComputeNodeGroup(cluster, ng.Name)
+	machineSetPrefixes := make([]string, len(cluster.Spec.MachineSets))
+	for i, machineSet := range cluster.Spec.MachineSets {
+		machineSetPrefixes[i] = getNamePrefixForMachineSet(cluster, machineSet.Name)
 	}
 
-	var masterNodeGroup *clusteroperator.NodeGroup
-	computeNodeGroups := make([]*clusteroperator.NodeGroup, len(cluster.Spec.ComputeNodeGroups))
-	nodeGroupsToCreate := []*clusteroperator.NodeGroup{}
-	nodeGroupsToDelete := []*clusteroperator.NodeGroup{}
+	clusterMachineSets := make([]*clusteroperator.MachineSet, len(cluster.Spec.MachineSets))
+	machineSetsToCreate := []*clusteroperator.MachineSet{}
+	machineSetsToDelete := []*clusteroperator.MachineSet{}
 
-	// Organize node groups
-	for _, nodeGroup := range nodeGroups {
-		switch nodeGroup.Spec.NodeType {
-		case clusteroperator.NodeTypeMaster:
-			if masterNodeGroup == nil {
-				masterNodeGroup = nodeGroup
-			} else {
-				utilruntime.HandleError(fmt.Errorf("Found two active master node groups for cluster %s/%s: %s and %s", cluster.Namespace, cluster.Name, masterNodeGroup.Name, nodeGroup.Name))
-				nodeGroupsToDelete = append(nodeGroupsToDelete, nodeGroup)
-			}
-		case clusteroperator.NodeTypeCompute:
-			found := false
-			for i, prefix := range computeNodeGroupsPrefixes {
-				if strings.HasPrefix(nodeGroup.Name, prefix) {
-					if computeNodeGroups[i] == nil {
-						computeNodeGroups[i] = nodeGroup
-					} else {
-						utilruntime.HandleError(fmt.Errorf("Found two active conflicting compute node groups for cluster %s/%s: %s and %s", cluster.Namespace, cluster.Name, computeNodeGroups[i].Name, nodeGroup.Name))
-						nodeGroupsToDelete = append(nodeGroupsToDelete, nodeGroup)
-					}
-					found = true
-					break
+	// Organize machine sets
+	for _, machineSet := range machineSets {
+		found := false
+		for i, prefix := range machineSetPrefixes {
+			if strings.HasPrefix(machineSet.Name, prefix) {
+				if clusterMachineSets[i] == nil {
+					clusterMachineSets[i] = machineSet
+				} else {
+					utilruntime.HandleError(fmt.Errorf("Found two active conflicting machine sets for cluster %s/%s: %s and %s", cluster.Namespace, cluster.Name, clusterMachineSets[i].Name, machineSet.Name))
+					machineSetsToDelete = append(machineSetsToDelete, machineSet)
 				}
+				found = true
 			}
-			if !found {
-				nodeGroupsToDelete = append(nodeGroupsToDelete, nodeGroup)
-			}
+		}
+		if !found {
+			machineSetsToDelete = append(machineSetsToDelete, machineSet)
 		}
 	}
 
-	// Sync master node group
-	masterNodeGroupToCreate, deleteMasterNodeGroup, err := c.manageNodeGroup(cluster, masterNodeGroup, cluster.Spec.MasterNodeGroup, clusteroperator.NodeTypeMaster, masterNodeGroupPrefix)
-	if err != nil {
-		errCh <- err
-	}
-	if masterNodeGroupToCreate != nil {
-		nodeGroupsToCreate = append(nodeGroupsToCreate, masterNodeGroupToCreate)
-	}
-	if deleteMasterNodeGroup {
-		nodeGroupsToDelete = append(nodeGroupsToDelete, masterNodeGroup)
-	}
-	// Sync compute node groups
-	for i := range cluster.Spec.ComputeNodeGroups {
-		nodeGroupToCreate, deleteNodeGroup, err := c.manageNodeGroup(cluster, computeNodeGroups[i], cluster.Spec.ComputeNodeGroups[i].ClusterNodeGroup, clusteroperator.NodeTypeCompute, computeNodeGroupsPrefixes[i])
+	// Sync machine sets
+	for i := range cluster.Spec.MachineSets {
+		machineSetToCreate, deleteMachineSet, err := c.manageMachineSet(cluster, clusterMachineSets[i], cluster.Spec.MachineSets[i].MachineSetConfig, machineSetPrefixes[i])
 		if err != nil {
 			errCh <- err
 		}
-		if nodeGroupToCreate != nil {
-			nodeGroupsToCreate = append(nodeGroupsToCreate, nodeGroupToCreate)
+		if machineSetToCreate != nil {
+			machineSetsToCreate = append(machineSetsToCreate, machineSetToCreate)
 		}
-		if deleteNodeGroup {
-			nodeGroupsToDelete = append(nodeGroupsToDelete, computeNodeGroups[i])
+		if deleteMachineSet {
+			machineSetsToDelete = append(machineSetsToDelete, clusterMachineSets[i])
 		}
 	}
 
-	// Snapshot the UIDs (ns/name) of the node groups we're expecting to see
+	// Snapshot the UIDs (ns/name) of the machine sets we're expecting to see
 	// deleted, so we know to record their expectations exactly once either
 	// when we see it as an update of the deletion timestamp, or as a delete.
-	deletedNodeGroupKeys := make([]string, len(nodeGroupsToDelete))
-	for i, ng := range nodeGroupsToDelete {
-		deletedNodeGroupKeys[i] = getNodeGroupKey(ng)
+	deletedMachineSetKeys := make([]string, len(machineSetsToDelete))
+	for i, ms := range machineSetsToDelete {
+		deletedMachineSetKeys[i] = getMachineSetKey(ms)
 	}
-	c.expectations.SetExpectations(clusterKey, len(nodeGroupsToCreate), deletedNodeGroupKeys)
+	c.expectations.SetExpectations(clusterKey, len(machineSetsToCreate), deletedMachineSetKeys)
 
-	if len(nodeGroupsToCreate) > 0 {
+	if len(machineSetsToCreate) > 0 {
 		var wg sync.WaitGroup
-		glog.V(2).Infof("Creating %d new node groups for cluster %q/%q", len(nodeGroupsToCreate), cluster.Namespace, cluster.Name)
-		wg.Add(len(nodeGroupsToCreate))
-		for i, ng := range nodeGroupsToCreate {
-			go func(ix int, nodeGroup *clusteroperator.NodeGroup) {
+		glog.V(2).Infof("Creating %d new machine sets for cluster %q/%q", len(machineSetsToCreate), cluster.Namespace, cluster.Name)
+		wg.Add(len(machineSetsToCreate))
+		for i, ng := range machineSetsToCreate {
+			go func(ix int, machineSet *clusteroperator.MachineSet) {
 				defer wg.Done()
-				_, err := c.client.ClusteroperatorV1alpha1().NodeGroups(cluster.Namespace).Create(nodeGroup)
+				_, err := c.client.ClusteroperatorV1alpha1().MachineSets(cluster.Namespace).Create(machineSet)
 				if err != nil && errors.IsTimeout(err) {
-					// Node group is created but its initialization has timed out.
+					// Machine set is created but its initialization has timed out.
 					// If the initialization is successful eventually, the
 					// controller will observe the creation via the informer.
-					// If the initialization fails, or if the node group stays
+					// If the initialization fails, or if the machine set stays
 					// uninitialized for a long time, the informer will not
 					// receive any update, and the controller will create a new
-					// node group when the expectation expires.
+					// machine set when the expectation expires.
 					return
 				}
 				if err != nil {
-					// Decrement the expected number of creates because the informer won't observe this node group
+					// Decrement the expected number of creates because the informer won't observe this machine set
 					glog.V(2).Infof("Failed creation, decrementing expectations for cluster %q/%q", cluster.Namespace, cluster.Name)
 					c.expectations.CreationObserved(clusterKey)
 					errCh <- err
@@ -497,17 +476,17 @@ func (c *ClusterController) manageNodeGroups(nodeGroups []*clusteroperator.NodeG
 		wg.Wait()
 	}
 
-	if len(nodeGroupsToDelete) > 0 {
+	if len(machineSetsToDelete) > 0 {
 		var wg sync.WaitGroup
-		wg.Add(len(nodeGroupsToDelete))
-		for i, ng := range nodeGroupsToDelete {
-			go func(ix int, nodeGroup *clusteroperator.NodeGroup) {
+		wg.Add(len(machineSetsToDelete))
+		for i, ng := range machineSetsToDelete {
+			go func(ix int, machineSet *clusteroperator.MachineSet) {
 				defer wg.Done()
-				if err := c.client.ClusteroperatorV1alpha1().NodeGroups(cluster.Namespace).Delete(nodeGroup.Name, &metav1.DeleteOptions{}); err != nil {
+				if err := c.client.ClusteroperatorV1alpha1().MachineSets(cluster.Namespace).Delete(machineSet.Name, &metav1.DeleteOptions{}); err != nil {
 					// Decrement the expected number of deletes because the informer won't observe this deletion
-					nodeGroupKey := deletedNodeGroupKeys[ix]
-					glog.V(2).Infof("Failed to delete %v, decrementing expectations for controller %q/%q", nodeGroupKey, cluster.Namespace, cluster.Name)
-					c.expectations.DeletionObserved(clusterKey, nodeGroupKey)
+					machineSetKey := deletedMachineSetKeys[ix]
+					glog.V(2).Infof("Failed to delete %v, decrementing expectations for controller %q/%q", machineSetKey, cluster.Namespace, cluster.Name)
+					c.expectations.DeletionObserved(clusterKey, machineSetKey)
 					errCh <- err
 				}
 			}(i, ng)
@@ -526,14 +505,16 @@ func (c *ClusterController) manageNodeGroups(nodeGroups []*clusteroperator.NodeG
 	return nil
 }
 
-func (c *ClusterController) manageNodeGroup(cluster *clusteroperator.Cluster, nodeGroup *clusteroperator.NodeGroup, clusterNodeGroup clusteroperator.ClusterNodeGroup, nodeType clusteroperator.NodeType, nodeGroupNamePrefix string) (*clusteroperator.NodeGroup, bool, error) {
-	if nodeGroup == nil {
-		return buildNewNodeGroup(cluster, clusterNodeGroup, nodeType, nodeGroupNamePrefix), false, nil
+func (c *ClusterController) manageMachineSet(cluster *clusteroperator.Cluster, machineSet *clusteroperator.MachineSet, clusterMachineSetConfig clusteroperator.MachineSetConfig, machineSetNamePrefix string) (*clusteroperator.MachineSet, bool, error) {
+	if machineSet == nil {
+		machineSet, err := buildNewMachineSet(cluster, clusterMachineSetConfig, machineSetNamePrefix)
+		return machineSet, false, err
 	}
 
-	if nodeGroup.Spec.Size != clusterNodeGroup.Size {
-		glog.V(2).Infof("Changing size of node group %s from %v to %v", nodeGroup.Name, nodeGroup.Spec.Size, clusterNodeGroup.Size)
-		return buildNewNodeGroup(cluster, clusterNodeGroup, nodeType, nodeGroupNamePrefix), true, nil
+	if !apiequality.Semantic.DeepEqual(machineSet.Spec.MachineSetConfig, clusterMachineSetConfig) {
+		glog.V(2).Infof("The configuration of the machine set %s has changed from %v to %v", machineSet.Name, machineSet.Spec.MachineSetConfig, clusterMachineSetConfig)
+		machineSet, err := buildNewMachineSet(cluster, clusterMachineSetConfig, machineSetNamePrefix)
+		return machineSet, true, err
 	}
 
 	return nil, false, nil
@@ -560,29 +541,56 @@ func (c *ClusterController) resolveControllerRef(namespace string, controllerRef
 	return cluster
 }
 
-func calculateStatus(cluster *clusteroperator.Cluster, nodeGroups []*clusteroperator.NodeGroup, manageNodeGroupsErr error) clusteroperator.ClusterStatus {
+func calculateStatus(cluster *clusteroperator.Cluster, machineSets []*clusteroperator.MachineSet, manageMachineSetsErr error) clusteroperator.ClusterStatus {
 	newStatus := cluster.Status
 
-	newStatus.MasterNodeGroups = 0
-	if includesNodeGroupWithPrefix(nodeGroups, getNamePrefixForMasterNodeGroup(cluster)) {
-		newStatus.MasterNodeGroups++
-	}
-
-	newStatus.ComputeNodeGroups = 0
-	for _, ng := range cluster.Spec.ComputeNodeGroups {
-		if includesNodeGroupWithPrefix(nodeGroups, getNamePrefixForComputeNodeGroup(cluster, ng.Name)) {
-			newStatus.ComputeNodeGroups++
+	newStatus.MachineSetCount = 0
+	for _, ms := range cluster.Spec.MachineSets {
+		if machineSet := findMachineSetWithPrefix(machineSets, getNamePrefixForMachineSet(cluster, ms.Name)); machineSet != nil {
+			newStatus.MachineSetCount++
+			if machineSet.Spec.NodeType == clusteroperator.NodeTypeMaster {
+				newStatus.MasterMachineSetName = machineSet.Name
+			}
+			if machineSet.Spec.Infra {
+				newStatus.InfraMachineSetName = machineSet.Name
+			}
 		}
 	}
 
 	return newStatus
 }
 
-func buildNewNodeGroup(cluster *clusteroperator.Cluster, clusterNodeGroup clusteroperator.ClusterNodeGroup, nodeType clusteroperator.NodeType, nodeGroupNamePrefix string) *clusteroperator.NodeGroup {
+func applyDefaultMachineSetHardwareSpec(machineSetHardwareSpec, defaultHardwareSpec *clusteroperator.MachineSetHardwareSpec) (*clusteroperator.MachineSetHardwareSpec, error) {
+	if defaultHardwareSpec == nil {
+		return machineSetHardwareSpec, nil
+	}
+	defaultHwSpecJSON, err := json.Marshal(defaultHardwareSpec)
+	if err != nil {
+		return nil, err
+	}
+	specificHwSpecJSON, err := json.Marshal(machineSetHardwareSpec)
+	if err != nil {
+		return nil, err
+	}
+	merged, err := strategicpatch.StrategicMergePatch(defaultHwSpecJSON, specificHwSpecJSON, machineSetHardwareSpec)
+	mergedSpec := &clusteroperator.MachineSetHardwareSpec{}
+	if err = json.Unmarshal(merged, mergedSpec); err != nil {
+		return nil, err
+	}
+	return mergedSpec, nil
+}
+
+func buildNewMachineSet(cluster *clusteroperator.Cluster, machineSetConfig clusteroperator.MachineSetConfig, machineSetNamePrefix string) (*clusteroperator.MachineSet, error) {
 	boolPtr := func(b bool) *bool { return &b }
-	return &clusteroperator.NodeGroup{
+	mergedHardwareSpec, err := applyDefaultMachineSetHardwareSpec(&machineSetConfig.Hardware, cluster.Spec.DefaultHardwareSpec)
+	if err != nil {
+		return nil, err
+	}
+	machineSetConfig.Hardware = *mergedHardwareSpec
+
+	return &clusteroperator.MachineSet{
 		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: nodeGroupNamePrefix,
+			GenerateName: machineSetNamePrefix,
 			OwnerReferences: []metav1.OwnerReference{
 				{
 					APIVersion:         controllerKind.GroupVersion().String(),
@@ -594,37 +602,33 @@ func buildNewNodeGroup(cluster *clusteroperator.Cluster, clusterNodeGroup cluste
 				},
 			},
 		},
-		Spec: clusteroperator.NodeGroupSpec{
-			NodeType: nodeType,
-			Size:     clusterNodeGroup.Size,
+		Spec: clusteroperator.MachineSetSpec{
+			MachineSetConfig: machineSetConfig,
 		},
-	}
+	}, nil
 }
 
-func getNamePrefixForMasterNodeGroup(cluster *clusteroperator.Cluster) string {
-	return fmt.Sprintf("%s-master-", cluster.Name)
+func getNamePrefixForMachineSet(cluster *clusteroperator.Cluster, name string) string {
+	return fmt.Sprintf("%s-%s-", cluster.Name, name)
 }
 
-func getNamePrefixForComputeNodeGroup(cluster *clusteroperator.Cluster, nodeGroupName string) string {
-	return fmt.Sprintf("%s-compute-%s-", cluster.Name, nodeGroupName)
-}
-
-func includesNodeGroupWithPrefix(nodeGroups []*clusteroperator.NodeGroup, prefix string) bool {
-	for _, nodeGroup := range nodeGroups {
-		if strings.HasPrefix(nodeGroup.Name, prefix) {
-			return true
+func findMachineSetWithPrefix(machineSets []*clusteroperator.MachineSet, prefix string) *clusteroperator.MachineSet {
+	for _, machineSet := range machineSets {
+		if strings.HasPrefix(machineSet.Name, prefix) {
+			return machineSet
 		}
 	}
-	return false
+	return nil
 }
 
-func getNodeGroupKey(nodeGroup *clusteroperator.NodeGroup) string {
-	return fmt.Sprintf("%s/%s", nodeGroup.Namespace, nodeGroup.Name)
+func getMachineSetKey(machineSet *clusteroperator.MachineSet) string {
+	return fmt.Sprintf("%s/%s", machineSet.Namespace, machineSet.Name)
 }
 
 func (c *ClusterController) updateClusterStatus(cluster *clusteroperator.Cluster, newStatus clusteroperator.ClusterStatus) (*clusteroperator.Cluster, error) {
-	if cluster.Status.MasterNodeGroups == newStatus.MasterNodeGroups &&
-		cluster.Status.ComputeNodeGroups == newStatus.ComputeNodeGroups {
+	if cluster.Status.MachineSetCount == newStatus.MachineSetCount &&
+		cluster.Status.MasterMachineSetName == newStatus.MasterMachineSetName &&
+		cluster.Status.InfraMachineSetName == newStatus.InfraMachineSetName {
 		return cluster, nil
 	}
 

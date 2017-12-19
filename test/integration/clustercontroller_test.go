@@ -44,26 +44,26 @@ const (
 	testClusterName = "test-cluster"
 )
 
-// TestClusterCreate tests that creating a cluster creates the node groups
+// TestClusterCreate tests that creating a cluster creates the machine sets
 // for the cluster.
 func TestClusterCreate(t *testing.T) {
-	const sizeOfMasterNodeGroup = 3
+	const sizeOfMasterMachineSet = 3
 	cases := []struct {
-		name                  string
-		computeNodeGroupNames []string
+		name                   string
+		computeMachineSetNames []string
 	}{
 		{
-			name: "no compute node groups",
+			name: "no compute machine sets",
 		},
 		{
-			name: "single compute node groups",
-			computeNodeGroupNames: []string{
+			name: "single compute machine sets",
+			computeMachineSetNames: []string{
 				"first",
 			},
 		},
 		{
-			name: "multiple compute node groups",
-			computeNodeGroupNames: []string{
+			name: "multiple compute machine sets",
+			computeMachineSetNames: []string{
 				"first",
 				"second",
 				"3rd",
@@ -80,20 +80,27 @@ func TestClusterCreate(t *testing.T) {
 					Name: testClusterName,
 				},
 				Spec: v1alpha1.ClusterSpec{
-					MasterNodeGroup: v1alpha1.ClusterNodeGroup{
-						Size: sizeOfMasterNodeGroup,
+					MachineSets: []v1alpha1.ClusterMachineSet{
+						{
+							Name: "master",
+							MachineSetConfig: v1alpha1.MachineSetConfig{
+								NodeType: v1alpha1.NodeTypeMaster,
+								Infra:    true,
+								Size:     sizeOfMasterMachineSet,
+							},
+						},
 					},
-					ComputeNodeGroups: make([]v1alpha1.ClusterComputeNodeGroup, len(tc.computeNodeGroupNames)),
 				},
 			}
 
-			for i, name := range tc.computeNodeGroupNames {
-				cluster.Spec.ComputeNodeGroups[i] = v1alpha1.ClusterComputeNodeGroup{
+			for _, name := range tc.computeMachineSetNames {
+				cluster.Spec.MachineSets = append(cluster.Spec.MachineSets, v1alpha1.ClusterMachineSet{
 					Name: name,
-					ClusterNodeGroup: v1alpha1.ClusterNodeGroup{
-						Size: len(name), // using name length here just to give some variance to the node group size
+					MachineSetConfig: v1alpha1.MachineSetConfig{
+						NodeType: v1alpha1.NodeTypeCompute,
+						Size:     len(name), // using name length here just to give some variance to the machine set size
 					},
-				}
+				})
 			}
 
 			clusterOperatorClient.ClusteroperatorV1alpha1().Clusters(testNamespace).Create(cluster)
@@ -106,13 +113,13 @@ func TestClusterCreate(t *testing.T) {
 				t.Fatalf("error waiting for Cluster to reconcile: %v", err)
 			}
 
-			nodeGroups, err := clusterOperatorClient.ClusteroperatorV1alpha1().NodeGroups(testNamespace).List(metav1.ListOptions{})
+			machineSets, err := clusterOperatorClient.ClusteroperatorV1alpha1().MachineSets(testNamespace).List(metav1.ListOptions{})
 			if err != nil {
-				t.Fatalf("error getting the node groups: %v", err)
+				t.Fatalf("error getting the machine sets: %v", err)
 			}
 
-			if e, a := 1+len(tc.computeNodeGroupNames), len(nodeGroups.Items); e != a {
-				t.Fatalf("unexpected number of node groups: expected %v, got %v", e, a)
+			if e, a := 1+len(tc.computeMachineSetNames), len(machineSets.Items); e != a {
+				t.Fatalf("unexpected number of machine sets: expected %v, got %v", e, a)
 			}
 
 			type details struct {
@@ -121,25 +128,25 @@ func TestClusterCreate(t *testing.T) {
 				size       int
 			}
 
-			expectedDetails := make([]details, 1+len(tc.computeNodeGroupNames))
+			expectedDetails := make([]details, 1+len(tc.computeMachineSetNames))
 			expectedDetails[0] = details{
 				namePrefix: fmt.Sprintf("%s-master", testClusterName),
 				nodeType:   v1alpha1.NodeTypeMaster,
-				size:       sizeOfMasterNodeGroup,
+				size:       sizeOfMasterMachineSet,
 			}
-			for i, name := range tc.computeNodeGroupNames {
+			for i, name := range tc.computeMachineSetNames {
 				expectedDetails[1+i] = details{
-					namePrefix: fmt.Sprintf("%s-compute-%s", testClusterName, name),
+					namePrefix: fmt.Sprintf("%s-%s", testClusterName, name),
 					nodeType:   v1alpha1.NodeTypeCompute,
 					size:       len(name),
 				}
 			}
 
-			actualDetails := make([]details, len(nodeGroups.Items))
-			for i, ng := range nodeGroups.Items {
+			actualDetails := make([]details, len(machineSets.Items))
+			for i, ng := range machineSets.Items {
 				lastDashInName := strings.LastIndexByte(ng.Name, '-')
 				if lastDashInName < 0 {
-					t.Fatalf("NodeGroup name does not contain any dashes")
+					t.Fatalf("MachineSet name does not contain any dashes")
 				}
 				actualDetails[i] = details{
 					namePrefix: ng.Name[:lastDashInName],
@@ -157,13 +164,13 @@ func TestClusterCreate(t *testing.T) {
 			sortDetails(actualDetails)
 
 			if e, a := len(expectedDetails), len(actualDetails); e != a {
-				t.Fatalf("unexpected number of node groups: expected %q, got %q", e, a)
+				t.Fatalf("unexpected number of machine sets: expected %q, got %q", e, a)
 			}
 
 			for i, a := range actualDetails {
 				e := expectedDetails[i]
 				if e != a {
-					t.Fatalf("unexpected node group: expected %+v, got %+v", e, a)
+					t.Fatalf("unexpected machine set: expected %+v, got %+v", e, a)
 				}
 			}
 		})
@@ -201,7 +208,7 @@ func startServerAndClusterController(t *testing.T) (
 	// create a test controller
 	testController := clustercontroller.NewClusterController(
 		clusterOperatorSharedInformers.Clusters(),
-		clusterOperatorSharedInformers.NodeGroups(),
+		clusterOperatorSharedInformers.MachineSets(),
 		fakeKubeClient,
 		clusterOperatorClient,
 	)
@@ -245,7 +252,7 @@ func waitForClusterToExist(client clientset.Interface, namespace string, name st
 
 // waitForClusterToReconcile waits for reconciliation to complete on the cluster.
 // A completed reconciliation means that the status of the cluster indicates
-// that its node groups have been created.
+// that its machine sets have been created.
 func waitForClusterToReconcile(client clientset.Interface, namespace string, name string) error {
 	return wait.PollImmediate(500*time.Millisecond, wait.ForeverTestTimeout,
 		func() (bool, error) {
@@ -254,7 +261,7 @@ func waitForClusterToReconcile(client clientset.Interface, namespace string, nam
 			if err != nil {
 				return false, nil
 			}
-			if cluster.Status.MasterNodeGroups == 1 && cluster.Status.ComputeNodeGroups == len(cluster.Spec.ComputeNodeGroups) {
+			if cluster.Status.MachineSetCount == len(cluster.Spec.MachineSets) {
 				return true, nil
 			}
 			return false, nil

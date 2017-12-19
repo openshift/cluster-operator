@@ -30,12 +30,12 @@ func (c *FakeClusteroperator) Clusters(namespace string) internalversion.Cluster
 	return &FakeClusters{c, namespace}
 }
 
-func (c *FakeClusteroperator) Nodes(namespace string) internalversion.NodeInterface {
-	return &FakeNodes{c, namespace}
+func (c *FakeClusteroperator) Machines(namespace string) internalversion.MachineInterface {
+	return &FakeMachines{c, namespace}
 }
 
-func (c *FakeClusteroperator) NodeGroups(namespace string) internalversion.NodeGroupInterface {
-	return &FakeNodeGroups{c, namespace}
+func (c *FakeClusteroperator) MachineSets(namespace string) internalversion.MachineSetInterface {
+	return &FakeMachineSets{c, namespace}
 }
 
 // RESTClient returns a RESTClient that is used to communicate

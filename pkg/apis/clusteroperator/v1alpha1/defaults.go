@@ -28,10 +28,10 @@ func SetDefaults_ClusterSpec(spec *ClusterSpec) {
 	// No defaults
 }
 
-func SetDefaults_NodeGroupSpec(spec *NodeGroupSpec) {
+func SetDefaults_MachineSetSpec(spec *MachineSetSpec) {
 	// No defaults
 }
 
-func SetDefaults_NodeSpec(spec *NodeSpec) {
+func SetDefaults_MachineSpec(spec *MachineSpec) {
 	// No defaults
 }

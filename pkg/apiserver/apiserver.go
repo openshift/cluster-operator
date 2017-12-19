@@ -22,14 +22,14 @@ import (
 	serverstorage "k8s.io/apiserver/pkg/server/storage"
 )
 
-// ServiceCatalogAPIServer contains the base GenericAPIServer along with other
+// ClusterOperatorAPIServer contains the base GenericAPIServer along with other
 // configured runtime configuration
-type ServiceCatalogAPIServer struct {
+type ClusterOperatorAPIServer struct {
 	GenericAPIServer *genericapiserver.GenericAPIServer
 }
 
 // PrepareRun prepares s to run. The returned value represents the runnable server
-func (s ServiceCatalogAPIServer) PrepareRun() RunnableServer {
+func (s ClusterOperatorAPIServer) PrepareRun() RunnableServer {
 	return s.GenericAPIServer.PrepareRun()
 }
 

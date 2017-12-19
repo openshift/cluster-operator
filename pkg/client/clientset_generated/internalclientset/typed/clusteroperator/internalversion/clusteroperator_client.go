@@ -24,8 +24,8 @@ import (
 type ClusteroperatorInterface interface {
 	RESTClient() rest.Interface
 	ClustersGetter
-	NodesGetter
-	NodeGroupsGetter
+	MachinesGetter
+	MachineSetsGetter
 }
 
 // ClusteroperatorClient is used to interact with features provided by the clusteroperator.openshift.io group.
@@ -37,12 +37,12 @@ func (c *ClusteroperatorClient) Clusters(namespace string) ClusterInterface {
 	return newClusters(c, namespace)
 }
 
-func (c *ClusteroperatorClient) Nodes(namespace string) NodeInterface {
-	return newNodes(c, namespace)
+func (c *ClusteroperatorClient) Machines(namespace string) MachineInterface {
+	return newMachines(c, namespace)
 }
 
-func (c *ClusteroperatorClient) NodeGroups(namespace string) NodeGroupInterface {
-	return newNodeGroups(c, namespace)
+func (c *ClusteroperatorClient) MachineSets(namespace string) MachineSetInterface {
+	return newMachineSets(c, namespace)
 }
 
 // NewForConfig creates a new ClusteroperatorClient for the given config.

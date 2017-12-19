@@ -41,8 +41,15 @@ func TestRun(t *testing.T) {
 			Name: "cluster1",
 		},
 		Spec: clusteroperator.ClusterSpec{
-			MasterNodeGroup: clusteroperator.ClusterNodeGroup{
-				Size: 1,
+			MachineSets: []clusteroperator.ClusterMachineSet{
+				{
+					Name: "master",
+					MachineSetConfig: clusteroperator.MachineSetConfig{
+						NodeType: clusteroperator.NodeTypeMaster,
+						Infra:    true,
+						Size:     1,
+					},
+				},
 			},
 		},
 	})

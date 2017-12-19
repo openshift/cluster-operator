@@ -78,7 +78,7 @@ type completedEtcdConfig struct {
 
 // NewServer creates a new server that can be run. Returns a non-nil error if the server couldn't
 // be created
-func (c completedEtcdConfig) NewServer() (*ServiceCatalogAPIServer, error) {
+func (c completedEtcdConfig) NewServer() (*ClusterOperatorAPIServer, error) {
 	s, err := createSkeletonServer(c.genericConfig)
 	if err != nil {
 		return nil, err

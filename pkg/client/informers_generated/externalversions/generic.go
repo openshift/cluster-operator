@@ -54,10 +54,10 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 	// Group=Clusteroperator, Version=V1alpha1
 	case v1alpha1.SchemeGroupVersion.WithResource("clusters"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Clusteroperator().V1alpha1().Clusters().Informer()}, nil
-	case v1alpha1.SchemeGroupVersion.WithResource("nodes"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Clusteroperator().V1alpha1().Nodes().Informer()}, nil
-	case v1alpha1.SchemeGroupVersion.WithResource("nodegroups"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Clusteroperator().V1alpha1().NodeGroups().Informer()}, nil
+	case v1alpha1.SchemeGroupVersion.WithResource("machines"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Clusteroperator().V1alpha1().Machines().Informer()}, nil
+	case v1alpha1.SchemeGroupVersion.WithResource("machinesets"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Clusteroperator().V1alpha1().MachineSets().Informer()}, nil
 
 	}
 
