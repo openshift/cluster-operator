@@ -1,5 +1,5 @@
-hash: ec3749e644e98971f7f61a17c8d1570b941f74ffaaecd6a6ea0a0a85808a44ca
-updated: 2017-12-11T21:22:18.941381039-05:00
+hash: bf2d0fd08e716e2976a47c34bdf16ea47b40f1f90acdc6ab53e33b4f69001bdb
+updated: 2017-12-19T11:54:21.180751366-04:00
 imports:
 - name: bitbucket.org/ww/goautoneg
   version: 75cd24fc2f2c2a2088577d12123ddee5f54e0675
@@ -220,6 +220,10 @@ imports:
   version: f62e98d28ab7ad31d707ba837a966378465c7b57
 - name: github.com/spf13/pflag
   version: 9ff6c6923cfffbcd502984b8e0c80539a94968b7
+- name: github.com/stretchr/testify
+  version: 69483b4bd14f5845b5a1e55bca19e954e827f1d0
+  subpackages:
+  - assert
 - name: github.com/ugorji/go
   version: ded73eae5db7e7a0ef6f55aace87a2873c5d2b74
   subpackages:
@@ -608,7 +612,3 @@ testImports:
   version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
   subpackages:
   - difflib
-- name: github.com/stretchr/testify
-  version: f6abca593680b2315d2075e0f5e2a9751e3f431a
-  subpackages:
-  - assert

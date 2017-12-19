@@ -93,12 +93,10 @@ func NewInfraController(
 
 	logger := log.WithField("controller", controllerLogName)
 	c := &InfraController{
-		coClient:               clusteroperatorClient,
-		kubeClient:             kubeClient,
-		ansibleImage:           ansibleImage,
-		ansibleImagePullPolicy: ansibleImagePullPolicy,
-		queue:  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "cluster"),
-		logger: logger,
+		coClient:   clusteroperatorClient,
+		kubeClient: kubeClient,
+		queue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "cluster"),
+		logger:     logger,
 	}
 
 	clusterInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -109,19 +107,21 @@ func NewInfraController(
 
 	c.syncHandler = c.syncCluster
 	c.enqueueCluster = c.enqueue
+	c.ansibleRunner = ansible.NewAnsibleRunner(c.kubeClient, ansibleImage, ansibleImagePullPolicy)
 
 	return c
 }
 
 // InfraController manages clusters.
 type InfraController struct {
-	coClient               clusteroperatorclientset.Interface
-	kubeClient             kubeclientset.Interface
-	ansibleImage           string
-	ansibleImagePullPolicy kapi.PullPolicy
+	coClient   clusteroperatorclientset.Interface
+	kubeClient kubeclientset.Interface
 
 	// To allow injection of syncCluster for testing.
 	syncHandler func(hKey string) error
+
+	// To allow injection of mock ansible runners for testing:
+	ansibleRunner ansible.AnsibleRunnerInterface
 
 	// used for unit testing
 	enqueueCluster func(cluster *clusteroperator.Cluster)
@@ -233,6 +233,7 @@ func (c *InfraController) syncCluster(key string) error {
 
 	cluster, err := c.clustersLister.Clusters(ns).Get(name)
 	if errors.IsNotFound(err) {
+		cLog.Warnln("cluster not found")
 		return nil
 	}
 	if err != nil {
@@ -245,14 +246,13 @@ func (c *InfraController) syncCluster(key string) error {
 
 	clusterLogger := c.logger.WithField("cluster", cluster.Name)
 	clusterLogger.Infoln("provisioning cluster infrastructure")
-	ansibleRunner := ansible.NewAnsibleRunner(c.kubeClient, c.ansibleImage, c.ansibleImagePullPolicy)
 	varsGenerator := ansible.NewVarsGenerator(cluster)
 	vars, err := varsGenerator.GenerateVars()
 	if err != nil {
 		return err
 	}
 
-	err = ansibleRunner.RunPlaybook(cluster.Namespace, cluster.Name, jobPrefix, infraPlaybook,
+	err = c.ansibleRunner.RunPlaybook(cluster.Namespace, cluster.Name, jobPrefix, infraPlaybook,
 		provisionInventoryTemplate, vars)
 	if err != nil {
 		return err
