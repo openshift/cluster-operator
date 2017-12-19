@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"time"
 
+	kapi "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -74,7 +75,13 @@ etcd
 `
 
 // NewInfraController returns a new *InfraController.
-func NewInfraController(clusterInformer informers.ClusterInformer, kubeClient kubeclientset.Interface, clusteroperatorClient clusteroperatorclientset.Interface) *InfraController {
+func NewInfraController(
+	clusterInformer informers.ClusterInformer,
+	kubeClient kubeclientset.Interface,
+	clusteroperatorClient clusteroperatorclientset.Interface,
+	ansibleImage string,
+	ansibleImagePullPolicy kapi.PullPolicy,
+) *InfraController {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(glog.Infof)
 	// TODO: remove the wrapper when every clients have moved to use the clientset.
@@ -86,10 +93,12 @@ func NewInfraController(clusterInformer informers.ClusterInformer, kubeClient ku
 
 	logger := log.WithField("controller", controllerLogName)
 	c := &InfraController{
-		coClient:   clusteroperatorClient,
-		kubeClient: kubeClient,
-		queue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "cluster"),
-		logger:     logger,
+		coClient:               clusteroperatorClient,
+		kubeClient:             kubeClient,
+		ansibleImage:           ansibleImage,
+		ansibleImagePullPolicy: ansibleImagePullPolicy,
+		queue:  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "cluster"),
+		logger: logger,
 	}
 
 	clusterInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -106,8 +115,10 @@ func NewInfraController(clusterInformer informers.ClusterInformer, kubeClient ku
 
 // InfraController manages clusters.
 type InfraController struct {
-	coClient   clusteroperatorclientset.Interface
-	kubeClient kubeclientset.Interface
+	coClient               clusteroperatorclientset.Interface
+	kubeClient             kubeclientset.Interface
+	ansibleImage           string
+	ansibleImagePullPolicy kapi.PullPolicy
 
 	// To allow injection of syncCluster for testing.
 	syncHandler func(hKey string) error
@@ -234,7 +245,7 @@ func (c *InfraController) syncCluster(key string) error {
 
 	clusterLogger := c.logger.WithField("cluster", cluster.Name)
 	clusterLogger.Infoln("provisioning cluster infrastructure")
-	ansibleRunner := ansible.NewAnsibleRunner(c.kubeClient)
+	ansibleRunner := ansible.NewAnsibleRunner(c.kubeClient, c.ansibleImage, c.ansibleImagePullPolicy)
 	varsGenerator := ansible.NewVarsGenerator(cluster)
 	vars, err := varsGenerator.GenerateVars()
 	if err != nil {

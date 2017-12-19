@@ -1,0 +1,19 @@
+#! /usr/bin/bash
+
+# Ensure that the playbook file exists.
+[ -z $PLAYBOOK_FILE ] && { echo "PLAYBOOK_FILE environment variable not set."; exit 1; }
+[ ! -f "${PLAYBOOK_FILE}" ] && { echo "Playbook file ${PLAYBOOK_FILE} not found."; exit 1; }
+
+# Ensure that the inventory file exists.
+[ -z $INVENTORY_FILE ] && { echo "INVENTORY_FILE environment variable not set."; exit 1; }
+[ ! -f "${INVENTORY_FILE}" ] && { echo "Inventory file ${INVENTORY_FILE} not found."; exit 1; }
+
+# Ensure that the AWS access key ID exists.
+[ -z $AWS_ACCESS_KEY_ID ] && { echo "AWS_ACCESS_KEY_ID environment variable not set."; exit 1; }
+
+# Ensure that the AWS secret access key exists.
+[ -z $AWS_SECRET_ACCESS_KEY ] && { echo "AWS_SECRET_ACCESS_KEY environment variable not set."; exit 1; }
+
+echo PLAYBOOK_FILE=${PLAYBOOK_FILE}
+echo INVENTORY_FILE=${INVENTORY_FILE}
+echo OPTS=${OPTS}

@@ -7,6 +7,8 @@
 #   SERVING_CERT: base-64-encoded, pem cert to use for ssl communication with the Cluster Operator API Server. Required.
 #   SERVING_KEY: base-64-encoded, pem private key for the cert to use for ssl communication with the Cluster Operator API Server. Required.
 #   SERVING_CA: base-64-encoded, pem CA cert for the ssl certs. Required.
+#   ANSIBLE_IMAGE: ansible image to use to run playbooks. Defaults to "fake-openshift-ansible:canary".
+#   ANSIBLE_IMAGE_PULL_POLICY: policy to use to pull the ansible image. Always, Never, or IfNotPresent. Defaults to "Never".
 #
 ########
 
@@ -304,6 +306,10 @@ objects:
           - "1"
           - --log-level
           - "debug"
+          - --ansible-image
+          - ${ANSIBLE_IMAGE}
+          - --ansible-image-pull-policy
+          - ${ANSIBLE_IMAGE_PULL_POLICY}
           ports:
           - containerPort: 8080
           readinessProbe:
@@ -375,3 +381,9 @@ parameters:
 - name: SERVING_KEY
 - name: AWS_ACCESS_KEY_ID
 - name: AWS_SECRET_ACCESS_KEY
+# Ansible image to use for running playbooks
+- name: ANSIBLE_IMAGE
+  value: fake-openshift-ansible:canary
+# Policy for pulling the ansible image
+- name: ANSIBLE_IMAGE_PULL_POLICY
+  value: Never

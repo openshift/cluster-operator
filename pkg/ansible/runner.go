@@ -14,7 +14,6 @@ import (
 )
 
 const (
-	openshiftAnsibleImage        = "openshift/origin-ansible:v3.8"
 	operatorNamespace            = "cluster-operator"
 	openshiftAnsibleContainerDir = "/usr/share/ansible/openshift-ansible/"
 	sshKeySecretName             = "ssh-private-key"
@@ -22,14 +21,16 @@ const (
 )
 
 type ansibleRunner struct {
-	KubeClient kubernetes.Interface
-	Image      string
+	KubeClient      kubernetes.Interface
+	Image           string
+	ImagePullPolicy kapi.PullPolicy
 }
 
-func NewAnsibleRunner(kubeClient kubernetes.Interface) *ansibleRunner {
+func NewAnsibleRunner(kubeClient kubernetes.Interface, openshiftAnsibleImage string, openshiftAnsibleImagePullPolicy kapi.PullPolicy) *ansibleRunner {
 	return &ansibleRunner{
-		KubeClient: kubeClient,
-		Image:      openshiftAnsibleImage,
+		KubeClient:      kubeClient,
+		Image:           openshiftAnsibleImage,
+		ImagePullPolicy: openshiftAnsibleImagePullPolicy,
 	}
 }
 func (r *ansibleRunner) createInventoryConfigMap(namespace, clusterName, jobPrefix, inventory, vars string) (*kapi.ConfigMap, error) {
@@ -189,9 +190,10 @@ func (r *ansibleRunner) RunPlaybook(namespace, clusterName, jobPrefix, playbook,
 
 		Containers: []kapi.Container{
 			{
-				Name:  "ansible",
-				Image: r.Image,
-				Env:   env,
+				Name:            "ansible",
+				Image:           r.Image,
+				ImagePullPolicy: r.ImagePullPolicy,
+				Env:             env,
 				VolumeMounts: []kapi.VolumeMount{
 					{
 						Name:      "inventory",
@@ -202,10 +204,6 @@ func (r *ansibleRunner) RunPlaybook(namespace, clusterName, jobPrefix, playbook,
 						MountPath: "/ansible/ssh/",
 					},
 				},
-
-				// TODO: committing as no-op for now, comment this out to use the default
-				// origin-ansible container entrypoint and actually run playbooks.
-				Command: []string{"echo", playbookPath},
 			},
 		},
 		Volumes: []kapi.Volume{
