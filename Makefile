@@ -74,6 +74,8 @@ CLUSTER_OPERATOR_IMAGE               = $(REGISTRY)cluster-operator-$(ARCH):$(VER
 CLUSTER_OPERATOR_MUTABLE_IMAGE       = $(REGISTRY)cluster-operator-$(ARCH):$(MUTABLE_TAG)
 FAKE_OPENSHIFT_ANSIBLE_IMAGE         = $(REGISTRY)fake-openshift-ansible:$(VERSION)
 FAKE_OPENSHIFT_ANSIBLE_MUTABLE_IMAGE = $(REGISTRY)fake-openshift-ansible:$(MUTABLE_TAG)
+PLAYBOOK_MOCK_IMAGE                  = $(REGISTRY)playbook-mock:$(VERSION)
+PLAYBOOK_MOCK_MUTABLE_IMAGE          = $(REGISTRY)playbook-mock:$(MUTABLE_TAG)
 
 $(if $(realpath vendor/k8s.io/apimachinery/vendor), \
 	$(error the vendor directory exists in the apimachinery \
@@ -103,7 +105,8 @@ NON_VENDOR_DIRS = $(shell $(DOCKER_CMD) glide nv)
 #########################################################################
 build: .init .generate_files \
 	$(BINDIR)/cluster-operator \
-	$(BINDIR)/fake-openshift-ansible
+	$(BINDIR)/fake-openshift-ansible \
+	$(BINDIR)/playbook-mock
 
 # We'll rebuild cluster-operator if any go file has changed (ie. NEWEST_GO_FILE)
 cluster-operator: $(BINDIR)/cluster-operator
@@ -111,8 +114,13 @@ $(BINDIR)/cluster-operator: .init .generate_files cmd/cluster-operator $(NEWEST_
 	$(DOCKER_CMD) $(GO_BUILD) -o $@ $(CLUSTER_OPERATOR_PKG)/cmd/cluster-operator
 
 fake-openshift-ansible: $(BINDIR)/fake-openshift-ansible
-$(BINDIR)/fake-openshift-ansible: contrib/fake-openshift-ansible/fake-openshift-ansible
+$(BINDIR)/fake-openshift-ansible: $(wildcard contrib/fake-openshift-ansible/*)
 	cp contrib/fake-openshift-ansible/fake-openshift-ansible $(BINDIR)
+
+playbook-mock: $(BINDIR)/playbook-mock
+$(BINDIR)/playbook-mock: $(wildcard contrib/cmd/playbook-mock/*.go) $(wildcard contrib/pkg/playbookmock/*.go)
+	$(DOCKER_CMD) $(GO_BUILD) -o $@ $(CLUSTER_OPERATOR_PKG)/contrib/cmd/playbook-mock
+
 
 # This section contains the code generation stuff
 #################################################
@@ -308,7 +316,7 @@ clean-coverage:
 
 # Building Docker Images for our executables
 ############################################
-images: cluster-operator-image fake-openshift-ansible-image
+images: cluster-operator-image fake-openshift-ansible-image playbook-mock-image
 
 images-all: $(addprefix arch-image-,$(ALL_ARCH))
 arch-image-%:
@@ -342,6 +350,11 @@ fake-openshift-ansible-image: build/fake-openshift-ansible/Dockerfile $(BINDIR)/
 	$(call build-and-tag,"fake-openshift-ansible",$(FAKE_OPENSHIFT_ANSIBLE_IMAGE),$(FAKE_OPENSHIFT_ANSIBLE_MUTABLE_IMAGE))
 	docker tag $(FAKE_OPENSHIFT_ANSIBLE_IMAGE) $(REGISTRY)fake-openshift-ansible:$(VERSION)
 	docker tag $(FAKE_OPENSHIFT_ANSIBLE_MUTABLE_IMAGE) $(REGISTRY)fake-openshift-ansible:$(MUTABLE_TAG)
+
+playbook-mock-image: build/playbook-mock/Dockerfile $(BINDIR)/playbook-mock
+	$(call build-and-tag,"playbook-mock",$(PLAYBOOK_MOCK_IMAGE),$(PLAYBOOK_MOCK_MUTABLE_IMAGE))
+	docker tag $(PLAYBOOK_MOCK_IMAGE) $(REGISTRY)playbook-mock:$(VERSION)
+	docker tag $(PLAYBOOK_MOCK_MUTABLE_IMAGE) $(REGISTRY)playbook-mock:$(MUTABLE_TAG)
 
 
 # Push our Docker Images to a registry

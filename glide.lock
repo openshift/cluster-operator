@@ -1,5 +1,5 @@
 hash: 474ef6ca0a4e12e5e99a1fa15a4a65c90aa0d4c457b4c2ef5ac15cebbd1539c4
-updated: 2017-12-20T16:17:24.385913557-05:00
+updated: 2018-01-04T11:24:54.137841228-05:00
 imports:
 - name: bitbucket.org/ww/goautoneg
   version: 75cd24fc2f2c2a2088577d12123ddee5f54e0675
@@ -139,6 +139,10 @@ imports:
   - OpenAPIv2
   - compiler
   - extensions
+- name: github.com/gorilla/context
+  version: 08b5f424b9271eedf6f9f0ce86cb9396ed337a42
+- name: github.com/gorilla/mux
+  version: 7f08801859139f86dfafd1c296e2cba9a80d292e
 - name: github.com/gregjones/httpcache
   version: 787624de3eb7bd915c329cba748687a3b22666a6
   subpackages:
@@ -441,7 +445,9 @@ imports:
   - pkg/features
   - pkg/registry/generic
   - pkg/registry/generic/registry
+  - pkg/registry/generic/testing
   - pkg/registry/rest
+  - pkg/registry/rest/resttest
   - pkg/server
   - pkg/server/filters
   - pkg/server/healthz
@@ -464,6 +470,7 @@ imports:
   - pkg/storage/names
   - pkg/storage/storagebackend
   - pkg/storage/storagebackend/factory
+  - pkg/storage/testing
   - pkg/storage/value
   - pkg/util/feature
   - pkg/util/flag

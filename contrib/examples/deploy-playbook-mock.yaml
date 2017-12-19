@@ -1,0 +1,61 @@
+---
+kind: Deployment
+apiVersion: extensions/v1beta1
+metadata:
+  name: playbook-mock
+  labels:
+    app: playbook-mock
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: playbook-mock
+  template:
+    metadata:
+      labels:
+        app: playbook-mock
+    spec:
+      containers:
+      - name: playbook-mock
+        image: playbook-mock:canary
+        imagePullPolicy: Never
+        args:
+        - --port
+        - "8080"
+        - --logtostderr
+        - -v
+        - "10"
+        ports:
+        - containerPort: 8080
+        readinessProbe:
+          tcpSocket:
+            port: 8080
+          failureThreshold: 1
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 2
+        livenessProbe:
+          tcpSocket:
+            port: 8080
+          failureThreshold: 3
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 2
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: playbook-mock
+  labels:
+    app: playbook-mock
+spec:
+  selector:
+    app: playbook-mock
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8080
+

@@ -43,6 +43,8 @@
   - name: deploy application template
     shell: "oc process -f {{ playbook_dir }}/../examples/deploy.yaml -o yaml -p SERVING_CA={{ l_serving_ca }} -p SERVING_CERT={{ l_serving_cert }} -p SERVING_KEY={{ l_serving_key }} AWS_ACCESS_KEY_ID={{ l_aws_access_key_id }} AWS_SECRET_ACCESS_KEY={{ l_aws_secret_access_key }} ANSIBLE_IMAGE={{ ansible_image }} ANSIBLE_IMAGE_PULL_POLICY={{ ansible_image_pull_policy }} | oc apply -f -"
 
-
+  - name: deploy playbook-mock for testing with fake-openshift-ansible
+    shell: "oc apply -n cluster-operator -f {{ playbook_dir }}/../examples/deploy-playbook-mock.yaml"
+    when: not use_real_aws | bool
 
 
