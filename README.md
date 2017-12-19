@@ -47,10 +47,10 @@ creates.
 
 To enable and test:
 
-  1. Uncomment the correct Command in the pod definition in pkg/ansible/runner.py.
+  1. Enable using real AWS by supplying the use_real_aws parameter to the contrib/ansible/deploy-devel.yaml playbook.
+		* `ansible-playbook contrib/ansible/deploy-devel.yaml -e "use_real_aws=true"`
   1. `cp ./contrib/examples/cluster.yaml ./contrib/examples/mycluster.yaml`
   1. Edit mycluster.yaml and change the name to your username. This will allow you to find objects created in the AWS account to clean up.
-  1. `kubectl create -n cluster-operator -f ./contrib/examples/dgoodwin-cluster.yaml`
-    * Ability to create the cluster in any namespace will be coming shortly but for now, must be cluster-operator.
+  1. `kubectl create -f ./contrib/examples/mycluster.yaml`
   1. You should see some action in the controller manager logs, and a provisioning job and associated pod.
 
