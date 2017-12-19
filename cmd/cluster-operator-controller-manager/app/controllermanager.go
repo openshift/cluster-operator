@@ -450,6 +450,8 @@ func startInfraController(ctx ControllerContext) (bool, error) {
 		ctx.InformerFactory.Clusteroperator().V1alpha1().Clusters(),
 		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-infra-controller"),
 		ctx.ClientBuilder.ClientOrDie("clusteroperator-infra-controller"),
+		ctx.Options.AnsibleImage,
+		v1.PullPolicy(ctx.Options.AnsibleImagePullPolicy),
 	).Run(int(ctx.Options.ConcurrentClusterSyncs), ctx.Stop)
 	return true, nil
 }

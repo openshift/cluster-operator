@@ -69,9 +69,11 @@ GO_BUILD       = env GOOS=$(PLATFORM) GOARCH=$(ARCH) go build -i $(GOFLAGS) \
 BASE_PATH      = $(ROOT:/src/github.com/openshift/cluster-operator/=)
 export GOPATH  = $(BASE_PATH):$(ROOT)/vendor
 
-MUTABLE_TAG                      ?= canary
-CLUSTER_OPERATOR_IMAGE            = $(REGISTRY)cluster-operator-$(ARCH):$(VERSION)
-CLUSTER_OPERATOR_MUTABLE_IMAGE    = $(REGISTRY)cluster-operator-$(ARCH):$(MUTABLE_TAG)
+MUTABLE_TAG                         ?= canary
+CLUSTER_OPERATOR_IMAGE               = $(REGISTRY)cluster-operator-$(ARCH):$(VERSION)
+CLUSTER_OPERATOR_MUTABLE_IMAGE       = $(REGISTRY)cluster-operator-$(ARCH):$(MUTABLE_TAG)
+FAKE_OPENSHIFT_ANSIBLE_IMAGE         = $(REGISTRY)fake-openshift-ansible:$(VERSION)
+FAKE_OPENSHIFT_ANSIBLE_MUTABLE_IMAGE = $(REGISTRY)fake-openshift-ansible:$(MUTABLE_TAG)
 
 $(if $(realpath vendor/k8s.io/apimachinery/vendor), \
 	$(error the vendor directory exists in the apimachinery \
@@ -100,12 +102,17 @@ NON_VENDOR_DIRS = $(shell $(DOCKER_CMD) glide nv)
 # "cluster-operator" instead of "bin/cluster-operator".
 #########################################################################
 build: .init .generate_files \
-	$(BINDIR)/cluster-operator
+	$(BINDIR)/cluster-operator \
+	$(BINDIR)/fake-openshift-ansible
 
 # We'll rebuild cluster-operator if any go file has changed (ie. NEWEST_GO_FILE)
 cluster-operator: $(BINDIR)/cluster-operator
 $(BINDIR)/cluster-operator: .init .generate_files cmd/cluster-operator $(NEWEST_GO_FILE)
 	$(DOCKER_CMD) $(GO_BUILD) -o $@ $(CLUSTER_OPERATOR_PKG)/cmd/cluster-operator
+
+fake-openshift-ansible: $(BINDIR)/fake-openshift-ansible
+$(BINDIR)/fake-openshift-ansible: contrib/fake-openshift-ansible/fake-openshift-ansible
+	cp contrib/fake-openshift-ansible/fake-openshift-ansible $(BINDIR)
 
 # This section contains the code generation stuff
 #################################################
@@ -301,7 +308,7 @@ clean-coverage:
 
 # Building Docker Images for our executables
 ############################################
-images: cluster-operator-image
+images: cluster-operator-image fake-openshift-ansible-image
 
 images-all: $(addprefix arch-image-,$(ALL_ARCH))
 arch-image-%:
@@ -330,6 +337,11 @@ ifeq ($(ARCH),amd64)
 	docker tag $(CLUSTER_OPERATOR_IMAGE) $(REGISTRY)cluster-operator:$(VERSION)
 	docker tag $(CLUSTER_OPERATOR_MUTABLE_IMAGE) $(REGISTRY)cluster-operator:$(MUTABLE_TAG)
 endif
+
+fake-openshift-ansible-image: build/fake-openshift-ansible/Dockerfile $(BINDIR)/fake-openshift-ansible
+	$(call build-and-tag,"fake-openshift-ansible",$(FAKE_OPENSHIFT_ANSIBLE_IMAGE),$(FAKE_OPENSHIFT_ANSIBLE_MUTABLE_IMAGE))
+	docker tag $(FAKE_OPENSHIFT_ANSIBLE_IMAGE) $(REGISTRY)fake-openshift-ansible:$(VERSION)
+	docker tag $(FAKE_OPENSHIFT_ANSIBLE_MUTABLE_IMAGE) $(REGISTRY)fake-openshift-ansible:$(MUTABLE_TAG)
 
 
 # Push our Docker Images to a registry
