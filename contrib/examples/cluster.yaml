@@ -1,12 +1,25 @@
-apiVersion: clusteroperator.openshift.io/v1alpha1
-kind: Cluster
+apiVersion: v1
+kind: Template
 metadata:
-  name: cluster1
-spec:
-  masterNodeGroup:
-    size: 1
-  computeNodeGroups:
-    - name: alpha
+  name: cluster-create-template
+objects:
+
+- apiVersion: clusteroperator.openshift.io/v1alpha1
+  kind: Cluster
+  metadata:
+    name: ${CLUSTER_NAME}
+  spec:
+    masterNodeGroup:
       size: 1
-    - name: beta
-      size: 2
+    computeNodeGroups:
+      - name: alpha
+        size: 1
+      - name: beta
+        size: 2
+
+parameters:
+- name: CLUSTER_NAME
+  displayName: Cluster Name
+  description: The name to give to the Cluster created. If using real AWS, then this name should include your username so that resources created in AWS can be identified as yours.
+  value: cluster1
+  required: true

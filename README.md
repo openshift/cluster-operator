@@ -39,6 +39,9 @@
   * If your image changed, but the kubernetes config did not, it is often required to delete all pods:
     * `oc delete pod --all -n cluster-operator`
 
+## Creating a Sample Cluster
+  * `contrib/examples/create-cluster.sh`
+
 ## Testing Provisioning
 
 Provisioning code is currently disabled to avoid doing anything unintentional
@@ -49,8 +52,6 @@ To enable and test:
 
   1. Enable using real AWS by supplying the use_real_aws parameter to the contrib/ansible/deploy-devel.yaml playbook.
 		* `ansible-playbook contrib/ansible/deploy-devel.yaml -e "use_real_aws=true"`
-  1. `cp ./contrib/examples/cluster.yaml ./contrib/examples/mycluster.yaml`
-  1. Edit mycluster.yaml and change the name to your username. This will allow you to find objects created in the AWS account to clean up.
-  1. `kubectl create -f ./contrib/examples/mycluster.yaml`
+  1. Create a Cluster. Prefer a name for the Cluster that is prefaced with your username. This makes it easier to associate to you resources created in the AWS, making them easier to find and clean up. By default, if you are using the contrib/examples/create-cluster.sh script, the cluster will be prefaced with your username.
   1. You should see some action in the controller manager logs, and a provisioning job and associated pod.
 
