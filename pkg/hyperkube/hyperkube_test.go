@@ -25,10 +25,9 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/stretchr/testify/assert"
 
 	"k8s.io/apimachinery/pkg/util/wait"
-
-	"github.com/openshift/cluster-operator/test/util"
 )
 
 type result struct {
@@ -170,71 +169,71 @@ func runFull(t *testing.T, args string, stopCh <-chan struct{}) *result {
 
 func TestRun(t *testing.T) {
 	x := runFull(t, "hyperkube test1", wait.NeverStop)
-	util.AssertContains(t, x.output, "test1 Run")
-	util.AssertNoError(t, x.err)
+	assert.Contains(t, x.output, "test1 Run")
+	assert.NoError(t, x.err)
 }
 
 func TestLinkRun(t *testing.T) {
 	x := runFull(t, "test1", wait.NeverStop)
-	util.AssertContains(t, x.output, "test1 Run")
-	util.AssertNoError(t, x.err)
+	assert.Contains(t, x.output, "test1 Run")
+	assert.NoError(t, x.err)
 }
 
 func TestTopNoArgs(t *testing.T) {
 	x := runFull(t, "hyperkube", wait.NeverStop)
-	util.AssertEqualError(t, x.err, "no server specified")
+	assert.EqualError(t, x.err, "no server specified")
 }
 
 func TestBadServer(t *testing.T) {
 	x := runFull(t, "hyperkube bad-server", wait.NeverStop)
-	util.AssertEqualError(t, x.err, "Server not found: bad-server")
-	util.AssertContains(t, x.output, "Usage")
+	assert.EqualError(t, x.err, "Server not found: bad-server")
+	assert.Contains(t, x.output, "Usage")
 }
 
 func TestTopHelp(t *testing.T) {
 	x := runFull(t, "hyperkube --help", wait.NeverStop)
-	util.AssertNoError(t, x.err)
-	util.AssertContains(t, x.output, "all-in-one")
-	util.AssertContains(t, x.output, "A simple server named test1")
+	assert.NoError(t, x.err)
+	assert.Contains(t, x.output, "all-in-one")
+	assert.Contains(t, x.output, "A simple server named test1")
 }
 
 func TestTopFlags(t *testing.T) {
 	x := runFull(t, "hyperkube --help test1", wait.NeverStop)
-	util.AssertNoError(t, x.err)
-	util.AssertContains(t, x.output, "all-in-one")
-	util.AssertContains(t, x.output, "A simple server named test1")
-	util.AssertNotContains(t, x.output, "test1 Run")
+	assert.NoError(t, x.err)
+	assert.Contains(t, x.output, "all-in-one")
+	assert.Contains(t, x.output, "A simple server named test1")
+	assert.NotContains(t, x.output, "test1 Run")
 }
 
 func TestTopFlagsBad(t *testing.T) {
 	x := runFull(t, "hyperkube --bad-flag", wait.NeverStop)
-	util.AssertEqualError(t, x.err, "unknown flag: --bad-flag")
-	util.AssertContains(t, x.output, "all-in-one")
-	util.AssertContains(t, x.output, "A simple server named test1")
+	assert.EqualError(t, x.err, "unknown flag: --bad-flag")
+	assert.Contains(t, x.output, "all-in-one")
+	assert.Contains(t, x.output, "A simple server named test1")
 }
 
 func TestServerHelp(t *testing.T) {
 	x := runFull(t, "hyperkube test1 --help", wait.NeverStop)
-	util.AssertNoError(t, x.err)
-	util.AssertContains(t, x.output, "A simple server named test1")
-	util.AssertContains(t, x.output, "-h, --help")
-	util.AssertContains(t, x.output, "help for hyperkube")
-	util.AssertNotContains(t, x.output, "test1 Run")
+	assert.NoError(t, x.err)
+	assert.Contains(t, x.output, "A simple server named test1")
+	assert.Contains(t, x.output, "-h, --help")
+	assert.Contains(t, x.output, "help for hyperkube")
+	assert.NotContains(t, x.output, "test1 Run")
 }
 
 func TestServerFlagsBad(t *testing.T) {
 	x := runFull(t, "hyperkube test1 --bad-flag", wait.NeverStop)
-	util.AssertEqualError(t, x.err, "unknown flag: --bad-flag")
-	util.AssertContains(t, x.output, "A simple server named test1")
-	util.AssertContains(t, x.output, "-h, --help")
-	util.AssertContains(t, x.output, "help for hyperkube")
-	util.AssertNotContains(t, x.output, "test1 Run")
+	assert.EqualError(t, x.err, "unknown flag: --bad-flag")
+	assert.Contains(t, x.output, "A simple server named test1")
+	assert.Contains(t, x.output, "-h, --help")
+	assert.Contains(t, x.output, "help for hyperkube")
+	assert.NotContains(t, x.output, "test1 Run")
 }
 
 func TestServerError(t *testing.T) {
 	x := runFull(t, "hyperkube test-error", wait.NeverStop)
-	util.AssertContains(t, x.output, "test-error Run")
-	util.AssertEqualError(t, x.err, "server returning error")
+	assert.Contains(t, x.output, "test-error Run")
+	assert.EqualError(t, x.err, "server returning error")
 }
 
 func TestStopChIgnoringServer(t *testing.T) {
@@ -252,8 +251,8 @@ func TestStopChIgnoringServer(t *testing.T) {
 	case <-returnedCh:
 	}
 	// we cannot be sure that the server had a chance to output anything
-	// util.Assert.Contains(t, x.output, "test-error-stop-ch-ignoring Run")
-	util.AssertEqualError(t, x.err, "interrupted")
+	// assert.Contains(t, x.output, "test-error-stop-ch-ignoring Run")
+	assert.EqualError(t, x.err, "interrupted")
 }
 
 func TestStopChRespectingServer(t *testing.T) {
@@ -270,8 +269,8 @@ func TestStopChRespectingServer(t *testing.T) {
 		t.Fatalf("%q never returned after stopCh was closed", "hyperkube test-stop-ch-respecting")
 	case <-returnedCh:
 	}
-	util.AssertContains(t, x.output, "test-stop-ch-respecting Run")
-	util.AssertNil(t, x.err)
+	assert.Contains(t, x.output, "test-stop-ch-respecting Run")
+	assert.Nil(t, x.err)
 }
 
 func TestStopChRespectingServerWithError(t *testing.T) {
@@ -288,35 +287,35 @@ func TestStopChRespectingServerWithError(t *testing.T) {
 		t.Fatalf("%q never returned after stopCh was closed", "hyperkube test-error-stop-ch-respecting")
 	case <-returnedCh:
 	}
-	util.AssertContains(t, x.output, "test-error-stop-ch-respecting Run")
-	util.AssertEqualError(t, x.err, "server returning error")
+	assert.Contains(t, x.output, "test-error-stop-ch-respecting Run")
+	assert.EqualError(t, x.err, "server returning error")
 }
 
 func TestCobraCommandHelp(t *testing.T) {
 	x := runFull(t, "hyperkube test-cobra-command --help", wait.NeverStop)
-	util.AssertNoError(t, x.err)
-	util.AssertContains(t, x.output, "A server named test-cobra-command which uses a cobra command")
-	util.AssertContains(t, x.output, cobraMessageDesc)
+	assert.NoError(t, x.err)
+	assert.Contains(t, x.output, "A server named test-cobra-command which uses a cobra command")
+	assert.Contains(t, x.output, cobraMessageDesc)
 }
 func TestCobraCommandDefaultMessage(t *testing.T) {
 	x := runFull(t, "hyperkube test-cobra-command", wait.NeverStop)
-	util.AssertContains(t, x.output, fmt.Sprintf("msg: %s", defaultCobraMessage))
+	assert.Contains(t, x.output, fmt.Sprintf("msg: %s", defaultCobraMessage))
 }
 func TestCobraCommandMessage(t *testing.T) {
 	x := runFull(t, "hyperkube test-cobra-command --msg foobar", wait.NeverStop)
-	util.AssertContains(t, x.output, "msg: foobar")
+	assert.Contains(t, x.output, "msg: foobar")
 }
 
 func TestCobraSubCommandHelp(t *testing.T) {
 	x := runFull(t, "hyperkube test-cobra-command subcommand --help", wait.NeverStop)
-	util.AssertNoError(t, x.err)
-	util.AssertContains(t, x.output, cobraSubMessageDesc)
+	assert.NoError(t, x.err)
+	assert.Contains(t, x.output, cobraSubMessageDesc)
 }
 func TestCobraSubCommandDefaultMessage(t *testing.T) {
 	x := runFull(t, "hyperkube test-cobra-command subcommand", wait.NeverStop)
-	util.AssertContains(t, x.output, fmt.Sprintf("submsg: %s", defaultCobraSubMessage))
+	assert.Contains(t, x.output, fmt.Sprintf("submsg: %s", defaultCobraSubMessage))
 }
 func TestCobraSubCommandMessage(t *testing.T) {
 	x := runFull(t, "hyperkube test-cobra-command subcommand --submsg foobar", wait.NeverStop)
-	util.AssertContains(t, x.output, "submsg: foobar")
+	assert.Contains(t, x.output, "submsg: foobar")
 }
