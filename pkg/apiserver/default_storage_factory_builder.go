@@ -42,7 +42,8 @@ func NewStorageFactory(storageConfig storagebackend.Config, defaultMediaType str
 	if err != nil {
 		return nil, err
 	}
-	return serverstorage.NewDefaultStorageFactory(storageConfig, defaultMediaType, serializer, resourceEncodingConfig, apiResourceConfig), nil
+	specialDefaultResourcePrefixes := map[schema.GroupResource]string{}
+	return serverstorage.NewDefaultStorageFactory(storageConfig, defaultMediaType, serializer, resourceEncodingConfig, apiResourceConfig, specialDefaultResourcePrefixes), nil
 }
 
 // Merges the given defaultResourceConfig with specifc GroupVersionResource overrides.

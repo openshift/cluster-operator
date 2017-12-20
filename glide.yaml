@@ -1,27 +1,17 @@
 package: github.com/openshift/cluster-operator
 import:
 - package: k8s.io/client-go
-  version: kubernetes-1.8.2
+  version: kubernetes-1.9.0
 - package: k8s.io/apimachinery
-  version: kubernetes-1.8.2
+  version: kubernetes-1.9.0
 - package: k8s.io/api
-  version: kubernetes-1.8.2
+  version: kubernetes-1.9.0
 - package: k8s.io/apiserver
-  version: kubernetes-1.8.2
+  version: kubernetes-1.9.0
 - package: k8s.io/code-generator
-  version: kubernetes-1.8.2
+  version: kubernetes-1.9.0
 - package: k8s.io/gengo
-  version: 9e661e9308f078838e266cca1c673922088c0ea4 # version used by kube 1.8.2
+  version: b58fc7edb82e0c6ffc9b8aef61813c7261b785d4 # version used by kube 1.9.0
 - package: github.com/kubernetes/repo-infra
-- package: github.com/spf13/cobra
-  version: f62e98d28ab7ad31d707ba837a966378465c7b57 # version used by kube 1.8.2
-- package: github.com/spf13/pflag
-  version: 9ff6c6923cfffbcd502984b8e0c80539a94968b7 # version uesd by kube 1.8.2
-- package: github.com/golang/glog
-  version: 44145f04b68cf362d9c4df2182967c2275eaefed # version used by kube 1.8.2
-- package: github.com/prometheus/client_golang
-  version: e7e903064f5e9eb5da98208bae10b475d4db0f8c # version used by kube 1.8.2
 - package: github.com/sirupsen/logrus
   version: v1.0.3
-- package: github.com/stretchr/testify
-  version: v1.1.4

@@ -51,7 +51,7 @@ func (f *genericInformer) Lister() cache.GenericLister {
 // TODO extend this to unknown resources with a client pool
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
-	// Group=Clusteroperator, Version=InternalVersion
+	// Group=clusteroperator.openshift.io, Version=internalVersion
 	case clusteroperator.SchemeGroupVersion.WithResource("clusters"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Clusteroperator().InternalVersion().Clusters().Informer()}, nil
 	case clusteroperator.SchemeGroupVersion.WithResource("machines"):

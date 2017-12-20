@@ -29,25 +29,25 @@ import (
 // WantsInternalClusterOperatorClientSet defines a function which sets ClientSet for admission plugins that need it
 type WantsInternalClusterOperatorClientSet interface {
 	SetInternalClusterOperatorClientSet(internalclientset.Interface)
-	admission.Validator
+	admission.ValidationInterface
 }
 
 // WantsInternalClusterOperatorInformerFactory defines a function which sets InformerFactory for admission plugins that need it
 type WantsInternalClusterOperatorInformerFactory interface {
 	SetInternalClusterOperatorInformerFactory(informers.SharedInformerFactory)
-	admission.Validator
+	admission.ValidationInterface
 }
 
 // WantsKubeClientSet defines a function which sets ClientSet for admission plugins that need it
 type WantsKubeClientSet interface {
 	SetKubeClientSet(kubeclientset.Interface)
-	admission.Validator
+	admission.ValidationInterface
 }
 
 // WantsKubeInformerFactory defines a function which sets InformerFactory for admission plugins that need it
 type WantsKubeInformerFactory interface {
 	SetKubeInformerFactory(kubeinformers.SharedInformerFactory)
-	admission.Validator
+	admission.ValidationInterface
 }
 
 type pluginInitializer struct {
