@@ -9,13 +9,17 @@ objects:
   metadata:
     name: ${CLUSTER_NAME}
   spec:
-    masterNodeGroup:
-      size: 1
-    computeNodeGroups:
-      - name: alpha
-        size: 1
-      - name: beta
-        size: 2
+    machineSets:
+    - name: master
+      nodeType: Master
+      infra: true
+      size: 3
+    - name: alpha
+      nodeType: Compute
+      size: 2
+    - name: beta
+      nodeType: Compute
+      size: 5
 
 parameters:
 - name: CLUSTER_NAME
