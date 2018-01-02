@@ -17,137 +17,31 @@ limitations under the License.
 package machine
 
 import (
-	"errors"
-	"fmt"
-
-	"github.com/openshift/cluster-operator/pkg/api"
-	clusteroperatormeta "github.com/openshift/cluster-operator/pkg/api/meta"
 	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
-	"github.com/openshift/cluster-operator/pkg/storage/etcd"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/fields"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/registry/generic"
 	"k8s.io/apiserver/pkg/registry/generic/registry"
 	"k8s.io/apiserver/pkg/registry/rest"
-	"k8s.io/apiserver/pkg/storage"
 )
-
-var (
-	errNotAMachine = errors.New("not a machine")
-)
-
-// NewSingular returns a new shell of a service machine, according to the given namespace and
-// name
-func NewSingular(ns, name string) runtime.Object {
-	return &clusteroperator.Machine{
-		TypeMeta: metav1.TypeMeta{
-			Kind: "Machine",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: ns,
-			Name:      name,
-		},
-	}
-}
-
-// EmptyObject returns an empty machine
-func EmptyObject() runtime.Object {
-	return &clusteroperator.Machine{}
-}
-
-// NewList returns a new shell of a machine list
-func NewList() runtime.Object {
-	return &clusteroperator.MachineList{
-		TypeMeta: metav1.TypeMeta{
-			Kind: "MachineList",
-		},
-		Items: []clusteroperator.Machine{},
-	}
-}
-
-// CheckObject returns a non-nil error if obj is not a machine object
-func CheckObject(obj runtime.Object) error {
-	_, ok := obj.(*clusteroperator.Machine)
-	if !ok {
-		return errNotAMachine
-	}
-	return nil
-}
-
-// Match determines whether an Machine matches a field and label selector.
-func Match(label labels.Selector, field fields.Selector) storage.SelectionPredicate {
-	return storage.SelectionPredicate{
-		Label:    label,
-		Field:    field,
-		GetAttrs: GetAttrs,
-	}
-}
-
-// toSelectableFields returns a field set that represents the object for matching purposes.
-func toSelectableFields(machine *clusteroperator.Machine) fields.Set {
-	objectMetaFieldsSet := generic.ObjectMetaFieldsSet(&machine.ObjectMeta, true)
-	return generic.MergeFieldsSets(objectMetaFieldsSet, nil)
-}
-
-// GetAttrs returns labels and fields of a given object for filtering purposes.
-func GetAttrs(obj runtime.Object) (labels.Set, fields.Set, bool, error) {
-	machine, ok := obj.(*clusteroperator.Machine)
-	if !ok {
-		return nil, nil, false, fmt.Errorf("given object is not a Machine")
-	}
-	return labels.Set(machine.ObjectMeta.Labels), toSelectableFields(machine), machine.Initializers != nil, nil
-}
 
 // NewStorage creates a new rest.Storage responsible for accessing
 // Machine resources
-func NewStorage(opts etcd.Options) (machines, machinesStatus rest.Storage) {
-	restOpts := opts.RESTOptions
-
-	prefix := "/" + restOpts.ResourcePrefix
-
-	storageInterface, dFunc := restOpts.Decorator(
-		api.Scheme,
-		restOpts.StorageConfig,
-		&clusteroperator.Machine{},
-		prefix,
-		nil, /* keyFunc for decorator -- looks to be unused everywhere */
-		NewList,
-		nil,
-		storage.NoTriggerPublisher,
-	)
-
+func NewStorage(opts generic.RESTOptions) (machines *registry.Store, machinesStatus rest.Storage) {
 	store := registry.Store{
-		NewFunc:     EmptyObject,
-		NewListFunc: NewList,
-		KeyRootFunc: func(ctx genericapirequest.Context) string {
-			return registry.NamespaceKeyRootFunc(ctx, prefix)
-		},
-		KeyFunc: func(ctx genericapirequest.Context, name string) (string, error) {
-			return registry.NamespaceKeyFunc(ctx, prefix, name)
-		},
-		// Retrieve the name field of the resource.
-		ObjectNameFunc: func(obj runtime.Object) (string, error) {
-			return clusteroperatormeta.GetAccessor().Name(obj)
-		},
-		// Used to match objects based on labels/fields for list.
-		PredicateFunc: Match,
-		// DefaultQualifiedResource should always be plural
+		NewFunc:                  func() runtime.Object { return &clusteroperator.Machine{} },
+		NewListFunc:              func() runtime.Object { return &clusteroperator.MachineList{} },
 		DefaultQualifiedResource: clusteroperator.Resource("machines"),
 
 		CreateStrategy:          machineRESTStrategies,
 		UpdateStrategy:          machineRESTStrategies,
 		DeleteStrategy:          machineRESTStrategies,
 		EnableGarbageCollection: true,
-
-		Storage:     storageInterface,
-		DestroyFunc: dFunc,
 	}
 
-	options := &generic.StoreOptions{RESTOptions: restOpts, AttrFunc: GetAttrs}
+	options := &generic.StoreOptions{RESTOptions: opts}
 	if err := store.CompleteWithOptions(options); err != nil {
 		panic(err) // TODO: Propagate error up
 	}
@@ -178,6 +72,6 @@ func (r *StatusREST) Get(ctx genericapirequest.Context, name string, options *me
 
 // Update alters the status subset of an object and implements the
 // rest.Updater interface.
-func (r *StatusREST) Update(ctx genericapirequest.Context, name string, objInfo rest.UpdatedObjectInfo) (runtime.Object, bool, error) {
-	return r.store.Update(ctx, name, objInfo)
+func (r *StatusREST) Update(ctx genericapirequest.Context, name string, objInfo rest.UpdatedObjectInfo, createValidation rest.ValidateObjectFunc, updateValidation rest.ValidateObjectUpdateFunc) (runtime.Object, bool, error) {
+	return r.store.Update(ctx, name, objInfo, createValidation, updateValidation)
 }

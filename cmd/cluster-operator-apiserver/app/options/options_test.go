@@ -28,11 +28,7 @@ import (
 	apiserveroptions "k8s.io/apiserver/pkg/server/options"
 	genericoptions "k8s.io/apiserver/pkg/server/options"
 	"k8s.io/apiserver/pkg/storage/storagebackend"
-	//	kapi "k8s.io/kubernetes/pkg/api"
-	//	kubeoptions "k8s.io/kubernetes/pkg/kubeapiserver/options"
-	//	kubeletclient "k8s.io/kubernetes/pkg/kubelet/client"
-
-	"github.com/openshift/cluster-operator/pkg/api"
+	auditwebhook "k8s.io/apiserver/plugin/pkg/audit/webhook"
 )
 
 func TestAddFlags(t *testing.T) {
@@ -52,6 +48,12 @@ func TestAddFlags(t *testing.T) {
 		"--audit-policy-file=/policy",
 		"--audit-webhook-config-file=/webhook-config",
 		"--audit-webhook-mode=blocking",
+		"--audit-webhook-batch-buffer-size=42",
+		"--audit-webhook-batch-max-size=43",
+		"--audit-webhook-batch-max-wait=1s",
+		"--audit-webhook-batch-throttle-qps=43.5",
+		"--audit-webhook-batch-throttle-burst=44",
+		"--audit-webhook-batch-initial-backoff=2s",
 		"--authentication-token-webhook-cache-ttl=3m",
 		"--authorization-webhook-cache-authorized-ttl=3m",
 		"--authorization-webhook-cache-unauthorized-ttl=1m",
@@ -82,9 +84,11 @@ func TestAddFlags(t *testing.T) {
 			MinRequestTimeout:           1800,
 		},
 		Admission: &apiserveroptions.AdmissionOptions{
-			PluginNames: []string{"AlwaysDeny"},
-			ConfigFile:  "/admission-control-config",
-			Plugins:     s.Admission.Plugins,
+			RecommendedPluginOrder: []string{"NamespaceLifecycle", "Initializers", "MutatingAdmissionWebhook", "ValidatingAdmissionWebhook"},
+			DefaultOffPlugins:      []string{"Initializers", "MutatingAdmissionWebhook", "ValidatingAdmissionWebhook"},
+			PluginNames:            []string{"AlwaysDeny"},
+			ConfigFile:             "/admission-control-config",
+			Plugins:                s.Admission.Plugins,
 		},
 		Etcd: &apiserveroptions.EtcdOptions{
 			StorageConfig: storagebackend.Config{
@@ -92,11 +96,11 @@ func TestAddFlags(t *testing.T) {
 				ServerList: nil,
 				Prefix:     "/clusteroperator",
 				DeserializationCacheSize: 0,
-				Copier:   api.Scheme,
-				Quorum:   false,
-				KeyFile:  "/var/run/kubernetes/etcd.key",
-				CAFile:   "/var/run/kubernetes/etcdca.crt",
-				CertFile: "/var/run/kubernetes/etcdce.crt",
+				Quorum:             false,
+				KeyFile:            "/var/run/kubernetes/etcd.key",
+				CAFile:             "/var/run/kubernetes/etcdca.crt",
+				CertFile:           "/var/run/kubernetes/etcdce.crt",
+				CompactionInterval: storagebackend.DefaultCompactInterval,
 			},
 			DefaultStorageMediaType: "application/json",
 			DeleteCollectionWorkers: 1,
@@ -127,6 +131,14 @@ func TestAddFlags(t *testing.T) {
 			WebhookOptions: apiserveroptions.AuditWebhookOptions{
 				Mode:       "blocking",
 				ConfigFile: "/webhook-config",
+				BatchConfig: auditwebhook.BatchBackendConfig{
+					BufferSize:     42,
+					MaxBatchSize:   43,
+					MaxBatchWait:   1 * time.Second,
+					ThrottleQPS:    43.5,
+					ThrottleBurst:  44,
+					InitialBackoff: 2 * time.Second,
+				},
 			},
 			PolicyFile: "/policy",
 		},

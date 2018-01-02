@@ -20,7 +20,7 @@
     * Alternatively, you can also compile `oc` from source.
     * Note: It is recommended to put the `oc` binary somewhere in your path.
   * Start an OpenShift cluster:
-    * `oc cluster up --image="docker.io/openshift/origin" --version "v3.8.0-alpha.1"`
+    * `oc cluster up --image="docker.io/openshift/origin" --version "latest"`
       * Check for newer 3.8 tags here if desired: https://hub.docker.com/r/openshift/origin/tags/
       * Watchout for "latest", it often will pick up older releases if they were the last to be built.
   * Login to the OpenShift cluster as admin:

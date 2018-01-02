@@ -33,8 +33,6 @@ import (
 	//	_ "k8s.io/kubernetes/pkg/features"
 
 	"github.com/spf13/pflag"
-
-	"github.com/openshift/cluster-operator/pkg/api"
 )
 
 const (
@@ -127,7 +125,7 @@ func (s *ClusterOperatorServerRunOptions) AddFlags(fs *pflag.FlagSet) {
 
 // NewEtcdOptions creates a new, empty, EtcdOptions instance
 func NewEtcdOptions() *genericoptions.EtcdOptions {
-	return genericoptions.NewEtcdOptions(storagebackend.NewDefaultConfig(DefaultEtcdPathPrefix, api.Scheme, nil))
+	return genericoptions.NewEtcdOptions(storagebackend.NewDefaultConfig(DefaultEtcdPathPrefix, nil))
 }
 
 // standaloneMode returns true if the env var CLUSTER_OPERATOR_STANALONE=true

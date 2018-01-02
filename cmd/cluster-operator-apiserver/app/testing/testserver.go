@@ -35,7 +35,6 @@ import (
 
 	"github.com/openshift/cluster-operator/cmd/cluster-operator-apiserver/app"
 	"github.com/openshift/cluster-operator/cmd/cluster-operator-apiserver/app/options"
-	"github.com/openshift/cluster-operator/pkg/api"
 )
 
 // TearDownFunc is to be called to tear down a test server.
@@ -67,7 +66,7 @@ func StartTestServer(t *testing.T) (result *restclient.Config, tearDownForCaller
 	}()
 
 	t.Logf("Starting etcd...")
-	etcdServer, storageConfig := etcdtesting.NewUnsecuredEtcd3TestClientServer(t, api.Scheme)
+	etcdServer, storageConfig := etcdtesting.NewUnsecuredEtcd3TestClientServer(t)
 
 	tmpDir, err = ioutil.TempDir("", "openshift-cluster-operator-apiserver")
 	if err != nil {
