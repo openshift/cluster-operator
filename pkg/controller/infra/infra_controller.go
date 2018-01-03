@@ -24,6 +24,7 @@ import (
 	kapi "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	batchinformers "k8s.io/client-go/informers/batch/v1"
@@ -33,6 +34,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/client-go/util/workqueue"
+	"k8s.io/apiserver/pkg/storage/names"
 
 	"github.com/golang/glog"
 	log "github.com/sirupsen/logrus"
@@ -58,6 +60,7 @@ const (
 	controllerLogName = "infra"
 
 	infraPlaybook = "playbooks/cluster-operator/aws/infrastructure.yml"
+	deprovisionInfraPlaybook = "playbooks/aws/openshift-cluster/uninstall_prerequisites.yml"
 	// jobPrefix is used when generating a name for the configmap and job used for each
 	// Ansible execution.
 	jobPrefix = "job-infra-"
@@ -395,9 +398,25 @@ func (c *InfraController) syncCluster(key string) error {
 		return err
 	}
 
+	// Are we dealing with a cluster marked for deletion
+	if cluster.DeletionTimestamp != nil {
+		c.logger.Debugf("DeletionTimestamp set on cluster %s", cluster.Name)
+		cluster_copy := cluster.DeepCopy()
+		finalizers := sets.NewString(cluster_copy.ObjectMeta.Finalizers...)
+
+		if finalizers.Has(clusteroperator.FinalizerClusterOperator) {
+			// Clear the finalizer for the cluster
+			finalizers.Delete(clusteroperator.FinalizerClusterOperator)
+			cluster_copy.ObjectMeta.Finalizers = finalizers.List()
+			c.updateClusterStatus(cluster, cluster_copy)
+
+			return c.runDeprovisionJob(cluster)
+		}
+		return nil
+	}
 	specChanged := cluster.Status.ProvisionedJobGeneration != cluster.Generation
 
-	jobFactory := c.getJobFactory(cluster)
+	jobFactory := c.getProvisionJobFactory(cluster)
 
 	job, isJobNew, err := c.jobControl.ControlJobs(key, cluster, specChanged, jobFactory)
 	if err != nil {
@@ -527,14 +546,40 @@ func (f jobFactory) BuildJob(name string) (*v1batch.Job, *kapi.ConfigMap, error)
 	return f(name)
 }
 
-func (c *InfraController) getJobFactory(cluster *clusteroperator.Cluster) controller.JobFactory {
+func (c *InfraController) getJobFactory(cluster *clusteroperator.Cluster, playbook string) controller.JobFactory {
+	c.logger.Infof("PLAYBOOK: %s", playbook)
 	return jobFactory(func(name string) (*v1batch.Job, *kapi.ConfigMap, error) {
 		varsGenerator := ansible.NewVarsGenerator(cluster)
 		vars, err := varsGenerator.GenerateVars()
 		if err != nil {
 			return nil, nil, err
 		}
-		job, configMap := c.ansibleGenerator.GeneratePlaybookJob(name, &cluster.Spec.Hardware, infraPlaybook, provisionInventoryTemplate, vars)
+		job, configMap := c.ansibleGenerator.GeneratePlaybookJob(name, &cluster.Spec.Hardware, playbook, provisionInventoryTemplate, vars)
 		return job, configMap, nil
 	})
+}
+
+func (c *InfraController) getProvisionJobFactory(cluster *clusteroperator.Cluster) controller.JobFactory {
+	 return c.getJobFactory(cluster, infraPlaybook)
+}
+
+func (c *InfraController) getDeprovisionJobFactory(cluster *clusteroperator.Cluster) controller.JobFactory {
+	 return c.getJobFactory(cluster, deprovisionInfraPlaybook)
+}
+
+// fire-and-forget infra deprovision Job
+func (c *InfraController) runDeprovisionJob(cluster *clusteroperator.Cluster) error {
+	name := names.SimpleNameGenerator.GenerateName(fmt.Sprintf("infra-deprovision-%s-", cluster.Name))
+
+	job, configMap, err := c.getDeprovisionJobFactory(cluster).BuildJob(name)
+	if err != nil {
+		return err
+	}
+
+	_, err = c.kubeClient.CoreV1().ConfigMaps(cluster.Namespace).Create(configMap)
+	if err != nil {
+		return err
+	}
+	_, err = c.kubeClient.BatchV1().Jobs(cluster.Namespace).Create(job)
+	return err
 }

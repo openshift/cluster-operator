@@ -44,6 +44,11 @@ type Cluster struct {
 	Status ClusterStatus
 }
 
+// finalizer values unique to cluster-operator
+const (
+	FinalizerClusterOperator string = "openshift/cluster-operator"
+)
+
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // ClusterList is a list of Clusters.
