@@ -30,6 +30,10 @@ func (c *FakeClusteroperatorV1alpha1) Clusters(namespace string) v1alpha1.Cluste
 	return &FakeClusters{c, namespace}
 }
 
+func (c *FakeClusteroperatorV1alpha1) ClusterVersions(namespace string) v1alpha1.ClusterVersionInterface {
+	return &FakeClusterVersions{c, namespace}
+}
+
 func (c *FakeClusteroperatorV1alpha1) Machines(namespace string) v1alpha1.MachineInterface {
 	return &FakeMachines{c, namespace}
 }

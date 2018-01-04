@@ -48,6 +48,78 @@ type ClusterList struct {
 	Items []Cluster `json:"items"`
 }
 
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// ClusterVersion represents a version of OpenShift that can be, or is installed.
+type ClusterVersion struct {
+	// +optional
+	metav1.TypeMeta `json:",inline"`
+	// +optional
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	// +optional
+	Spec ClusterVersionSpec `json:"spec,omitempty"`
+	// +optional
+	Status ClusterVersionStatus `json:"status,omitempty"`
+}
+
+// ClusterVersionSpec is a specification of a cluster version that can be installed.
+type ClusterVersionSpec struct {
+	// +optional
+	// YumRepositories is an optional list of yum repositories that should be configured on
+	// each host in the cluster.
+	YumRepositories []YumRepository `json:"yumRepositories,omitempty"`
+
+	// ImageFormat defines a format string for the container registry and images to use for
+	// various OpenShift components. Valid expansions are component (required, expands to
+	// pod/deployer/haproxy-router/etc), and version (v3.9.0).
+	// (i.e. example.com/openshift3/ose-${component}:${version}")
+	ImageFormat string `json:"imageFormat"`
+
+	VMImages VMImages `json:"vmImages"`
+}
+
+// ClusterVersionStatus is the status of a ClusterVersion. It may be used to indicate if the
+// cluster version is ready to be used, or if any problems have been detected.
+type ClusterVersionStatus struct {
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+type ClusterVersionList struct {
+	metav1.TypeMeta `json:",inline"`
+	// +optional
+	metav1.ListMeta `json:"metadata,omitempty"`
+
+	Items []ClusterVersion `json:"items"`
+}
+
+// VMImages contains required data to locate images in all supported cloud providers.
+type VMImages struct {
+	// +optional
+	AWSImages *AWSVMImages `json:"awsVMImages,omitempty"`
+	// TODO: GCP, Azure added as necessary.
+}
+
+// AWSVMImages indicates which AMI to use in each supported AWS region for this OpenShift version.
+type AWSVMImages struct {
+	AMIByRegion map[string]string `json:"amiByRegion"`
+}
+
+// YumRepository represents optional yum repositories to deploy onto all systems in the cluster.
+type YumRepository struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	BaseURL string `json:"baseurl"`
+	// Enabled controls whether or not the repository should be enabled on the end system. Must be 0 or 1 to match yum.
+	Enabled int `json:"enabled"`
+	// GPGCheck controls whether or not the packages in the repository should have their GPG signatures validated. Must be 0 or 1 to match yum.
+	GPGCheck int `json:"gpgcheck"`
+	// +optional
+	GPGKey string `json:"gpgkey,omitempty"`
+}
+
 // ClusterSpec is the specification of a cluster's hardware and configuration
 type ClusterSpec struct {
 	// Hardware specifies the hardware that the cluster will run on

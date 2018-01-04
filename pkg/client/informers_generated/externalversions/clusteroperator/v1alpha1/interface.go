@@ -26,6 +26,8 @@ import (
 type Interface interface {
 	// Clusters returns a ClusterInformer.
 	Clusters() ClusterInformer
+	// ClusterVersions returns a ClusterVersionInformer.
+	ClusterVersions() ClusterVersionInformer
 	// Machines returns a MachineInformer.
 	Machines() MachineInformer
 	// MachineSets returns a MachineSetInformer.
@@ -46,6 +48,11 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 // Clusters returns a ClusterInformer.
 func (v *version) Clusters() ClusterInformer {
 	return &clusterInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// ClusterVersions returns a ClusterVersionInformer.
+func (v *version) ClusterVersions() ClusterVersionInformer {
+	return &clusterVersionInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // Machines returns a MachineInformer.

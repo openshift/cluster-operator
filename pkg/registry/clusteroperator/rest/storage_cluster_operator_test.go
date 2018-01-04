@@ -78,6 +78,16 @@ func TestV1Alpha1Storage(t *testing.T) {
 		t.Fatalf("no clusters/status storage found")
 	}
 
+	_, clusterVersionStorageExists := storageMap["clusterversions"]
+	if !clusterVersionStorageExists {
+		t.Fatalf("no cluster versions storage found")
+	}
+
+	_, clusterVersionStatusStorageExists := storageMap["clusterversions/status"]
+	if !clusterVersionStatusStorageExists {
+		t.Fatalf("no clusterversions/status storage found")
+	}
+
 	_, machineGroupStorageExists := storageMap["machinesets"]
 	if !machineGroupStorageExists {
 		t.Fatalf("no machinesets storage found")

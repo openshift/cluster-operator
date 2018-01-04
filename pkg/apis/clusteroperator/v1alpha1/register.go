@@ -52,6 +52,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
 		&Cluster{},
 		&ClusterList{},
+		&ClusterVersion{},
+		&ClusterVersionList{},
 		&MachineSet{},
 		&MachineSetList{},
 		&Machine{},
