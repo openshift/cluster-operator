@@ -29,6 +29,7 @@ import (
 func (in *AWSClusterSpec) DeepCopyInto(out *AWSClusterSpec) {
 	*out = *in
 	out.AccountSecret = in.AccountSecret
+	out.SSHSecret = in.SSHSecret
 	return
 }
 
@@ -220,6 +221,15 @@ func (in *ClusterStatus) DeepCopyInto(out *ClusterStatus) {
 	*out = *in
 	if in.AdminKubeconfig != nil {
 		in, out := &in.AdminKubeconfig, &out.AdminKubeconfig
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(v1.LocalObjectReference)
+			**out = **in
+		}
+	}
+	if in.ProvisioningJob != nil {
+		in, out := &in.ProvisioningJob, &out.ProvisioningJob
 		if *in == nil {
 			*out = nil
 		} else {

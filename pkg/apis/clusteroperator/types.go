@@ -21,6 +21,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// Annotation constants
+const (
+	// ClusterGenerationAnnotation contains the generation of a cluster spec used to create
+	// a provisioning job
+	ClusterGenerationAnnotation = GroupName + "/cluster.generation"
+)
+
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
@@ -80,6 +87,14 @@ type AWSClusterSpec struct {
 	// AccountSeceret refers to a secret that contains the AWS account access
 	// credentials
 	AccountSecret corev1.LocalObjectReference
+
+	// SSHSecret refers to a secret that contains the ssh private key to access
+	// EC2 instances in this cluster
+	SSHSecret corev1.LocalObjectReference
+
+	// KeyPairName is the name of the AWS key pair to use for SSH access to EC2
+	// instances in this cluster
+	KeyPairName string
 
 	// Region specifies the AWS region where the cluster will be created
 	Region string
@@ -151,6 +166,17 @@ type ClusterStatus struct {
 	// For machine set hardware, see the status of each machine set resource.
 	Provisioned bool
 
+	// ProvisioningJobGeneration is the generation of the cluster resource used to
+	// launch the last provisioning job.
+	// +optional
+	ProvisioningJobGeneration int64
+
+	// ProvisioningJob is the reference to the Job performing infrastructure provisioning
+	// for this cluster. It will be set while the infrastructure is being provisioned.
+	// This reference is guaranteed to be nil if Provisioned is true
+	// +optional
+	ProvisioningJob *corev1.LocalObjectReference
+
 	// Running is true if the master of the cluster is running and can be accessed using
 	// the KubeconfigSecret
 	Running bool
@@ -184,6 +210,10 @@ type ClusterConditionType string
 
 // These are valid conditions for a cluster
 const (
+	// ClusterHardwareProvisionining is true when cluster infrastructure is in the process of provisioning
+	ClusterHardwareProvisioning ClusterConditionType = "HardwareProvisioning"
+	// ClusterHardwareProvisioningFailed is true when the job to provision cluster infrastructure has failed.
+	ClusterHardwareProvisioningFailed ClusterConditionType = "HardwareProvisioningFailed"
 	// ClusterHardwareProvisioned represents status of the hardware provisioning status for this cluster.
 	ClusterHardwareProvisioned ClusterConditionType = "HardwareProvisioned"
 	// ClusterReady means the cluster is able to service requests

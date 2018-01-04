@@ -39,6 +39,19 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Ref:         ref("k8s.io/api/core/v1.LocalObjectReference"),
 							},
 						},
+						"sshSecret": {
+							SchemaProps: spec.SchemaProps{
+								Description: "SSHSecret refers to a secret that contains the ssh private key to access EC2 instances in this cluster",
+								Ref:         ref("k8s.io/api/core/v1.LocalObjectReference"),
+							},
+						},
+						"keyPairName": {
+							SchemaProps: spec.SchemaProps{
+								Description: "KeyPairName is the name of the AWS key pair to use for SSH access to EC2 instances in this cluster",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
 						"region": {
 							SchemaProps: spec.SchemaProps{
 								Description: "Region specifies the AWS region where the cluster will be created",
@@ -61,7 +74,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 							},
 						},
 					},
-					Required: []string{"accountSecret", "region"},
+					Required: []string{"accountSecret", "sshSecret", "keyPairName", "region"},
 				},
 			},
 			Dependencies: []string{
@@ -405,6 +418,19 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Description: "Provisioned is true if the hardware pre-reqs for the cluster have been provisioned For machine set hardware, see the status of each machine set resource.",
 								Type:        []string{"boolean"},
 								Format:      "",
+							},
+						},
+						"provisioningJobGeneration": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ProvisioningJobGeneration is the generation of the cluster resource used to launch the last provisioning job.",
+								Type:        []string{"integer"},
+								Format:      "int64",
+							},
+						},
+						"provisioningJob": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ProvisioningJob is the reference to the Job performing infrastructure provisioning for this cluster. It will be set while the infrastructure is being provisioned. This reference is guaranteed to be nil if Provisioned is true",
+								Ref:         ref("k8s.io/api/core/v1.LocalObjectReference"),
 							},
 						},
 						"running": {

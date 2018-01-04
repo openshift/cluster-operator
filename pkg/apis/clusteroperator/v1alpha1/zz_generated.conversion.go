@@ -83,6 +83,8 @@ func RegisterConversions(scheme *runtime.Scheme) error {
 
 func autoConvert_v1alpha1_AWSClusterSpec_To_clusteroperator_AWSClusterSpec(in *AWSClusterSpec, out *clusteroperator.AWSClusterSpec, s conversion.Scope) error {
 	out.AccountSecret = in.AccountSecret
+	out.SSHSecret = in.SSHSecret
+	out.KeyPairName = in.KeyPairName
 	out.Region = in.Region
 	out.VPCName = in.VPCName
 	out.VPCSubnet = in.VPCSubnet
@@ -96,6 +98,8 @@ func Convert_v1alpha1_AWSClusterSpec_To_clusteroperator_AWSClusterSpec(in *AWSCl
 
 func autoConvert_clusteroperator_AWSClusterSpec_To_v1alpha1_AWSClusterSpec(in *clusteroperator.AWSClusterSpec, out *AWSClusterSpec, s conversion.Scope) error {
 	out.AccountSecret = in.AccountSecret
+	out.SSHSecret = in.SSHSecret
+	out.KeyPairName = in.KeyPairName
 	out.Region = in.Region
 	out.VPCName = in.VPCName
 	out.VPCSubnet = in.VPCSubnet
@@ -305,6 +309,8 @@ func autoConvert_v1alpha1_ClusterStatus_To_clusteroperator_ClusterStatus(in *Clu
 	out.InfraMachineSetName = in.InfraMachineSetName
 	out.AdminKubeconfig = (*v1.LocalObjectReference)(unsafe.Pointer(in.AdminKubeconfig))
 	out.Provisioned = in.Provisioned
+	out.ProvisioningJobGeneration = in.ProvisioningJobGeneration
+	out.ProvisioningJob = (*v1.LocalObjectReference)(unsafe.Pointer(in.ProvisioningJob))
 	out.Running = in.Running
 	out.Conditions = *(*[]clusteroperator.ClusterCondition)(unsafe.Pointer(&in.Conditions))
 	return nil
@@ -321,6 +327,8 @@ func autoConvert_clusteroperator_ClusterStatus_To_v1alpha1_ClusterStatus(in *clu
 	out.InfraMachineSetName = in.InfraMachineSetName
 	out.AdminKubeconfig = (*v1.LocalObjectReference)(unsafe.Pointer(in.AdminKubeconfig))
 	out.Provisioned = in.Provisioned
+	out.ProvisioningJobGeneration = in.ProvisioningJobGeneration
+	out.ProvisioningJob = (*v1.LocalObjectReference)(unsafe.Pointer(in.ProvisioningJob))
 	out.Running = in.Running
 	out.Conditions = *(*[]ClusterCondition)(unsafe.Pointer(&in.Conditions))
 	return nil
