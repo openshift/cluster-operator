@@ -90,7 +90,7 @@ objects:
   # allow all operations on all resources in our API group
   - apiGroups: ["clusteroperator.openshift.io"]
     resources: ["*"]
-    verbs:     ["create", "get", "list", "watch", "update", "delete"]
+    verbs:     ["create", "get", "list", "watch", "update", "patch", "delete"]
   # allow operations on required resources in any namespace a cluster is created
   - apiGroups:     [""]
     resources:     ["configmaps", "pods", "secrets"]
@@ -140,6 +140,18 @@ objects:
   data:
     aws_access_key_id: ${AWS_ACCESS_KEY_ID}
     aws_secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+
+# Secret for AWS SSH private key
+- apiVersion: v1
+  kind: Secret
+  metadata:
+    name: ssh-private-key
+    namespace: ${CLUSTER_OPERATOR_NAMESPACE}
+    labels:
+      app: cluster-operator
+  type: Opaque
+  data:
+    ssh-privatekey: ${AWS_SSH_PRIVATE_KEY}
 
 # Deployment of the API Server pod
 - apiVersion: apps/v1beta1
@@ -381,6 +393,7 @@ parameters:
 - name: SERVING_KEY
 - name: AWS_ACCESS_KEY_ID
 - name: AWS_SECRET_ACCESS_KEY
+- name: AWS_SSH_PRIVATE_KEY
 # Ansible image to use for running playbooks
 - name: ANSIBLE_IMAGE
   value: fake-openshift-ansible:canary

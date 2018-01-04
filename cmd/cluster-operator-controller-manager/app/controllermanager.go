@@ -39,6 +39,7 @@ import (
 
 	"k8s.io/api/core/v1"
 	"k8s.io/client-go/discovery"
+	kubeinformers "k8s.io/client-go/informers"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -148,6 +149,7 @@ func Run(s *options.CMServer) error {
 		}
 
 		ctx.InformerFactory.Start(ctx.Stop)
+		ctx.KubeInformerFactory.Start(ctx.Stop)
 		close(ctx.InformersStarted)
 
 		select {}
@@ -245,6 +247,9 @@ type ControllerContext struct {
 
 	// InformerFactory gives access to informers for the controller.
 	InformerFactory clusteroperatorinformers.SharedInformerFactory
+
+	// KubeInformerFactory gives access to kubernetes informers for the controller.
+	KubeInformerFactory kubeinformers.SharedInformerFactory
 
 	// Options provides access to init options for a given controller
 	Options options.CMServer
@@ -391,7 +396,9 @@ func GetAvailableResources(clientBuilder controller.ClientBuilder) (map[schema.G
 // controllers such as the clientBuilder.
 func CreateControllerContext(s *options.CMServer, clientBuilder controller.ClientBuilder, stop <-chan struct{}) (ControllerContext, error) {
 	versionedClient := clientBuilder.ClientOrDie("shared-informers")
+	kubeClient := clientBuilder.KubeClientOrDie("shared-informers")
 	sharedInformers := clusteroperatorinformers.NewSharedInformerFactory(versionedClient, ResyncPeriod(s)())
+	kubeSharedInformers := kubeinformers.NewSharedInformerFactory(kubeClient, ResyncPeriod(s)())
 
 	availableResources, err := GetAvailableResources(clientBuilder)
 	if err != nil {
@@ -399,12 +406,13 @@ func CreateControllerContext(s *options.CMServer, clientBuilder controller.Clien
 	}
 
 	ctx := ControllerContext{
-		ClientBuilder:      clientBuilder,
-		InformerFactory:    sharedInformers,
-		Options:            *s,
-		AvailableResources: availableResources,
-		Stop:               stop,
-		InformersStarted:   make(chan struct{}),
+		ClientBuilder:       clientBuilder,
+		InformerFactory:     sharedInformers,
+		KubeInformerFactory: kubeSharedInformers,
+		Options:             *s,
+		AvailableResources:  availableResources,
+		Stop:                stop,
+		InformersStarted:    make(chan struct{}),
 	}
 	return ctx, nil
 }
@@ -454,6 +462,7 @@ func startInfraController(ctx ControllerContext) (bool, error) {
 	}
 	go infra.NewInfraController(
 		ctx.InformerFactory.Clusteroperator().V1alpha1().Clusters(),
+		ctx.KubeInformerFactory.Batch().V1().Jobs(),
 		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-infra-controller"),
 		ctx.ClientBuilder.ClientOrDie("clusteroperator-infra-controller"),
 		ctx.Options.AnsibleImage,

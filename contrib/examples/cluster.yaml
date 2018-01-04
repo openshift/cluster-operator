@@ -9,6 +9,12 @@ objects:
   metadata:
     name: ${CLUSTER_NAME}
   spec:
+    hardware:
+      aws:
+        accountSecret: 
+          name: aws-credentials
+        sshSecret:
+          name: ssh-private-key
     machineSets:
     - name: master
       nodeType: Master
