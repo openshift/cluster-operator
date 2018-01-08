@@ -38,7 +38,6 @@ import (
 	"k8s.io/apiserver/pkg/server/healthz"
 
 	"k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/discovery"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	restclient "k8s.io/client-go/rest"
@@ -59,6 +58,7 @@ import (
 
 	"github.com/openshift/cluster-operator/cmd/cluster-operator-controller-manager/app/options"
 	"github.com/openshift/cluster-operator/pkg/api"
+	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	clusteroperatorinformers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions"
 	"github.com/openshift/cluster-operator/pkg/controller"
 	"github.com/openshift/cluster-operator/pkg/controller/cluster"
@@ -327,13 +327,13 @@ func NewControllerInitializers() map[string]InitFunc {
 func GetAvailableResources(clientBuilder controller.ClientBuilder) (map[schema.GroupVersionResource]bool, error) {
 	var (
 		discoveryClient discovery.DiscoveryInterface
-		resourceMap     []*metav1.APIResourceList
+		allResources    map[schema.GroupVersionResource]bool
 		healthzContent  string
 	)
 
 	// If apiserver is not running we should wait for some time and fail only then. This is particularly
 	// important when we start apiserver and controller manager at the same time.
-	err := wait.PollImmediate(time.Second, 10*time.Second, func() (bool, error) {
+	err := wait.PollImmediate(10*time.Second, 3*time.Minute, func() (bool, error) {
 		client, err := clientBuilder.Client("controller-discovery")
 		if err != nil {
 			glog.Errorf("Failed to get api versions from server: %v", err)
@@ -351,9 +351,30 @@ func GetAvailableResources(clientBuilder controller.ClientBuilder) (map[schema.G
 
 		discoveryClient = client.Discovery()
 
-		resourceMap, err = discoveryClient.ServerResources()
+		resourceMap, err := discoveryClient.ServerResources()
 		if err != nil {
 			glog.Errorf("API Extensions have not all been registered yet. Waiting a little while. %v", err)
+			return false, nil
+		}
+
+		clusterOperatorResourcesRegistered := false
+		allResources = map[schema.GroupVersionResource]bool{}
+		for _, apiResourceList := range resourceMap {
+			version, err := schema.ParseGroupVersion(apiResourceList.GroupVersion)
+			if err != nil {
+				glog.Errorf("unable to parse group version %q: %v", apiResourceList.GroupVersion, err)
+				return false, nil
+			}
+			if apiResourceList.GroupVersion == v1alpha1.SchemeGroupVersion.String() {
+				clusterOperatorResourcesRegistered = true
+			}
+			for _, apiResource := range apiResourceList.APIResources {
+				allResources[version.WithResource(apiResource.Name)] = true
+			}
+		}
+
+		if !clusterOperatorResourcesRegistered {
+			glog.Errorf("Cluster operator resources are not registered yet with the API server. Waiting a little while.")
 			return false, nil
 		}
 
@@ -361,21 +382,6 @@ func GetAvailableResources(clientBuilder controller.ClientBuilder) (map[schema.G
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get api versions from server: %v: %v", healthzContent, err)
-	}
-
-	if len(resourceMap) == 0 {
-		return nil, fmt.Errorf("unable to get any supported resources from server")
-	}
-
-	allResources := map[schema.GroupVersionResource]bool{}
-	for _, apiResourceList := range resourceMap {
-		version, err := schema.ParseGroupVersion(apiResourceList.GroupVersion)
-		if err != nil {
-			return nil, err
-		}
-		for _, apiResource := range apiResourceList.APIResources {
-			allResources[version.WithResource(apiResource.Name)] = true
-		}
 	}
 
 	return allResources, nil
