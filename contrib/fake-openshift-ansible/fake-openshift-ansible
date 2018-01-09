@@ -1,4 +1,10 @@
 #! /usr/bin/bash
+#
+# fake-openshift-ansible is used for testing cluster-operator without creating resources
+# on AWS. Instead of running the real ansible playbooks, fake-openshift-ansible verifies
+# that the playbook exists and logs the action with the playbook-mock server.
+#
+
 
 # Ensure that the playbook file exists.
 [ -z $PLAYBOOK_FILE ] && { echo "PLAYBOOK_FILE environment variable not set."; exit 1; }
@@ -17,3 +23,10 @@
 echo PLAYBOOK_FILE=${PLAYBOOK_FILE}
 echo INVENTORY_FILE=${INVENTORY_FILE}
 echo OPTS=${OPTS}
+
+# Log the run of the playbook with playbook-mock server.
+#
+# TODO: Send the contents of the inventory file and the contents of the variables file instead
+# of just the name of the inventory file and the OPTS.
+CLUSTER_OPERATOR_NAMESPACE=${POD_NAMESPACE:-cluster-operator}
+curl http://playbook-mock.${CLUSTER_OPERATOR_NAMESPACE}.svc.cluster.local -d "{\"playbook\":\"${PLAYBOOK_FILE}\",\"inventory\":\"${INVENTORY_FILE}\",\"variables\":\"${OPTS}\"}"
