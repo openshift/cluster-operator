@@ -422,15 +422,9 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 						},
 						"provisioningJobGeneration": {
 							SchemaProps: spec.SchemaProps{
-								Description: "ProvisioningJobGeneration is the generation of the cluster resource used to launch the last provisioning job.",
+								Description: "ProvisioningJobGeneration is the generation of the cluster resource used to to generate the latest completed infra provisioning job. The value will be set regardless of the job having succeeded or failed.",
 								Type:        []string{"integer"},
 								Format:      "int64",
-							},
-						},
-						"provisioningJob": {
-							SchemaProps: spec.SchemaProps{
-								Description: "ProvisioningJob is the reference to the Job performing infrastructure provisioning for this cluster. It will be set while the infrastructure is being provisioned. This reference is guaranteed to be nil if Provisioned is true",
-								Ref:         ref("k8s.io/api/core/v1.LocalObjectReference"),
 							},
 						},
 						"running": {
@@ -454,7 +448,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 							},
 						},
 					},
-					Required: []string{"machineSetCount", "provisioned", "running", "conditions"},
+					Required: []string{"machineSetCount", "provisioned", "provisioningJobGeneration", "running", "conditions"},
 				},
 			},
 			Dependencies: []string{

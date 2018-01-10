@@ -228,15 +228,6 @@ func (in *ClusterStatus) DeepCopyInto(out *ClusterStatus) {
 			**out = **in
 		}
 	}
-	if in.ProvisioningJob != nil {
-		in, out := &in.ProvisioningJob, &out.ProvisioningJob
-		if *in == nil {
-			*out = nil
-		} else {
-			*out = new(v1.LocalObjectReference)
-			**out = **in
-		}
-	}
 	if in.Conditions != nil {
 		in, out := &in.Conditions, &out.Conditions
 		*out = make([]ClusterCondition, len(*in))

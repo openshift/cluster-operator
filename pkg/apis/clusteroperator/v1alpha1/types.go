@@ -167,15 +167,9 @@ type ClusterStatus struct {
 	Provisioned bool `json:"provisioned"`
 
 	// ProvisioningJobGeneration is the generation of the cluster resource used to
-	// launch the last provisioning job.
-	// +optional
-	ProvisioningJobGeneration int64 `json:"provisioningJobGeneration,omitempty"`
-
-	// ProvisioningJob is the reference to the Job performing infrastructure provisioning
-	// for this cluster. It will be set while the infrastructure is being provisioned.
-	// This reference is guaranteed to be nil if Provisioned is true
-	// +optional
-	ProvisioningJob *corev1.LocalObjectReference `json:"provisioningJob,omitempty"`
+	// to generate the latest completed infra provisioning job. The value will be set
+	// regardless of the job having succeeded or failed.
+	ProvisioningJobGeneration int64 `json:"provisioningJobGeneration"`
 
 	// Running is true if the master of the cluster is running and can be accessed using
 	// the KubeconfigSecret
