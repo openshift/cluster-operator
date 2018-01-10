@@ -343,7 +343,7 @@ func autoConvert_v1alpha1_ClusterStatus_To_clusteroperator_ClusterStatus(in *Clu
 	out.InfraMachineSetName = in.InfraMachineSetName
 	out.AdminKubeconfig = (*v1.LocalObjectReference)(unsafe.Pointer(in.AdminKubeconfig))
 	out.Provisioned = in.Provisioned
-	out.ProvisioningJobGeneration = in.ProvisioningJobGeneration
+	out.ProvisionedJobGeneration = in.ProvisionedJobGeneration
 	out.Running = in.Running
 	out.Conditions = *(*[]clusteroperator.ClusterCondition)(unsafe.Pointer(&in.Conditions))
 	return nil
@@ -360,7 +360,7 @@ func autoConvert_clusteroperator_ClusterStatus_To_v1alpha1_ClusterStatus(in *clu
 	out.InfraMachineSetName = in.InfraMachineSetName
 	out.AdminKubeconfig = (*v1.LocalObjectReference)(unsafe.Pointer(in.AdminKubeconfig))
 	out.Provisioned = in.Provisioned
-	out.ProvisioningJobGeneration = in.ProvisioningJobGeneration
+	out.ProvisionedJobGeneration = in.ProvisionedJobGeneration
 	out.Running = in.Running
 	out.Conditions = *(*[]ClusterCondition)(unsafe.Pointer(&in.Conditions))
 	return nil

@@ -236,10 +236,10 @@ type ClusterStatus struct {
 	// For machine set hardware, see the status of each machine set resource.
 	Provisioned bool
 
-	// ProvisioningJobGeneration is the generation of the cluster resource used to
+	// ProvisionedJobGeneration is the generation of the cluster resource used to
 	// to generate the latest completed infra provisioning job. The value will be set
 	// regardless of the job having succeeded or failed.
-	ProvisioningJobGeneration int64
+	ProvisionedJobGeneration int64
 
 	// Running is true if the master of the cluster is running and can be accessed using
 	// the KubeconfigSecret

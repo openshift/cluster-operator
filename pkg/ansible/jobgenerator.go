@@ -1,7 +1,6 @@
 package ansible
 
 import (
-	"fmt"
 	"path"
 
 	log "github.com/sirupsen/logrus"
@@ -9,7 +8,6 @@ import (
 	kbatch "k8s.io/api/batch/v1"
 	kapi "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apiserver/pkg/storage/names"
 
 	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 )
@@ -18,57 +16,45 @@ const (
 	openshiftAnsibleContainerDir = "/usr/share/ansible/openshift-ansible/"
 )
 
-var (
-	clusterKind = clusteroperator.SchemeGroupVersion.WithKind("Cluster")
-)
-
 type JobGenerator interface {
-	GeneratePlaybookJob(cluster *clusteroperator.Cluster, jobPrefix, playbook, inventory, vars string) (*kbatch.Job, *kapi.ConfigMap)
+	GeneratePlaybookJob(name string, hardware *clusteroperator.ClusterHardwareSpec, playbook, inventory, vars string) (*kbatch.Job, *kapi.ConfigMap)
 }
 
 type jobGenerator struct {
-	Image           string
-	ImagePullPolicy kapi.PullPolicy
+	image           string
+	imagePullPolicy kapi.PullPolicy
 }
 
 func NewJobGenerator(openshiftAnsibleImage string, openshiftAnsibleImagePullPolicy kapi.PullPolicy) JobGenerator {
 	return &jobGenerator{
-		Image:           openshiftAnsibleImage,
-		ImagePullPolicy: openshiftAnsibleImagePullPolicy,
+		image:           openshiftAnsibleImage,
+		imagePullPolicy: openshiftAnsibleImagePullPolicy,
 	}
 }
 
-func (r *jobGenerator) generateInventoryConfigMap(name, inventory, vars string, ownerRef *metav1.OwnerReference, logger *log.Entry) *kapi.ConfigMap {
+func (r *jobGenerator) generateInventoryConfigMap(name, inventory, vars string, logger *log.Entry) *kapi.ConfigMap {
 	logger.Debugln("Generating inventory/vars ConfigMap")
 	cfgMap := &kapi.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:            name,
-			OwnerReferences: []metav1.OwnerReference{*ownerRef},
+			Name: name,
 		},
 		Data: map[string]string{
 			"hosts": inventory,
 			"vars":  vars,
 		},
 	}
-	logger.WithField("configmap", cfgMap.Name).Infoln("generated")
+	logger.Infoln("configmap generated")
 
 	return cfgMap
 }
 
-func (r *jobGenerator) GeneratePlaybookJob(cluster *clusteroperator.Cluster, jobPrefix, playbook, inventory, vars string) (*kbatch.Job, *kapi.ConfigMap) {
+func (r *jobGenerator) GeneratePlaybookJob(name string, hardware *clusteroperator.ClusterHardwareSpec, playbook, inventory, vars string) (*kbatch.Job, *kapi.ConfigMap) {
 
-	logger := log.WithFields(log.Fields{
-		"cluster":  fmt.Sprintf("%s/%s", cluster.Namespace, cluster.Name),
-		"playbook": playbook,
-	})
-
-	clusterOwnerRef := metav1.NewControllerRef(cluster, clusterKind)
+	logger := log.WithField("playbook", playbook)
 
 	logger.Infoln("generating ansible playbook job")
 
-	name := names.SimpleNameGenerator.GenerateName(fmt.Sprintf("%s%s-", jobPrefix, cluster.Name))
-
-	cfgMap := r.generateInventoryConfigMap(name, inventory, vars, clusterOwnerRef, logger)
+	cfgMap := r.generateInventoryConfigMap(name, inventory, vars, logger)
 
 	playbookPath := path.Join(openshiftAnsibleContainerDir, playbook)
 	env := []kapi.EnvVar{
@@ -90,13 +76,13 @@ func (r *jobGenerator) GeneratePlaybookJob(cluster *clusteroperator.Cluster, job
 		},
 	}
 
-	if cluster.Spec.Hardware.AWS != nil && len(cluster.Spec.Hardware.AWS.AccountSecret.Name) > 0 {
+	if hardware.AWS != nil && len(hardware.AWS.AccountSecret.Name) > 0 {
 		env = append(env, []kapi.EnvVar{
 			{
 				Name: "AWS_ACCESS_KEY_ID",
 				ValueFrom: &kapi.EnvVarSource{
 					SecretKeyRef: &kapi.SecretKeySelector{
-						LocalObjectReference: cluster.Spec.Hardware.AWS.AccountSecret,
+						LocalObjectReference: hardware.AWS.AccountSecret,
 						Key:                  "aws_access_key_id",
 					},
 				},
@@ -105,7 +91,7 @@ func (r *jobGenerator) GeneratePlaybookJob(cluster *clusteroperator.Cluster, job
 				Name: "AWS_SECRET_ACCESS_KEY",
 				ValueFrom: &kapi.EnvVarSource{
 					SecretKeyRef: &kapi.SecretKeySelector{
-						LocalObjectReference: cluster.Spec.Hardware.AWS.AccountSecret,
+						LocalObjectReference: hardware.AWS.AccountSecret,
 						Key:                  "aws_secret_access_key",
 					},
 				},
@@ -123,8 +109,8 @@ func (r *jobGenerator) GeneratePlaybookJob(cluster *clusteroperator.Cluster, job
 		Containers: []kapi.Container{
 			{
 				Name:            "ansible",
-				Image:           r.Image,
-				ImagePullPolicy: r.ImagePullPolicy,
+				Image:           r.image,
+				ImagePullPolicy: r.imagePullPolicy,
 				Env:             env,
 				VolumeMounts: []kapi.VolumeMount{
 					{
@@ -149,7 +135,7 @@ func (r *jobGenerator) GeneratePlaybookJob(cluster *clusteroperator.Cluster, job
 		},
 	}
 
-	if cluster.Spec.Hardware.AWS != nil && len(cluster.Spec.Hardware.AWS.SSHSecret.Name) > 0 {
+	if hardware.AWS != nil && len(hardware.AWS.SSHSecret.Name) > 0 {
 		podSpec.Containers[0].VolumeMounts = append(podSpec.Containers[0].VolumeMounts, kapi.VolumeMount{
 			Name:      "sshkey",
 			MountPath: "/ansible/ssh/",
@@ -158,7 +144,7 @@ func (r *jobGenerator) GeneratePlaybookJob(cluster *clusteroperator.Cluster, job
 			Name: "sshkey",
 			VolumeSource: kapi.VolumeSource{
 				Secret: &kapi.SecretVolumeSource{
-					SecretName: cluster.Spec.Hardware.AWS.SSHSecret.Name,
+					SecretName: hardware.AWS.SSHSecret.Name,
 					Items: []kapi.KeyToPath{
 						{
 							Key:  "ssh-privatekey",
@@ -176,11 +162,7 @@ func (r *jobGenerator) GeneratePlaybookJob(cluster *clusteroperator.Cluster, job
 
 	job := &kbatch.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:            name,
-			OwnerReferences: []metav1.OwnerReference{*clusterOwnerRef},
-			Annotations: map[string]string{
-				clusteroperator.ClusterGenerationAnnotation: fmt.Sprintf("%d", cluster.Generation),
-			},
+			Name: name,
 		},
 		Spec: kbatch.JobSpec{
 			Completions:           &completions,

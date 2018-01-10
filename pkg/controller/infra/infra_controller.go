@@ -18,15 +18,12 @@ package infra
 
 import (
 	"fmt"
-	"strconv"
-	"strings"
 	"time"
 
 	v1batch "k8s.io/api/batch/v1"
 	kapi "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	batchinformers "k8s.io/client-go/informers/batch/v1"
@@ -104,11 +101,10 @@ func NewInfraController(
 
 	logger := log.WithField("controller", controllerLogName)
 	c := &InfraController{
-		coClient:     clusteroperatorClient,
-		kubeClient:   kubeClient,
-		queue:        workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "cluster"),
-		expectations: controller.NewUIDTrackingControllerExpectations(controller.NewControllerExpectations()),
-		logger:       logger,
+		coClient:   clusteroperatorClient,
+		kubeClient: kubeClient,
+		queue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "cluster"),
+		logger:     logger,
 	}
 
 	clusterInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -130,6 +126,7 @@ func NewInfraController(
 	c.syncHandler = c.syncCluster
 	c.enqueueCluster = c.enqueue
 	c.ansibleGenerator = ansible.NewJobGenerator(ansibleImage, ansibleImagePullPolicy)
+	c.jobControl = controller.NewJobControl(jobPrefix, clusterKind, c.kubeClient, c.jobsLister)
 
 	return c
 }
@@ -145,8 +142,7 @@ type InfraController struct {
 	// To allow injection of mock ansible generator for testing
 	ansibleGenerator ansible.JobGenerator
 
-	// A TTLCache of infra job creations we're expecting to see
-	expectations *controller.UIDTrackingControllerExpectations
+	jobControl controller.JobControl
 
 	// used for unit testing
 	enqueueCluster func(cluster *clusteroperator.Cluster)
@@ -200,56 +196,6 @@ func (c *InfraController) deleteCluster(obj interface{}) {
 	c.enqueueCluster(cluster)
 }
 
-func isController(cluster *clusteroperator.Cluster, job *v1batch.Job) bool {
-	controllerRef := metav1.GetControllerOf(job)
-	if controllerRef == nil {
-		return false
-	}
-	if controllerRef.Kind != clusterKind.Kind {
-		return false
-	}
-	return controllerRef.UID == cluster.UID
-}
-
-func isInfraJob(job *v1batch.Job) bool {
-	controllerRef := metav1.GetControllerOf(job)
-	if controllerRef == nil {
-		return false
-	}
-	if controllerRef.Kind != clusterKind.Kind {
-		return false
-	}
-	return strings.HasPrefix(job.Name, jobPrefix)
-}
-
-func isActive(job *v1batch.Job) bool {
-	jobCompleted := jobCondition(job, v1batch.JobComplete)
-	if jobCompleted != nil && jobCompleted.Status == kapi.ConditionTrue {
-		return false
-	}
-
-	jobFailed := jobCondition(job, v1batch.JobFailed)
-	if jobFailed != nil && jobFailed.Status == kapi.ConditionTrue {
-		return false
-	}
-	return true
-}
-
-func jobClusterGeneration(job *v1batch.Job) int64 {
-	if job.Annotations == nil {
-		return 0
-	}
-	generationStr, ok := job.Annotations[clusteroperator.ClusterGenerationAnnotation]
-	if !ok {
-		return 0
-	}
-	generation, err := strconv.ParseInt(generationStr, 10, 64)
-	if err != nil {
-		return 0
-	}
-	return generation
-}
-
 func (c *InfraController) clusterForJob(job *v1batch.Job) (*clusteroperator.Cluster, error) {
 	controllerRef := metav1.GetControllerOf(job)
 	if controllerRef.Kind != clusterKind.Kind {
@@ -269,37 +215,39 @@ func (c *InfraController) clusterForJob(job *v1batch.Job) (*clusteroperator.Clus
 
 func (c *InfraController) addJob(obj interface{}) {
 	job := obj.(*v1batch.Job)
-	if isInfraJob(job) {
+	if c.jobControl.IsControlledJob(job) {
 		cluster, err := c.clusterForJob(job)
 		if err != nil {
-			c.logger.Errorf("Cannot retrieve cluster for job %s: %v", jobKey(job), err)
+			c.logger.Errorf("Cannot retrieve cluster for job %s/%s: %v", job.Namespace, job.Name, err)
 			utilruntime.HandleError(err)
 			return
 		}
+
 		clusterKey, err := controller.KeyFunc(cluster)
 		if err != nil {
-			c.logger.Errorf("Cannot get cluster key for %s/%s: %v", cluster.Namespace, cluster.Name, err)
+			c.logger.Errorf("Cannot get key for cluster for job %s/%s: %v", job.Namespace, job.Name, err)
 			utilruntime.HandleError(err)
 			return
 		}
-		c.logger.Debug("job creation observed")
-		c.expectations.CreationObserved(clusterKey)
 
-		c.logger.Debugf("enqueueing cluster %s/%s for created infra job %s", cluster.Namespace, cluster.Name, jobKey(job))
+		c.logger.Debug("job creation observed")
+		c.jobControl.ObserveJobCreation(clusterKey, job)
+
+		c.logger.Debugf("enqueueing cluster %s/%s for created infra job %s/%s", cluster.Namespace, cluster.Name, job.Namespace, job.Name)
 		c.enqueueCluster(cluster)
 	}
 }
 
 func (c *InfraController) updateJob(old, obj interface{}) {
 	job := obj.(*v1batch.Job)
-	if isInfraJob(job) {
+	if c.jobControl.IsControlledJob(job) {
 		cluster, err := c.clusterForJob(job)
 		if err != nil {
-			c.logger.Errorf("Cannot retrieve cluster for job %s: %v", jobKey(job), err)
+			c.logger.Errorf("Cannot retrieve cluster for job %s/%s: %v", job.Namespace, job.Name, err)
 			utilruntime.HandleError(err)
 			return
 		}
-		c.logger.Debugf("enqueueing cluster %s/%s for updated infra job %s", cluster.Namespace, cluster.Name, jobKey(job))
+		c.logger.Debugf("enqueueing cluster %s/%s for updated infra job %s/%s", cluster.Namespace, cluster.Name, job.Namespace, job.Name)
 		c.enqueueCluster(cluster)
 	}
 }
@@ -318,13 +266,24 @@ func (c *InfraController) deleteJob(obj interface{}) {
 			return
 		}
 	}
-	if !isInfraJob(job) {
+	if !c.jobControl.IsControlledJob(job) {
 		return
 	}
 	cluster, err := c.clusterForJob(job)
 	if err != nil || cluster == nil {
-		utilruntime.HandleError(fmt.Errorf("could not get cluster for deleted job %s", jobKey(job)))
+		utilruntime.HandleError(fmt.Errorf("could not get cluster for deleted job %s/%s", job.Namespace, job.Name))
 	}
+
+	clusterKey, err := controller.KeyFunc(cluster)
+	if err != nil {
+		c.logger.Errorf("Cannot get key for cluster for job %s/%s: %v", job.Namespace, job.Name, err)
+		utilruntime.HandleError(err)
+		return
+	}
+
+	c.logger.Debug("job deletion observed")
+	c.jobControl.ObserveJobDeletion(clusterKey, job)
+
 	c.enqueueCluster(cluster)
 }
 
@@ -414,7 +373,7 @@ func (c *InfraController) syncClusterStatusWithJob(original *clusteroperator.Clu
 			clusterProvisioning.LastTransitionTime = now
 			clusterProvisioning.LastProbeTime = now
 			clusterProvisioning.Reason = "JobCompleted"
-			clusterProvisioning.Message = fmt.Sprintf("Job %s/%s completed at %v", jobKey(job), jobCompleted.LastTransitionTime)
+			clusterProvisioning.Message = fmt.Sprintf("Job %s/%s completed at %v", job.Namespace, job.Name, jobCompleted.LastTransitionTime)
 		}
 		clusterProvisioned := clusterCondition(cluster, clusteroperator.ClusterInfraProvisioned)
 		if clusterProvisioned != nil &&
@@ -423,7 +382,7 @@ func (c *InfraController) syncClusterStatusWithJob(original *clusteroperator.Clu
 			clusterProvisioned.LastTransitionTime = now
 			clusterProvisioned.LastProbeTime = now
 			clusterProvisioned.Reason = "JobCompleted"
-			clusterProvisioning.Message = fmt.Sprintf("Job %s completed at %v", jobKey(job), jobCompleted.LastTransitionTime)
+			clusterProvisioning.Message = fmt.Sprintf("Job %s/%s completed at %v", job.Namespace, job.Name, jobCompleted.LastTransitionTime)
 		}
 		if clusterProvisioned == nil {
 			cluster.Status.Conditions = append(cluster.Status.Conditions, clusteroperator.ClusterCondition{
@@ -432,7 +391,7 @@ func (c *InfraController) syncClusterStatusWithJob(original *clusteroperator.Clu
 				LastProbeTime:      now,
 				LastTransitionTime: now,
 				Reason:             "JobCompleted",
-				Message:            fmt.Sprintf("Job %s completed at %v", jobKey(job), jobCompleted.LastTransitionTime),
+				Message:            fmt.Sprintf("Job %s/%s completed at %v", job.Namespace, job.Name, jobCompleted.LastTransitionTime),
 			})
 		}
 		provisioningFailed := clusterCondition(cluster, clusteroperator.ClusterInfraProvisioningFailed)
@@ -445,6 +404,7 @@ func (c *InfraController) syncClusterStatusWithJob(original *clusteroperator.Clu
 			provisioningFailed.Message = ""
 		}
 		cluster.Status.Provisioned = true
+		cluster.Status.ProvisionedJobGeneration = cluster.Generation
 	case jobFailed != nil && jobFailed.Status == kapi.ConditionTrue:
 		clusterProvisioning := clusterCondition(cluster, clusteroperator.ClusterInfraProvisioning)
 		if clusterProvisioning != nil &&
@@ -453,7 +413,7 @@ func (c *InfraController) syncClusterStatusWithJob(original *clusteroperator.Clu
 			clusterProvisioning.LastTransitionTime = now
 			clusterProvisioning.LastProbeTime = now
 			clusterProvisioning.Reason = "JobFailed"
-			clusterProvisioning.Message = fmt.Sprintf("Job %s failed at %v, reason: %s", jobKey(job), jobFailed.LastTransitionTime, jobFailed.Reason)
+			clusterProvisioning.Message = fmt.Sprintf("Job %s/%s failed at %v, reason: %s", job.Namespace, job.Name, jobFailed.LastTransitionTime, jobFailed.Reason)
 		}
 		provisioningFailed := clusterCondition(cluster, clusteroperator.ClusterInfraProvisioningFailed)
 		if provisioningFailed != nil {
@@ -461,7 +421,7 @@ func (c *InfraController) syncClusterStatusWithJob(original *clusteroperator.Clu
 			provisioningFailed.LastTransitionTime = now
 			provisioningFailed.LastProbeTime = now
 			provisioningFailed.Reason = "JobFailed"
-			provisioningFailed.Message = fmt.Sprintf("Job %s failed at %v, reason: %s", jobKey(job), jobFailed.LastTransitionTime, jobFailed.Reason)
+			provisioningFailed.Message = fmt.Sprintf("Job %s/%s failed at %v, reason: %s", job.Namespace, job.Name, jobFailed.LastTransitionTime, jobFailed.Reason)
 		} else {
 			cluster.Status.Conditions = append(cluster.Status.Conditions, clusteroperator.ClusterCondition{
 				Type:               clusteroperator.ClusterInfraProvisioningFailed,
@@ -469,13 +429,14 @@ func (c *InfraController) syncClusterStatusWithJob(original *clusteroperator.Clu
 				LastProbeTime:      now,
 				LastTransitionTime: now,
 				Reason:             "JobFailed",
-				Message:            fmt.Sprintf("Job %s failed at %v, reason: %s", jobKey(job), jobFailed.LastTransitionTime, jobFailed.Reason),
+				Message:            fmt.Sprintf("Job %s/%s failed at %v, reason: %s", job.Namespace, job.Name, jobFailed.LastTransitionTime, jobFailed.Reason),
 			})
 		}
+		cluster.Status.ProvisionedJobGeneration = cluster.Generation
 	default:
 		clusterProvisioning := clusterCondition(cluster, clusteroperator.ClusterInfraProvisioning)
 		reason := "JobRunning"
-		message := fmt.Sprintf("Job %s is running since %v. Pod completions: %d, failures: %d", jobKey(job), job.Status.StartTime, job.Status.Succeeded, job.Status.Failed)
+		message := fmt.Sprintf("Job %s/%s is running since %v. Pod completions: %d, failures: %d", job.Namespace, job.Name, job.Status.StartTime, job.Status.Succeeded, job.Status.Failed)
 		if clusterProvisioning != nil {
 			if clusterProvisioning.Status != kapi.ConditionTrue {
 				clusterProvisioning.Status = kapi.ConditionTrue
@@ -525,99 +486,66 @@ func (c *InfraController) syncCluster(key string) error {
 
 	cluster, err := c.clustersLister.Clusters(ns).Get(name)
 	if errors.IsNotFound(err) {
-		cLog.Debugln("cluster not found")
-		c.expectations.DeleteExpectations(key)
+		cLog.Debugln("cluster deleted")
+		c.jobControl.ObserveOwnerDeletion(key)
 		return nil
 	}
 	if err != nil {
 		return err
 	}
 
-	if !c.expectations.SatisfiedExpectations(key) {
-		// expectations have not been met, come back later
-		cLog.Debugln("cluster has not satisfied expectations yet")
-		return nil
-	}
+	specChanged := cluster.Status.ProvisionedJobGeneration != cluster.Generation
 
-	// Look through infra jobs that belong to this cluster.
-	// If the job's generation corresponds to the cluster's current generation
-	// sync the cluster status with the job's latest status.
-	// If the job is active but does not correspond to the cluster's current generation
-	// add it to the list of jobs to be terminated.
-	invalidActiveJobs := []*v1batch.Job{}
-	var currentInfraJob *v1batch.Job
-	jobs, err := c.jobsLister.Jobs(cluster.Namespace).List(labels.Everything())
+	jobFactory := c.getJobFactory(cluster, specChanged)
+
+	job, isJobNew, err := c.jobControl.ControlJobs(key, cluster, jobFactory, cLog)
 	if err != nil {
 		return err
 	}
-	for _, job := range jobs {
-		if isInfraJob(job) && isController(cluster, job) {
-			switch {
-			case jobClusterGeneration(job) == cluster.Generation:
-				currentInfraJob = job
-			case isActive(job):
-				cLog.WithField("job", jobKey(job)).
-					Debugln("found active job that does not correspond to cluster's current generation")
-				invalidActiveJobs = append(invalidActiveJobs, job)
-				break
-			}
-		}
+
+	if !specChanged {
+		return nil
 	}
 
-	// Determine expectations for creates and deletes
-	shouldProvision := currentInfraJob == nil && cluster.Status.ProvisioningJobGeneration != cluster.Generation
-	var expectCreate int
-	if shouldProvision {
-		expectCreate = 1
-	}
-	keysToDelete := []string{}
-	for _, job := range invalidActiveJobs {
-		keysToDelete = append(keysToDelete, jobKey(job))
-	}
-	c.expectations.SetExpectations(key, expectCreate, keysToDelete)
-
-	// Delete invalid jobs asynchronously
-	if len(invalidActiveJobs) > 0 {
-		go c.deleteJobs(key, invalidActiveJobs)
-	}
-
-	// If a current job was found, sync with it
-	if currentInfraJob != nil {
+	switch {
+	// New job has not been created, so an old job must exist. Set the cluster
+	// to not provisioning yet as the old job is deleted.
+	case job == nil:
+		return c.setClusterToNotProvisioning(cluster)
+	// Job was not newly created, so sync cluster status with job.
+	case !isJobNew:
 		cLog.Debugln("provisioning job exists, will sync with job")
-		return c.syncClusterStatusWithJob(cluster, currentInfraJob)
-	}
-
-	// If no current job was found, the cluster is not yet provisioned,
-	// and the status says there should be a job, the
-	// job may have been deleted. Update status accordingly
-	if currentInfraJob == nil && isClusterProvisioning(cluster) && cluster.Status.ProvisioningJobGeneration == cluster.Generation {
+		return c.syncClusterStatusWithJob(cluster, job)
+	// Cluster should have a job to provision the current spec but it was not
+	// found.
+	case isClusterProvisioning(cluster):
 		return c.setJobNotFoundStatus(cluster)
+	// New job created for new provisioning
+	default:
+		return nil
 	}
-
-	if shouldProvision {
-		return c.provisionCluster(cluster)
-	}
-	return nil
 }
 
-func (c *InfraController) deleteJobs(clusterKey string, jobs []*v1batch.Job) {
-	for _, job := range jobs {
-		err := c.kubeClient.BatchV1().Jobs(job.Namespace).Delete(job.Name, &metav1.DeleteOptions{})
-		if err != nil {
-			c.logger.WithField("job", jobKey(job)).Warningf("error deleting job: %v", err)
-			utilruntime.HandleError(err)
-			c.expectations.DeletionObserved(clusterKey, jobKey(job))
-		}
+func (c *InfraController) setClusterToNotProvisioning(original *clusteroperator.Cluster) error {
+	cluster := original.DeepCopy()
+	now := metav1.Now()
+
+	clusterProvisioning := clusterCondition(cluster, clusteroperator.ClusterHardwareProvisioning)
+	if clusterProvisioning != nil &&
+		clusterProvisioning.Status == kapi.ConditionTrue {
+		clusterProvisioning.Status = kapi.ConditionFalse
+		clusterProvisioning.LastTransitionTime = now
+		clusterProvisioning.LastProbeTime = now
+		clusterProvisioning.Reason = "SpecChanged"
+		clusterProvisioning.Message = "Spec changed. New provisioning needed"
 	}
+
+	return c.updateClusterStatus(original, cluster)
 }
 
 func isClusterProvisioning(cluster *clusteroperator.Cluster) bool {
 	provisioning := clusterCondition(cluster, clusteroperator.ClusterInfraProvisioning)
 	return provisioning != nil && provisioning.Status == kapi.ConditionTrue
-}
-
-func jobKey(job *v1batch.Job) string {
-	return fmt.Sprintf("%s/%s", job.Namespace, job.Name)
 }
 
 func jobCondition(job *v1batch.Job, conditionType v1batch.JobConditionType) *v1batch.JobCondition {
@@ -670,33 +598,23 @@ func (c *InfraController) setJobNotFoundStatus(original *clusteroperator.Cluster
 	return c.updateClusterStatus(original, cluster)
 }
 
-func (c *InfraController) provisionCluster(cluster *clusteroperator.Cluster) error {
-	clusterLogger := c.logger.WithField("cluster", fmt.Sprintf("%s/%s", cluster.Namespace, cluster.Name))
-	clusterLogger.Infoln("provisioning cluster infrastructure")
-	clusterKey, err := controller.KeyFunc(cluster)
-	if err != nil {
-		utilruntime.HandleError(fmt.Errorf("Couldn't get key for Cluster %s/%s: %v", cluster.Namespace, cluster.Name, err))
+type jobFactory func(string) (*v1batch.Job, *kapi.ConfigMap, error)
+
+func (f jobFactory) BuildJob(name string) (*v1batch.Job, *kapi.ConfigMap, error) {
+	return f(name)
+}
+
+func (c *InfraController) getJobFactory(cluster *clusteroperator.Cluster, specChanged bool) controller.JobFactory {
+	if !specChanged {
 		return nil
 	}
-	varsGenerator := ansible.NewVarsGenerator(cluster)
-	vars, err := varsGenerator.GenerateVars()
-	if err != nil {
-		return err
-	}
-
-	job, cfgMap := c.ansibleGenerator.GeneratePlaybookJob(cluster, jobPrefix, infraPlaybook, provisionInventoryTemplate, vars)
-
-	_, err = c.kubeClient.CoreV1().ConfigMaps(cluster.Namespace).Create(cfgMap)
-	if err != nil {
-		return err
-	}
-
-	_, err = c.kubeClient.BatchV1().Jobs(cluster.Namespace).Create(job)
-	if err != nil {
-		// If an error occurred creating the job, remove expectation
-		c.expectations.CreationObserved(clusterKey)
-		return err
-	}
-
-	return nil
+	return jobFactory(func(name string) (*v1batch.Job, *kapi.ConfigMap, error) {
+		varsGenerator := ansible.NewVarsGenerator(cluster)
+		vars, err := varsGenerator.GenerateVars()
+		if err != nil {
+			return nil, nil, err
+		}
+		job, configMap := c.ansibleGenerator.GeneratePlaybookJob(name, &cluster.Spec.Hardware, infraPlaybook, provisionInventoryTemplate, vars)
+		return job, configMap, nil
+	})
 }
