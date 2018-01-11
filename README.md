@@ -27,13 +27,14 @@
     * `oc login -u system:admin`
   * Grant admin rights to login to the [WebUI](https://localhost:8443)
     * `oc adm policy add-cluster-role-to-user cluster-admin admin`
-  * Create a temporary ssh key secret for use when connecting to hosts with ansible:
-    * `kubectl create -n cluster-operator secret generic ssh-private-key --from-file=ssh-privatekey=/home/dgoodwin/libra.pem`
 
 
 ## Deploy / Re-deploy Cluster Operator
   * Compile the Go code and creates a docker image which is usable by the oc cluster.
     * `make images`
+  * Before deploying, make sure the following files are available on your local machine:
+    * `$HOME/.aws/credentials` - your AWS credentials
+    * `$HOME/.ssh/libra.pem` - the SSH private key to use for AWS
   * Idempotently deploy cluster operator to the OpenShift cluster.
     * `ansible-playbook contrib/ansible/deploy-devel.yaml`
   * If your image changed, but the kubernetes config did not, it is often required to delete all pods:

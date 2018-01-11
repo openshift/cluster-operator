@@ -39,6 +39,19 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Ref:         ref("k8s.io/api/core/v1.LocalObjectReference"),
 							},
 						},
+						"sshSecret": {
+							SchemaProps: spec.SchemaProps{
+								Description: "SSHSecret refers to a secret that contains the ssh private key to access EC2 instances in this cluster",
+								Ref:         ref("k8s.io/api/core/v1.LocalObjectReference"),
+							},
+						},
+						"keyPairName": {
+							SchemaProps: spec.SchemaProps{
+								Description: "KeyPairName is the name of the AWS key pair to use for SSH access to EC2 instances in this cluster",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
 						"region": {
 							SchemaProps: spec.SchemaProps{
 								Description: "Region specifies the AWS region where the cluster will be created",
@@ -61,7 +74,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 							},
 						},
 					},
-					Required: []string{"accountSecret", "region"},
+					Required: []string{"accountSecret", "sshSecret", "keyPairName", "region"},
 				},
 			},
 			Dependencies: []string{
@@ -407,6 +420,13 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Format:      "",
 							},
 						},
+						"provisioningJobGeneration": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ProvisioningJobGeneration is the generation of the cluster resource used to to generate the latest completed infra provisioning job. The value will be set regardless of the job having succeeded or failed.",
+								Type:        []string{"integer"},
+								Format:      "int64",
+							},
+						},
 						"running": {
 							SchemaProps: spec.SchemaProps{
 								Description: "Running is true if the master of the cluster is running and can be accessed using the KubeconfigSecret",
@@ -428,7 +448,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 							},
 						},
 					},
-					Required: []string{"machineSetCount", "provisioned", "running", "conditions"},
+					Required: []string{"machineSetCount", "provisioned", "provisioningJobGeneration", "running", "conditions"},
 				},
 			},
 			Dependencies: []string{

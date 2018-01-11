@@ -18,6 +18,7 @@ package cluster
 
 import (
 	"github.com/openshift/cluster-operator/pkg/api"
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
@@ -90,6 +91,7 @@ func (clusterRESTStrategy) PrepareForCreate(ctx genericapirequest.Context, obj r
 	// Creating a brand new object, thus it must have no
 	// status. We can't fail here if they passed a status in, so
 	// we just wipe it clean.
+	cluster.Generation = 1
 	cluster.Status = clusteroperator.ClusterStatus{}
 }
 
@@ -113,6 +115,13 @@ func (clusterRESTStrategy) PrepareForUpdate(ctx genericapirequest.Context, new, 
 	oldCluster, ok := old.(*clusteroperator.Cluster)
 	if !ok {
 		glog.Fatal("received a non-cluster object to update from")
+	}
+
+	// Any changes to the spec increment the generation number, any changes to the
+	// status should reflect the generation number of the corresponding object.
+	// See metav1.ObjectMeta description for more information on Generation.
+	if !equality.Semantic.DeepEqual(oldCluster.Spec, newCluster.Spec) {
+		newCluster.Generation = oldCluster.Generation + 1
 	}
 
 	newCluster.Status = oldCluster.Status

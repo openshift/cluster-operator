@@ -29,6 +29,7 @@ import (
 func (in *AWSClusterSpec) DeepCopyInto(out *AWSClusterSpec) {
 	*out = *in
 	out.AccountSecret = in.AccountSecret
+	out.SSHSecret = in.SSHSecret
 	return
 }
 

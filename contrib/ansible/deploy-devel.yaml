@@ -38,10 +38,11 @@
       l_serving_key: "{{ lookup('file', playbook_dir + '/../../apiserver-key.pem') | b64encode }}"
       l_aws_access_key_id: "{{ lookup('ini', 'aws_access_key_id section=' + aws_section + ' file=~/.aws/credentials') | b64encode }}"
       l_aws_secret_access_key: "{{ lookup('ini', 'aws_secret_access_key section=' + aws_section + ' file=~/.aws/credentials') | b64encode }}"
+      l_aws_ssh_private_key: "{{ lookup('file', '~/.ssh/libra.pem') | b64encode }}"
 
   # TODO: not accurately reflecting 'changed' status as apply doesn't report until upstream PRs merge.
   - name: deploy application template
-    shell: "oc process -f {{ playbook_dir }}/../examples/deploy.yaml -o yaml -p SERVING_CA={{ l_serving_ca }} -p SERVING_CERT={{ l_serving_cert }} -p SERVING_KEY={{ l_serving_key }} AWS_ACCESS_KEY_ID={{ l_aws_access_key_id }} AWS_SECRET_ACCESS_KEY={{ l_aws_secret_access_key }} ANSIBLE_IMAGE={{ ansible_image }} ANSIBLE_IMAGE_PULL_POLICY={{ ansible_image_pull_policy }} | oc apply -f -"
+    shell: "oc process -f {{ playbook_dir }}/../examples/deploy.yaml -o yaml -p SERVING_CA={{ l_serving_ca }} -p SERVING_CERT={{ l_serving_cert }} -p SERVING_KEY={{ l_serving_key }} AWS_ACCESS_KEY_ID={{ l_aws_access_key_id }} AWS_SECRET_ACCESS_KEY={{ l_aws_secret_access_key }} AWS_SSH_PRIVATE_KEY={{ l_aws_ssh_private_key }} ANSIBLE_IMAGE={{ ansible_image }} ANSIBLE_IMAGE_PULL_POLICY={{ ansible_image_pull_policy }} | oc apply -f -"
 
   - name: deploy playbook-mock for testing with fake-openshift-ansible
     shell: "oc apply -n cluster-operator -f {{ playbook_dir }}/../examples/deploy-playbook-mock.yaml"

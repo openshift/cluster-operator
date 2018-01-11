@@ -1,11 +1,12 @@
 package infra
 
 import (
-	"strings"
 	"testing"
+	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	kubeinformers "k8s.io/client-go/informers"
 	clientgofake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
 
@@ -28,15 +29,18 @@ const (
 func newTestInfraController() (
 	*InfraController,
 	cache.Store, // cluster store
+	cache.Store, // jobs store
 	*clientgofake.Clientset,
 	*clusteroperatorclientset.Clientset,
 ) {
 	kubeClient := &clientgofake.Clientset{}
+	kubeInformers := kubeinformers.NewSharedInformerFactory(kubeClient, 10*time.Minute)
 	clusterOperatorClient := &clusteroperatorclientset.Clientset{}
-	informers := informers.NewSharedInformerFactory(clusterOperatorClient, 0)
+	clusterOperatorInformers := informers.NewSharedInformerFactory(clusterOperatorClient, 0)
 
 	controller := NewInfraController(
-		informers.Clusteroperator().V1alpha1().Clusters(),
+		clusterOperatorInformers.Clusteroperator().V1alpha1().Clusters(),
+		kubeInformers.Batch().V1().Jobs(),
 		kubeClient,
 		clusterOperatorClient,
 		"",
@@ -46,7 +50,8 @@ func newTestInfraController() (
 	controller.clustersSynced = alwaysReady
 
 	return controller,
-		informers.Clusteroperator().V1alpha1().Clusters().Informer().GetStore(),
+		clusterOperatorInformers.Clusteroperator().V1alpha1().Clusters().Informer().GetStore(),
+		kubeInformers.Batch().V1().Jobs().Informer().GetStore(),
 		kubeClient,
 		clusterOperatorClient
 }
@@ -122,9 +127,7 @@ func TestInfraController(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			controller, clusterStore, _, _ := newTestInfraController()
-			fakeRunner := &fakeAnsibleRunner{}
-			controller.ansibleRunner = fakeRunner
+			controller, clusterStore, _, _, _ := newTestInfraController()
 
 			cluster := newCluster()
 			clusterStore.Add(cluster)
@@ -135,10 +138,6 @@ func TestInfraController(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
-			assert.Equal(t, infraPlaybook, fakeRunner.lastPlaybook)
-			assert.Equal(t, tc.clusterNamespace, fakeRunner.lastNamespace)
-			assert.Equal(t, tc.clusterName, fakeRunner.lastClusterName)
-			assert.True(t, strings.HasPrefix(fakeRunner.lastJobPrefix, jobPrefix))
 		})
 	}
 }
