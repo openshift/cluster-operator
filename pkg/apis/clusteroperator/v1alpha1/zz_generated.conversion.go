@@ -312,6 +312,7 @@ func autoConvert_v1alpha1_ClusterSpec_To_clusteroperator_ClusterSpec(in *Cluster
 	}
 	out.DefaultHardwareSpec = (*clusteroperator.MachineSetHardwareSpec)(unsafe.Pointer(in.DefaultHardwareSpec))
 	out.MachineSets = *(*[]clusteroperator.ClusterMachineSet)(unsafe.Pointer(&in.MachineSets))
+	out.Version = in.Version
 	return nil
 }
 
@@ -329,6 +330,7 @@ func autoConvert_clusteroperator_ClusterSpec_To_v1alpha1_ClusterSpec(in *cluster
 	}
 	out.DefaultHardwareSpec = (*MachineSetHardwareSpec)(unsafe.Pointer(in.DefaultHardwareSpec))
 	out.MachineSets = *(*[]ClusterMachineSet)(unsafe.Pointer(&in.MachineSets))
+	out.Version = in.Version
 	return nil
 }
 

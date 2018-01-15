@@ -142,6 +142,9 @@ type ClusterSpec struct {
 
 	// MachineSets specifies the configuration of all machine sets for the cluster
 	MachineSets []ClusterMachineSet `json:"machineSets"`
+
+	// Version references the clusterversion that should be running.
+	Version corev1.ObjectReference `json:"version"`
 }
 
 // ClusterHardwareSpec specifies hardware for a cluster. The specification will

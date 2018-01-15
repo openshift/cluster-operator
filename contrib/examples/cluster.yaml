@@ -5,31 +5,9 @@ metadata:
 objects:
 
 - apiVersion: clusteroperator.openshift.io/v1alpha1
-  kind: Cluster
-  metadata:
-    name: ${CLUSTER_NAME}
-  spec:
-    hardware:
-      aws:
-        accountSecret: 
-          name: aws-credentials
-        sshSecret:
-          name: ssh-private-key
-    machineSets:
-    - name: master
-      nodeType: Master
-      infra: true
-      size: 3
-    - name: alpha
-      nodeType: Compute
-      size: 2
-    - name: beta
-      nodeType: Compute
-      size: 5
-- apiVersion: clusteroperator.openshift.io/v1alpha1
   kind: ClusterVersion
   metadata:
-    name: v3-9
+    name: ocp-v3-9
   spec:
     imageFormat: "openshift/origin-${component}:v3.9.0-alpha.1"
     vmImages:
@@ -44,6 +22,41 @@ objects:
       gpgkey: https://copr-be.cloud.fedoraproject.org/results/dgoodwin/tito/pubkey.gpg
       gpgcheck: 1
       enabled: 0
+- apiVersion: clusteroperator.openshift.io/v1alpha1
+  kind: ClusterVersion
+  metadata:
+    name: ocp-v3-10
+  spec:
+    imageFormat: "openshift/origin-${component}:v3.10.notrealyet"
+    vmImages:
+      awsVMImages:
+        amiByRegion:
+          us-east-1: ami-10aed306a # TODO: not correct, need to find out how to lookup latest golden image.
+- apiVersion: clusteroperator.openshift.io/v1alpha1
+  kind: Cluster
+  metadata:
+    name: ${CLUSTER_NAME}
+  spec:
+    version:
+      kind: ClusterVersion
+      name: ocp-v3-9
+    hardware:
+      aws:
+        accountSecret:
+          name: aws-credentials
+        sshSecret:
+          name: ssh-private-key
+    machineSets:
+    - name: master
+      nodeType: Master
+      infra: true
+      size: 3
+    - name: alpha
+      nodeType: Compute
+      size: 2
+    - name: beta
+      nodeType: Compute
+      size: 5
 
 parameters:
 - name: CLUSTER_NAME
