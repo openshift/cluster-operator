@@ -5,13 +5,46 @@ metadata:
 objects:
 
 - apiVersion: clusteroperator.openshift.io/v1alpha1
+  kind: ClusterVersion
+  metadata:
+    name: ocp-v3-9
+    namespace: ${CLUSTER_VERSION_NS}
+  spec:
+    imageFormat: "openshift/origin-${component}:v3.9.0-alpha.1"
+    vmImages:
+      awsVMImages:
+        amiByRegion:
+          us-east-1: ami-10aed306 # TODO: not correct, need to find out how to lookup latest golden image.
+    yumRepositories:
+    # TODO: replace with a usable OpenShift repo
+    - id: dgoodwin-tito-copr
+      name: Tito Development Copr
+      baseurl: https://copr-be.cloud.fedoraproject.org/results/dgoodwin/tito/fedora-$releasever-$basearch/
+      gpgkey: https://copr-be.cloud.fedoraproject.org/results/dgoodwin/tito/pubkey.gpg
+      gpgcheck: 1
+      enabled: 0
+- apiVersion: clusteroperator.openshift.io/v1alpha1
+  kind: ClusterVersion
+  metadata:
+    name: ocp-v3-10
+    namespace: ${CLUSTER_VERSION_NS}
+  spec:
+    imageFormat: "openshift/origin-${component}:v3.10.notrealyet"
+    vmImages:
+      awsVMImages:
+        amiByRegion:
+          us-east-1: ami-10aed306 # TODO: not correct, need to find out how to lookup latest golden image.
+- apiVersion: clusteroperator.openshift.io/v1alpha1
   kind: Cluster
   metadata:
     name: ${CLUSTER_NAME}
   spec:
+    clusterVersionRef:
+      namespace: cluster-operator
+      name: ocp-v3-9
     hardware:
       aws:
-        accountSecret: 
+        accountSecret:
           name: aws-credentials
         sshSecret:
           name: ssh-private-key
@@ -34,24 +67,6 @@ objects:
     - name: compute
       nodeType: Compute
       size: 1
-- apiVersion: clusteroperator.openshift.io/v1alpha1
-  kind: ClusterVersion
-  metadata:
-    name: v3-9
-  spec:
-    imageFormat: "openshift/origin-${component}:v3.9.0-alpha.1"
-    vmImages:
-      awsVMImages:
-        amiByRegion:
-          us-east-1: ami-10aed306 # TODO: not correct, need to find out how to lookup latest golden image.
-    yumRepositories:
-    # TODO: replace with a usable OpenShift repo
-    - id: dgoodwin-tito-copr
-      name: Tito Development Copr
-      baseurl: https://copr-be.cloud.fedoraproject.org/results/dgoodwin/tito/fedora-$releasever-$basearch/
-      gpgkey: https://copr-be.cloud.fedoraproject.org/results/dgoodwin/tito/pubkey.gpg
-      gpgcheck: 1
-      enabled: 0
 
 parameters:
 - name: CLUSTER_NAME
@@ -59,3 +74,7 @@ parameters:
   description: The name to give to the Cluster created. If using real AWS, then this name should include your username so that resources created in AWS can be identified as yours.
   value: cluster1
   required: true
+- name: CLUSTER_VERSION_NS
+  displayName: Cluster Version Namespace
+  description: Namespace where cluster verions should live
+  value: cluster-operator

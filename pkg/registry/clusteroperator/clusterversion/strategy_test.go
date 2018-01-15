@@ -50,14 +50,3 @@ func TestClusterVersionCreate(t *testing.T) {
 	// Canonicalize the cluster
 	clusterVersionRESTStrategies.PrepareForCreate(nil, cv)
 }
-
-/*
-// TestClusterUpdate tests that generation is incremented correctly when the
-// cluster version is updated.
-func TestClusterUpdate(t *testing.T) {
-	older := clusterWithOldSpec()
-	newer := clusterWithOldSpec()
-
-	clusterRESTStrategies.PrepareForUpdate(nil, newer, older)
-}
-*/

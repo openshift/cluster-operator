@@ -148,6 +148,19 @@ type ClusterSpec struct {
 
 	// MachineSets specifies the configuration of all machine sets for the cluster
 	MachineSets []ClusterMachineSet `json:"machineSets"`
+
+	// ClusterVersionRef references the clusterversion that should be running.
+	ClusterVersionRef ClusterVersionReference `json:"clusterVersionRef"`
+}
+
+// ClusterVersionReference provides information to locate a cluster version to use.
+type ClusterVersionReference struct {
+	// Namespace of the clusterversion.
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+
+	// Name of the clusterversion.
+	Name string `json:"name"`
 }
 
 // ClusterHardwareSpec specifies hardware for a cluster. The specification will
@@ -267,6 +280,10 @@ type ClusterStatus struct {
 
 	// Conditions includes more detailed status for the cluster
 	Conditions []ClusterCondition `json:"conditions"`
+
+	// ClusterVersionRef references the resolved clusterversion the cluster should be running.
+	// +optional
+	ClusterVersionRef *corev1.ObjectReference `json:"clusterVersionRef,omitempty"`
 }
 
 // ClusterCondition contains details for the current condition of a cluster
@@ -369,6 +386,9 @@ type MachineSetConfig struct {
 type MachineSetSpec struct {
 	// MachineSetConfig is the configuration for the MachineSet
 	MachineSetConfig `json:",inline"`
+
+	// ClusterVersionRef references the clusterversion the machine set is running.
+	ClusterVersionRef corev1.ObjectReference `json:"clusterVersionRef"`
 }
 
 // MachineSetHardwareSpec specifies the hardware for a MachineSet

@@ -140,3 +140,51 @@ func TestValidateClusterVersion(t *testing.T) {
 		}
 	}
 }
+
+// TestValidateClusterVersionUpdate tests the ValidateClusterVersionUpdate function. Updates are not
+// supported at this time, so any modification should return an error.
+func TestValidateClusterVersionUpdate(t *testing.T) {
+	cases := []struct {
+		name  string
+		old   *clusteroperator.ClusterVersion
+		new   *clusteroperator.ClusterVersion
+		valid bool
+	}{
+		{
+			name:  "valid",
+			old:   getValidClusterVersion(),
+			new:   getValidClusterVersion(),
+			valid: true,
+		},
+		{
+			name: "modified image format",
+			old:  getValidClusterVersion(),
+			new: func() *clusteroperator.ClusterVersion {
+				c := getValidClusterVersion()
+				c.Spec.ImageFormat = "abc"
+				return c
+			}(),
+			valid: false,
+		},
+		{
+			name: "modified yum repo",
+			old:  getValidClusterVersion(),
+			new: func() *clusteroperator.ClusterVersion {
+				c := getValidClusterVersion()
+				c.Spec.YumRepositories[0].BaseURL = "http://new.com"
+				return c
+			}(),
+			valid: false,
+		},
+	}
+
+	for _, tc := range cases {
+		errs := ValidateClusterVersionUpdate(tc.new, tc.old)
+		if len(errs) != 0 && tc.valid {
+			t.Errorf("%v: unexpected error: %v", tc.name, errs)
+			continue
+		} else if len(errs) == 0 && !tc.valid {
+			t.Errorf("%v: unexpected success", tc.name)
+		}
+	}
+}

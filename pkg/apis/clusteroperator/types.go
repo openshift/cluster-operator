@@ -146,6 +146,18 @@ type ClusterSpec struct {
 
 	// MachineSets specifies the configuration of all machine sets for the cluster
 	MachineSets []ClusterMachineSet
+
+	// ClusterVersionRef references the clusterversion that should be running.
+	ClusterVersionRef ClusterVersionReference
+}
+
+// ClusterVersionReference provides information to locate a cluster version to use.
+type ClusterVersionReference struct {
+	// Namespace of the clusterversion.
+	// +optional
+	Namespace string
+	// Name of the clusterversion.
+	Name string
 }
 
 // ClusterHardwareSpec specifies hardware for a cluster. The specification will
@@ -265,6 +277,10 @@ type ClusterStatus struct {
 
 	// Conditions includes more detailed status for the cluster
 	Conditions []ClusterCondition
+
+	// ClusterVersionRef references the resolved clusterversion the cluster should be running.
+	// +optional
+	ClusterVersionRef *corev1.ObjectReference
 }
 
 // ClusterCondition contains details for the current condition of a cluster
@@ -367,6 +383,9 @@ type MachineSetConfig struct {
 type MachineSetSpec struct {
 	// MachineSetConfig is the configuration for the MachineSet
 	MachineSetConfig
+
+	// ClusterVersionRef references the clusterversion the machine set is running.
+	ClusterVersionRef corev1.ObjectReference
 }
 
 // MachineSetHardwareSpec specifies the hardware for a MachineSet
