@@ -19,6 +19,7 @@ package cluster
 import (
 	"testing"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apiserver/pkg/registry/generic"
@@ -57,6 +58,11 @@ func validNewCluster(name string) *clusteroperatorapi.Cluster {
 						Size:     1,
 					},
 				},
+			},
+			Version: corev1.ObjectReference{
+				Kind:       "ClusterVersion",
+				APIVersion: "clusteroperator.openshift.io/v1alpha1",
+				Name:       "v3-9",
 			},
 		},
 	}

@@ -404,12 +404,18 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								},
 							},
 						},
+						"version": {
+							SchemaProps: spec.SchemaProps{
+								Description: "Version references the clusterversion that should be running.",
+								Ref:         ref("k8s.io/api/core/v1.ObjectReference"),
+							},
+						},
 					},
-					Required: []string{"hardware", "config", "machineSets"},
+					Required: []string{"hardware", "config", "machineSets", "version"},
 				},
 			},
 			Dependencies: []string{
-				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterConfigSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterHardwareSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterMachineSet", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetHardwareSpec"},
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterConfigSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterHardwareSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterMachineSet", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetHardwareSpec", "k8s.io/api/core/v1.ObjectReference"},
 		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterStatus": {
 			Schema: spec.Schema{

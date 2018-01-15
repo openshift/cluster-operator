@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes/fake"
@@ -80,6 +81,11 @@ func TestClusterCreate(t *testing.T) {
 					Name: testClusterName,
 				},
 				Spec: v1alpha1.ClusterSpec{
+					Version: corev1.ObjectReference{
+						Kind:       "ClusterVersion",
+						APIVersion: "clusteroperator.openshift.io/v1alpha1",
+						Name:       "v3-9",
+					},
 					MachineSets: []v1alpha1.ClusterMachineSet{
 						{
 							Name: "master",
@@ -106,7 +112,7 @@ func TestClusterCreate(t *testing.T) {
 			clusterOperatorClient.ClusteroperatorV1alpha1().Clusters(testNamespace).Create(cluster)
 
 			if err := waitForClusterToExist(clusterOperatorClient, testNamespace, testClusterName); err != nil {
-				t.Fatalf("error waiting from Cluster to exist: %v", err)
+				t.Fatalf("error waiting for Cluster to exist: %v", err)
 			}
 
 			if err := waitForClusterToReconcile(clusterOperatorClient, testNamespace, testClusterName); err != nil {
