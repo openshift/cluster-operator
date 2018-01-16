@@ -394,8 +394,6 @@ func (c *ClusterController) manageMachineSets(machineSets []*clusteroperator.Mac
 		return nil
 	}
 
-	var errCh chan error
-
 	machineSetPrefixes := make([]string, len(cluster.Spec.MachineSets))
 	for i, machineSet := range cluster.Spec.MachineSets {
 		machineSetPrefixes[i] = getNamePrefixForMachineSet(cluster, machineSet.Name)
@@ -424,6 +422,8 @@ func (c *ClusterController) manageMachineSets(machineSets []*clusteroperator.Mac
 		}
 	}
 
+	errCh := make(chan error, len(cluster.Spec.MachineSets)+len(machineSetsToDelete))
+
 	// Sync machine sets
 	for i := range cluster.Spec.MachineSets {
 		machineSetToCreate, deleteMachineSet, err := c.manageMachineSet(cluster, clusterMachineSets[i], cluster.Spec.MachineSets[i].MachineSetConfig, machineSetPrefixes[i])
@@ -445,7 +445,9 @@ func (c *ClusterController) manageMachineSets(machineSets []*clusteroperator.Mac
 	for i, ms := range machineSetsToDelete {
 		deletedMachineSetKeys[i] = getMachineSetKey(ms)
 	}
-	c.expectations.SetExpectations(clusterKey, len(machineSetsToCreate), deletedMachineSetKeys)
+	if err := c.expectations.SetExpectations(clusterKey, len(machineSetsToCreate), deletedMachineSetKeys); err != nil {
+		return err
+	}
 
 	if len(machineSetsToCreate) > 0 {
 		var wg sync.WaitGroup

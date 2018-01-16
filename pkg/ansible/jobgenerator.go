@@ -1,3 +1,19 @@
+/*
+Copyright 2018 The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package ansible
 
 import (
@@ -16,7 +32,18 @@ const (
 	openshiftAnsibleContainerDir = "/usr/share/ansible/openshift-ansible/"
 )
 
+// JobGenerator is used to generate jobs that run ansible playbooks.
 type JobGenerator interface {
+	// GeneratePlaybookJob generates a job to run the specified playbook.
+	// Note that neither the job nor the configmap will be created in the API
+	// server. It is the responsibility of the caller to create the objects
+	// in the API server.
+	//
+	// name - name to give the job and the configmap
+	// hardware - details of the hardware of the target cluster
+	// playbook - name of the playbook to run
+	// inventory - inventory to pass to the playbook
+	// vars - Ansible variables to the pass to the playbook
 	GeneratePlaybookJob(name string, hardware *clusteroperator.ClusterHardwareSpec, playbook, inventory, vars string) (*kbatch.Job, *kapi.ConfigMap)
 }
 
@@ -25,6 +52,13 @@ type jobGenerator struct {
 	imagePullPolicy kapi.PullPolicy
 }
 
+// NewJobGenerator creates a new JobGenerator that can be used to create
+// Ansible jobs.
+//
+// openshiftAnsibleImage - name of the openshift-ansible image that the
+//   jobs created by the job generator will use
+// openshiftAnsibleImagePullPolicy - policy to use to pull the
+//   openshift-ansible image
 func NewJobGenerator(openshiftAnsibleImage string, openshiftAnsibleImagePullPolicy kapi.PullPolicy) JobGenerator {
 	return &jobGenerator{
 		image:           openshiftAnsibleImage,

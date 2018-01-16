@@ -496,9 +496,9 @@ func (c *InfraController) syncCluster(key string) error {
 
 	specChanged := cluster.Status.ProvisionedJobGeneration != cluster.Generation
 
-	jobFactory := c.getJobFactory(cluster, specChanged)
+	jobFactory := c.getJobFactory(cluster)
 
-	job, isJobNew, err := c.jobControl.ControlJobs(key, cluster, jobFactory, cLog)
+	job, isJobNew, err := c.jobControl.ControlJobs(key, cluster, specChanged, jobFactory, cLog)
 	if err != nil {
 		return err
 	}
@@ -604,10 +604,7 @@ func (f jobFactory) BuildJob(name string) (*v1batch.Job, *kapi.ConfigMap, error)
 	return f(name)
 }
 
-func (c *InfraController) getJobFactory(cluster *clusteroperator.Cluster, specChanged bool) controller.JobFactory {
-	if !specChanged {
-		return nil
-	}
+func (c *InfraController) getJobFactory(cluster *clusteroperator.Cluster) controller.JobFactory {
 	return jobFactory(func(name string) (*v1batch.Job, *kapi.ConfigMap, error) {
 		varsGenerator := ansible.NewVarsGenerator(cluster)
 		vars, err := varsGenerator.GenerateVars()

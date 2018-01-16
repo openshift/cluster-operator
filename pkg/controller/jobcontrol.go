@@ -36,20 +36,22 @@ import (
 	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 )
 
+// JobControl is used to control jobs that are needed by a controller.
 type JobControl interface {
 	// ControlJobs handles running/deleting jobs for the owner.
 	//
 	// ownerKey: key to identify the owner (namespace/name)
 	// owner: owner owning the jobs
-	// jobFactory: function to call to build a new job if one does not already
-	//   exist. if nil, then a new job is not needed.
+	// buildNewJob: true if a new job should be built if one does not already
+	//   exist
+	// jobFactory: function to call to build a new job
 	// logger: logger to which to log
 	//
 	// Return:
 	//  (*kbatch.Job) current job
 	//  (bool) true if the current job was newly created
-	//  (error) error that preventing handling the jobs
-	ControlJobs(ownerKey string, owner metav1.Object, jobFactory JobFactory, logger log.FieldLogger) (*kbatch.Job, bool, error)
+	//  (error) error that prevented handling the jobs
+	ControlJobs(ownerKey string, owner metav1.Object, buildNewJob bool, jobFactory JobFactory, logger log.FieldLogger) (*kbatch.Job, bool, error)
 
 	// ObserveOwnerDeletion observes that the owner with the specified key was
 	// deleted.
@@ -67,7 +69,12 @@ type JobControl interface {
 	IsControlledJob(job *kbatch.Job) bool
 }
 
+// JobFactory is used to build a job to be controlled by a JobControl.
 type JobFactory interface {
+	// BuildJob builds a job (and associated configmap) with the specified
+	// name.
+	// Note that BuildJob should not create the job (or the configmap) in the
+	// API Server.
 	BuildJob(name string) (*kbatch.Job, *kapi.ConfigMap, error)
 }
 
@@ -91,7 +98,7 @@ func NewJobControl(jobPrefix string, ownerKind schema.GroupVersionKind, kubeClie
 	}
 }
 
-func (c *jobControl) ControlJobs(ownerKey string, owner metav1.Object, jobFactory JobFactory, logger log.FieldLogger) (*kbatch.Job, bool, error) {
+func (c *jobControl) ControlJobs(ownerKey string, owner metav1.Object, buildNewJob bool, jobFactory JobFactory, logger log.FieldLogger) (*kbatch.Job, bool, error) {
 	if !c.expectations.SatisfiedExpectations(ownerKey) {
 		// expectations have not been met, come back later
 		logger.Debugln("expectations have not been satisfied yet")
@@ -134,7 +141,7 @@ func (c *jobControl) ControlJobs(ownerKey string, owner metav1.Object, jobFactor
 		return currentJob, false, nil
 	}
 
-	if jobFactory != nil {
+	if buildNewJob {
 		job, err := c.createJob(ownerKey, owner, jobFactory, logger)
 		return job, job != nil, err
 	}
@@ -162,6 +169,11 @@ func (c *jobControl) createJob(ownerKey string, owner metav1.Object, jobFactory 
 	logger.Infof("Creating new %q job", c.jobPrefix)
 
 	name := names.SimpleNameGenerator.GenerateName(fmt.Sprintf("%s%s-", c.jobPrefix, owner.GetName()))
+
+	if jobFactory == nil {
+		logger.Warn("asked to build new job but no job factory supplied")
+		return nil, nil
+	}
 
 	job, configMap, err := jobFactory.BuildJob(name)
 	if err != nil {
@@ -218,11 +230,13 @@ func (c *jobControl) deleteOldJobs(ownerKey string, oldJobs []*kbatch.Job, logge
 	for _, job := range oldJobs {
 		keysToDelete = append(keysToDelete, jobKey(job))
 	}
-	c.expectations.ExpectDeletions(ownerKey, keysToDelete)
+	if err := c.expectations.ExpectDeletions(ownerKey, keysToDelete); err != nil {
+		return err
+	}
 
 	logger.Infof("Deleting old jobs: %v", keysToDelete)
 
-	var errCh chan error
+	errCh := make(chan error, len(oldJobs))
 
 	var wg sync.WaitGroup
 	wg.Add(len(oldJobs))
@@ -248,6 +262,7 @@ func (c *jobControl) deleteOldJobs(ownerKey string, oldJobs []*kbatch.Job, logge
 		}
 	default:
 	}
+
 	return nil
 }
 
