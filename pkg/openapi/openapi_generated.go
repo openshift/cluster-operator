@@ -444,9 +444,9 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Format:      "",
 							},
 						},
-						"provisioningJobGeneration": {
+						"provisionedJobGeneration": {
 							SchemaProps: spec.SchemaProps{
-								Description: "ProvisioningJobGeneration is the generation of the cluster resource used to to generate the latest completed infra provisioning job. The value will be set regardless of the job having succeeded or failed.",
+								Description: "ProvisionedJobGeneration is the generation of the cluster resource used to to generate the latest completed infra provisioning job. The value will be set regardless of the job having succeeded or failed.",
 								Type:        []string{"integer"},
 								Format:      "int64",
 							},
@@ -472,7 +472,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 							},
 						},
 					},
-					Required: []string{"machineSetCount", "provisioned", "provisioningJobGeneration", "running", "conditions"},
+					Required: []string{"machineSetCount", "provisioned", "provisionedJobGeneration", "running", "conditions"},
 				},
 			},
 			Dependencies: []string{

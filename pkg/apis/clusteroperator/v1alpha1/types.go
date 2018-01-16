@@ -23,9 +23,9 @@ import (
 
 // Annotation constants
 const (
-	// ClusterGenerationAnnotation contains the generation of a cluster spec used to create
-	// a provisioning job
-	ClusterGenerationAnnotation = GroupName + "/cluster.generation"
+	// OwnerGenerationAnnotation contains the generation of the spec of the
+	// owner of a job
+	OwnerGenerationAnnotation = GroupName + "/owner.generation"
 )
 
 // +genclient
@@ -238,10 +238,10 @@ type ClusterStatus struct {
 	// For machine set hardware, see the status of each machine set resource.
 	Provisioned bool `json:"provisioned"`
 
-	// ProvisioningJobGeneration is the generation of the cluster resource used to
+	// ProvisionedJobGeneration is the generation of the cluster resource used to
 	// to generate the latest completed infra provisioning job. The value will be set
 	// regardless of the job having succeeded or failed.
-	ProvisioningJobGeneration int64 `json:"provisioningJobGeneration"`
+	ProvisionedJobGeneration int64 `json:"provisionedJobGeneration"`
 
 	// Running is true if the master of the cluster is running and can be accessed using
 	// the KubeconfigSecret
