@@ -530,7 +530,7 @@ func (c *InfraController) setClusterToNotProvisioning(original *clusteroperator.
 	cluster := original.DeepCopy()
 	now := metav1.Now()
 
-	clusterProvisioning := clusterCondition(cluster, clusteroperator.ClusterHardwareProvisioning)
+	clusterProvisioning := clusterCondition(cluster, clusteroperator.ClusterInfraProvisioning)
 	if clusterProvisioning != nil &&
 		clusterProvisioning.Status == kapi.ConditionTrue {
 		clusterProvisioning.Status = kapi.ConditionFalse
