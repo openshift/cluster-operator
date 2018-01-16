@@ -21,6 +21,7 @@ import (
 	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
 	clusteroperatorv1alpha1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	"github.com/openshift/cluster-operator/pkg/registry/clusteroperator/cluster"
+	"github.com/openshift/cluster-operator/pkg/registry/clusteroperator/clusterversion"
 	"github.com/openshift/cluster-operator/pkg/registry/clusteroperator/machine"
 	"github.com/openshift/cluster-operator/pkg/registry/clusteroperator/machineset"
 	"k8s.io/apiserver/pkg/registry/generic"
@@ -69,6 +70,12 @@ func (p StorageProvider) v1alpha1Storage(
 	}
 	clusterStorage, clusterStatusStorage := cluster.NewStorage(clusterRESTOptions)
 
+	clusterVerRESTOptions, err := restOptionsGetter.GetRESTOptions(clusteroperator.Resource("clusterversions"))
+	if err != nil {
+		return nil, err
+	}
+	clusterVersionStorage, clusterVersionStatusStorage := clusterversion.NewStorage(clusterVerRESTOptions)
+
 	machineSetRESTOptions, err := restOptionsGetter.GetRESTOptions(clusteroperator.Resource("machinesets"))
 	if err != nil {
 		return nil, err
@@ -82,12 +89,14 @@ func (p StorageProvider) v1alpha1Storage(
 	machineStorage, machineStatusStorage := machine.NewStorage(machineRESTOptions)
 
 	return map[string]rest.Storage{
-		"clusters":           clusterStorage,
-		"clusters/status":    clusterStatusStorage,
-		"machinesets":        machineSetStorage,
-		"machinesets/status": machineSetStatusStorage,
-		"machines":           machineStorage,
-		"machines/status":    machineStatusStorage,
+		"clusters":               clusterStorage,
+		"clusters/status":        clusterStatusStorage,
+		"clusterversions":        clusterVersionStorage,
+		"clusterversions/status": clusterVersionStatusStorage,
+		"machinesets":            machineSetStorage,
+		"machinesets/status":     machineSetStatusStorage,
+		"machines":               machineStorage,
+		"machines/status":        machineStatusStorage,
 	}, nil
 }
 

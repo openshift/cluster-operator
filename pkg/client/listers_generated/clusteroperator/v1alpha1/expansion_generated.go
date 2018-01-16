@@ -26,6 +26,14 @@ type ClusterListerExpansion interface{}
 // ClusterNamespaceLister.
 type ClusterNamespaceListerExpansion interface{}
 
+// ClusterVersionListerExpansion allows custom methods to be added to
+// ClusterVersionLister.
+type ClusterVersionListerExpansion interface{}
+
+// ClusterVersionNamespaceListerExpansion allows custom methods to be added to
+// ClusterVersionNamespaceLister.
+type ClusterVersionNamespaceListerExpansion interface{}
+
 // MachineListerExpansion allows custom methods to be added to
 // MachineLister.
 type MachineListerExpansion interface{}

@@ -26,6 +26,7 @@ import (
 type ClusteroperatorV1alpha1Interface interface {
 	RESTClient() rest.Interface
 	ClustersGetter
+	ClusterVersionsGetter
 	MachinesGetter
 	MachineSetsGetter
 }
@@ -37,6 +38,10 @@ type ClusteroperatorV1alpha1Client struct {
 
 func (c *ClusteroperatorV1alpha1Client) Clusters(namespace string) ClusterInterface {
 	return newClusters(c, namespace)
+}
+
+func (c *ClusteroperatorV1alpha1Client) ClusterVersions(namespace string) ClusterVersionInterface {
+	return newClusterVersions(c, namespace)
 }
 
 func (c *ClusteroperatorV1alpha1Client) Machines(namespace string) MachineInterface {

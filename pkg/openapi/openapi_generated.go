@@ -80,6 +80,30 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 			Dependencies: []string{
 				"k8s.io/api/core/v1.LocalObjectReference"},
 		},
+		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.AWSVMImages": {
+			Schema: spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Description: "AWSVMImages indicates which AMI to use in each supported AWS region for this OpenShift version.",
+					Properties: map[string]spec.Schema{
+						"amiByRegion": {
+							SchemaProps: spec.SchemaProps{
+								Type: []string{"object"},
+								AdditionalProperties: &spec.SchemaOrBool{
+									Schema: &spec.Schema{
+										SchemaProps: spec.SchemaProps{
+											Type:   []string{"string"},
+											Format: "",
+										},
+									},
+								},
+							},
+						},
+					},
+					Required: []string{"amiByRegion"},
+				},
+			},
+			Dependencies: []string{},
+		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.Cluster": {
 			Schema: spec.Schema{
 				SchemaProps: spec.SchemaProps{
@@ -453,6 +477,134 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 			},
 			Dependencies: []string{
 				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterCondition", "k8s.io/api/core/v1.LocalObjectReference"},
+		},
+		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterVersion": {
+			Schema: spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Description: "ClusterVersion represents a version of OpenShift that can be, or is installed.",
+					Properties: map[string]spec.Schema{
+						"kind": {
+							SchemaProps: spec.SchemaProps{
+								Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"apiVersion": {
+							SchemaProps: spec.SchemaProps{
+								Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"metadata": {
+							SchemaProps: spec.SchemaProps{
+								Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+							},
+						},
+						"spec": {
+							SchemaProps: spec.SchemaProps{
+								Ref: ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterVersionSpec"),
+							},
+						},
+						"status": {
+							SchemaProps: spec.SchemaProps{
+								Ref: ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterVersionStatus"),
+							},
+						},
+					},
+				},
+			},
+			Dependencies: []string{
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterVersionSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterVersionStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+		},
+		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterVersionList": {
+			Schema: spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Properties: map[string]spec.Schema{
+						"kind": {
+							SchemaProps: spec.SchemaProps{
+								Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"apiVersion": {
+							SchemaProps: spec.SchemaProps{
+								Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"metadata": {
+							SchemaProps: spec.SchemaProps{
+								Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
+							},
+						},
+						"items": {
+							SchemaProps: spec.SchemaProps{
+								Type: []string{"array"},
+								Items: &spec.SchemaOrArray{
+									Schema: &spec.Schema{
+										SchemaProps: spec.SchemaProps{
+											Ref: ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterVersion"),
+										},
+									},
+								},
+							},
+						},
+					},
+					Required: []string{"items"},
+				},
+			},
+			Dependencies: []string{
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterVersion", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+		},
+		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterVersionSpec": {
+			Schema: spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Description: "ClusterVersionSpec is a specification of a cluster version that can be installed.",
+					Properties: map[string]spec.Schema{
+						"yumRepositories": {
+							SchemaProps: spec.SchemaProps{
+								Description: "YumRepositories is an optional list of yum repositories that should be configured on each host in the cluster.",
+								Type:        []string{"array"},
+								Items: &spec.SchemaOrArray{
+									Schema: &spec.Schema{
+										SchemaProps: spec.SchemaProps{
+											Ref: ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.YumRepository"),
+										},
+									},
+								},
+							},
+						},
+						"imageFormat": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ImageFormat defines a format string for the container registry and images to use for various OpenShift components. Valid expansions are component (required, expands to pod/deployer/haproxy-router/etc), and version (v3.9.0). (i.e. example.com/openshift3/ose-${component}:${version}\")",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"vmImages": {
+							SchemaProps: spec.SchemaProps{
+								Ref: ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.VMImages"),
+							},
+						},
+					},
+					Required: []string{"imageFormat", "vmImages"},
+				},
+			},
+			Dependencies: []string{
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.VMImages", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.YumRepository"},
+		},
+		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterVersionStatus": {
+			Schema: spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Description: "ClusterVersionStatus is the status of a ClusterVersion. It may be used to indicate if the cluster version is ready to be used, or if any problems have been detected.",
+					Properties:  map[string]spec.Schema{},
+				},
+			},
+			Dependencies: []string{},
 		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.Machine": {
 			Schema: spec.Schema{
@@ -881,6 +1033,71 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 			Schema: spec.Schema{
 				SchemaProps: spec.SchemaProps{
 					Properties: map[string]spec.Schema{},
+				},
+			},
+			Dependencies: []string{},
+		},
+		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.VMImages": {
+			Schema: spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Description: "VMImages contains required data to locate images in all supported cloud providers.",
+					Properties: map[string]spec.Schema{
+						"awsVMImages": {
+							SchemaProps: spec.SchemaProps{
+								Ref: ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.AWSVMImages"),
+							},
+						},
+					},
+				},
+			},
+			Dependencies: []string{
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.AWSVMImages"},
+		},
+		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.YumRepository": {
+			Schema: spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Description: "YumRepository represents optional yum repositories to deploy onto all systems in the cluster.",
+					Properties: map[string]spec.Schema{
+						"id": {
+							SchemaProps: spec.SchemaProps{
+								Type:   []string{"string"},
+								Format: "",
+							},
+						},
+						"name": {
+							SchemaProps: spec.SchemaProps{
+								Type:   []string{"string"},
+								Format: "",
+							},
+						},
+						"baseurl": {
+							SchemaProps: spec.SchemaProps{
+								Type:   []string{"string"},
+								Format: "",
+							},
+						},
+						"enabled": {
+							SchemaProps: spec.SchemaProps{
+								Description: "Enabled controls whether or not the repository should be enabled on the end system. Must be 0 or 1 to match yum.",
+								Type:        []string{"integer"},
+								Format:      "int32",
+							},
+						},
+						"gpgcheck": {
+							SchemaProps: spec.SchemaProps{
+								Description: "GPGCheck controls whether or not the packages in the repository should have their GPG signatures validated. Must be 0 or 1 to match yum.",
+								Type:        []string{"integer"},
+								Format:      "int32",
+							},
+						},
+						"gpgkey": {
+							SchemaProps: spec.SchemaProps{
+								Type:   []string{"string"},
+								Format: "",
+							},
+						},
+					},
+					Required: []string{"id", "name", "baseurl", "enabled", "gpgcheck"},
 				},
 			},
 			Dependencies: []string{},

@@ -26,6 +26,24 @@ objects:
     - name: beta
       nodeType: Compute
       size: 5
+- apiVersion: clusteroperator.openshift.io/v1alpha1
+  kind: ClusterVersion
+  metadata:
+    name: v3-9
+  spec:
+    imageFormat: "openshift/origin-${component}:v3.9.0-alpha.1"
+    vmImages:
+      awsVMImages:
+        amiByRegion:
+          us-east-1: ami-10aed306a # TODO: not correct, need to find out how to lookup latest golden image.
+    yumRepositories:
+    # TODO: replace with a usable OpenShift repo
+    - id: dgoodwin-tito-copr
+      name: Tito Development Copr
+      baseurl: https://copr-be.cloud.fedoraproject.org/results/dgoodwin/tito/fedora-$releasever-$basearch/
+      gpgkey: https://copr-be.cloud.fedoraproject.org/results/dgoodwin/tito/pubkey.gpg
+      gpgcheck: 1
+      enabled: 0
 
 parameters:
 - name: CLUSTER_NAME
