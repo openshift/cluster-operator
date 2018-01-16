@@ -274,12 +274,12 @@ type ClusterConditionType string
 
 // These are valid conditions for a cluster
 const (
-	// ClusterHardwareProvisionining is true when cluster infrastructure is in the process of provisioning
-	ClusterHardwareProvisioning ClusterConditionType = "HardwareProvisioning"
-	// ClusterHardwareProvisioningFailed is true when the job to provision cluster infrastructure has failed.
-	ClusterHardwareProvisioningFailed ClusterConditionType = "HardwareProvisioningFailed"
-	// ClusterHardwareProvisioned represents status of the hardware provisioning status for this cluster.
-	ClusterHardwareProvisioned ClusterConditionType = "HardwareProvisioned"
+	// ClusterInfraProvisionining is true when cluster infrastructure is in the process of provisioning
+	ClusterInfraProvisioning ClusterConditionType = "InfraProvisioning"
+	// ClusterInfraProvisioningFailed is true when the job to provision cluster infrastructure has failed.
+	ClusterInfraProvisioningFailed ClusterConditionType = "InfraProvisioningFailed"
+	// ClusterInfraProvisioned represents success of the infra provisioning for this cluster.
+	ClusterInfraProvisioned ClusterConditionType = "InfraProvisioned"
 	// ClusterReady means the cluster is able to service requests
 	ClusterReady ClusterConditionType = "Ready"
 )
