@@ -47,35 +47,10 @@ const (
 	//
 	// 5ms, 10ms, 20ms, 40ms, 80ms, 160ms, 320ms, 640ms, 1.3s, 2.6s, 5.1s, 10.2s, 20.4s, 41s, 82s
 	maxRetries = 15
-
-	controllerLogName = "master"
-
-	infraPlaybook = "playbooks/aws/openshift-cluster/install.yml"
-	// jobPrefix is used when generating a name for the configmap and job used for each
-	// Ansible execution.
-	jobPrefix = "job-master-"
 )
 
-const provisionInventoryTemplate = `
-[OSEv3:children]
-masters
-
-[OSEv3:vars]
-
-[masters]
-`
-
-var machineSetKind = clusteroperator.SchemeGroupVersion.WithKind("MachineSet")
-
 // NewMasterController returns a new *MasterController.
-func NewMasterController(
-	machineSetInformer informers.MachineSetInformer,
-	jobInformer batchinformers.JobInformer,
-	kubeClient kubeclientset.Interface,
-	clusteroperatorClient clusteroperatorclientset.Interface,
-	ansibleImage string,
-	ansibleImagePullPolicy kapi.PullPolicy,
-) *MasterController {
+func NewMasterController(machineInformer informers.MachineInformer, kubeClient kubeclientset.Interface, clusteroperatorClient clusteroperatorclientset.Interface) *MasterController {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(glog.Infof)
 	// TODO: remove the wrapper when every clients have moved to use the clientset.
@@ -85,15 +60,12 @@ func NewMasterController(
 		metrics.RegisterMetricAndTrackRateLimiterUsage("clusteroperator_master_controller", kubeClient.CoreV1().RESTClient().GetRateLimiter())
 	}
 
-	logger := log.WithField("controller", controllerLogName)
 	c := &MasterController{
-		coClient:   clusteroperatorClient,
-		kubeClient: kubeClient,
-		queue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "master"),
-		logger:     logger,
+		client: clusteroperatorClient,
+		queue:  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "master"),
 	}
 
-	machineSetInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	machineInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.addMachine,
 		UpdateFunc: c.updateMachine,
 		DeleteFunc: c.deleteMachine,
