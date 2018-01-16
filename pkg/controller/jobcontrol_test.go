@@ -17,6 +17,7 @@ limitations under the License.
 package controller
 
 import (
+	"fmt"
 	"runtime"
 	"strconv"
 	"testing"
@@ -136,7 +137,7 @@ func TestJobControlWithoutNeedForNewJob(t *testing.T) {
 	logger, hook := getTestLogger()
 	jobControl, _, _ := newTestJobControl(testJobPrefix, testOwnerKind)
 	testOwner := newTestOwner(1)
-	job, isNew, err := jobControl.ControlJobs(testOwnerKey, testOwner, nil, logger)
+	job, isNew, err := jobControl.ControlJobs(testOwnerKey, testOwner, false, nil, logger)
 	if err != nil {
 		t.Fatalf("no error expected: %v", err)
 	}
@@ -157,7 +158,7 @@ func TestJobControlWithPendingExpectations(t *testing.T) {
 	testOwner := newTestOwner(1)
 	jobControl.expectations.ExpectCreations(testOwnerKey, 1)
 	jobFactory := newTestJobFactory(nil, nil, nil)
-	job, isNew, err := jobControl.ControlJobs(testOwnerKey, testOwner, jobFactory, logger)
+	job, isNew, err := jobControl.ControlJobs(testOwnerKey, testOwner, true, jobFactory, logger)
 	if err != nil {
 		t.Fatalf("no error expected: %v", err)
 	}
@@ -182,7 +183,7 @@ func TestJobControlForNewJob(t *testing.T) {
 	newJob := newTestJob("new-job")
 	newConfigMap := newTestConfigMap("new-configmap")
 	jobFactory := newTestJobFactory(newJob, newConfigMap, nil)
-	job, isNew, err := jobControl.ControlJobs(testOwnerKey, testOwner, jobFactory, logger)
+	job, isNew, err := jobControl.ControlJobs(testOwnerKey, testOwner, true, jobFactory, logger)
 	if err != nil {
 		t.Fatalf("no error expected: %v", err)
 	}
@@ -244,7 +245,7 @@ func TestJobControlForExistingJob(t *testing.T) {
 	newJob := newTestJob("new-job")
 	newConfigMap := newTestConfigMap("new-configmap")
 	jobFactory := newTestJobFactory(newJob, newConfigMap, nil)
-	job, isNew, err := jobControl.ControlJobs(testOwnerKey, testOwner, jobFactory, logger)
+	job, isNew, err := jobControl.ControlJobs(testOwnerKey, testOwner, true, jobFactory, logger)
 	if err != nil {
 		t.Fatalf("no error expected: %v", err)
 	}
@@ -267,7 +268,7 @@ func TestJobControlForExistingJob(t *testing.T) {
 	assertNoDireLogEntries(t, hook)
 }
 
-// TestJobControlForExistingOldJob tests controlling jobs whene there is an
+// TestJobControlForExistingOldJob tests controlling jobs when there is an
 // existing job for an older generation of the owner.
 func TestJobControlForExistingOldJob(t *testing.T) {
 	logger, hook := getTestLogger()
@@ -278,7 +279,7 @@ func TestJobControlForExistingOldJob(t *testing.T) {
 	newJob := newTestJob("new-job")
 	newConfigMap := newTestConfigMap("new-configmap")
 	jobFactory := newTestJobFactory(newJob, newConfigMap, nil)
-	job, _, err := jobControl.ControlJobs(testOwnerKey, testOwner, jobFactory, logger)
+	job, _, err := jobControl.ControlJobs(testOwnerKey, testOwner, true, jobFactory, logger)
 	if err != nil {
 		t.Fatalf("no error expected: %v", err)
 	}
@@ -303,6 +304,29 @@ func TestJobControlForExistingOldJob(t *testing.T) {
 		}
 	}
 	assertNoDireLogEntries(t, hook)
+}
+
+// TestJobControlWhenJobDeleteFails tests controlling jobs when the delete
+// of an old existing job fails.
+func TestJobControlWhenJobDeleteFails(t *testing.T) {
+	logger, _ := getTestLogger()
+	jobControl, jobStore, kubeClient := newTestJobControl(testJobPrefix, testOwnerKind)
+	kubeClient.AddReactor("delete", "jobs", func(action clientgotesting.Action) (bool, kruntime.Object, error) {
+		return true, nil, fmt.Errorf("delete failed")
+	})
+	testOwner := newTestOwner(2)
+	existingJob := newTestControlledJob(testJobPrefix, "existing-job", testOwner, testOwnerKind, 1)
+	jobStore.Add(existingJob)
+	newJob := newTestJob("new-job")
+	newConfigMap := newTestConfigMap("new-configmap")
+	jobFactory := newTestJobFactory(newJob, newConfigMap, nil)
+	_, _, err := jobControl.ControlJobs(testOwnerKey, testOwner, true, jobFactory, logger)
+	if err == nil {
+		t.Fatalf("error expected")
+	}
+	if e, a := "delete failed", err.Error(); e != a {
+		t.Fatalf("unexpected error: expected %v, got %v", e, a)
+	}
 }
 
 func getTestLogger() (log.FieldLogger, *testlog.Hook) {
