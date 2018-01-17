@@ -22,7 +22,6 @@ import (
 
 	v1batch "k8s.io/api/batch/v1"
 	kapi "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -107,7 +106,9 @@ func NewInfraController(
 	jobInformer.Informer().AddEventHandler(c.jobControl)
 	c.jobsSynced = jobInformer.Informer().HasSynced
 
-	c.syncHandler = c.syncCluster
+	c.jobSync = controller.NewJobSync(c.jobControl, &jobSyncStrategy{controller: c}, logger)
+
+	c.syncHandler = c.jobSync.Sync
 	c.enqueueCluster = c.enqueue
 	c.ansibleGenerator = ansible.NewJobGenerator(ansibleImage, ansibleImagePullPolicy)
 
@@ -126,6 +127,8 @@ type InfraController struct {
 	ansibleGenerator ansible.JobGenerator
 
 	jobControl controller.JobControl
+
+	jobSync controller.JobSync
 
 	// used for unit testing
 	enqueueCluster func(cluster *clusteroperator.Cluster)
@@ -247,186 +250,10 @@ func (c *InfraController) handleErr(err error, key interface{}) {
 	c.queue.Forget(key)
 }
 
-// syncClusterStatusWithJob update the status of the cluster to
-// reflect the current status of the job that is provisioning the cluster.
-// If the job completed successfully, the cluster will be marked as
-// provisioned.
-// If the job completed with a failure, the cluster will be marked as
-// not provisioned.
-// If the job is still in progress, the cluster will be marked as
-// provisioning.
-func (c *InfraController) syncClusterStatusWithJob(original *clusteroperator.Cluster, job *v1batch.Job) error {
-	cluster := original.DeepCopy()
-
-	jobCompleted := jobCondition(job, v1batch.JobComplete)
-	jobFailed := jobCondition(job, v1batch.JobFailed)
-	switch {
-	// Provision job completed successfully
-	case jobCompleted != nil && jobCompleted.Status == kapi.ConditionTrue:
-		reason := controller.ReasonJobCompleted
-		message := fmt.Sprintf("Job %s/%s completed at %v", job.Namespace, job.Name, jobCompleted.LastTransitionTime)
-		controller.SetClusterCondition(cluster, clusteroperator.ClusterInfraProvisioning, kapi.ConditionFalse, reason, message)
-		controller.SetClusterCondition(cluster, clusteroperator.ClusterInfraProvisioned, kapi.ConditionTrue, reason, message)
-		controller.SetClusterCondition(cluster, clusteroperator.ClusterInfraProvisioningFailed, kapi.ConditionFalse, reason, message)
-		cluster.Status.Provisioned = true
-		cluster.Status.ProvisionedJobGeneration = cluster.Generation
-	// Provision job failed
-	case jobFailed != nil && jobFailed.Status == kapi.ConditionTrue:
-		reason := controller.ReasonJobFailed
-		message := fmt.Sprintf("Job %s/%s failed at %v, reason: %s", job.Namespace, job.Name, jobFailed.LastTransitionTime, jobFailed.Reason)
-		controller.SetClusterCondition(cluster, clusteroperator.ClusterInfraProvisioning, kapi.ConditionFalse, reason, message)
-		controller.SetClusterCondition(cluster, clusteroperator.ClusterInfraProvisioningFailed, kapi.ConditionTrue, reason, message)
-		// ProvisionedJobGeneration is set even when the job failed because we
-		// do not want to run the provision job again until there have been
-		// changes in the spec of the cluster.
-		cluster.Status.ProvisionedJobGeneration = cluster.Generation
-	// Provision job still in progress
-	default:
-		reason := controller.ReasonJobRunning
-		message := fmt.Sprintf("Job %s/%s is running since %v. Pod completions: %d, failures: %d", job.Namespace, job.Name, job.Status.StartTime, job.Status.Succeeded, job.Status.Failed)
-		controller.SetClusterCondition(
-			cluster,
-			clusteroperator.ClusterInfraProvisioning,
-			kapi.ConditionTrue,
-			reason,
-			message,
-			func(old, new clusteroperator.ClusterCondition) bool {
-				return new.Message != old.Message
-			},
-		)
-	}
-
-	return c.updateClusterStatus(original, cluster)
-}
-
 func (c *InfraController) updateClusterStatus(original, cluster *clusteroperator.Cluster) error {
 	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		return controller.PatchClusterStatus(c.coClient, original, cluster)
 	})
-}
-
-// syncCluster will sync the cluster with the given key.
-// This function is not meant to be invoked concurrently with the same key.
-func (c *InfraController) syncCluster(key string) error {
-	startTime := time.Now()
-	cLog := c.logger.WithField("cluster", key)
-	cLog.Debugln("started syncing cluster")
-	defer func() {
-		cLog.WithField("duration", time.Since(startTime)).Debugln("finished syncing cluster")
-	}()
-
-	ns, name, err := cache.SplitMetaNamespaceKey(key)
-	if err != nil {
-		return err
-	}
-	if len(ns) == 0 || len(name) == 0 {
-		return fmt.Errorf("invalid cluster key %q: either namespace or name is missing", key)
-	}
-
-	cluster, err := c.clustersLister.Clusters(ns).Get(name)
-	if errors.IsNotFound(err) {
-		cLog.Debugln("cluster deleted")
-		c.jobControl.ObserveOwnerDeletion(key)
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-
-	// Are we dealing with a cluster marked for deletion
-	if cluster.DeletionTimestamp != nil {
-		c.logger.Debugf("DeletionTimestamp set on cluster %s", cluster.Name)
-		cluster_copy := cluster.DeepCopy()
-		finalizers := sets.NewString(cluster_copy.ObjectMeta.Finalizers...)
-
-		if finalizers.Has(clusteroperator.FinalizerClusterOperator) {
-			// Clear the finalizer for the cluster
-			finalizers.Delete(clusteroperator.FinalizerClusterOperator)
-			cluster_copy.ObjectMeta.Finalizers = finalizers.List()
-			c.updateClusterStatus(cluster, cluster_copy)
-
-			return c.runDeprovisionJob(cluster)
-		}
-		return nil
-	}
-
-	finalizers := sets.NewString(cluster.ObjectMeta.Finalizers...)
-	if !finalizers.Has(clusteroperator.FinalizerClusterOperator) {
-		finalizers.Insert(clusteroperator.FinalizerClusterOperator)
-		cluster.ObjectMeta.Finalizers = finalizers.List()
-	}
-
-	specChanged := cluster.Status.ProvisionedJobGeneration != cluster.Generation
-
-	jobFactory := c.getProvisionJobFactory(cluster)
-
-	job, isJobNew, err := c.jobControl.ControlJobs(key, cluster, specChanged, jobFactory)
-	if err != nil {
-		return err
-	}
-
-	if !specChanged {
-		return nil
-	}
-
-	switch {
-	// New job has not been created, so an old job must exist. Set the cluster
-	// to not provisioning as the old job is deleted.
-	case job == nil:
-		return c.setClusterToNotProvisioning(cluster)
-	// Job was not newly created, so sync cluster status with job.
-	case !isJobNew:
-		cLog.Debugln("provisioning job exists, will sync with job")
-		return c.syncClusterStatusWithJob(cluster, job)
-	// Cluster should have a job to provision the current spec but it was not
-	// found.
-	case isClusterProvisioning(cluster):
-		return c.setJobNotFoundStatus(cluster)
-	// New job created for new provisioning
-	default:
-		return nil
-	}
-}
-
-// setClusterToNotProvisioning updates the InfraProvisioning condition
-// for the cluster to reflect that a cluster that had an in-progress
-// provision is no longer provisioning due to a change in the spec of the
-// cluster.
-func (c *InfraController) setClusterToNotProvisioning(original *clusteroperator.Cluster) error {
-	cluster := original.DeepCopy()
-
-	controller.SetClusterCondition(
-		cluster,
-		clusteroperator.ClusterInfraProvisioning,
-		kapi.ConditionFalse,
-		controller.ReasonSpecChanged,
-		"Spec changed. New provisioning needed",
-	)
-
-	return c.updateClusterStatus(original, cluster)
-}
-
-func isClusterProvisioning(cluster *clusteroperator.Cluster) bool {
-	provisioning := controller.FindClusterCondition(cluster, clusteroperator.ClusterInfraProvisioning)
-	return provisioning != nil && provisioning.Status == kapi.ConditionTrue
-}
-
-func jobCondition(job *v1batch.Job, conditionType v1batch.JobConditionType) *v1batch.JobCondition {
-	for i, condition := range job.Status.Conditions {
-		if condition.Type == conditionType {
-			return &job.Status.Conditions[i]
-		}
-	}
-	return nil
-}
-
-func (c *InfraController) setJobNotFoundStatus(original *clusteroperator.Cluster) error {
-	cluster := original.DeepCopy()
-	reason := controller.ReasonJobMissing
-	message := "Provisioning job not found."
-	controller.SetClusterCondition(cluster, clusteroperator.ClusterInfraProvisioning, kapi.ConditionFalse, reason, message)
-	controller.SetClusterCondition(cluster, clusteroperator.ClusterInfraProvisioningFailed, kapi.ConditionTrue, reason, message)
-	return c.updateClusterStatus(original, cluster)
 }
 
 type jobOwnerControl struct {
@@ -491,4 +318,161 @@ func (c *InfraController) runDeprovisionJob(cluster *clusteroperator.Cluster) er
 	}
 	_, err = c.kubeClient.BatchV1().Jobs(cluster.Namespace).Create(job)
 	return err
+}
+
+type jobSyncStrategy struct {
+	controller *InfraController
+}
+
+func (s *jobSyncStrategy) EnqueueOwner(owner metav1.Object) {
+	cluster, ok := owner.(*clusteroperator.Cluster)
+	if !ok {
+		s.controller.logger.Warn("could not convert owner from JobSync into a cluster: %#v", owner)
+		return
+	}
+	s.controller.enqueue(cluster)
+}
+
+func (s *jobSyncStrategy) GetOwner(key string) (metav1.Object, error) {
+	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+	if err != nil {
+		return nil, err
+	}
+	if len(namespace) == 0 || len(name) == 0 {
+		return nil, fmt.Errorf("invalid key %q: either namespace or name is missing", key)
+	}
+	return s.controller.clustersLister.Clusters(namespace).Get(name)
+}
+
+func (s *jobSyncStrategy) DoesOwnerNeedProcessing(owner metav1.Object) bool {
+	cluster, ok := owner.(*clusteroperator.Cluster)
+	if !ok {
+		s.controller.logger.Warn("could not convert owner from JobSync into a cluster: %#v", owner)
+		return false
+	}
+	return cluster.Status.ProvisionedJobGeneration != cluster.Generation
+}
+
+func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object) (controller.JobFactory, error) {
+	cluster, ok := owner.(*clusteroperator.Cluster)
+	if !ok {
+		return nil, fmt.Errorf("could not convert owner from JobSync into a cluster")
+	}
+	return s.controller.getProvisionJobFactory(cluster), nil
+}
+
+func (s *jobSyncStrategy) GetOwnerJobSyncConditionStatus(owner metav1.Object, conditionType controller.JobSyncConditionType) bool {
+	cluster, ok := owner.(*clusteroperator.Cluster)
+	if !ok {
+		s.controller.logger.Warn("could not convert owner from JobSync into a cluster: %#v", owner)
+		return false
+	}
+	clusterConditionType := convertJobSyncConditionType(conditionType)
+	condition := controller.FindClusterCondition(cluster, clusterConditionType)
+	return condition != nil && condition.Status == kapi.ConditionTrue
+}
+
+func (s *jobSyncStrategy) DeepCopyOwner(owner metav1.Object) metav1.Object {
+	cluster, ok := owner.(*clusteroperator.Cluster)
+	if !ok {
+		s.controller.logger.Warn("could not convert owner from JobSync into a cluster: %#v", owner)
+		return cluster
+	}
+	return cluster.DeepCopy()
+}
+
+func (s *jobSyncStrategy) SetOwnerJobSyncCondition(
+	owner metav1.Object,
+	conditionType controller.JobSyncConditionType,
+	status kapi.ConditionStatus,
+	reason string,
+	message string,
+	updateConditionCheck ...controller.UpdateConditionCheck,
+) {
+	cluster, ok := owner.(*clusteroperator.Cluster)
+	if !ok {
+		s.controller.logger.Warn("could not convert owner from JobSync into a cluster: %#v", owner)
+		return
+	}
+	controller.SetClusterCondition(
+		cluster,
+		convertJobSyncConditionType(conditionType),
+		status,
+		reason,
+		message,
+		updateConditionCheck...,
+	)
+}
+
+func (s *jobSyncStrategy) OnJobCompletion(owner metav1.Object) {
+	cluster, ok := owner.(*clusteroperator.Cluster)
+	if !ok {
+		s.controller.logger.Warn("could not convert owner from JobSync into a cluster: %#v", owner)
+		return
+	}
+	cluster.Status.Provisioned = true
+	cluster.Status.ProvisionedJobGeneration = cluster.Generation
+}
+
+func (s *jobSyncStrategy) OnJobFailure(owner metav1.Object) {
+	cluster, ok := owner.(*clusteroperator.Cluster)
+	if !ok {
+		s.controller.logger.Warn("could not convert owner from JobSync into a cluster: %#v", owner)
+		return
+	}
+	cluster.Status.ProvisionedJobGeneration = cluster.Generation
+}
+
+func (s *jobSyncStrategy) UpdateOwnerStatus(original, owner metav1.Object) error {
+	originalCluster, ok := original.(*clusteroperator.Cluster)
+	if !ok {
+		return fmt.Errorf("could not convert original from JobSync into a cluster")
+	}
+	cluster, ok := owner.(*clusteroperator.Cluster)
+	if !ok {
+		return fmt.Errorf("could not convert owner from JobSync into a cluster")
+	}
+
+	// Make sure finalizer is set if the cluster is not marked for deletion
+	finalizers := sets.NewString(cluster.ObjectMeta.Finalizers...)
+	if !finalizers.Has(clusteroperator.FinalizerClusterOperator) {
+		finalizers.Insert(clusteroperator.FinalizerClusterOperator)
+		cluster.ObjectMeta.Finalizers = finalizers.List()
+	}
+
+	return s.controller.updateClusterStatus(originalCluster, cluster)
+}
+
+func (s *jobSyncStrategy) ProcessDeletedOwner(owner metav1.Object) error {
+	originalCluster, ok := owner.(*clusteroperator.Cluster)
+	if !ok {
+		return fmt.Errorf("could not convert owner from JobSync into a cluster")
+	}
+	cluster := originalCluster.DeepCopy()
+
+	finalizers := sets.NewString(cluster.ObjectMeta.Finalizers...)
+
+	if !finalizers.Has(clusteroperator.FinalizerClusterOperator) {
+		return nil
+	}
+
+	// Clear the finalizer for the cluster
+	finalizers.Delete(clusteroperator.FinalizerClusterOperator)
+	cluster.ObjectMeta.Finalizers = finalizers.List()
+	s.controller.updateClusterStatus(originalCluster, cluster)
+
+	return s.controller.runDeprovisionJob(cluster)
+}
+
+func convertJobSyncConditionType(conditionType controller.JobSyncConditionType) clusteroperator.ClusterConditionType {
+	switch conditionType {
+	case controller.JobSyncProcessing:
+		return clusteroperator.ClusterInfraProvisioning
+	case controller.JobSyncProcessed:
+		return clusteroperator.ClusterInfraProvisioned
+	case controller.JobSyncProcessingFailed:
+		return clusteroperator.ClusterInfraProvisioningFailed
+	default:
+		return clusteroperator.ClusterConditionType("")
+	}
 }

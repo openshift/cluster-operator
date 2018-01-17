@@ -448,6 +448,18 @@ const (
 	// this machine set have been provisioned (ie. AWS autoscaling group)
 	MachineSetHardwareProvisioned MachineSetConditionType = "HardwareProvisioned"
 
+	// MachineSetHardwareInstalling is true if OpenShift is being installed on
+	// this machine set.
+	MachineSetInstalling MachineSetConditionType = "Installing"
+
+	// MachineSetHardwareInstallationFailed is true if the installation of
+	// OpenShift on this machine set failed.
+	MachineSetInstallationFailed MachineSetConditionType = "InstallationFailed"
+
+	// MachineSetHardwareInstalled is true if OpenShift has been installed
+	// on this machine set.
+	MachineSetInstalled MachineSetConditionType = "Installed"
+
 	// MachineSetHardwareReady is true if the hardware for the nodegroup is in ready
 	// state (is started and healthy)
 	MachineSetHardwareReady MachineSetConditionType = "HardwareReady"
