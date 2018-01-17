@@ -28,7 +28,7 @@
     when: cli_aws_section is defined
 
   - set_fact:
-      ansible_image: "openshift/origin-ansible:v3.8"
+      ansible_image: "openshift/origin-ansible:latest"
       ansible_image_pull_policy: "Always"
     when: use_real_aws
 
