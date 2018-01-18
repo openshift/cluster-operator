@@ -98,6 +98,7 @@ func RegisterConversions(scheme *runtime.Scheme) error {
 func autoConvert_v1alpha1_AWSClusterSpec_To_clusteroperator_AWSClusterSpec(in *AWSClusterSpec, out *clusteroperator.AWSClusterSpec, s conversion.Scope) error {
 	out.AccountSecret = in.AccountSecret
 	out.SSHSecret = in.SSHSecret
+	out.SSLSecret = in.SSLSecret
 	out.KeyPairName = in.KeyPairName
 	out.Region = in.Region
 	out.VPCName = in.VPCName
@@ -113,6 +114,7 @@ func Convert_v1alpha1_AWSClusterSpec_To_clusteroperator_AWSClusterSpec(in *AWSCl
 func autoConvert_clusteroperator_AWSClusterSpec_To_v1alpha1_AWSClusterSpec(in *clusteroperator.AWSClusterSpec, out *AWSClusterSpec, s conversion.Scope) error {
 	out.AccountSecret = in.AccountSecret
 	out.SSHSecret = in.SSHSecret
+	out.SSLSecret = in.SSLSecret
 	out.KeyPairName = in.KeyPairName
 	out.Region = in.Region
 	out.VPCName = in.VPCName
@@ -707,6 +709,9 @@ func autoConvert_v1alpha1_MachineSetStatus_To_clusteroperator_MachineSetStatus(i
 	out.MachinesProvisioned = in.MachinesProvisioned
 	out.MachinesReady = in.MachinesReady
 	out.Conditions = *(*[]clusteroperator.MachineSetCondition)(unsafe.Pointer(&in.Conditions))
+	out.Installed = in.Installed
+	out.Provisioned = in.Provisioned
+	out.ProvisionedJobGeneration = in.ProvisionedJobGeneration
 	return nil
 }
 
@@ -719,6 +724,9 @@ func autoConvert_clusteroperator_MachineSetStatus_To_v1alpha1_MachineSetStatus(i
 	out.MachinesProvisioned = in.MachinesProvisioned
 	out.MachinesReady = in.MachinesReady
 	out.Conditions = *(*[]MachineSetCondition)(unsafe.Pointer(&in.Conditions))
+	out.Installed = in.Installed
+	out.Provisioned = in.Provisioned
+	out.ProvisionedJobGeneration = in.ProvisionedJobGeneration
 	return nil
 }
 

@@ -45,6 +45,12 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Ref:         ref("k8s.io/api/core/v1.LocalObjectReference"),
 							},
 						},
+						"sslSecret": {
+							SchemaProps: spec.SchemaProps{
+								Description: "SSLSecret refers to a secret that contains the SSL certificate to use for this cluster. The secret is expected to contain the following keys: - ca.crt - the certificate authority certificate - server.crt - the server certificate - server.key - the server key",
+								Ref:         ref("k8s.io/api/core/v1.LocalObjectReference"),
+							},
+						},
 						"keyPairName": {
 							SchemaProps: spec.SchemaProps{
 								Description: "KeyPairName is the name of the AWS key pair to use for SSH access to EC2 instances in this cluster",
@@ -74,7 +80,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 							},
 						},
 					},
-					Required: []string{"accountSecret", "sshSecret", "keyPairName", "region"},
+					Required: []string{"accountSecret", "sshSecret", "sslSecret", "keyPairName", "region"},
 				},
 			},
 			Dependencies: []string{
@@ -1005,8 +1011,29 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								},
 							},
 						},
+						"installed": {
+							SchemaProps: spec.SchemaProps{
+								Description: "Installed is true if the software required for this machine set is installed and running.",
+								Type:        []string{"boolean"},
+								Format:      "",
+							},
+						},
+						"provisioned": {
+							SchemaProps: spec.SchemaProps{
+								Description: "Provisioned is true if the hardware that corresponds to this MachineSet has been provisioned",
+								Type:        []string{"boolean"},
+								Format:      "",
+							},
+						},
+						"provisionedJobGeneration": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ProvisionedJobGeneration is the generation of the machine set resource used to to generate the latest completed hardware provisioning job. The value will be set regardless of the job having succeeded or failed.",
+								Type:        []string{"integer"},
+								Format:      "int64",
+							},
+						},
 					},
-					Required: []string{"machineCount", "machinesReady", "conditions"},
+					Required: []string{"machineCount", "machinesReady", "conditions", "installed", "provisioned", "provisionedJobGeneration"},
 				},
 			},
 			Dependencies: []string{

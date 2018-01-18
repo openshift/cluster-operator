@@ -169,6 +169,13 @@ type AWSClusterSpec struct {
 	// EC2 instances in this cluster
 	SSHSecret corev1.LocalObjectReference `json:"sshSecret"`
 
+	// SSLSecret refers to a secret that contains the SSL certificate to use
+	// for this cluster. The secret is expected to contain the following keys:
+	// - ca.crt - the certificate authority certificate
+	// - server.crt - the server certificate
+	// - server.key - the server key
+	SSLSecret corev1.LocalObjectReference `json:"sslSecret"`
+
 	// KeyPairName is the name of the AWS key pair to use for SSH access to EC2
 	// instances in this cluster
 	KeyPairName string `json:"keyPairName"`
@@ -386,6 +393,19 @@ type MachineSetStatus struct {
 
 	// Conditions includes more detailed status of the MachineSet
 	Conditions []MachineSetCondition `json:"conditions"`
+
+	// Installed is true if the software required for this machine set is installed
+	// and running.
+	Installed bool `json:"installed"`
+
+	// Provisioned is true if the hardware that corresponds to this MachineSet has
+	// been provisioned
+	Provisioned bool `json:"provisioned"`
+
+	// ProvisionedJobGeneration is the generation of the machine set resource used to
+	// to generate the latest completed hardware provisioning job. The value will be set
+	// regardless of the job having succeeded or failed.
+	ProvisionedJobGeneration int64 `json:"provisionedJobGeneration"`
 }
 
 // MachineSetCondition contains details for the current condition of a MachineSet
@@ -413,9 +433,17 @@ type MachineSetConditionType string
 
 // These are valid conditions for a node group
 const (
-	// MachineSetHardwareCreated is true if the corresponding cloud resource(s) for
-	// this nodegroup have been created (ie. AWS autoscaling group)
-	MachineSetHardwareCreated MachineSetConditionType = "HardwareCreated"
+	// MachineSetHardwareProvisioning is true if the cloud resources for this
+	// machine set are in the process of provisioning.
+	MachineSetHardwareProvisioning MachineSetConditionType = "HardwareProvisioning"
+
+	// MachineSetHardwareProvisioningFailed is true if the last provisioning attempt
+	// for this machine set failed.
+	MachineSetHardwareProvisioningFailed MachineSetConditionType = "HardwareProvisioningFailed"
+
+	// MachineSetHardwareProvisioned is true if the corresponding cloud resource(s) for
+	// this machine set have been provisioned (ie. AWS autoscaling group)
+	MachineSetHardwareProvisioned MachineSetConditionType = "HardwareProvisioned"
 
 	// MachineSetHardwareReady is true if the hardware for the nodegroup is in ready
 	// state (is started and healthy)
