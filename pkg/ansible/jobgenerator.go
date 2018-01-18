@@ -169,26 +169,42 @@ func (r *jobGenerator) GeneratePlaybookJob(name string, hardware *clusteroperato
 		},
 	}
 
-	if hardware.AWS != nil && len(hardware.AWS.SSHSecret.Name) > 0 {
-		podSpec.Containers[0].VolumeMounts = append(podSpec.Containers[0].VolumeMounts, kapi.VolumeMount{
-			Name:      "sshkey",
-			MountPath: "/ansible/ssh/",
-		})
-		podSpec.Volumes = append(podSpec.Volumes, kapi.Volume{
-			Name: "sshkey",
-			VolumeSource: kapi.VolumeSource{
-				Secret: &kapi.SecretVolumeSource{
-					SecretName: hardware.AWS.SSHSecret.Name,
-					Items: []kapi.KeyToPath{
-						{
-							Key:  "ssh-privatekey",
-							Path: "privatekey.pem",
-							Mode: &sshKeyFileMode,
+	if hardware.AWS != nil {
+		if len(hardware.AWS.SSHSecret.Name) > 0 {
+			podSpec.Containers[0].VolumeMounts = append(podSpec.Containers[0].VolumeMounts, kapi.VolumeMount{
+				Name:      "sshkey",
+				MountPath: "/ansible/ssh/",
+			})
+			podSpec.Volumes = append(podSpec.Volumes, kapi.Volume{
+				Name: "sshkey",
+				VolumeSource: kapi.VolumeSource{
+					Secret: &kapi.SecretVolumeSource{
+						SecretName: hardware.AWS.SSHSecret.Name,
+						Items: []kapi.KeyToPath{
+							{
+								Key:  "ssh-privatekey",
+								Path: "privatekey.pem",
+								Mode: &sshKeyFileMode,
+							},
 						},
 					},
 				},
-			},
-		})
+			})
+		}
+		if len(hardware.AWS.SSLSecret.Name) > 0 {
+			podSpec.Containers[0].VolumeMounts = append(podSpec.Containers[0].VolumeMounts, kapi.VolumeMount{
+				Name:      "sslkey",
+				MountPath: "/ansible/ssl/",
+			})
+			podSpec.Volumes = append(podSpec.Volumes, kapi.Volume{
+				Name: "sslkey",
+				VolumeSource: kapi.VolumeSource{
+					Secret: &kapi.SecretVolumeSource{
+						SecretName: hardware.AWS.SSLSecret.Name,
+					},
+				},
+			})
+		}
 	}
 
 	completions := int32(1)

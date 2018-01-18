@@ -24,9 +24,10 @@ import (
 	kapi "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/sets"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apiserver/pkg/storage/names"
 	batchinformers "k8s.io/client-go/informers/batch/v1"
 	kubeclientset "k8s.io/client-go/kubernetes"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -34,7 +35,6 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/client-go/util/workqueue"
-	"k8s.io/apiserver/pkg/storage/names"
 
 	"github.com/golang/glog"
 	log "github.com/sirupsen/logrus"
@@ -59,27 +59,12 @@ const (
 
 	controllerLogName = "infra"
 
-	infraPlaybook = "playbooks/cluster-operator/aws/infrastructure.yml"
+	infraPlaybook            = "playbooks/cluster-operator/aws/infrastructure.yml"
 	deprovisionInfraPlaybook = "playbooks/aws/openshift-cluster/uninstall_prerequisites.yml"
 	// jobPrefix is used when generating a name for the configmap and job used for each
 	// Ansible execution.
 	jobPrefix = "job-infra-"
 )
-
-const provisionInventoryTemplate = `
-[OSEv3:children]
-masters
-nodes
-etcd
-
-[OSEv3:vars]
-
-[masters]
-
-[etcd]
-
-[nodes]
-`
 
 var clusterKind = clusteroperator.SchemeGroupVersion.WithKind("Cluster")
 
@@ -555,22 +540,21 @@ func (f jobFactory) BuildJob(name string) (*v1batch.Job, *kapi.ConfigMap, error)
 
 func (c *InfraController) getJobFactory(cluster *clusteroperator.Cluster, playbook string) controller.JobFactory {
 	return jobFactory(func(name string) (*v1batch.Job, *kapi.ConfigMap, error) {
-		varsGenerator := ansible.NewVarsGenerator(cluster)
-		vars, err := varsGenerator.GenerateVars()
+		vars, err := ansible.GenerateClusterVars(cluster)
 		if err != nil {
 			return nil, nil, err
 		}
-		job, configMap := c.ansibleGenerator.GeneratePlaybookJob(name, &cluster.Spec.Hardware, playbook, provisionInventoryTemplate, vars)
+		job, configMap := c.ansibleGenerator.GeneratePlaybookJob(name, &cluster.Spec.Hardware, playbook, ansible.DefaultInventory, vars)
 		return job, configMap, nil
 	})
 }
 
 func (c *InfraController) getProvisionJobFactory(cluster *clusteroperator.Cluster) controller.JobFactory {
-	 return c.getJobFactory(cluster, infraPlaybook)
+	return c.getJobFactory(cluster, infraPlaybook)
 }
 
 func (c *InfraController) getDeprovisionJobFactory(cluster *clusteroperator.Cluster) controller.JobFactory {
-	 return c.getJobFactory(cluster, deprovisionInfraPlaybook)
+	return c.getJobFactory(cluster, deprovisionInfraPlaybook)
 }
 
 // fire-and-forget infra deprovision Job

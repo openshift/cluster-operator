@@ -15,6 +15,8 @@ objects:
           name: aws-credentials
         sshSecret:
           name: ssh-private-key
+        sslSecret:
+          name: ssl-cert
     machineSets:
     - name: master
       nodeType: Master

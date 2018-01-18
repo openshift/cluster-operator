@@ -127,6 +127,18 @@ objects:
     tls.crt: ${SERVING_CERT}
     tls.key: ${SERVING_KEY}
 
+# Default secret for cluster SSL
+- apiVersion: v1
+  kind: Secret
+  metadata:
+    name: ssl-cert
+    namespace: ${CLUSTER_OPERATOR_NAMESPACE}
+  type: Opaque
+  data:
+    server.crt: ${SERVING_CERT}
+    server.key: ${SERVING_KEY}
+    ca.crt: ${SERVING_CA}
+
 # Secret for AWS credentials to provision with.
 # NOTE: likely will be replaced by a set of credentials per cluster
 - apiVersion: v1
