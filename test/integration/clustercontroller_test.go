@@ -23,7 +23,6 @@ import (
 	"testing"
 	"time"
 
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes/fake"
@@ -81,10 +80,8 @@ func TestClusterCreate(t *testing.T) {
 					Name: testClusterName,
 				},
 				Spec: v1alpha1.ClusterSpec{
-					Version: corev1.ObjectReference{
-						Kind:       "ClusterVersion",
-						APIVersion: "clusteroperator.openshift.io/v1alpha1",
-						Name:       "v3-9",
+					Version: v1alpha1.ClusterVersionReference{
+						Name: "v3-9",
 					},
 					MachineSets: []v1alpha1.ClusterMachineSet{
 						{

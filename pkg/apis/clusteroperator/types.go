@@ -142,7 +142,16 @@ type ClusterSpec struct {
 	MachineSets []ClusterMachineSet
 
 	// Version references the clusterversion that should be running.
-	Version corev1.ObjectReference
+	Version ClusterVersionReference
+}
+
+// ClusterVersionReference provides information to locate a cluster version to use.
+type ClusterVersionReference struct {
+	// Namespace of the clusterversion. Assumed to be in the same namespace if empty.
+	// +optional
+	Namespace string
+	// Name of the clusterversion.
+	Name string
 }
 
 // ClusterHardwareSpec specifies hardware for a cluster. The specification will
