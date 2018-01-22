@@ -19,7 +19,6 @@ package testing
 import (
 	"testing"
 
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
@@ -42,10 +41,8 @@ func TestRun(t *testing.T) {
 			Name: "cluster1",
 		},
 		Spec: clusteroperator.ClusterSpec{
-			Version: corev1.ObjectReference{
-				Kind:       "ClusterVersion",
-				APIVersion: "clusteroperator.openshift.io/v1alpha1",
-				Name:       "v3-9",
+			Version: clusteroperator.ClusterVersionReference{
+				Name: "v3-9",
 			},
 			MachineSets: []clusteroperator.ClusterMachineSet{
 				{

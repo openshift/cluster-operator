@@ -38,7 +38,6 @@ objects:
     name: ${CLUSTER_NAME}
   spec:
     version:
-      kind: ClusterVersion
       name: ocp-v3-9
     hardware:
       aws:

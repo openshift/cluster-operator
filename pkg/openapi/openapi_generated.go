@@ -407,7 +407,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 						"version": {
 							SchemaProps: spec.SchemaProps{
 								Description: "Version references the clusterversion that should be running.",
-								Ref:         ref("k8s.io/api/core/v1.ObjectReference"),
+								Ref:         ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterVersionReference"),
 							},
 						},
 					},
@@ -415,7 +415,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 				},
 			},
 			Dependencies: []string{
-				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterConfigSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterHardwareSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterMachineSet", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetHardwareSpec", "k8s.io/api/core/v1.ObjectReference"},
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterConfigSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterHardwareSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterMachineSet", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterVersionReference", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetHardwareSpec"},
 		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterStatus": {
 			Schema: spec.Schema{
@@ -577,6 +577,31 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 			},
 			Dependencies: []string{
 				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterVersion", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+		},
+		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterVersionReference": {
+			Schema: spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Description: "ClusterVersionReference provides information to locate a cluster version to use.",
+					Properties: map[string]spec.Schema{
+						"namespace": {
+							SchemaProps: spec.SchemaProps{
+								Description: "Namespace of the clusterversion. Assumed to be in the same namespace if empty.",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"name": {
+							SchemaProps: spec.SchemaProps{
+								Description: "Name of the clusterversion.",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+					},
+					Required: []string{"name"},
+				},
+			},
+			Dependencies: []string{},
 		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterVersionSpec": {
 			Schema: spec.Schema{
