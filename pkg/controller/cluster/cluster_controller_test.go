@@ -42,6 +42,10 @@ const (
 	testClusterUUID = types.UID("test-cluster-uuid")
 )
 
+var (
+	defaultClusterVersion = clusteroperator.ClusterVersionReference{Name: "v3-9"}
+)
+
 // newTestClusterController creates a test ClusterController with fake
 // clients and informers.
 func newTestClusterController() (
@@ -121,6 +125,7 @@ func newClusterWithSizes(masterSize int, computes ...clusteroperator.ClusterMach
 					NodeType: clusteroperator.NodeTypeMaster,
 				},
 			}),
+			Version: defaultClusterVersion,
 		},
 		Status: clusteroperator.ClusterStatus{
 			MasterMachineSetName: testClusterName + "-master-random",
@@ -184,12 +189,14 @@ func newMachineSetsWithSizes(store cache.Store, cluster *clusteroperator.Cluster
 		machineSet.Spec.NodeType = clusteroperator.NodeTypeMaster
 		machineSet.Spec.Size = masterSize
 		machineSet.Spec.Infra = true
+		machineSet.Spec.Version = cluster.Spec.Version
 		machineSets = append(machineSets, machineSet)
 	}
 	for _, compute := range computes {
 		name := fmt.Sprintf("%s-%s-random", cluster.Name, compute.Name)
 		machineSet := newMachineSet(name, cluster, true)
 		machineSet.Spec.MachineSetConfig = compute.MachineSetConfig
+		machineSet.Spec.Version = cluster.Spec.Version
 		machineSets = append(machineSets, machineSet)
 	}
 	if store != nil {
@@ -763,9 +770,9 @@ func TestSyncClusterMachineSetsRemoved(t *testing.T) {
 	}
 }
 
-// TestSyncClusterMachineSetsMutated tests syncing a cluster when machine set
+// TestSyncClusterMachineSetSpecMutated tests syncing a cluster when machine set
 // specifications in the cluster spec have been mutated.
-func TestSyncClusterMachineSetsMutated(t *testing.T) {
+func TestSyncClusterMachineSetSpecMutated(t *testing.T) {
 	cases := []struct {
 		name                 string
 		clusterMasterSize    int
@@ -865,6 +872,66 @@ func TestSyncClusterMachineSetsMutated(t *testing.T) {
 	}
 }
 
+//  TestSyncClusterVersionMutated tests that changing a cluster spec version results in new machine sets being created with the new version.
+func TestSyncClusterVersionMutated(t *testing.T) {
+	controller, clusterStore, machineSetStore, _, clusterOperatorClient := newTestClusterController()
+
+	// A different cluster version to the default:
+	clusterVer310 := clusteroperator.ClusterVersionReference{
+		Name: "v3-10",
+	}
+
+	// Create compute machine set
+	name := "compute0"
+	clusterCompute := clusteroperator.ClusterMachineSet{
+		MachineSetConfig: clusteroperator.MachineSetConfig{
+			NodeType: clusteroperator.NodeTypeCompute,
+			Size:     5,
+		},
+		Name: name,
+	}
+	realizedCompute := clusteroperator.ClusterMachineSet{
+		MachineSetConfig: clusteroperator.MachineSetConfig{
+			NodeType: clusteroperator.NodeTypeCompute,
+			Size:     5,
+		},
+		Name: name,
+	}
+
+	// Create the new incoming cluster state, now referencing 3.10:
+	cluster := newClusterWithSizes(3, clusterCompute)
+	cluster.Status.MachineSetCount = 2
+	clusterStore.Add(cluster)
+
+	// Simulate the pre-existing MachineSet state:
+	newMachineSetsWithSizes(machineSetStore, cluster, 3, realizedCompute)
+
+	// Sync and ensure no expected actions as we haven't changed the version yet:
+	controller.syncCluster(getKey(cluster, t))
+	validateClientActions(t, "TestSyncClusterVersionMutated", clusterOperatorClient, []expectedClientAction{}...)
+	validateControllerExpectations(t, "TestSyncClusterVersionMutated", controller, cluster, 0, 0)
+
+	// Changing the cluster version to 3.10 should result in machine sets being recreated:
+	cluster.Spec.Version = clusterVer310
+
+	controller.syncCluster(getKey(cluster, t))
+
+	expectedActions := []expectedClientAction{}
+	expectedActions = append(expectedActions,
+		newExpectedMachineSetDeleteAction(cluster, "master"),
+		newExpectedMachineSetCreateAction(cluster, "master"),
+	)
+
+	expectedActions = append(expectedActions,
+		newExpectedMachineSetDeleteAction(cluster, clusterCompute.Name),
+		newExpectedMachineSetCreateAction(cluster, clusterCompute.Name),
+	)
+
+	validateClientActions(t, "TestSyncClusterVersionMutated", clusterOperatorClient, expectedActions...)
+
+	validateControllerExpectations(t, "TestSyncClusterVersionMutated", controller, cluster, len(expectedActions)/2, len(expectedActions)/2)
+}
+
 // TestSyncClusterMachineSetOwnerReference tests syncing a cluster when there
 // are machine sets that belong to other clusters.
 func TestSyncClusterMachineSetOwnerReference(t *testing.T) {
@@ -911,6 +978,7 @@ func TestSyncClusterMachineSetOwnerReference(t *testing.T) {
 			machineSet.Spec.NodeType = clusteroperator.NodeTypeMaster
 			machineSet.Spec.Size = 1
 			machineSet.Spec.Infra = true
+			machineSet.Spec.Version = defaultClusterVersion
 			if tc.ownerRef != nil {
 				machineSet.OwnerReferences = []metav1.OwnerReference{*tc.ownerRef}
 			}
@@ -967,6 +1035,7 @@ func TestSyncClusterMachineSetDeletionTimestamp(t *testing.T) {
 			machineSet.Spec.NodeType = clusteroperator.NodeTypeMaster
 			machineSet.Spec.Size = 1
 			machineSet.Spec.Infra = true
+			machineSet.Spec.Version = defaultClusterVersion
 			machineSet.DeletionTimestamp = tc.deletionTimestamp
 			machineSetStore.Add(machineSet)
 

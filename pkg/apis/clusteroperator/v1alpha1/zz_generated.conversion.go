@@ -717,6 +717,9 @@ func autoConvert_v1alpha1_MachineSetSpec_To_clusteroperator_MachineSetSpec(in *M
 	if err := Convert_v1alpha1_MachineSetConfig_To_clusteroperator_MachineSetConfig(&in.MachineSetConfig, &out.MachineSetConfig, s); err != nil {
 		return err
 	}
+	if err := Convert_v1alpha1_ClusterVersionReference_To_clusteroperator_ClusterVersionReference(&in.Version, &out.Version, s); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -727,6 +730,9 @@ func Convert_v1alpha1_MachineSetSpec_To_clusteroperator_MachineSetSpec(in *Machi
 
 func autoConvert_clusteroperator_MachineSetSpec_To_v1alpha1_MachineSetSpec(in *clusteroperator.MachineSetSpec, out *MachineSetSpec, s conversion.Scope) error {
 	if err := Convert_clusteroperator_MachineSetConfig_To_v1alpha1_MachineSetConfig(&in.MachineSetConfig, &out.MachineSetConfig, s); err != nil {
+		return err
+	}
+	if err := Convert_clusteroperator_ClusterVersionReference_To_v1alpha1_ClusterVersionReference(&in.Version, &out.Version, s); err != nil {
 		return err
 	}
 	return nil

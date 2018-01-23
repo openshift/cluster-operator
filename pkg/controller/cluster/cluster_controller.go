@@ -324,7 +324,7 @@ func (c *ClusterController) syncCluster(key string) error {
 
 	clusterNeedsSync := c.expectations.SatisfiedExpectations(key)
 
-	// List all active machine sets controller by the cluster
+	// List all active machine sets owned by this cluster
 	allMachineSets, err := c.machineSetsLister.MachineSets(cluster.Namespace).List(labels.Everything())
 	if err != nil {
 		return err
@@ -492,6 +492,7 @@ func (c *ClusterController) manageMachineSets(machineSets []*clusteroperator.Mac
 	return nil
 }
 
+// manageMachineSet determines whether or not a machine set needs to be created because it does not exist, or replaced because it is out of date.
 func (c *ClusterController) manageMachineSet(cluster *clusteroperator.Cluster, machineSet *clusteroperator.MachineSet, clusterMachineSetConfig clusteroperator.MachineSetConfig, machineSetNamePrefix string) (*clusteroperator.MachineSet, bool, error) {
 	if machineSet == nil {
 		machineSet, err := buildNewMachineSet(cluster, clusterMachineSetConfig, machineSetNamePrefix)
@@ -500,6 +501,12 @@ func (c *ClusterController) manageMachineSet(cluster *clusteroperator.Cluster, m
 
 	if !apiequality.Semantic.DeepEqual(machineSet.Spec.MachineSetConfig, clusterMachineSetConfig) {
 		glog.V(2).Infof("The configuration of the machine set %s has changed from %v to %v", machineSet.Name, machineSet.Spec.MachineSetConfig, clusterMachineSetConfig)
+		machineSet, err := buildNewMachineSet(cluster, clusterMachineSetConfig, machineSetNamePrefix)
+		return machineSet, true, err
+	}
+
+	if !apiequality.Semantic.DeepEqual(machineSet.Spec.Version, cluster.Spec.Version) {
+		glog.V(2).Infof("The cluster version of the machine set %s has changed from %v to %v", machineSet.Name, machineSet.Spec.Version, cluster.Spec.Version)
 		machineSet, err := buildNewMachineSet(cluster, clusterMachineSetConfig, machineSetNamePrefix)
 		return machineSet, true, err
 	}
@@ -575,6 +582,7 @@ func buildNewMachineSet(cluster *clusteroperator.Cluster, machineSetConfig clust
 		},
 		Spec: clusteroperator.MachineSetSpec{
 			MachineSetConfig: machineSetConfig,
+			Version:          cluster.Spec.Version,
 		},
 	}, nil
 }
