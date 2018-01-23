@@ -573,7 +573,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 					Properties: map[string]spec.Schema{
 						"namespace": {
 							SchemaProps: spec.SchemaProps{
-								Description: "Namespace of the clusterversion. Assumed to be in the same namespace if empty.",
+								Description: "Namespace of the clusterversion.",
 								Type:        []string{"string"},
 								Format:      "",
 							},

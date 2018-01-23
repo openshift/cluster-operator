@@ -42,7 +42,8 @@ func TestRun(t *testing.T) {
 		},
 		Spec: clusteroperator.ClusterSpec{
 			Version: clusteroperator.ClusterVersionReference{
-				Name: "v3-9",
+				Namespace: "cluster-operator",
+				Name:      "v3-9",
 			},
 			MachineSets: []clusteroperator.ClusterMachineSet{
 				{

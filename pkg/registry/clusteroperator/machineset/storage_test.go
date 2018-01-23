@@ -62,7 +62,8 @@ func validNewMachineSet(name string) *clusteroperatorapi.MachineSet {
 				Size:     1,
 			},
 			Version: clusteroperatorapi.ClusterVersionReference{
-				Name: "v3-9",
+				Namespace: "cluster-operator",
+				Name:      "v3-9",
 			},
 		},
 	}

@@ -42,7 +42,7 @@ const (
 )
 
 var (
-	defaultClusterVersion = clusteroperator.ClusterVersionReference{Name: "v3-9"}
+	defaultClusterVersion = clusteroperator.ClusterVersionReference{Namespace: "cluster-operator", Name: "v3-9"}
 )
 
 // newTestClusterController creates a test ClusterController with fake
@@ -849,7 +849,8 @@ func TestSyncClusterVersionMutated(t *testing.T) {
 
 	// A different cluster version to the default:
 	clusterVer310 := clusteroperator.ClusterVersionReference{
-		Name: "v3-10",
+		Namespace: "cluster-operator",
+		Name:      "v3-10",
 	}
 
 	// Create compute machine set

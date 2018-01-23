@@ -53,7 +53,8 @@ func getValidClusterSpec() clusteroperator.ClusterSpec {
 
 func getClusterVersionReference() clusteroperator.ClusterVersionReference {
 	return clusteroperator.ClusterVersionReference{
-		Name: "v3-9",
+		Namespace: "cluster-operator",
+		Name:      "v3-9",
 	}
 }
 
