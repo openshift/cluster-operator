@@ -208,7 +208,7 @@ openshift_aws_node_groups:
     host-type: node
     sub-host-type: infra
     runtime: docker
-	Name: "{{ openshift_aws_clusterid}}-infra"
+	Name: "{{ openshift_aws_clusterid }}-infra"
 `
 
 	computeVarsTemplate = `

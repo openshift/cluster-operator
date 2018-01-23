@@ -24,9 +24,11 @@ func testMachineSet() *coapi.MachineSet {
 	ms.Spec.NodeType = coapi.NodeTypeCompute
 	ms.Spec.Infra = false
 	ms.Spec.Size = 3
-	ms.Spec.Hardware.AWS = &coapi.MachineSetAWSHardwareSpec{
-		InstanceType: "x9large",
-		AMIName:      "myami",
+	ms.Spec.Hardware = &coapi.MachineSetHardwareSpec{
+		AWS: &coapi.MachineSetAWSHardwareSpec{
+			InstanceType: "x9large",
+			AMIName:      "myami",
+		},
 	}
 	return ms
 }

@@ -710,6 +710,7 @@ func autoConvert_v1alpha1_MachineSetStatus_To_clusteroperator_MachineSetStatus(i
 	out.MachinesReady = in.MachinesReady
 	out.Conditions = *(*[]clusteroperator.MachineSetCondition)(unsafe.Pointer(&in.Conditions))
 	out.Installed = in.Installed
+	out.InstalledJobGeneration = in.InstalledJobGeneration
 	out.Provisioned = in.Provisioned
 	out.ProvisionedJobGeneration = in.ProvisionedJobGeneration
 	return nil
@@ -725,6 +726,7 @@ func autoConvert_clusteroperator_MachineSetStatus_To_v1alpha1_MachineSetStatus(i
 	out.MachinesReady = in.MachinesReady
 	out.Conditions = *(*[]MachineSetCondition)(unsafe.Pointer(&in.Conditions))
 	out.Installed = in.Installed
+	out.InstalledJobGeneration = in.InstalledJobGeneration
 	out.Provisioned = in.Provisioned
 	out.ProvisionedJobGeneration = in.ProvisionedJobGeneration
 	return nil

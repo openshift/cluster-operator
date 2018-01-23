@@ -17,17 +17,23 @@ objects:
           name: ssh-private-key
         sslSecret:
           name: ssl-cert
+        region: "us-east-1"
+        keyPairName: "libra"
+    defaultHardwareSpec:
+      aws:
+        instanceType: "t2.medium"
+        amiName: "ami-10aed306"
     machineSets:
     - name: master
       nodeType: Master
+      size: 1
+    - name: infra
+      nodeType: Compute
       infra: true
-      size: 3
-    - name: alpha
+      size: 1
+    - name: compute
       nodeType: Compute
-      size: 2
-    - name: beta
-      nodeType: Compute
-      size: 5
+      size: 1
 - apiVersion: clusteroperator.openshift.io/v1alpha1
   kind: ClusterVersion
   metadata:
@@ -37,7 +43,7 @@ objects:
     vmImages:
       awsVMImages:
         amiByRegion:
-          us-east-1: ami-10aed306a # TODO: not correct, need to find out how to lookup latest golden image.
+          us-east-1: ami-10aed306 # TODO: not correct, need to find out how to lookup latest golden image.
     yumRepositories:
     # TODO: replace with a usable OpenShift repo
     - id: dgoodwin-tito-copr

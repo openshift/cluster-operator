@@ -1018,6 +1018,13 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Format:      "",
 							},
 						},
+						"installedJobGeneration": {
+							SchemaProps: spec.SchemaProps{
+								Description: "InstalledJobGeneration is the generation of the machine set resource used to to generate the latest completed installation job. The value will be set regardless of the job having succeeded or failed.",
+								Type:        []string{"integer"},
+								Format:      "int64",
+							},
+						},
 						"provisioned": {
 							SchemaProps: spec.SchemaProps{
 								Description: "Provisioned is true if the hardware that corresponds to this MachineSet has been provisioned",
@@ -1033,7 +1040,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 							},
 						},
 					},
-					Required: []string{"machineCount", "machinesReady", "conditions", "installed", "provisioned", "provisionedJobGeneration"},
+					Required: []string{"machineCount", "machinesReady", "conditions", "installed", "installedJobGeneration", "provisioned", "provisionedJobGeneration"},
 				},
 			},
 			Dependencies: []string{

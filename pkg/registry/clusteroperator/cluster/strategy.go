@@ -91,8 +91,9 @@ func (clusterRESTStrategy) PrepareForCreate(ctx genericapirequest.Context, obj r
 	// Creating a brand new object, thus it must have no
 	// status. We can't fail here if they passed a status in, so
 	// we just wipe it clean.
-	cluster.Generation = 1
 	cluster.Status = clusteroperator.ClusterStatus{}
+
+	cluster.Generation = 1
 }
 
 func (clusterRESTStrategy) Validate(ctx genericapirequest.Context, obj runtime.Object) field.ErrorList {

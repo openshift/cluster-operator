@@ -396,6 +396,11 @@ type MachineSetStatus struct {
 	// and running.
 	Installed bool
 
+	// InstalledJobGeneration is the generation of the machine set resource used to
+	// to generate the latest completed installation job. The value will be set
+	// regardless of the job having succeeded or failed.
+	InstalledJobGeneration int64
+
 	// Provisioned is true if the hardware that corresponds to this MachineSet has
 	// been provisioned
 	Provisioned bool

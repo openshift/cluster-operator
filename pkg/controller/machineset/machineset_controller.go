@@ -30,7 +30,6 @@ import (
 	batchinformers "k8s.io/client-go/informers/batch/v1"
 	kubeclientset "k8s.io/client-go/kubernetes"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
-	batchlisters "k8s.io/client-go/listers/batch/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
@@ -116,18 +115,14 @@ func NewMachineSetController(
 	c.clustersLister = clusterInformer.Lister()
 	c.clustersSynced = clusterInformer.Informer().HasSynced
 
-	jobInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    c.addJob,
-		UpdateFunc: c.updateJob,
-		DeleteFunc: c.deleteJob,
-	})
+	jobOwnerControl := &jobOwnerControl{controller: c}
+	c.jobControl = controller.NewJobControl(jobPrefix, machineSetKind, kubeClient, jobInformer.Lister(), jobOwnerControl, logger)
+	jobInformer.Informer().AddEventHandler(c.jobControl)
 	c.jobsSynced = jobInformer.Informer().HasSynced
-	c.jobsLister = jobInformer.Lister()
 
 	c.syncHandler = c.syncMachineSet
 	c.enqueueMachineSet = c.enqueue
 	c.ansibleGenerator = ansible.NewJobGenerator(ansibleImage, ansibleImagePullPolicy)
-	c.jobControl = controller.NewJobControl(jobPrefix, machineSetKind, c.kubeClient, c.jobsLister)
 
 	return c
 }
@@ -162,9 +157,6 @@ type MachineSetController struct {
 	// Added as a member to the struct to allow injection for testing.
 	clustersSynced cache.InformerSynced
 
-	// jobsLister is able to list/get jobs and is populated by the shared informer passed to
-	// NewClusterController.
-	jobsLister batchlisters.JobLister
 	// jobsSynced returns true of the job shared informer has been synced at least once.
 	jobsSynced cache.InformerSynced
 
@@ -202,97 +194,6 @@ func (c *MachineSetController) deleteMachineSet(obj interface{}) {
 	}
 	c.logger.Debugf("enqueuing deleted machine set %s/%s", ms.Namespace, ms.Name)
 	c.enqueueMachineSet(ms)
-}
-
-func (c *MachineSetController) machineSetForJob(job *v1batch.Job) (*clusteroperator.MachineSet, error) {
-	controllerRef := metav1.GetControllerOf(job)
-	if controllerRef.Kind != machineSetKind.Kind {
-		return nil, nil
-	}
-	machineSet, err := c.machineSetsLister.MachineSets(job.Namespace).Get(controllerRef.Name)
-	if err != nil {
-		return nil, err
-	}
-	if machineSet.UID != controllerRef.UID {
-		// The controller we found with this Name is not the same one that the
-		// ControllerRef points to.
-		return nil, nil
-	}
-	return machineSet, nil
-}
-
-func (c *MachineSetController) addJob(obj interface{}) {
-	job := obj.(*v1batch.Job)
-	if c.jobControl.IsControlledJob(job) {
-		machineSet, err := c.machineSetForJob(job)
-		if err != nil {
-			c.logger.Errorf("Cannot retrieve machine set for job %s/%s: %v", job.Namespace, job.Name, err)
-			utilruntime.HandleError(err)
-			return
-		}
-
-		machineSetKey, err := controller.KeyFunc(machineSet)
-		if err != nil {
-			c.logger.Errorf("Cannot get key for machine set for job %s/%s: %v", job.Namespace, job.Name, err)
-			utilruntime.HandleError(err)
-			return
-		}
-
-		c.logger.Debug("job creation observed")
-		c.jobControl.ObserveJobCreation(machineSetKey, job)
-
-		c.logger.Debugf("enqueueing machine set %s/%s for created infra job %s/%s", machineSet.Namespace, machineSet.Name, job.Namespace, job.Name)
-		c.enqueueMachineSet(machineSet)
-	}
-}
-
-func (c *MachineSetController) updateJob(old, obj interface{}) {
-	job := obj.(*v1batch.Job)
-	if c.jobControl.IsControlledJob(job) {
-		machineSet, err := c.machineSetForJob(job)
-		if err != nil {
-			c.logger.Errorf("Cannot retrieve machine set for job %s/%s: %v", job.Namespace, job.Name, err)
-			utilruntime.HandleError(err)
-			return
-		}
-		c.logger.Debugf("enqueueing machine set %s/%s for updated infra job %s/%s", machineSet.Namespace, machineSet.Name, job.Namespace, job.Name)
-		c.enqueueMachineSet(machineSet)
-	}
-}
-
-func (c *MachineSetController) deleteJob(obj interface{}) {
-	job, ok := obj.(*v1batch.Job)
-	if !ok {
-		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
-		if !ok {
-			utilruntime.HandleError(fmt.Errorf("couldn't get object from tombstone %#v", obj))
-			return
-		}
-		job, ok = tombstone.Obj.(*v1batch.Job)
-		if !ok {
-			utilruntime.HandleError(fmt.Errorf("tombstone contained object that is not a Job %#v", obj))
-			return
-		}
-	}
-	if !c.jobControl.IsControlledJob(job) {
-		return
-	}
-	machineSet, err := c.machineSetForJob(job)
-	if err != nil || machineSet == nil {
-		utilruntime.HandleError(fmt.Errorf("could not get machine set for deleted job %s/%s", job.Namespace, job.Name))
-	}
-
-	machineSetKey, err := controller.KeyFunc(machineSet)
-	if err != nil {
-		c.logger.Errorf("Cannot get key for machine set for job %s/%s: %v", job.Namespace, job.Name, err)
-		utilruntime.HandleError(err)
-		return
-	}
-
-	c.logger.Debug("job deletion observed")
-	c.jobControl.ObserveJobDeletion(machineSetKey, job)
-
-	c.enqueueMachineSet(machineSet)
 }
 
 func (c *MachineSetController) addCluster(obj interface{}) {
@@ -446,7 +347,7 @@ func (c *MachineSetController) syncMachineSet(key string) error {
 		return err
 	}
 
-	job, isJobNew, err := c.jobControl.ControlJobs(key, machineSet, shouldProvisionMachineSet, jobFactory, logger)
+	job, isJobNew, err := c.jobControl.ControlJobs(key, machineSet, shouldProvisionMachineSet, jobFactory)
 	if err != nil {
 		return err
 	}
@@ -499,7 +400,7 @@ func (c *MachineSetController) shouldProvision(machineSet *clusteroperator.Machi
 	if err != nil {
 		return false
 	}
-	if !cluster.Status.Provisioned {
+	if !cluster.Status.Provisioned || cluster.Status.ProvisionedJobGeneration != cluster.Generation {
 		return false
 	}
 	switch machineSet.Spec.NodeType {
@@ -510,10 +411,32 @@ func (c *MachineSetController) shouldProvision(machineSet *clusteroperator.Machi
 		if err != nil {
 			return false
 		}
-		return masterMachineSet.Status.Installed
+		return masterMachineSet.Status.Installed && masterMachineSet.Status.InstalledJobGeneration == masterMachineSet.Generation
 	default:
 		return false
 	}
+}
+
+type jobOwnerControl struct {
+	controller *MachineSetController
+}
+
+func (c *jobOwnerControl) GetOwnerKey(owner metav1.Object) (string, error) {
+	return controller.KeyFunc(owner)
+}
+
+func (c *jobOwnerControl) GetOwner(namespace string, name string) (metav1.Object, error) {
+	return c.controller.machineSetsLister.MachineSets(namespace).Get(name)
+}
+
+func (c *jobOwnerControl) OnOwnedJobEvent(owner metav1.Object) {
+	machineSet, ok := owner.(*clusteroperator.MachineSet)
+	if !ok {
+		c.controller.logger.WithFields(log.Fields{"owner": owner.GetName(), "namespace": owner.GetNamespace()}).
+			Errorf("attempt to enqueue owner that is not a machineset")
+		return
+	}
+	c.controller.enqueueMachineSet(machineSet)
 }
 
 type jobFactory func(string) (*v1batch.Job, *kapi.ConfigMap, error)
