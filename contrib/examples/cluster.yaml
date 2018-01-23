@@ -8,6 +8,7 @@ objects:
   kind: ClusterVersion
   metadata:
     name: ocp-v3-9
+    namespace: cluster-operator
   spec:
     imageFormat: "openshift/origin-${component}:v3.9.0-alpha.1"
     vmImages:
@@ -26,6 +27,7 @@ objects:
   kind: ClusterVersion
   metadata:
     name: ocp-v3-10
+    namespace: cluster-operator
   spec:
     imageFormat: "openshift/origin-${component}:v3.10.notrealyet"
     vmImages:
@@ -38,6 +40,7 @@ objects:
     name: ${CLUSTER_NAME}
   spec:
     version:
+      namespace: cluster-operator
       name: ocp-v3-9
     hardware:
       aws:

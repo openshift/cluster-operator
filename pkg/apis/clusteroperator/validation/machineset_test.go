@@ -139,7 +139,10 @@ func TestValidateMachineSetUpdate(t *testing.T) {
 			old:  getValidMachineSet(),
 			new: func() *clusteroperator.MachineSet {
 				ms := getValidMachineSet()
-				ms.Spec.Version = clusteroperator.ClusterVersionReference{Name: "newversion"}
+				ms.Spec.Version = clusteroperator.ClusterVersionReference{
+					Namespace: "cluster-operator",
+					Name:      "newversion",
+				}
 				return ms
 			}(),
 			valid: false,

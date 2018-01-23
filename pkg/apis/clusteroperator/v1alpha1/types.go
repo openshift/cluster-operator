@@ -154,8 +154,7 @@ type ClusterSpec struct {
 
 // ClusterVersionReference provides information to locate a cluster version to use.
 type ClusterVersionReference struct {
-	// Namespace of the clusterversion. Assumed to be in the same namespace if empty.
-	// +optional
+	// Namespace of the clusterversion.
 	Namespace string `json:"namespace,omitempty"`
 
 	// Name of the clusterversion.
