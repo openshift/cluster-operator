@@ -58,7 +58,11 @@ func validateMachineSetClusterOwner(ownerRefs []metav1.OwnerReference, fldPath *
 
 // validateMachineSetSpec validates the spec of a machine set
 func validateMachineSetSpec(spec *clusteroperator.MachineSetSpec, fldPath *field.Path) field.ErrorList {
-	return validateMachineSetConfig(&spec.MachineSetConfig, fldPath)
+	allErrs := validateMachineSetConfig(&spec.MachineSetConfig, fldPath)
+	if len(spec.Version.Name) == 0 {
+		allErrs = append(allErrs, field.Required(fldPath.Child("version"), "must specify version"))
+	}
+	return allErrs
 }
 
 // validateMachineSetConfig validates the configuration of a machine set
@@ -85,6 +89,7 @@ func ValidateMachineSetUpdate(new *clusteroperator.MachineSet, old *clusteropera
 
 	allErrs = append(allErrs, validateMachineSetSpec(&new.Spec, field.NewPath("spec"))...)
 	allErrs = append(allErrs, validateMachineSetImmutableClusterOwner(new.GetOwnerReferences(), old.GetOwnerReferences(), field.NewPath("metadata").Child("ownerReferences"))...)
+	allErrs = append(allErrs, validateMachineSetImmutableVersion(new.Spec.Version, old.Spec.Version, field.NewPath("spec").Child("version"))...)
 
 	return allErrs
 }
@@ -100,6 +105,13 @@ func validateMachineSetImmutableClusterOwner(newOwnerRefs, oldOwnerRefs []metav1
 		allErrs = append(allErrs, field.Required(fldPath, "machineset must have an owner"))
 	}
 
+	return allErrs
+}
+
+// validateMachineSetImmutableVersion validates that the version of a machine set is immutable.
+func validateMachineSetImmutableVersion(newVersion, oldVersion clusteroperator.ClusterVersionReference, fldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+	allErrs = append(allErrs, apivalidation.ValidateImmutableField(newVersion, oldVersion, fldPath)...)
 	return allErrs
 }
 

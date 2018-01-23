@@ -602,6 +602,7 @@ func (in *MachineSetList) DeepCopyObject() runtime.Object {
 func (in *MachineSetSpec) DeepCopyInto(out *MachineSetSpec) {
 	*out = *in
 	in.MachineSetConfig.DeepCopyInto(&out.MachineSetConfig)
+	out.Version = in.Version
 	return
 }
 

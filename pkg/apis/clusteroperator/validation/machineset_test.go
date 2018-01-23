@@ -44,10 +44,11 @@ func getValidMachineSet() *clusteroperator.MachineSet {
 			OwnerReferences: []metav1.OwnerReference{getValidClusterOwnerRef()},
 		},
 		Spec: clusteroperator.MachineSetSpec{
-			clusteroperator.MachineSetConfig{
+			MachineSetConfig: clusteroperator.MachineSetConfig{
 				NodeType: clusteroperator.NodeTypeMaster,
 				Size:     1,
 			},
+			Version: getClusterVersionReference(),
 		},
 	}
 }
@@ -129,6 +130,16 @@ func TestValidateMachineSetUpdate(t *testing.T) {
 			new: func() *clusteroperator.MachineSet {
 				ms := getValidMachineSet()
 				ms.Spec.Size = 0
+				return ms
+			}(),
+			valid: false,
+		},
+		{
+			name: "invalid cluster version mutation",
+			old:  getValidMachineSet(),
+			new: func() *clusteroperator.MachineSet {
+				ms := getValidMachineSet()
+				ms.Spec.Version = clusteroperator.ClusterVersionReference{Name: "newversion"}
 				return ms
 			}(),
 			valid: false,
@@ -271,30 +282,43 @@ func TestValidateMachineSetSpec(t *testing.T) {
 		{
 			name: "valid",
 			spec: &clusteroperator.MachineSetSpec{
-				clusteroperator.MachineSetConfig{
+				MachineSetConfig: clusteroperator.MachineSetConfig{
 					NodeType: clusteroperator.NodeTypeMaster,
 					Size:     1,
 				},
+				Version: getClusterVersionReference(),
 			},
 			valid: true,
 		},
 		{
 			name: "invalid node type",
 			spec: &clusteroperator.MachineSetSpec{
-				clusteroperator.MachineSetConfig{
+				MachineSetConfig: clusteroperator.MachineSetConfig{
 					NodeType: clusteroperator.NodeType(""),
 					Size:     1,
 				},
+				Version: getClusterVersionReference(),
 			},
 		},
 		{
 			name: "invalid size",
 			spec: &clusteroperator.MachineSetSpec{
-				clusteroperator.MachineSetConfig{
+				MachineSetConfig: clusteroperator.MachineSetConfig{
 					NodeType: clusteroperator.NodeTypeMaster,
 					Size:     0,
 				},
+				Version: getClusterVersionReference(),
 			},
+		},
+		{
+			name: "missing version",
+			spec: &clusteroperator.MachineSetSpec{
+				MachineSetConfig: clusteroperator.MachineSetConfig{
+					NodeType: clusteroperator.NodeTypeMaster,
+					Size:     1,
+				},
+			},
+			valid: false,
 		},
 	}
 

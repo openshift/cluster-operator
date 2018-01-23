@@ -997,12 +997,18 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								},
 							},
 						},
+						"version": {
+							SchemaProps: spec.SchemaProps{
+								Description: "Version references the clusterversion the machine set is running.",
+								Ref:         ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterVersionReference"),
+							},
+						},
 					},
-					Required: []string{"nodeType", "infra", "size", "hardware", "nodeLabels"},
+					Required: []string{"nodeType", "infra", "size", "hardware", "nodeLabels", "version"},
 				},
 			},
 			Dependencies: []string{
-				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetHardwareSpec"},
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterVersionReference", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetHardwareSpec"},
 		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetStatus": {
 			Schema: spec.Schema{
