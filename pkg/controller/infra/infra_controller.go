@@ -218,8 +218,13 @@ func (c *InfraController) addJob(obj interface{}) {
 	if c.jobControl.IsControlledJob(job) {
 		cluster, err := c.clusterForJob(job)
 		if err != nil {
-			c.logger.Errorf("Cannot retrieve cluster for job %s/%s: %v", job.Namespace, job.Name, err)
+			c.logger.WithFields(log.Fields{"job": job.Name, "namespace": job.Namespace}).
+				Errorf("Cannot retrieve cluster for job: %v", err)
 			utilruntime.HandleError(err)
+			return
+		} else if cluster == nil {
+			c.logger.WithFields(log.Fields{"job": job.Name, "namespace": job.Namespace}).
+				Warn("cluster no longer exists for job")
 			return
 		}
 
@@ -243,8 +248,13 @@ func (c *InfraController) updateJob(old, obj interface{}) {
 	if c.jobControl.IsControlledJob(job) {
 		cluster, err := c.clusterForJob(job)
 		if err != nil {
-			c.logger.Errorf("Cannot retrieve cluster for job %s/%s: %v", job.Namespace, job.Name, err)
+			c.logger.WithFields(log.Fields{"job": job.Name, "namespace": job.Namespace}).
+				Errorf("Cannot retrieve cluster for job: %v", err)
 			utilruntime.HandleError(err)
+			return
+		} else if cluster == nil {
+			c.logger.WithFields(log.Fields{"job": job.Name, "namespace": job.Namespace}).
+				Warn("cluster no longer exists for job")
 			return
 		}
 		c.logger.Debugf("enqueueing cluster %s/%s for updated infra job %s/%s", cluster.Namespace, cluster.Name, job.Namespace, job.Name)
@@ -272,6 +282,7 @@ func (c *InfraController) deleteJob(obj interface{}) {
 	cluster, err := c.clusterForJob(job)
 	if err != nil || cluster == nil {
 		utilruntime.HandleError(fmt.Errorf("could not get cluster for deleted job %s/%s", job.Namespace, job.Name))
+		return
 	}
 
 	clusterKey, err := controller.KeyFunc(cluster)
