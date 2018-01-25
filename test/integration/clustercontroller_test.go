@@ -80,7 +80,7 @@ func TestClusterCreate(t *testing.T) {
 					Name: testClusterName,
 				},
 				Spec: v1alpha1.ClusterSpec{
-					Version: v1alpha1.ClusterVersionReference{
+					ClusterVersionRef: v1alpha1.ClusterVersionReference{
 						Namespace: "cluster-operator",
 						Name:      "v3-9",
 					},

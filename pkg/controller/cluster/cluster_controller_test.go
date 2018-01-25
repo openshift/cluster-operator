@@ -23,6 +23,7 @@ import (
 	"strings"
 	"testing"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -125,7 +126,7 @@ func newClusterWithSizes(masterSize int, computes ...clusteroperator.ClusterMach
 					NodeType: clusteroperator.NodeTypeMaster,
 				},
 			}),
-			Version: defaultClusterVersion,
+			ClusterVersionRef: defaultClusterVersion,
 		},
 		Status: clusteroperator.ClusterStatus{
 			MasterMachineSetName: testClusterName + "-master-random",
@@ -179,6 +180,14 @@ func newMachineSets(store cache.Store, cluster *clusteroperator.Cluster, include
 	return newMachineSetsWithSizes(store, cluster, masterSize, computes...)
 }
 
+func objectRefForClusterVersionRef(cvf clusteroperator.ClusterVersionReference) corev1.ObjectReference {
+	return corev1.ObjectReference{
+		Name:      cvf.Name,
+		Namespace: cvf.Namespace,
+		UID:       "fakeUID", // TODO: make this real
+	}
+}
+
 // newMachineSetsWithSizes creates new machine sets, with specific sizes, and
 // stores them in the specified store.
 func newMachineSetsWithSizes(store cache.Store, cluster *clusteroperator.Cluster, masterSize int, computes ...clusteroperator.ClusterMachineSet) []*clusteroperator.MachineSet {
@@ -189,14 +198,14 @@ func newMachineSetsWithSizes(store cache.Store, cluster *clusteroperator.Cluster
 		machineSet.Spec.NodeType = clusteroperator.NodeTypeMaster
 		machineSet.Spec.Size = masterSize
 		machineSet.Spec.Infra = true
-		machineSet.Spec.Version = cluster.Spec.Version
+		machineSet.Spec.ClusterVersionRef = objectRefForClusterVersionRef(cluster.Spec.ClusterVersionRef)
 		machineSets = append(machineSets, machineSet)
 	}
 	for _, compute := range computes {
 		name := fmt.Sprintf("%s-%s-random", cluster.Name, compute.Name)
 		machineSet := newMachineSet(name, cluster, true)
 		machineSet.Spec.MachineSetConfig = compute.MachineSetConfig
-		machineSet.Spec.Version = cluster.Spec.Version
+		machineSet.Spec.ClusterVersionRef = objectRefForClusterVersionRef(cluster.Spec.ClusterVersionRef)
 		machineSets = append(machineSets, machineSet)
 	}
 	if store != nil {
@@ -913,7 +922,7 @@ func TestSyncClusterVersionMutated(t *testing.T) {
 	validateControllerExpectations(t, "TestSyncClusterVersionMutated", controller, cluster, 0, 0)
 
 	// Changing the cluster version to 3.10 should result in machine sets being recreated:
-	cluster.Spec.Version = clusterVer310
+	cluster.Spec.ClusterVersionRef = clusterVer310
 
 	controller.syncCluster(getKey(cluster, t))
 
@@ -979,7 +988,7 @@ func TestSyncClusterMachineSetOwnerReference(t *testing.T) {
 			machineSet.Spec.NodeType = clusteroperator.NodeTypeMaster
 			machineSet.Spec.Size = 1
 			machineSet.Spec.Infra = true
-			machineSet.Spec.Version = defaultClusterVersion
+			machineSet.Spec.ClusterVersionRef = objectRefForClusterVersionRef(defaultClusterVersion)
 			if tc.ownerRef != nil {
 				machineSet.OwnerReferences = []metav1.OwnerReference{*tc.ownerRef}
 			}
@@ -1036,7 +1045,7 @@ func TestSyncClusterMachineSetDeletionTimestamp(t *testing.T) {
 			machineSet.Spec.NodeType = clusteroperator.NodeTypeMaster
 			machineSet.Spec.Size = 1
 			machineSet.Spec.Infra = true
-			machineSet.Spec.Version = defaultClusterVersion
+			machineSet.Spec.ClusterVersionRef = objectRefForClusterVersionRef(defaultClusterVersion)
 			machineSet.DeletionTimestamp = tc.deletionTimestamp
 			machineSetStore.Add(machineSet)
 

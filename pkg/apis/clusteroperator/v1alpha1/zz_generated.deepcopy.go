@@ -227,7 +227,7 @@ func (in *ClusterSpec) DeepCopyInto(out *ClusterSpec) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
-	out.Version = in.Version
+	out.ClusterVersionRef = in.ClusterVersionRef
 	return
 }
 
@@ -620,7 +620,7 @@ func (in *MachineSetList) DeepCopyObject() runtime.Object {
 func (in *MachineSetSpec) DeepCopyInto(out *MachineSetSpec) {
 	*out = *in
 	in.MachineSetConfig.DeepCopyInto(&out.MachineSetConfig)
-	out.Version = in.Version
+	out.ClusterVersionRef = in.ClusterVersionRef
 	return
 }
 

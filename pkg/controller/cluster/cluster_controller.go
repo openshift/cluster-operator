@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -505,8 +506,11 @@ func (c *ClusterController) manageMachineSet(cluster *clusteroperator.Cluster, m
 		return machineSet, true, err
 	}
 
-	if !apiequality.Semantic.DeepEqual(machineSet.Spec.Version, cluster.Spec.Version) {
-		glog.V(2).Infof("The cluster version of the machine set %s has changed from %v to %v", machineSet.Name, machineSet.Spec.Version, cluster.Spec.Version)
+	// TODO: compare against cluster status instead and cover the UID
+	if machineSet.Spec.ClusterVersionRef.Name != cluster.Spec.ClusterVersionRef.Name ||
+		machineSet.Spec.ClusterVersionRef.Namespace != cluster.Spec.ClusterVersionRef.Namespace {
+
+		glog.V(2).Infof("The cluster version of the machine set %s has changed from %v to %v", machineSet.Name, machineSet.Spec.ClusterVersionRef, cluster.Spec.ClusterVersionRef)
 		machineSet, err := buildNewMachineSet(cluster, clusterMachineSetConfig, machineSetNamePrefix)
 		return machineSet, true, err
 	}
@@ -582,7 +586,12 @@ func buildNewMachineSet(cluster *clusteroperator.Cluster, machineSetConfig clust
 		},
 		Spec: clusteroperator.MachineSetSpec{
 			MachineSetConfig: machineSetConfig,
-			Version:          cluster.Spec.Version,
+			// TODO: resolve and set UID here
+			ClusterVersionRef: corev1.ObjectReference{
+				Name:      cluster.Spec.ClusterVersionRef.Name,
+				Namespace: cluster.Spec.ClusterVersionRef.Namespace,
+				UID:       "very fake",
+			},
 		},
 	}, nil
 }

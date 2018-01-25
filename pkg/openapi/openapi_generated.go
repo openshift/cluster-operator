@@ -404,14 +404,14 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								},
 							},
 						},
-						"version": {
+						"clusterVersionRef": {
 							SchemaProps: spec.SchemaProps{
-								Description: "Version references the clusterversion that should be running.",
+								Description: "ClusterVersionRef references the clusterversion that should be running.",
 								Ref:         ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterVersionReference"),
 							},
 						},
 					},
-					Required: []string{"hardware", "config", "machineSets", "version"},
+					Required: []string{"hardware", "config", "machineSets", "clusterVersionRef"},
 				},
 			},
 			Dependencies: []string{
@@ -1009,18 +1009,18 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								},
 							},
 						},
-						"version": {
+						"clusterVersionRef": {
 							SchemaProps: spec.SchemaProps{
-								Description: "Version references the clusterversion the machine set is running.",
-								Ref:         ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterVersionReference"),
+								Description: "ClusterVersionRef references the clusterversion the machine set is running.",
+								Ref:         ref("k8s.io/api/core/v1.ObjectReference"),
 							},
 						},
 					},
-					Required: []string{"nodeType", "infra", "size", "nodeLabels", "version"},
+					Required: []string{"nodeType", "infra", "size", "nodeLabels", "clusterVersionRef"},
 				},
 			},
 			Dependencies: []string{
-				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterVersionReference", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetHardwareSpec"},
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetHardwareSpec", "k8s.io/api/core/v1.ObjectReference"},
 		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetStatus": {
 			Schema: spec.Schema{

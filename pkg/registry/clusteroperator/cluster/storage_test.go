@@ -58,7 +58,7 @@ func validNewCluster(name string) *clusteroperatorapi.Cluster {
 					},
 				},
 			},
-			Version: clusteroperatorapi.ClusterVersionReference{
+			ClusterVersionRef: clusteroperatorapi.ClusterVersionReference{
 				Namespace: "cluster-operator",
 				Name:      "v3-9",
 			},

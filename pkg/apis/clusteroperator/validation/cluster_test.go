@@ -19,6 +19,7 @@ package validation
 import (
 	"testing"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
@@ -47,14 +48,17 @@ func getValidClusterSpec() clusteroperator.ClusterSpec {
 				},
 			},
 		},
-		Version: getClusterVersionReference(),
+		ClusterVersionRef: clusteroperator.ClusterVersionReference{
+			Name: "v3-9",
+		},
 	}
 }
 
-func getClusterVersionReference() clusteroperator.ClusterVersionReference {
-	return clusteroperator.ClusterVersionReference{
+func getClusterVersionReference() corev1.ObjectReference {
+	return corev1.ObjectReference{
 		Namespace: "cluster-operator",
 		Name:      "v3-9",
+		UID:       "fakeuid",
 	}
 }
 
@@ -353,7 +357,7 @@ func TestValidateClusterSpec(t *testing.T) {
 			name: "missing cluster version",
 			spec: func() *clusteroperator.ClusterSpec {
 				cs := getValidClusterSpec()
-				cs.Version = clusteroperator.ClusterVersionReference{}
+				cs.ClusterVersionRef = clusteroperator.ClusterVersionReference{}
 				return &cs
 			}(),
 			valid: false,

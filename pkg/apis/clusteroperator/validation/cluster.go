@@ -77,7 +77,7 @@ func validateClusterSpec(spec *clusteroperator.ClusterSpec, fldPath *field.Path)
 		allErrs = append(allErrs, field.Invalid(machineSetsPath, &spec.MachineSets, "must have one machineset that hosts infra pods"))
 	}
 
-	if len(spec.Version.Name) == 0 {
+	if len(spec.ClusterVersionRef.Name) == 0 {
 		allErrs = append(allErrs, field.Required(versionPath.Child("name"), "must specify a cluster version to install"))
 	}
 

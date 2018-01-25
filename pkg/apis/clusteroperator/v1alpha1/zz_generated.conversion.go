@@ -316,7 +316,7 @@ func autoConvert_v1alpha1_ClusterSpec_To_clusteroperator_ClusterSpec(in *Cluster
 	}
 	out.DefaultHardwareSpec = (*clusteroperator.MachineSetHardwareSpec)(unsafe.Pointer(in.DefaultHardwareSpec))
 	out.MachineSets = *(*[]clusteroperator.ClusterMachineSet)(unsafe.Pointer(&in.MachineSets))
-	if err := Convert_v1alpha1_ClusterVersionReference_To_clusteroperator_ClusterVersionReference(&in.Version, &out.Version, s); err != nil {
+	if err := Convert_v1alpha1_ClusterVersionReference_To_clusteroperator_ClusterVersionReference(&in.ClusterVersionRef, &out.ClusterVersionRef, s); err != nil {
 		return err
 	}
 	return nil
@@ -336,7 +336,7 @@ func autoConvert_clusteroperator_ClusterSpec_To_v1alpha1_ClusterSpec(in *cluster
 	}
 	out.DefaultHardwareSpec = (*MachineSetHardwareSpec)(unsafe.Pointer(in.DefaultHardwareSpec))
 	out.MachineSets = *(*[]ClusterMachineSet)(unsafe.Pointer(&in.MachineSets))
-	if err := Convert_clusteroperator_ClusterVersionReference_To_v1alpha1_ClusterVersionReference(&in.Version, &out.Version, s); err != nil {
+	if err := Convert_clusteroperator_ClusterVersionReference_To_v1alpha1_ClusterVersionReference(&in.ClusterVersionRef, &out.ClusterVersionRef, s); err != nil {
 		return err
 	}
 	return nil
@@ -717,9 +717,7 @@ func autoConvert_v1alpha1_MachineSetSpec_To_clusteroperator_MachineSetSpec(in *M
 	if err := Convert_v1alpha1_MachineSetConfig_To_clusteroperator_MachineSetConfig(&in.MachineSetConfig, &out.MachineSetConfig, s); err != nil {
 		return err
 	}
-	if err := Convert_v1alpha1_ClusterVersionReference_To_clusteroperator_ClusterVersionReference(&in.Version, &out.Version, s); err != nil {
-		return err
-	}
+	out.ClusterVersionRef = in.ClusterVersionRef
 	return nil
 }
 
@@ -732,9 +730,7 @@ func autoConvert_clusteroperator_MachineSetSpec_To_v1alpha1_MachineSetSpec(in *c
 	if err := Convert_clusteroperator_MachineSetConfig_To_v1alpha1_MachineSetConfig(&in.MachineSetConfig, &out.MachineSetConfig, s); err != nil {
 		return err
 	}
-	if err := Convert_clusteroperator_ClusterVersionReference_To_v1alpha1_ClusterVersionReference(&in.Version, &out.Version, s); err != nil {
-		return err
-	}
+	out.ClusterVersionRef = in.ClusterVersionRef
 	return nil
 }
 

@@ -17,6 +17,7 @@ limitations under the License.
 package validation
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	apivalidation "k8s.io/apimachinery/pkg/api/validation"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -59,8 +60,11 @@ func validateMachineSetClusterOwner(ownerRefs []metav1.OwnerReference, fldPath *
 // validateMachineSetSpec validates the spec of a machine set
 func validateMachineSetSpec(spec *clusteroperator.MachineSetSpec, fldPath *field.Path) field.ErrorList {
 	allErrs := validateMachineSetConfig(&spec.MachineSetConfig, fldPath)
-	if len(spec.Version.Name) == 0 {
-		allErrs = append(allErrs, field.Required(fldPath.Child("version"), "must specify version"))
+	if len(spec.ClusterVersionRef.Name) == 0 {
+		allErrs = append(allErrs, field.Required(fldPath.Child("clusterVersionRef").Child("name"), "must specify name"))
+	}
+	if len(spec.ClusterVersionRef.UID) == 0 {
+		allErrs = append(allErrs, field.Required(fldPath.Child("clusterVersionRef").Child("uid"), "must specify uid"))
 	}
 	return allErrs
 }
@@ -89,7 +93,7 @@ func ValidateMachineSetUpdate(new *clusteroperator.MachineSet, old *clusteropera
 
 	allErrs = append(allErrs, validateMachineSetSpec(&new.Spec, field.NewPath("spec"))...)
 	allErrs = append(allErrs, validateMachineSetImmutableClusterOwner(new.GetOwnerReferences(), old.GetOwnerReferences(), field.NewPath("metadata").Child("ownerReferences"))...)
-	allErrs = append(allErrs, validateMachineSetImmutableVersion(new.Spec.Version, old.Spec.Version, field.NewPath("spec").Child("version"))...)
+	allErrs = append(allErrs, validateMachineSetImmutableVersion(new.Spec.ClusterVersionRef, old.Spec.ClusterVersionRef, field.NewPath("spec").Child("clusterVersionRef"))...)
 
 	return allErrs
 }
@@ -109,7 +113,7 @@ func validateMachineSetImmutableClusterOwner(newOwnerRefs, oldOwnerRefs []metav1
 }
 
 // validateMachineSetImmutableVersion validates that the version of a machine set is immutable.
-func validateMachineSetImmutableVersion(newVersion, oldVersion clusteroperator.ClusterVersionReference, fldPath *field.Path) field.ErrorList {
+func validateMachineSetImmutableVersion(newVersion, oldVersion corev1.ObjectReference, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 	allErrs = append(allErrs, apivalidation.ValidateImmutableField(newVersion, oldVersion, fldPath)...)
 	return allErrs
