@@ -337,7 +337,8 @@ type MachineSetConfig struct {
 
 	// Hardware defines what the hardware should look like for this
 	// MachineSet. The specification will vary based on the cloud provider.
-	Hardware MachineSetHardwareSpec
+	// +optional
+	Hardware *MachineSetHardwareSpec
 
 	// NodeLabels specifies the labels that will be applied to nodes in this
 	// MachineSet

@@ -33,7 +33,7 @@ func getValidClusterVersion() *clusteroperator.ClusterVersion {
 		Spec: clusteroperator.ClusterVersionSpec{
 			ImageFormat: "openshift/origin-${component}:${version}",
 			YumRepositories: []clusteroperator.YumRepository{
-				clusteroperator.YumRepository{
+				{
 					ID:       "testrepo",
 					Name:     "a testing repo",
 					BaseURL:  "http://example.com/nobodycares/",
