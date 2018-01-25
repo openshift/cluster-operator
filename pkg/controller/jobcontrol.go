@@ -29,15 +29,24 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apiserver/pkg/storage/names"
 	kubeclientset "k8s.io/client-go/kubernetes"
 	batchlisters "k8s.io/client-go/listers/batch/v1"
+	"k8s.io/client-go/tools/cache"
 
 	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 )
 
 // JobControl is used to control jobs that are needed by a controller.
 type JobControl interface {
+	// OnAdd from ResourceEventHandler for a Job informer
+	OnAdd(obj interface{})
+	// OnUpdate from ResourceEventHandler for a Job informer
+	OnUpdate(oldObj, newObj interface{})
+	// OnDelete from ResourceEventHandler for a Job informer
+	OnDelete(obj interface{})
+
 	// ControlJobs handles running/deleting jobs for the owner.
 	//
 	// ownerKey: key to identify the owner (namespace/name)
@@ -45,28 +54,37 @@ type JobControl interface {
 	// buildNewJob: true if a new job should be built if one does not already
 	//   exist
 	// jobFactory: function to call to build a new job
-	// logger: logger to which to log
 	//
 	// Return:
 	//  (*kbatch.Job) current job
 	//  (bool) true if the current job was newly created
 	//  (error) error that prevented handling the jobs
-	ControlJobs(ownerKey string, owner metav1.Object, buildNewJob bool, jobFactory JobFactory, logger log.FieldLogger) (*kbatch.Job, bool, error)
+	ControlJobs(
+		ownerKey string,
+		owner metav1.Object,
+		buildNewJob bool,
+		jobFactory JobFactory,
+	) (*kbatch.Job, bool, error)
 
 	// ObserveOwnerDeletion observes that the owner with the specified key was
 	// deleted.
 	ObserveOwnerDeletion(ownerKey string)
+}
 
-	// ObserveJobCreation observes that a job was created for the owner with
-	// the specified key.
-	ObserveJobCreation(ownerKey string, job *kbatch.Job)
+var _ cache.ResourceEventHandler = (JobControl)(nil)
 
-	// ObserveJobDeletion observes that a job created was deleted for the
-	// owner with the specified key.
-	ObserveJobDeletion(ownerKey string, job *kbatch.Job)
+// JobOwnerControl is a control supplied to a job control used to access
+// and signal about owners of jobs controlled by the job control.
+type JobOwnerControl interface {
+	// GetOwnerKey gets the key that identifies the owner.
+	GetOwnerKey(owner metav1.Object) (string, error)
 
-	// IsControlledJob tests that the job is controlled by this control.
-	IsControlledJob(job *kbatch.Job) bool
+	// GetOwner gets the owner that has the specified namespace and name.
+	GetOwner(namespace string, name string) (metav1.Object, error)
+
+	// OnOwnedJobEvent signals that a job owned by the specified owner has
+	// been added, updated, or deleted.
+	OnOwnedJobEvent(owner metav1.Object)
 }
 
 // JobFactory is used to build a job to be controlled by a JobControl.
@@ -79,26 +97,40 @@ type JobFactory interface {
 }
 
 type jobControl struct {
-	jobPrefix  string
-	ownerKind  schema.GroupVersionKind
-	kubeClient kubeclientset.Interface
-	jobsLister batchlisters.JobLister
+	jobPrefix    string
+	ownerKind    schema.GroupVersionKind
+	kubeClient   kubeclientset.Interface
+	jobsLister   batchlisters.JobLister
+	ownerControl JobOwnerControl
+	logger       log.FieldLogger
 	// A TTLCache of job creations/deletions we're expecting to see
 	expectations *UIDTrackingControllerExpectations
 }
 
 // NewJobControl creates a new JobControl.
-func NewJobControl(jobPrefix string, ownerKind schema.GroupVersionKind, kubeClient kubeclientset.Interface, jobsLister batchlisters.JobLister) JobControl {
+func NewJobControl(
+	jobPrefix string,
+	ownerKind schema.GroupVersionKind,
+	kubeClient kubeclientset.Interface,
+	jobsLister batchlisters.JobLister,
+	ownerControl JobOwnerControl,
+	logger log.FieldLogger,
+) JobControl {
+
 	return &jobControl{
 		jobPrefix:    jobPrefix,
 		ownerKind:    ownerKind,
 		kubeClient:   kubeClient,
 		jobsLister:   jobsLister,
+		ownerControl: ownerControl,
+		logger:       logger,
 		expectations: NewUIDTrackingControllerExpectations(NewControllerExpectations()),
 	}
 }
 
-func (c *jobControl) ControlJobs(ownerKey string, owner metav1.Object, buildNewJob bool, jobFactory JobFactory, logger log.FieldLogger) (*kbatch.Job, bool, error) {
+func (c *jobControl) ControlJobs(ownerKey string, owner metav1.Object, buildNewJob bool, jobFactory JobFactory) (*kbatch.Job, bool, error) {
+	logger := loggerForOwner(c.logger, owner)
+
 	if !c.expectations.SatisfiedExpectations(ownerKey) {
 		// expectations have not been met, come back later
 		logger.Debugln("expectations have not been satisfied yet")
@@ -121,13 +153,13 @@ func (c *jobControl) ControlJobs(ownerKey string, owner metav1.Object, buildNewJ
 		if !metav1.IsControlledBy(job, owner) {
 			continue
 		}
-		if !c.IsControlledJob(job) {
+		if !c.isControlledJob(job) {
 			continue
 		}
 		if jobOwnerGeneration(job) == owner.GetGeneration() {
 			currentJob = job
 		} else {
-			logger.WithField("job", jobKey(job)).
+			loggerForJob(logger, job).
 				Debugln("found job that does not correspond to owner's current generation")
 			oldJobs = append(oldJobs, job)
 		}
@@ -153,16 +185,124 @@ func (c *jobControl) ObserveOwnerDeletion(ownerKey string) {
 	c.expectations.DeleteExpectations(ownerKey)
 }
 
-func (c *jobControl) ObserveJobCreation(ownerKey string, job *kbatch.Job) {
-	c.expectations.CreationObserved(ownerKey)
-}
-
-func (c *jobControl) ObserveJobDeletion(ownerKey string, job *kbatch.Job) {
-	c.expectations.DeletionObserved(ownerKey, jobKey(job))
-}
-
-func (c *jobControl) IsControlledJob(job *kbatch.Job) bool {
+func (c *jobControl) isControlledJob(job *kbatch.Job) bool {
 	return strings.HasPrefix(job.Name, c.jobPrefix)
+}
+
+func (c *jobControl) ownerForJob(job *kbatch.Job) (metav1.Object, error) {
+	controllerRef := metav1.GetControllerOf(job)
+	if controllerRef == nil {
+		return nil, nil
+	}
+	if controllerRef.Kind != c.ownerKind.Kind {
+		return nil, nil
+	}
+	owner, err := c.ownerControl.GetOwner(job.Namespace, controllerRef.Name)
+	if err != nil || owner == nil {
+		return owner, err
+	}
+	if owner.GetUID() != controllerRef.UID {
+		// The controller we found with this Name is not the same one that the
+		// ControllerRef points to.
+		return nil, nil
+	}
+	return owner, nil
+}
+
+func (c *jobControl) convertEventHandlerObjectToControlledJob(obj interface{}, lookAtTombstone bool) (*kbatch.Job, bool) {
+	job, ok := obj.(*kbatch.Job)
+	if !ok {
+		if !lookAtTombstone {
+			handleError(fmt.Errorf("object provided by job informer is not a Job %#v", obj), c.logger)
+			return nil, false
+		}
+		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			handleError(fmt.Errorf("couldn't get object from tombstone %#v", obj), c.logger)
+			return nil, false
+		}
+		job, ok = tombstone.Obj.(*kbatch.Job)
+		if !ok {
+			handleError(fmt.Errorf("tombstone contained object that is not a Job %#v", obj), c.logger)
+			return nil, false
+		}
+	}
+
+	return job, c.isControlledJob(job)
+}
+
+func (c *jobControl) OnAdd(obj interface{}) {
+	c.onJobEvent(obj, jobAdd)
+}
+
+func (c *jobControl) OnUpdate(old, obj interface{}) {
+	c.onJobEvent(obj, jobUpdate)
+}
+
+func (c *jobControl) OnDelete(obj interface{}) {
+	c.onJobEvent(obj, jobDelete)
+}
+
+const (
+	jobAdd    = "Add"
+	jobUpdate = "Update"
+	jobDelete = "Delete"
+)
+
+func (c *jobControl) onJobEvent(obj interface{}, eventType string) {
+	job, ok := obj.(*kbatch.Job)
+	if !ok {
+		if eventType != jobDelete {
+			handleError(fmt.Errorf("object provided by job informer is not a Job %#v", obj), c.logger)
+			return
+		}
+		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			handleError(fmt.Errorf("couldn't get object from tombstone %#v", obj), c.logger)
+			return
+		}
+		job, ok = tombstone.Obj.(*kbatch.Job)
+		if !ok {
+			handleError(fmt.Errorf("tombstone contained object that is not a Job %#v", obj), c.logger)
+			return
+		}
+	}
+
+	if !c.isControlledJob(job) {
+		return
+	}
+
+	logger := loggerForJob(c.logger, job)
+
+	owner, err := c.ownerForJob(job)
+	if err != nil || owner == nil {
+		logger.Warn("owner no longer exists for job")
+		return
+	}
+
+	ownerKey, err := c.ownerControl.GetOwnerKey(owner)
+	if err != nil {
+		handleError(err, logger)
+		return
+	}
+
+	switch eventType {
+	case jobAdd:
+		logger.Debug("job creation observed")
+		c.expectations.CreationObserved(ownerKey)
+		logger.Debugf("enqueueing owner for created job")
+	case jobUpdate:
+		logger.Debugf("enqueueing owner for updated job")
+	case jobDelete:
+		logger.Debug("job deletion observed")
+		c.expectations.DeletionObserved(ownerKey, jobKey(job))
+		logger.Debugf("enqueueing owner for deleted job")
+	default:
+		handleError(fmt.Errorf("unknown job event type"), logger)
+		return
+	}
+
+	c.ownerControl.OnOwnedJobEvent(owner)
 }
 
 func (c *jobControl) createJob(ownerKey string, owner metav1.Object, jobFactory JobFactory, logger log.FieldLogger) (*kbatch.Job, error) {
@@ -283,4 +423,17 @@ func jobOwnerGeneration(job *kbatch.Job) int64 {
 
 func jobKey(job *kbatch.Job) string {
 	return fmt.Sprintf("%s/%s", job.Namespace, job.Name)
+}
+
+func loggerForJob(logger log.FieldLogger, job *kbatch.Job) log.FieldLogger {
+	return logger.WithFields(log.Fields{"job": job.Name, "namespace": job.Namespace})
+}
+
+func loggerForOwner(logger log.FieldLogger, owner metav1.Object) log.FieldLogger {
+	return logger.WithFields(log.Fields{"owner": owner.GetName(), "namespace": owner.GetNamespace()})
+}
+
+func handleError(err error, logger log.FieldLogger) {
+	log.Error(err)
+	utilruntime.HandleError(err)
 }
