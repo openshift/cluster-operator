@@ -613,9 +613,7 @@ func autoConvert_v1alpha1_MachineSetConfig_To_clusteroperator_MachineSetConfig(i
 	out.NodeType = clusteroperator.NodeType(in.NodeType)
 	out.Infra = in.Infra
 	out.Size = in.Size
-	if err := Convert_v1alpha1_MachineSetHardwareSpec_To_clusteroperator_MachineSetHardwareSpec(&in.Hardware, &out.Hardware, s); err != nil {
-		return err
-	}
+	out.Hardware = (*clusteroperator.MachineSetHardwareSpec)(unsafe.Pointer(in.Hardware))
 	out.NodeLabels = *(*map[string]string)(unsafe.Pointer(&in.NodeLabels))
 	return nil
 }
@@ -629,9 +627,7 @@ func autoConvert_clusteroperator_MachineSetConfig_To_v1alpha1_MachineSetConfig(i
 	out.NodeType = NodeType(in.NodeType)
 	out.Infra = in.Infra
 	out.Size = in.Size
-	if err := Convert_clusteroperator_MachineSetHardwareSpec_To_v1alpha1_MachineSetHardwareSpec(&in.Hardware, &out.Hardware, s); err != nil {
-		return err
-	}
+	out.Hardware = (*MachineSetHardwareSpec)(unsafe.Pointer(in.Hardware))
 	out.NodeLabels = *(*map[string]string)(unsafe.Pointer(&in.NodeLabels))
 	return nil
 }

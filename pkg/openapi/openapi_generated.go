@@ -356,7 +356,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 							},
 						},
 					},
-					Required: []string{"name", "nodeType", "infra", "size", "hardware", "nodeLabels"},
+					Required: []string{"name", "nodeType", "infra", "size", "nodeLabels"},
 				},
 			},
 			Dependencies: []string{
@@ -854,7 +854,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 							},
 						},
 					},
-					Required: []string{"nodeType", "infra", "size", "hardware", "nodeLabels"},
+					Required: []string{"nodeType", "infra", "size", "nodeLabels"},
 				},
 			},
 			Dependencies: []string{
@@ -967,7 +967,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 							},
 						},
 					},
-					Required: []string{"nodeType", "infra", "size", "hardware", "nodeLabels"},
+					Required: []string{"nodeType", "infra", "size", "nodeLabels"},
 				},
 			},
 			Dependencies: []string{

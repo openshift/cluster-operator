@@ -426,10 +426,20 @@ func (c *ClusterController) manageMachineSets(machineSets []*clusteroperator.Mac
 
 	// Sync machine sets
 	for i := range cluster.Spec.MachineSets {
-		machineSetToCreate, deleteMachineSet, err := c.manageMachineSet(cluster, clusterMachineSets[i], cluster.Spec.MachineSets[i].MachineSetConfig, machineSetPrefixes[i])
+		machineSetConfig := cluster.Spec.MachineSets[i].MachineSetConfig
+		mergedHardwareSpec, err := applyDefaultMachineSetHardwareSpec(machineSetConfig.Hardware, cluster.Spec.DefaultHardwareSpec)
 		if err != nil {
 			errCh <- err
+			continue
 		}
+		machineSetConfig.Hardware = mergedHardwareSpec
+
+		machineSetToCreate, deleteMachineSet, err := c.manageMachineSet(cluster, clusterMachineSets[i], machineSetConfig, machineSetPrefixes[i])
+		if err != nil {
+			errCh <- err
+			continue
+		}
+
 		if machineSetToCreate != nil {
 			machineSetsToCreate = append(machineSetsToCreate, machineSetToCreate)
 		}
@@ -583,26 +593,10 @@ func applyDefaultMachineSetHardwareSpec(machineSetHardwareSpec, defaultHardwareS
 }
 
 func buildNewMachineSet(cluster *clusteroperator.Cluster, machineSetConfig clusteroperator.MachineSetConfig, machineSetNamePrefix string) (*clusteroperator.MachineSet, error) {
-	boolPtr := func(b bool) *bool { return &b }
-	mergedHardwareSpec, err := applyDefaultMachineSetHardwareSpec(&machineSetConfig.Hardware, cluster.Spec.DefaultHardwareSpec)
-	if err != nil {
-		return nil, err
-	}
-	machineSetConfig.Hardware = *mergedHardwareSpec
-
 	return &clusteroperator.MachineSet{
 		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: machineSetNamePrefix,
-			OwnerReferences: []metav1.OwnerReference{
-				{
-					APIVersion:         controllerKind.GroupVersion().String(),
-					Kind:               controllerKind.Kind,
-					Name:               cluster.Name,
-					UID:                cluster.UID,
-					BlockOwnerDeletion: boolPtr(true),
-					Controller:         boolPtr(true),
-				},
-			},
+			GenerateName:    machineSetNamePrefix,
+			OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(cluster, controllerKind)},
 		},
 		Spec: clusteroperator.MachineSetSpec{
 			MachineSetConfig: machineSetConfig,
