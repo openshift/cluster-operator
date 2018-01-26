@@ -29,7 +29,6 @@ import (
 	batchinformers "k8s.io/client-go/informers/batch/v1"
 	kubeclientset "k8s.io/client-go/kubernetes"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
-	batchlisters "k8s.io/client-go/listers/batch/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
@@ -115,18 +114,14 @@ func NewInfraController(
 	c.clustersLister = clusterInformer.Lister()
 	c.clustersSynced = clusterInformer.Informer().HasSynced
 
-	jobInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    c.addJob,
-		UpdateFunc: c.updateJob,
-		DeleteFunc: c.deleteJob,
-	})
+	jobOwnerControl := &jobOwnerControl{controller: c}
+	c.jobControl = controller.NewJobControl(jobPrefix, clusterKind, kubeClient, jobInformer.Lister(), jobOwnerControl, logger)
+	jobInformer.Informer().AddEventHandler(c.jobControl)
 	c.jobsSynced = jobInformer.Informer().HasSynced
-	c.jobsLister = jobInformer.Lister()
 
 	c.syncHandler = c.syncCluster
 	c.enqueueCluster = c.enqueue
 	c.ansibleGenerator = ansible.NewJobGenerator(ansibleImage, ansibleImagePullPolicy)
-	c.jobControl = controller.NewJobControl(jobPrefix, clusterKind, c.kubeClient, c.jobsLister)
 
 	return c
 }
@@ -148,15 +143,12 @@ type InfraController struct {
 	enqueueCluster func(cluster *clusteroperator.Cluster)
 
 	// clustersLister is able to list/get clusters and is populated by the shared informer passed to
-	// NewClusterController.
+	// NewInfraController.
 	clustersLister lister.ClusterLister
 	// clustersSynced returns true if the cluster shared informer has been synced at least once.
 	// Added as a member to the struct to allow injection for testing.
 	clustersSynced cache.InformerSynced
 
-	// jobsLister is able to list/get jobs and is populated by the shared informer passed to
-	// NewClusterController.
-	jobsLister batchlisters.JobLister
 	// jobsSynced returns true of the job shared informer has been synced at least once.
 	jobsSynced cache.InformerSynced
 
@@ -193,108 +185,6 @@ func (c *InfraController) deleteCluster(obj interface{}) {
 		}
 	}
 	c.logger.Debugf("enqueueing deleted cluster %s/%s", cluster.Namespace, cluster.Name)
-	c.enqueueCluster(cluster)
-}
-
-func (c *InfraController) clusterForJob(job *v1batch.Job) (*clusteroperator.Cluster, error) {
-	controllerRef := metav1.GetControllerOf(job)
-	if controllerRef.Kind != clusterKind.Kind {
-		return nil, nil
-	}
-	cluster, err := c.clustersLister.Clusters(job.Namespace).Get(controllerRef.Name)
-	if err != nil {
-		return nil, err
-	}
-	if cluster.UID != controllerRef.UID {
-		// The controller we found with this Name is not the same one that the
-		// ControllerRef points to.
-		return nil, nil
-	}
-	return cluster, nil
-}
-
-func (c *InfraController) addJob(obj interface{}) {
-	job := obj.(*v1batch.Job)
-	if c.jobControl.IsControlledJob(job) {
-		cluster, err := c.clusterForJob(job)
-		if err != nil {
-			c.logger.WithFields(log.Fields{"job": job.Name, "namespace": job.Namespace}).
-				Errorf("Cannot retrieve cluster for job: %v", err)
-			utilruntime.HandleError(err)
-			return
-		} else if cluster == nil {
-			c.logger.WithFields(log.Fields{"job": job.Name, "namespace": job.Namespace}).
-				Warn("cluster no longer exists for job")
-			return
-		}
-
-		clusterKey, err := controller.KeyFunc(cluster)
-		if err != nil {
-			c.logger.Errorf("Cannot get key for cluster for job %s/%s: %v", job.Namespace, job.Name, err)
-			utilruntime.HandleError(err)
-			return
-		}
-
-		c.logger.Debug("job creation observed")
-		c.jobControl.ObserveJobCreation(clusterKey, job)
-
-		c.logger.Debugf("enqueueing cluster %s/%s for created infra job %s/%s", cluster.Namespace, cluster.Name, job.Namespace, job.Name)
-		c.enqueueCluster(cluster)
-	}
-}
-
-func (c *InfraController) updateJob(old, obj interface{}) {
-	job := obj.(*v1batch.Job)
-	if c.jobControl.IsControlledJob(job) {
-		cluster, err := c.clusterForJob(job)
-		if err != nil {
-			c.logger.WithFields(log.Fields{"job": job.Name, "namespace": job.Namespace}).
-				Errorf("Cannot retrieve cluster for job: %v", err)
-			utilruntime.HandleError(err)
-			return
-		} else if cluster == nil {
-			c.logger.WithFields(log.Fields{"job": job.Name, "namespace": job.Namespace}).
-				Warn("cluster no longer exists for job")
-			return
-		}
-		c.logger.Debugf("enqueueing cluster %s/%s for updated infra job %s/%s", cluster.Namespace, cluster.Name, job.Namespace, job.Name)
-		c.enqueueCluster(cluster)
-	}
-}
-
-func (c *InfraController) deleteJob(obj interface{}) {
-	job, ok := obj.(*v1batch.Job)
-	if !ok {
-		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
-		if !ok {
-			utilruntime.HandleError(fmt.Errorf("couldn't get object from tombstone %#v", obj))
-			return
-		}
-		job, ok = tombstone.Obj.(*v1batch.Job)
-		if !ok {
-			utilruntime.HandleError(fmt.Errorf("tombstone contained object that is not a Job %#v", obj))
-			return
-		}
-	}
-	if !c.jobControl.IsControlledJob(job) {
-		return
-	}
-	cluster, err := c.clusterForJob(job)
-	if err != nil || cluster == nil {
-		utilruntime.HandleError(fmt.Errorf("could not get cluster for deleted job %s/%s", job.Namespace, job.Name))
-		return
-	}
-
-	clusterKey, err := controller.KeyFunc(cluster)
-	if err != nil {
-		c.logger.Errorf("Cannot get key for cluster for job %s/%s: %v", job.Namespace, job.Name, err)
-		utilruntime.HandleError(err)
-		return
-	}
-
-	c.logger.Debug("job deletion observed")
-	c.jobControl.ObserveJobDeletion(clusterKey, job)
-
 	c.enqueueCluster(cluster)
 }
 
@@ -509,7 +399,7 @@ func (c *InfraController) syncCluster(key string) error {
 
 	jobFactory := c.getJobFactory(cluster)
 
-	job, isJobNew, err := c.jobControl.ControlJobs(key, cluster, specChanged, jobFactory, cLog)
+	job, isJobNew, err := c.jobControl.ControlJobs(key, cluster, specChanged, jobFactory)
 	if err != nil {
 		return err
 	}
@@ -607,6 +497,28 @@ func (c *InfraController) setJobNotFoundStatus(original *clusteroperator.Cluster
 		})
 	}
 	return c.updateClusterStatus(original, cluster)
+}
+
+type jobOwnerControl struct {
+	controller *InfraController
+}
+
+func (c *jobOwnerControl) GetOwnerKey(owner metav1.Object) (string, error) {
+	return controller.KeyFunc(owner)
+}
+
+func (c *jobOwnerControl) GetOwner(namespace string, name string) (metav1.Object, error) {
+	return c.controller.clustersLister.Clusters(namespace).Get(name)
+}
+
+func (c *jobOwnerControl) OnOwnedJobEvent(owner metav1.Object) {
+	cluster, ok := owner.(*clusteroperator.Cluster)
+	if !ok {
+		c.controller.logger.WithFields(log.Fields{"owner": owner.GetName(), "namespace": owner.GetNamespace()}).
+			Errorf("attempt to enqueue owner that is not a cluster")
+		return
+	}
+	c.controller.enqueueCluster(cluster)
 }
 
 type jobFactory func(string) (*v1batch.Job, *kapi.ConfigMap, error)
