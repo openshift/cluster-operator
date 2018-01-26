@@ -357,6 +357,7 @@ func autoConvert_v1alpha1_ClusterStatus_To_clusteroperator_ClusterStatus(in *Clu
 	out.ProvisionJob = (*v1.LocalObjectReference)(unsafe.Pointer(in.ProvisionJob))
 	out.Running = in.Running
 	out.Conditions = *(*[]clusteroperator.ClusterCondition)(unsafe.Pointer(&in.Conditions))
+	out.ClusterVersionRef = in.ClusterVersionRef
 	return nil
 }
 
@@ -375,6 +376,7 @@ func autoConvert_clusteroperator_ClusterStatus_To_v1alpha1_ClusterStatus(in *clu
 	out.ProvisionJob = (*v1.LocalObjectReference)(unsafe.Pointer(in.ProvisionJob))
 	out.Running = in.Running
 	out.Conditions = *(*[]ClusterCondition)(unsafe.Pointer(&in.Conditions))
+	out.ClusterVersionRef = in.ClusterVersionRef
 	return nil
 }
 

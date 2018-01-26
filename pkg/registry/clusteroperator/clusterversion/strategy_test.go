@@ -50,32 +50,3 @@ func TestClusterVersionCreate(t *testing.T) {
 	// Canonicalize the cluster
 	clusterVersionRESTStrategies.PrepareForCreate(nil, cv)
 }
-
-// getValidClusterVersion gets a cluster version that passes all validity checks.
-func getValidClusterVersion() *clusteroperator.ClusterVersion {
-	return &clusteroperator.ClusterVersion{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "test-cluster-version",
-		},
-		Spec: clusteroperator.ClusterVersionSpec{
-			ImageFormat: "openshift/origin-${component}:${version}",
-			YumRepositories: []clusteroperator.YumRepository{
-				clusteroperator.YumRepository{
-					ID:       "testrepo",
-					Name:     "a testing repo",
-					BaseURL:  "http://example.com/nobodycares/",
-					Enabled:  1,
-					GPGCheck: 1,
-					GPGKey:   "http://example.com/notreal.gpg",
-				},
-			},
-			VMImages: clusteroperator.VMImages{
-				AWSImages: &clusteroperator.AWSVMImages{
-					AMIByRegion: map[string]string{
-						"us-east-1": "fakeami",
-					},
-				},
-			},
-		},
-	}
-}

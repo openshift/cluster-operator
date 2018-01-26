@@ -489,12 +489,18 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								},
 							},
 						},
+						"clusterVersionRef": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ClusterVersionRef references the resolved clusterversion the cluster should be running.",
+								Ref:         ref("k8s.io/api/core/v1.ObjectReference"),
+							},
+						},
 					},
 					Required: []string{"machineSetCount", "provisioned", "provisionedJobGeneration", "running", "conditions"},
 				},
 			},
 			Dependencies: []string{
-				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterCondition", "k8s.io/api/core/v1.LocalObjectReference"},
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterCondition", "k8s.io/api/core/v1.LocalObjectReference", "k8s.io/api/core/v1.ObjectReference"},
 		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterVersion": {
 			Schema: spec.Schema{

@@ -354,10 +354,10 @@ func TestValidateClusterSpec(t *testing.T) {
 			valid: false,
 		},
 		{
-			name: "missing cluster version",
+			name: "missing cluster version name", // namespace is optional
 			spec: func() *clusteroperator.ClusterSpec {
 				cs := getValidClusterSpec()
-				cs.ClusterVersionRef = clusteroperator.ClusterVersionReference{}
+				cs.ClusterVersionRef.Name = ""
 				return &cs
 			}(),
 			valid: false,

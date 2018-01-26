@@ -275,6 +275,10 @@ type ClusterStatus struct {
 
 	// Conditions includes more detailed status for the cluster
 	Conditions []ClusterCondition
+
+	// ClusterVersionRef references the resolved clusterversion the cluster should be running.
+	// +optional
+	ClusterVersionRef corev1.ObjectReference
 }
 
 // ClusterCondition contains details for the current condition of a cluster

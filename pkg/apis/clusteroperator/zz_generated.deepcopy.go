@@ -269,6 +269,7 @@ func (in *ClusterStatus) DeepCopyInto(out *ClusterStatus) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
+	out.ClusterVersionRef = in.ClusterVersionRef
 	return
 }
 

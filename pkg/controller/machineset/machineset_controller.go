@@ -43,6 +43,7 @@ import (
 	lister "github.com/openshift/cluster-operator/pkg/client/listers_generated/clusteroperator/v1alpha1"
 	"github.com/openshift/cluster-operator/pkg/controller"
 	"github.com/openshift/cluster-operator/pkg/kubernetes/pkg/util/metrics"
+	colog "github.com/openshift/cluster-operator/pkg/logging"
 )
 
 const (
@@ -169,13 +170,13 @@ type MachineSetController struct {
 
 func (c *MachineSetController) addMachineSet(obj interface{}) {
 	ms := obj.(*clusteroperator.MachineSet)
-	loggerForMachineSet(c.logger, ms).Debugf("enqueueing added machine set")
+	colog.WithMachineSet(c.logger, ms).Debugf("enqueueing added machine set")
 	c.enqueueMachineSet(ms)
 }
 
 func (c *MachineSetController) updateMachineSet(old, cur interface{}) {
 	ms := cur.(*clusteroperator.MachineSet)
-	loggerForMachineSet(c.logger, ms).Debugf("enqueueing updated machine set")
+	colog.WithMachineSet(c.logger, ms).Debugf("enqueueing updated machine set")
 	c.enqueueMachineSet(ms)
 }
 
@@ -193,13 +194,13 @@ func (c *MachineSetController) deleteMachineSet(obj interface{}) {
 			return
 		}
 	}
-	loggerForMachineSet(c.logger, ms).Debugf("enqueueing deleted machine set")
+	colog.WithMachineSet(c.logger, ms).Debugf("enqueueing deleted machine set")
 	c.enqueueMachineSet(ms)
 }
 
 func (c *MachineSetController) addCluster(obj interface{}) {
 	cluster := obj.(*clusteroperator.Cluster)
-	logger := loggerForCluster(c.logger, cluster)
+	logger := colog.WithCluster(c.logger, cluster)
 	machineSets, err := c.machineSetsForCluster(cluster)
 	if err != nil {
 		logger.Errorf("Cannot retrieve machine sets for cluster: %v", err)
@@ -208,14 +209,14 @@ func (c *MachineSetController) addCluster(obj interface{}) {
 	}
 
 	for _, machineSet := range machineSets {
-		loggerForMachineSet(logger, machineSet).Debugf("enqueueing machine set for created cluster")
+		colog.WithMachineSet(logger, machineSet).Debugf("enqueueing machine set for created cluster")
 		c.enqueueMachineSet(machineSet)
 	}
 }
 
 func (c *MachineSetController) updateCluster(old, obj interface{}) {
 	cluster := obj.(*clusteroperator.Cluster)
-	logger := loggerForCluster(c.logger, cluster)
+	logger := colog.WithCluster(c.logger, cluster)
 	machineSets, err := c.machineSetsForCluster(cluster)
 	if err != nil {
 		logger.Errorf("Cannot retrieve machine sets for cluster: %v", err)
@@ -223,7 +224,7 @@ func (c *MachineSetController) updateCluster(old, obj interface{}) {
 		return
 	}
 	for _, machineSet := range machineSets {
-		loggerForMachineSet(logger, machineSet).Debugf("enqueueing machine set for update cluster")
+		colog.WithMachineSet(logger, machineSet).Debugf("enqueueing machine set for update cluster")
 		c.enqueueMachineSet(machineSet)
 	}
 }
@@ -367,7 +368,7 @@ func (s *jobSyncStrategy) DoesOwnerNeedProcessing(owner metav1.Object) bool {
 	}
 	cluster, err := controller.ClusterForMachineSet(machineSet, s.controller.clustersLister)
 	if err != nil {
-		loggerForMachineSet(s.controller.logger, machineSet).
+		colog.WithMachineSet(s.controller.logger, machineSet).
 			Warn("could not get cluster for machine set")
 		return false
 	}
@@ -380,7 +381,7 @@ func (s *jobSyncStrategy) DoesOwnerNeedProcessing(owner metav1.Object) bool {
 	case clusteroperator.NodeTypeCompute:
 		masterMachineSet, err := s.controller.machineSetsLister.MachineSets(machineSet.Namespace).Get(cluster.Status.MasterMachineSetName)
 		if err != nil {
-			loggerForCluster(loggerForMachineSet(s.controller.logger, machineSet), cluster).
+			colog.WithCluster(colog.WithMachineSet(s.controller.logger, machineSet), cluster).
 				WithField("master", cluster.Status.MasterMachineSetName).
 				Warn("could not get master machine set")
 			return false
@@ -395,7 +396,7 @@ func (s *jobSyncStrategy) DoesOwnerNeedProcessing(owner metav1.Object) bool {
 			masterMachineSet.Status.InstalledJobGeneration == masterMachineSet.Generation
 		return masterInstalled
 	default:
-		loggerForMachineSet(s.controller.logger, machineSet).
+		colog.WithMachineSet(s.controller.logger, machineSet).
 			Warnf("unknown node type %q", machineSet.Spec.NodeType)
 		return false
 	}
@@ -538,12 +539,4 @@ func convertJobSyncConditionType(conditionType controller.JobSyncConditionType) 
 	default:
 		return clusteroperator.MachineSetConditionType("")
 	}
-}
-
-func loggerForMachineSet(logger log.FieldLogger, machineSet *clusteroperator.MachineSet) log.FieldLogger {
-	return logger.WithFields(log.Fields{"machineset": machineSet.Name, "namespace": machineSet.Namespace})
-}
-
-func loggerForCluster(logger log.FieldLogger, cluster *clusteroperator.Cluster) log.FieldLogger {
-	return logger.WithFields(log.Fields{"cluster": cluster.Name, "namespace": cluster.Namespace})
 }

@@ -278,6 +278,10 @@ type ClusterStatus struct {
 
 	// Conditions includes more detailed status for the cluster
 	Conditions []ClusterCondition `json:"conditions"`
+
+	// ClusterVersionRef references the resolved clusterversion the cluster should be running.
+	// +optional
+	ClusterVersionRef corev1.ObjectReference `json:"clusterVersionRef,omitempty"`
 }
 
 // ClusterCondition contains details for the current condition of a cluster

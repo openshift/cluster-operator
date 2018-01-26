@@ -35,17 +35,23 @@ import (
 	clusteroperatorclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset/fake"
 	informers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions"
 	"github.com/openshift/cluster-operator/pkg/controller"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 )
 
 const (
-	testNamespace   = "test-namespace"
-	testClusterName = "test-cluster"
-	testClusterUUID = types.UID("test-cluster-uuid")
+	testNamespace      = "test-namespace"
+	testClusterName    = "test-cluster"
+	testClusterUUID    = types.UID("test-cluster-uuid")
+	testClusterVerName = "v3-9"
+	testClusterVerNS   = "cluster-operator"
+	testClusterVerUID  = types.UID("test-cluster-version")
 )
 
-var (
-	defaultClusterVersion = clusteroperator.ClusterVersionReference{Namespace: "cluster-operator", Name: "v3-9"}
-)
+func init() {
+	log.SetLevel(log.DebugLevel)
+}
 
 // newTestClusterController creates a test ClusterController with fake
 // clients and informers.
@@ -53,6 +59,7 @@ func newTestClusterController() (
 	*ClusterController,
 	cache.Store, // cluster store
 	cache.Store, // machine set store
+	cache.Store, // cluster version store
 	*clientgofake.Clientset,
 	*clusteroperatorclientset.Clientset,
 ) {
@@ -63,6 +70,7 @@ func newTestClusterController() (
 	controller := NewClusterController(
 		informers.Clusteroperator().V1alpha1().Clusters(),
 		informers.Clusteroperator().V1alpha1().MachineSets(),
+		informers.Clusteroperator().V1alpha1().ClusterVersions(),
 		kubeClient,
 		clusterOperatorClient,
 	)
@@ -73,6 +81,7 @@ func newTestClusterController() (
 	return controller,
 		informers.Clusteroperator().V1alpha1().Clusters().Informer().GetStore(),
 		informers.Clusteroperator().V1alpha1().MachineSets().Informer().GetStore(),
+		informers.Clusteroperator().V1alpha1().ClusterVersions().Informer().GetStore(),
 		kubeClient,
 		clusterOperatorClient
 }
@@ -94,7 +103,7 @@ func getKey(cluster *clusteroperator.Cluster, t *testing.T) string {
 
 // newCluster creates a new cluster with compute machine sets that have
 // the specified names.
-func newCluster(computeNames ...string) *clusteroperator.Cluster {
+func newCluster(cv *clusteroperator.ClusterVersion, computeNames ...string) *clusteroperator.Cluster {
 	computes := make([]clusteroperator.ClusterMachineSet, len(computeNames))
 	for i, computeName := range computeNames {
 		computes[i] = clusteroperator.ClusterMachineSet{
@@ -105,12 +114,14 @@ func newCluster(computeNames ...string) *clusteroperator.Cluster {
 			},
 		}
 	}
-	return newClusterWithSizes(1, computes...)
+	return newClusterWithSizes(cv, 1, computes...)
 }
 
 // newClusterWithSizes creates a new cluster with the specified size for the
-// master machine set and the specified cluster compute machine sets.
-func newClusterWithSizes(masterSize int, computes ...clusteroperator.ClusterMachineSet) *clusteroperator.Cluster {
+// master machine set and the specified cluster compute machine sets. If a clusterversion is
+// provided we set the spec version ref, as well as the status version ref. This implies
+// that the caller has added the provided version to the store.
+func newClusterWithSizes(cv *clusteroperator.ClusterVersion, masterSize int, computes ...clusteroperator.ClusterMachineSet) *clusteroperator.Cluster {
 	cluster := &clusteroperator.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
 			UID:       testClusterUUID,
@@ -126,12 +137,24 @@ func newClusterWithSizes(masterSize int, computes ...clusteroperator.ClusterMach
 					NodeType: clusteroperator.NodeTypeMaster,
 				},
 			}),
-			ClusterVersionRef: defaultClusterVersion,
 		},
 		Status: clusteroperator.ClusterStatus{
 			MasterMachineSetName: testClusterName + "-master-random",
 			InfraMachineSetName:  testClusterName + "-master-random",
 		},
+	}
+	// If clusterversion was provided we assume it exists in the store and set both
+	// the spec and the status:
+	if cv != nil {
+		cluster.Spec.ClusterVersionRef = clusteroperator.ClusterVersionReference{
+			Name:      cv.Name,
+			Namespace: cv.Namespace,
+		}
+		cluster.Status.ClusterVersionRef = corev1.ObjectReference{
+			Name:      cv.Name,
+			Namespace: cv.Namespace,
+			UID:       cv.UID,
+		}
 	}
 	return cluster
 }
@@ -160,7 +183,7 @@ func newMachineSet(name string, cluster *clusteroperator.Cluster, properlyOwned 
 
 // newMachineSets creates new machine sets and stores them in the specified
 // store.
-func newMachineSets(store cache.Store, cluster *clusteroperator.Cluster, includeMaster bool, computeNames ...string) []*clusteroperator.MachineSet {
+func newMachineSets(store cache.Store, cluster *clusteroperator.Cluster, clusterVersion *clusteroperator.ClusterVersion, includeMaster bool, computeNames ...string) []*clusteroperator.MachineSet {
 	masterSize := 0
 	if includeMaster {
 		masterSize = 1
@@ -177,20 +200,12 @@ func newMachineSets(store cache.Store, cluster *clusteroperator.Cluster, include
 		}
 	}
 
-	return newMachineSetsWithSizes(store, cluster, masterSize, computes...)
-}
-
-func objectRefForClusterVersionRef(cvf clusteroperator.ClusterVersionReference) corev1.ObjectReference {
-	return corev1.ObjectReference{
-		Name:      cvf.Name,
-		Namespace: cvf.Namespace,
-		UID:       "fakeUID", // TODO: make this real
-	}
+	return newMachineSetsWithSizes(store, cluster, clusterVersion, masterSize, computes...)
 }
 
 // newMachineSetsWithSizes creates new machine sets, with specific sizes, and
 // stores them in the specified store.
-func newMachineSetsWithSizes(store cache.Store, cluster *clusteroperator.Cluster, masterSize int, computes ...clusteroperator.ClusterMachineSet) []*clusteroperator.MachineSet {
+func newMachineSetsWithSizes(store cache.Store, cluster *clusteroperator.Cluster, clusterVersion *clusteroperator.ClusterVersion, masterSize int, computes ...clusteroperator.ClusterMachineSet) []*clusteroperator.MachineSet {
 	machineSets := []*clusteroperator.MachineSet{}
 	if masterSize > 0 {
 		name := fmt.Sprintf("%s-master-random", cluster.Name)
@@ -198,14 +213,22 @@ func newMachineSetsWithSizes(store cache.Store, cluster *clusteroperator.Cluster
 		machineSet.Spec.NodeType = clusteroperator.NodeTypeMaster
 		machineSet.Spec.Size = masterSize
 		machineSet.Spec.Infra = true
-		machineSet.Spec.ClusterVersionRef = objectRefForClusterVersionRef(cluster.Spec.ClusterVersionRef)
+		machineSet.Spec.ClusterVersionRef = corev1.ObjectReference{
+			Name:      clusterVersion.Name,
+			Namespace: clusterVersion.Namespace,
+			UID:       clusterVersion.UID,
+		}
 		machineSets = append(machineSets, machineSet)
 	}
 	for _, compute := range computes {
 		name := fmt.Sprintf("%s-%s-random", cluster.Name, compute.Name)
 		machineSet := newMachineSet(name, cluster, true)
 		machineSet.Spec.MachineSetConfig = compute.MachineSetConfig
-		machineSet.Spec.ClusterVersionRef = objectRefForClusterVersionRef(cluster.Spec.ClusterVersionRef)
+		machineSet.Spec.ClusterVersionRef = corev1.ObjectReference{
+			Name:      clusterVersion.Name,
+			Namespace: clusterVersion.Namespace,
+			UID:       clusterVersion.UID,
+		}
 		machineSets = append(machineSets, machineSet)
 	}
 	if store != nil {
@@ -215,6 +238,39 @@ func newMachineSetsWithSizes(store cache.Store, cluster *clusteroperator.Cluster
 	}
 	return machineSets
 
+}
+
+// newClusterVer will create an actual ClusterVersion for the given reference.
+// Used when we want to make sure a version ref specified on a Cluster exists in the store.
+func newClusterVer(namespace, name string, uid types.UID) *clusteroperator.ClusterVersion {
+	cv := &clusteroperator.ClusterVersion{
+		ObjectMeta: metav1.ObjectMeta{
+			UID:       uid,
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: clusteroperator.ClusterVersionSpec{
+			ImageFormat: "openshift/origin-${component}:${version}",
+			YumRepositories: []clusteroperator.YumRepository{
+				{
+					ID:       "testrepo",
+					Name:     "a testing repo",
+					BaseURL:  "http://example.com/nobodycares/",
+					Enabled:  1,
+					GPGCheck: 1,
+					GPGKey:   "http://example.com/notreal.gpg",
+				},
+			},
+			VMImages: clusteroperator.VMImages{
+				AWSImages: &clusteroperator.AWSVMImages{
+					AMIByRegion: map[string]string{
+						"us-east-1": "fakeami",
+					},
+				},
+			},
+		},
+	}
+	return cv
 }
 
 // processSync initiates a sync via processNextWorkItem() to test behavior that
@@ -350,7 +406,8 @@ func newExpectedMachineSetDeleteAction(cluster *clusteroperator.Cluster, name st
 // expectedClusterStatusUpdateAction is an expected client action to update
 // the status of a cluster.
 type expectedClusterStatusUpdateAction struct {
-	machineSets int
+	machineSets       *int
+	clusterVersionRef *corev1.ObjectReference
 }
 
 func (ea expectedClusterStatusUpdateAction) resource() schema.GroupVersionResource {
@@ -365,6 +422,7 @@ func (ea expectedClusterStatusUpdateAction) validate(t *testing.T, action client
 	if action.GetSubresource() != "status" {
 		return false
 	}
+	// TODO: This patch comparison needs a cleanup
 	updateAction, ok := action.(clientgotesting.PatchAction)
 	if !ok {
 		t.Errorf("update action is not an UpdateAction: %t", updateAction)
@@ -393,19 +451,55 @@ func (ea expectedClusterStatusUpdateAction) validate(t *testing.T, action client
 		t.Errorf("unexpected number of fields in status field; expected %v, got %v", e, a)
 		return true
 	}
-	machineSetCountAsInterface := status["machineSetCount"]
-	if machineSetCountAsInterface == nil {
-		t.Errorf("expected status.machineSetCount field in patch")
-		return true
+	if ea.machineSets != nil {
+		machineSetCountAsInterface := status["machineSetCount"]
+		if machineSetCountAsInterface == nil {
+			t.Errorf("expected status.machineSetCount field in patch")
+			return true
+		}
+		machineSetCount, ok := machineSetCountAsInterface.(float64)
+		if !ok {
+			t.Errorf("status.machineSetCount is not an int: %T", machineSetCountAsInterface)
+			return true
+		}
+		e, a := ea.machineSets, int(machineSetCount)
+		assert.Equal(t, *e, a)
 	}
-	machineSetCount, ok := machineSetCountAsInterface.(float64)
-	if !ok {
-		t.Errorf("status.machineSetCount is not an int: %T", machineSetCountAsInterface)
-		return true
-	}
-	if e, a := ea.machineSets, int(machineSetCount); e != a {
-		t.Errorf("unexpected machineSets in cluster update status: expected %v, got %v", e, a)
-		return true
+	if ea.clusterVersionRef != nil {
+		clusterVersionRefAsInterface := status["clusterVersionRef"]
+		if clusterVersionRefAsInterface == nil {
+			t.Errorf("expected status.clusterVersionRef field in patch")
+			return true
+		}
+		clusterVersionRef, ok := clusterVersionRefAsInterface.(map[string]interface{})
+		if !ok {
+			t.Errorf("clusterVersionRef field is not an object")
+			return true
+		}
+
+		nameAsInterface, ok := clusterVersionRef["name"]
+		if !ok {
+			t.Errorf("expected clusterVersionRef.name in patch")
+			return true
+		}
+		name, ok := nameAsInterface.(string)
+		if !ok {
+			t.Errorf("clusterVersionRef.name is not a string")
+			return true
+		}
+		assert.Equal(t, ea.clusterVersionRef.Name, name)
+
+		uidAsInterface, ok := clusterVersionRef["uid"]
+		if !ok {
+			t.Errorf("expected clusterVersionRef.uid in patch")
+			return true
+		}
+		uid, ok := uidAsInterface.(string)
+		if !ok {
+			t.Errorf("clusterVersionRef.uid is not a string")
+			return true
+		}
+		assert.Equal(t, ea.clusterVersionRef.UID, types.UID(uid))
 	}
 	return true
 }
@@ -509,18 +603,169 @@ func TestSyncClusterSteadyState(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			controller, clusterStore, machineSetStore, _, clusterOperatorClient := newTestClusterController()
+			controller, clusterStore, machineSetStore, clusterVerStore, _, clusterOperatorClient := newTestClusterController()
 
-			cluster := newCluster(tc.computes...)
+			cv := newClusterVer(testClusterVerNS, testClusterVerName, testClusterVerUID)
+			clusterVerStore.Add(cv)
+			cluster := newCluster(cv, tc.computes...)
 			cluster.Status.MachineSetCount = len(tc.computes) + 1
 			clusterStore.Add(cluster)
-			newMachineSets(machineSetStore, cluster, true, tc.computes...)
+			newMachineSets(machineSetStore, cluster, cv, true, tc.computes...)
 
 			controller.syncCluster(getKey(cluster, t))
 
 			validateClientActions(t, "TestSyncClusterSteadyState."+tc.name, clusterOperatorClient)
 
 			validateControllerExpectations(t, "TestSyncClusterSteadyState."+tc.name, controller, cluster, 0, 0)
+		})
+	}
+}
+
+// TestSyncClusterWithVersion tests behaviour around the version set on a cluster spec.
+func TestSyncClusterWithVersion(t *testing.T) {
+
+	cases := []struct {
+		name                       string
+		currentClusterVersion      *clusteroperator.ClusterVersion
+		newClusterVersion          *clusteroperator.ClusterVersion
+		newClusterVersionExists    bool
+		expectedError              string
+		expectedMachineSetsCreated bool
+		expectedMachineSetsDeleted bool
+		expectedStatusUpdate       bool
+		expectedStatusClusterRef   *corev1.ObjectReference
+	}{
+		{
+			name: "NoCurrentVersionNewDoesNotExist",
+			currentClusterVersion:      nil,
+			newClusterVersion:          newClusterVer(testClusterVerNS, testClusterVerName, testClusterVerUID),
+			newClusterVersionExists:    false,
+			expectedError:              "\"v3-9\" not found",
+			expectedMachineSetsCreated: false,
+			expectedMachineSetsDeleted: false,
+			expectedStatusUpdate:       false,
+			expectedStatusClusterRef:   nil,
+		},
+		{
+			name: "NoCurrentVersionNewExists",
+			currentClusterVersion:      nil,
+			newClusterVersion:          newClusterVer(testClusterVerNS, testClusterVerName, testClusterVerUID),
+			newClusterVersionExists:    true,
+			expectedMachineSetsCreated: true,
+			expectedMachineSetsDeleted: false,
+			expectedStatusUpdate:       true,
+			expectedStatusClusterRef: &corev1.ObjectReference{
+				Name:      testClusterVerName,
+				Namespace: testClusterVerNS,
+				UID:       testClusterVerUID,
+			},
+		},
+		{
+			name: "NewVersionDoesNotExist",
+			currentClusterVersion:      newClusterVer(testClusterVerNS, "currentversion", "currentUID"),
+			newClusterVersion:          newClusterVer(testClusterVerNS, testClusterVerName, testClusterVerUID),
+			newClusterVersionExists:    false,
+			expectedError:              "\"v3-9\" not found",
+			expectedMachineSetsCreated: false,
+			expectedMachineSetsDeleted: false,
+			expectedStatusUpdate:       false,
+			expectedStatusClusterRef: &corev1.ObjectReference{
+				Name:      "currentversion",
+				Namespace: testClusterVerNS,
+				UID:       "currentUID",
+			},
+		},
+		{
+			name: "NewVersionExists",
+			currentClusterVersion:      newClusterVer(testClusterVerNS, "currentversion", "currentUID"),
+			newClusterVersion:          newClusterVer(testClusterVerNS, testClusterVerName, testClusterVerUID),
+			newClusterVersionExists:    true,
+			expectedError:              "",
+			expectedMachineSetsCreated: true,
+			expectedMachineSetsDeleted: true,
+			expectedStatusUpdate:       true,
+			expectedStatusClusterRef: &corev1.ObjectReference{
+				Name:      testClusterVerName,
+				Namespace: testClusterVerNS,
+				UID:       testClusterVerUID,
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			controller, clusterStore, machineSetStore, clusterVerStore, _, clusterOperatorClient := newTestClusterController()
+			computes := []string{"compute1", "compute2"}
+			allMachineSets := []string{"master", "compute1", "compute2"}
+			if tc.newClusterVersionExists {
+				clusterVerStore.Add(tc.newClusterVersion)
+			}
+			cluster := newCluster(nil, computes...)
+			cluster.Spec.ClusterVersionRef = clusteroperator.ClusterVersionReference{
+				Name:      tc.newClusterVersion.Name,
+				Namespace: tc.newClusterVersion.Namespace,
+			}
+
+			if tc.currentClusterVersion != nil {
+				clusterVerStore.Add(tc.currentClusterVersion)
+				cluster.Status.ClusterVersionRef = corev1.ObjectReference{
+					Name:      tc.currentClusterVersion.Name,
+					Namespace: tc.currentClusterVersion.Namespace,
+					UID:       tc.currentClusterVersion.UID,
+				}
+				// If the cluster has a current version we assume this means machine sets should
+				// already exist, with that version:
+				// Current version should be stamped onto cluster status and all machine sets:
+				newMachineSets(machineSetStore, cluster, tc.currentClusterVersion, true,
+					computes...)
+				cluster.Status.MachineSetCount = 3
+			}
+			clusterStore.Add(cluster)
+
+			err := controller.syncCluster(getKey(cluster, t))
+			if tc.expectedError == "" && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+			if tc.expectedError != "" {
+				if err == nil {
+					t.Errorf("unexpected success")
+				} else {
+					assert.Contains(t, err.Error(), tc.expectedError)
+				}
+			}
+
+			if tc.expectedStatusClusterRef == nil {
+				assert.Zero(t, cluster.Status.ClusterVersionRef)
+			} else {
+				// TODO:
+			}
+
+			expectedActions := []expectedClientAction{}
+			if tc.expectedMachineSetsCreated {
+				for _, msName := range allMachineSets {
+					expectedActions = append(expectedActions, newExpectedMachineSetCreateAction(cluster, msName))
+				}
+			}
+			if tc.expectedMachineSetsDeleted {
+				for _, msName := range allMachineSets {
+					expectedActions = append(expectedActions, newExpectedMachineSetDeleteAction(cluster, msName))
+				}
+			}
+			if tc.expectedStatusUpdate {
+				expectedActions = append(expectedActions, expectedClusterStatusUpdateAction{
+					clusterVersionRef: tc.expectedStatusClusterRef,
+				})
+			}
+
+			expectedAdds, expectedDeletes := 0, 0
+			if tc.expectedMachineSetsCreated {
+				expectedAdds = len(allMachineSets)
+			}
+			if tc.expectedMachineSetsDeleted {
+				expectedDeletes = len(allMachineSets)
+			}
+
+			validateClientActions(t, "TestSyncClusterWithVersion/"+tc.name, clusterOperatorClient, expectedActions...)
+			validateControllerExpectations(t, "TestSyncClusterWithVersion/"+tc.name, controller, cluster, expectedAdds, expectedDeletes)
 		})
 	}
 }
@@ -567,15 +812,18 @@ func TestSyncClusterCreateMachineSets(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			controller, clusterStore, machineSetStore, _, clusterOperatorClient := newTestClusterController()
+			controller, clusterStore, machineSetStore, clusterVerStore, _, clusterOperatorClient := newTestClusterController()
 
-			cluster := newCluster(append(tc.existingComputes, tc.newComputes...)...)
+			cv := newClusterVer(testClusterVerNS, testClusterVerName, testClusterVerUID)
+			clusterVerStore.Add(cv)
+			cluster := newCluster(cv, append(tc.existingComputes, tc.newComputes...)...)
 			cluster.Status.MachineSetCount = len(tc.existingComputes) + 1
 			if !tc.existingMaster {
 				cluster.Status.MachineSetCount--
 			}
 			clusterStore.Add(cluster)
-			newMachineSets(machineSetStore, cluster, tc.existingMaster, tc.existingComputes...)
+
+			newMachineSets(machineSetStore, cluster, cv, tc.existingMaster, tc.existingComputes...)
 
 			controller.syncCluster(getKey(cluster, t))
 
@@ -631,20 +879,23 @@ func TestSyncClusterMachineSetsAdded(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			controller, clusterStore, machineSetStore, _, clusterOperatorClient := newTestClusterController()
+			controller, clusterStore, machineSetStore, clusterVerStore, _, clusterOperatorClient := newTestClusterController()
 
-			cluster := newCluster(tc.computes...)
+			cv := newClusterVer(testClusterVerNS, testClusterVerName, testClusterVerUID)
+			clusterVerStore.Add(cv)
+			cluster := newCluster(cv, tc.computes...)
 			cluster.Status.MachineSetCount = tc.oldComputes
 			if !tc.masterAdded {
 				cluster.Status.MachineSetCount++
 			}
 			clusterStore.Add(cluster)
-			newMachineSets(machineSetStore, cluster, true, tc.computes...)
+			newMachineSets(machineSetStore, cluster, cv, true, tc.computes...)
 
 			controller.syncCluster(getKey(cluster, t))
 
+			expectedMSCount := 1 + len(tc.computes)
 			validateClientActions(t, "TestSyncClusterMachineSetsAdded."+tc.name, clusterOperatorClient,
-				expectedClusterStatusUpdateAction{machineSets: 1 + len(tc.computes)},
+				expectedClusterStatusUpdateAction{machineSets: &expectedMSCount},
 			)
 			validateControllerExpectations(t, "TestSyncClusterMachineSetsAdded."+tc.name, controller, cluster, 0, 0)
 		})
@@ -685,12 +936,14 @@ func TestSyncClusterDeletedMachineSets(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			controller, clusterStore, machineSetStore, _, clusterOperatorClient := newTestClusterController()
+			controller, clusterStore, machineSetStore, clusterVerStore, _, clusterOperatorClient := newTestClusterController()
 
-			cluster := newCluster(tc.clusterComputes...)
+			cv := newClusterVer(testClusterVerNS, testClusterVerName, testClusterVerUID)
+			clusterVerStore.Add(cv)
+			cluster := newCluster(cv, tc.clusterComputes...)
 			cluster.Status.MachineSetCount = len(tc.clusterComputes) + 1
 			clusterStore.Add(cluster)
-			newMachineSets(machineSetStore, cluster, !tc.masterDeleted, tc.realizedComputes...)
+			newMachineSets(machineSetStore, cluster, cv, !tc.masterDeleted, tc.realizedComputes...)
 
 			controller.syncCluster(getKey(cluster, t))
 
@@ -714,8 +967,9 @@ func TestSyncClusterDeletedMachineSets(t *testing.T) {
 			if tc.masterDeleted {
 				statusMasterMachineSets = 0
 			}
+			expectedMSCount := len(tc.realizedComputes) + statusMasterMachineSets
 			expectedActions = append(expectedActions, expectedClusterStatusUpdateAction{
-				machineSets: len(tc.realizedComputes) + statusMasterMachineSets,
+				machineSets: &expectedMSCount,
 			})
 
 			validateClientActions(t, "TestSyncClusterDeletedMachineSets."+tc.name, clusterOperatorClient, expectedActions...)
@@ -749,12 +1003,14 @@ func TestSyncClusterMachineSetsRemoved(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			controller, clusterStore, machineSetStore, _, clusterOperatorClient := newTestClusterController()
+			controller, clusterStore, machineSetStore, clusterVerStore, _, clusterOperatorClient := newTestClusterController()
 
-			cluster := newCluster(tc.clusterComputes...)
+			cv := newClusterVer(testClusterVerNS, testClusterVerName, testClusterVerUID)
+			clusterVerStore.Add(cv)
+			cluster := newCluster(cv, tc.clusterComputes...)
 			cluster.Status.MachineSetCount = len(tc.clusterComputes) + 1
 			clusterStore.Add(cluster)
-			newMachineSets(machineSetStore, cluster, true, tc.realizedComputes...)
+			newMachineSets(machineSetStore, cluster, cv, true, tc.realizedComputes...)
 
 			controller.syncCluster(getKey(cluster, t))
 
@@ -829,7 +1085,7 @@ func TestSyncClusterMachineSetSpecMutated(t *testing.T) {
 				t.Skipf("clusterComputeSizes length must be equal to realizedComputeSizes length: %v, %v", a, b)
 			}
 
-			controller, clusterStore, machineSetStore, _, clusterOperatorClient := newTestClusterController()
+			controller, clusterStore, machineSetStore, clusterVerStore, _, clusterOperatorClient := newTestClusterController()
 
 			clusterComputes := make([]clusteroperator.ClusterMachineSet, len(tc.clusterComputeSizes))
 			realizedComputes := make([]clusteroperator.ClusterMachineSet, len(tc.realizedComputeSizes))
@@ -850,10 +1106,12 @@ func TestSyncClusterMachineSetSpecMutated(t *testing.T) {
 					Name: name,
 				}
 			}
-			cluster := newClusterWithSizes(tc.clusterMasterSize, clusterComputes...)
+			cv := newClusterVer(testClusterVerNS, testClusterVerName, testClusterVerUID)
+			cluster := newClusterWithSizes(cv, tc.clusterMasterSize, clusterComputes...)
 			cluster.Status.MachineSetCount = len(clusterComputes) + 1
+			clusterVerStore.Add(cv)
 			clusterStore.Add(cluster)
-			newMachineSetsWithSizes(machineSetStore, cluster, tc.realizedMasterSize, realizedComputes...)
+			newMachineSetsWithSizes(machineSetStore, cluster, cv, tc.realizedMasterSize, realizedComputes...)
 
 			controller.syncCluster(getKey(cluster, t))
 
@@ -883,13 +1141,17 @@ func TestSyncClusterMachineSetSpecMutated(t *testing.T) {
 
 //  TestSyncClusterVersionMutated tests that changing a cluster spec version results in new machine sets being created with the new version.
 func TestSyncClusterVersionMutated(t *testing.T) {
-	controller, clusterStore, machineSetStore, _, clusterOperatorClient := newTestClusterController()
+	controller, clusterStore, machineSetStore, clusterVerStore, _, clusterOperatorClient := newTestClusterController()
 
 	// A different cluster version to the default:
-	clusterVer310 := clusteroperator.ClusterVersionReference{
-		Namespace: "cluster-operator",
-		Name:      "v3-10",
+	clusterVer310 := &clusteroperator.ClusterVersion{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "cluster-operator",
+			Name:      "v3-10",
+			UID:       types.UID("310"),
+		},
 	}
+	clusterVerStore.Add(clusterVer310)
 
 	// Create compute machine set
 	name := "compute0"
@@ -909,12 +1171,14 @@ func TestSyncClusterVersionMutated(t *testing.T) {
 	}
 
 	// Create the new incoming cluster state, now referencing 3.10:
-	cluster := newClusterWithSizes(3, clusterCompute)
+	cv := newClusterVer(testClusterVerNS, testClusterVerName, testClusterVerUID)
+	cluster := newClusterWithSizes(cv, 3, clusterCompute)
 	cluster.Status.MachineSetCount = 2
+	clusterVerStore.Add(cv)
 	clusterStore.Add(cluster)
 
 	// Simulate the pre-existing MachineSet state:
-	newMachineSetsWithSizes(machineSetStore, cluster, 3, realizedCompute)
+	newMachineSetsWithSizes(machineSetStore, cluster, cv, 3, realizedCompute)
 
 	// Sync and ensure no expected actions as we haven't changed the version yet:
 	controller.syncCluster(getKey(cluster, t))
@@ -922,7 +1186,10 @@ func TestSyncClusterVersionMutated(t *testing.T) {
 	validateControllerExpectations(t, "TestSyncClusterVersionMutated", controller, cluster, 0, 0)
 
 	// Changing the cluster version to 3.10 should result in machine sets being recreated:
-	cluster.Spec.ClusterVersionRef = clusterVer310
+	cluster.Spec.ClusterVersionRef = clusteroperator.ClusterVersionReference{
+		Name:      clusterVer310.Name,
+		Namespace: clusterVer310.Namespace,
+	}
 
 	controller.syncCluster(getKey(cluster, t))
 
@@ -936,6 +1203,9 @@ func TestSyncClusterVersionMutated(t *testing.T) {
 		newExpectedMachineSetDeleteAction(cluster, clusterCompute.Name),
 		newExpectedMachineSetCreateAction(cluster, clusterCompute.Name),
 	)
+	expectedActions = append(expectedActions, expectedClusterStatusUpdateAction{
+		clusterVersionRef: &corev1.ObjectReference{Name: clusterVer310.Name, Namespace: clusterVer310.Namespace, UID: clusterVer310.UID},
+	})
 
 	validateClientActions(t, "TestSyncClusterVersionMutated", clusterOperatorClient, expectedActions...)
 
@@ -978,9 +1248,11 @@ func TestSyncClusterMachineSetOwnerReference(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			controller, clusterStore, machineSetStore, _, clusterOperatorClient := newTestClusterController()
+			controller, clusterStore, machineSetStore, clusterVerStore, _, clusterOperatorClient := newTestClusterController()
 
-			cluster := newCluster()
+			cv := newClusterVer(testClusterVerNS, testClusterVerName, testClusterVerUID)
+			clusterVerStore.Add(cv)
+			cluster := newCluster(cv)
 			clusterStore.Add(cluster)
 
 			machineSetName := fmt.Sprintf("%s-master-random", cluster.Name)
@@ -988,7 +1260,7 @@ func TestSyncClusterMachineSetOwnerReference(t *testing.T) {
 			machineSet.Spec.NodeType = clusteroperator.NodeTypeMaster
 			machineSet.Spec.Size = 1
 			machineSet.Spec.Infra = true
-			machineSet.Spec.ClusterVersionRef = objectRefForClusterVersionRef(defaultClusterVersion)
+			machineSet.Spec.ClusterVersionRef = cluster.Status.ClusterVersionRef
 			if tc.ownerRef != nil {
 				machineSet.OwnerReferences = []metav1.OwnerReference{*tc.ownerRef}
 			}
@@ -1000,7 +1272,8 @@ func TestSyncClusterMachineSetOwnerReference(t *testing.T) {
 			if tc.expectNewMaster {
 				expectedActions = append(expectedActions, newExpectedMachineSetCreateAction(cluster, "master"))
 			} else {
-				expectedActions = append(expectedActions, expectedClusterStatusUpdateAction{machineSets: 1})
+				expectedMSCount := 1
+				expectedActions = append(expectedActions, expectedClusterStatusUpdateAction{machineSets: &expectedMSCount})
 			}
 
 			validateClientActions(t, "TestSyncClusterMachineSetOwnerReference."+tc.name, clusterOperatorClient, expectedActions...)
@@ -1035,9 +1308,11 @@ func TestSyncClusterMachineSetDeletionTimestamp(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			controller, clusterStore, machineSetStore, _, clusterOperatorClient := newTestClusterController()
+			controller, clusterStore, machineSetStore, clusterVerStore, _, clusterOperatorClient := newTestClusterController()
 
-			cluster := newCluster()
+			cv := newClusterVer(testClusterVerNS, testClusterVerName, testClusterVerUID)
+			clusterVerStore.Add(cv)
+			cluster := newCluster(cv)
 			clusterStore.Add(cluster)
 
 			machineSetName := fmt.Sprintf("%s-master-random", cluster.Name)
@@ -1045,7 +1320,7 @@ func TestSyncClusterMachineSetDeletionTimestamp(t *testing.T) {
 			machineSet.Spec.NodeType = clusteroperator.NodeTypeMaster
 			machineSet.Spec.Size = 1
 			machineSet.Spec.Infra = true
-			machineSet.Spec.ClusterVersionRef = objectRefForClusterVersionRef(defaultClusterVersion)
+			machineSet.Spec.ClusterVersionRef = cluster.Status.ClusterVersionRef
 			machineSet.DeletionTimestamp = tc.deletionTimestamp
 			machineSetStore.Add(machineSet)
 
@@ -1055,7 +1330,8 @@ func TestSyncClusterMachineSetDeletionTimestamp(t *testing.T) {
 			if tc.expectNewMaster {
 				expectedActions = append(expectedActions, newExpectedMachineSetCreateAction(cluster, "master"))
 			} else {
-				expectedActions = append(expectedActions, expectedClusterStatusUpdateAction{machineSets: 1})
+				expectedMSCount := 1
+				expectedActions = append(expectedActions, expectedClusterStatusUpdateAction{machineSets: &expectedMSCount})
 			}
 
 			validateClientActions(t, "TestSyncClusterMachineSetDeletionTimestamp."+tc.name, clusterOperatorClient, expectedActions...)
@@ -1072,9 +1348,11 @@ func TestSyncClusterMachineSetDeletionTimestamp(t *testing.T) {
 // TestSyncClusterComplex tests syncing a cluster when there are numerous
 // changes to the cluster spec and the machine sets.
 func TestSyncClusterComplex(t *testing.T) {
-	controller, clusterStore, machineSetStore, _, clusterOperatorClient := newTestClusterController()
+	controller, clusterStore, machineSetStore, clusterVerStore, _, clusterOperatorClient := newTestClusterController()
 
-	cluster := newClusterWithSizes(1,
+	cv := newClusterVer(testClusterVerNS, testClusterVerName, testClusterVerUID)
+	clusterVerStore.Add(cv)
+	cluster := newClusterWithSizes(cv, 1,
 		clusteroperator.ClusterMachineSet{
 			MachineSetConfig: clusteroperator.MachineSetConfig{
 				Size:     1,
@@ -1099,7 +1377,7 @@ func TestSyncClusterComplex(t *testing.T) {
 	)
 	clusterStore.Add(cluster)
 
-	newMachineSetsWithSizes(machineSetStore, cluster, 2,
+	newMachineSetsWithSizes(machineSetStore, cluster, cv, 2,
 		clusteroperator.ClusterMachineSet{
 			MachineSetConfig: clusteroperator.MachineSetConfig{
 				Size:     1,
@@ -1125,6 +1403,7 @@ func TestSyncClusterComplex(t *testing.T) {
 
 	controller.syncCluster(getKey(cluster, t))
 
+	expectedMSCount := 3
 	validateClientActions(t, "TestSyncClusterComplex", clusterOperatorClient,
 		newExpectedMachineSetDeleteAction(cluster, "master"),
 		newExpectedMachineSetCreateAction(cluster, "master"),
@@ -1132,7 +1411,7 @@ func TestSyncClusterComplex(t *testing.T) {
 		newExpectedMachineSetCreateAction(cluster, "realized but mutated"),
 		newExpectedMachineSetCreateAction(cluster, "unrealized"),
 		newExpectedMachineSetDeleteAction(cluster, "removed from cluster"),
-		expectedClusterStatusUpdateAction{machineSets: 3}, // status only counts the 2 realized compute nodes + 1 master
+		expectedClusterStatusUpdateAction{machineSets: &expectedMSCount}, // status only counts the 2 realized compute nodes + 1 master
 	)
 
 	validateControllerExpectations(t, "TestSyncClusterComplex", controller, cluster, 3, 3)

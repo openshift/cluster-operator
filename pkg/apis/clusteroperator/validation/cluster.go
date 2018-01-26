@@ -44,7 +44,7 @@ func ValidateCluster(cluster *clusteroperator.Cluster) field.ErrorList {
 func validateClusterSpec(spec *clusteroperator.ClusterSpec, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 	machineSetsPath := fldPath.Child("machineSets")
-	versionPath := fldPath.Child("version")
+	versionPath := fldPath.Child("clusterVersionRef")
 	masterCount := 0
 	infraCount := 0
 	machineSetNames := map[string]bool{}

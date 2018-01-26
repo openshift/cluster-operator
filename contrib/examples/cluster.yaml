@@ -39,7 +39,7 @@ objects:
   metadata:
     name: ${CLUSTER_NAME}
   spec:
-    version:
+    clusterVersionRef:
       namespace: cluster-operator
       name: ocp-v3-9
     hardware:

@@ -38,6 +38,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/golang/glog"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/openshift/cluster-operator/pkg/kubernetes/pkg/util/metrics"
 
@@ -46,13 +47,18 @@ import (
 	informers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions/clusteroperator/v1alpha1"
 	lister "github.com/openshift/cluster-operator/pkg/client/listers_generated/clusteroperator/v1alpha1"
 	"github.com/openshift/cluster-operator/pkg/controller"
+	colog "github.com/openshift/cluster-operator/pkg/logging"
 )
 
 // controllerKind contains the schema.GroupVersionKind for this controller type.
 var controllerKind = clusteroperator.SchemeGroupVersion.WithKind("Cluster")
 
+const (
+	controllerLogName = "cluster"
+)
+
 // NewClusterController returns a new *ClusterController.
-func NewClusterController(clusterInformer informers.ClusterInformer, machineSetInformer informers.MachineSetInformer, kubeClient kubeclientset.Interface, clusteroperatorClient clusteroperatorclientset.Interface) *ClusterController {
+func NewClusterController(clusterInformer informers.ClusterInformer, machineSetInformer informers.MachineSetInformer, clusterVersionInformer informers.ClusterVersionInformer, kubeClient kubeclientset.Interface, clusteroperatorClient clusteroperatorclientset.Interface) *ClusterController {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(glog.Infof)
 	// TODO: remove the wrapper when every clients have moved to use the clientset.
@@ -62,10 +68,12 @@ func NewClusterController(clusterInformer informers.ClusterInformer, machineSetI
 		metrics.RegisterMetricAndTrackRateLimiterUsage("clusteroperator_cluster_controller", kubeClient.CoreV1().RESTClient().GetRateLimiter())
 	}
 
+	logger := log.WithField("controller", controllerLogName)
 	c := &ClusterController{
 		client:       clusteroperatorClient,
 		expectations: controller.NewUIDTrackingControllerExpectations(controller.NewControllerExpectations()),
 		queue:        workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "cluster"),
+		logger:       logger,
 	}
 
 	clusterInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -83,6 +91,8 @@ func NewClusterController(clusterInformer informers.ClusterInformer, machineSetI
 	})
 	c.machineSetsLister = machineSetInformer.Lister()
 	c.machineSetsSynced = machineSetInformer.Informer().HasSynced
+
+	c.clusterVersionsLister = clusterVersionInformer.Lister()
 
 	c.syncHandler = c.syncCluster
 	c.enqueueCluster = c.enqueue
@@ -116,20 +126,29 @@ type ClusterController struct {
 	// Added as a member to the struct to allow injection for testing.
 	machineSetsSynced cache.InformerSynced
 
+	// clusterVersionsLister is able to list/get clusterversions and is populated by the shared
+	// informer passed to NewClusterController.
+	clusterVersionsLister lister.ClusterVersionLister
+	// clusterVersionsSynced returns true if the clusterversion shared informer has been
+	// synced at least once. Added as a member to the struct to allow injection for testing.
+	clusterVersionsSynced cache.InformerSynced
+
 	// Clusters that need to be synced
 	queue workqueue.RateLimitingInterface
+
+	logger *log.Entry
 }
 
 func (c *ClusterController) addCluster(obj interface{}) {
 	cluster := obj.(*clusteroperator.Cluster)
-	glog.V(4).Infof("Adding cluster %s", cluster.Name)
+	colog.WithCluster(c.logger, cluster).Debugf("adding cluster")
 	c.enqueueCluster(cluster)
 }
 
 func (c *ClusterController) updateCluster(old, cur interface{}) {
 	oldCluster := old.(*clusteroperator.Cluster)
 	curCluster := cur.(*clusteroperator.Cluster)
-	glog.V(4).Infof("Updating cluster %s", oldCluster.Name)
+	colog.WithCluster(c.logger, oldCluster).Debugf("updating cluster")
 	c.enqueueCluster(curCluster)
 }
 
@@ -147,7 +166,7 @@ func (c *ClusterController) deleteCluster(obj interface{}) {
 			return
 		}
 	}
-	glog.V(4).Infof("Deleting cluster %s", cluster.Name)
+	colog.WithCluster(c.logger, cluster).Debugf("deleting cluster")
 	c.enqueueCluster(cluster)
 }
 
@@ -174,7 +193,7 @@ func (c *ClusterController) addMachineSet(obj interface{}) {
 	if err != nil {
 		return
 	}
-	glog.V(4).Infof("Machine set %s created: %#v.", machineSet.Name, machineSet)
+	colog.WithMachineSet(c.logger, machineSet).Debugln("machineset created")
 	c.expectations.CreationObserved(clusterKey)
 	c.enqueueCluster(cluster)
 }
@@ -208,7 +227,7 @@ func (c *ClusterController) updateMachineSet(old, cur interface{}) {
 	if cluster == nil {
 		return
 	}
-	glog.V(4).Infof("Machine set %s updated, objectMeta %+v -> %+v.", curMachineSet.Name, oldMachineSet.ObjectMeta, curMachineSet.ObjectMeta)
+	colog.WithMachineSet(c.logger, curMachineSet).Debugf("machine set updated, objectMeta %+v -> %+v.", oldMachineSet.ObjectMeta, curMachineSet.ObjectMeta)
 	c.enqueueCluster(cluster)
 }
 
@@ -240,7 +259,7 @@ func (c *ClusterController) deleteMachineSet(obj interface{}) {
 	if err != nil {
 		return
 	}
-	glog.V(4).Infof("Machine set %s/%s deleted through %v, timestamp %+v: %#v.", machineSet.Namespace, machineSet.Name, utilruntime.GetCaller(), machineSet.DeletionTimestamp, machineSet)
+	colog.WithMachineSet(c.logger, machineSet).Debugf("machine set deleted through %v, timestamp %+v: %#v.", utilruntime.GetCaller(), machineSet.DeletionTimestamp, machineSet)
 	c.expectations.DeletionObserved(clusterKey, getMachineSetKey(machineSet))
 	c.enqueueCluster(cluster)
 }
@@ -251,8 +270,8 @@ func (c *ClusterController) Run(workers int, stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer c.queue.ShutDown()
 
-	glog.Infof("Starting cluster controller")
-	defer glog.Infof("Shutting down cluster controller")
+	c.logger.Info("starting cluster controller")
+	defer c.logger.Info("shutting down cluster controller")
 
 	if !controller.WaitForCacheSync("cluster", stopCh, c.clustersSynced) {
 		return
@@ -302,11 +321,16 @@ func (c *ClusterController) processNextWorkItem() bool {
 }
 
 // syncCluster will sync the cluster with the given key.
-// This function is not meant to be invoked concurrently with the same key.
+// This function is not meant to be invoked concurrently with the same key. Returning an
+// error will requeue the cluster with exponential backoff.
 func (c *ClusterController) syncCluster(key string) error {
 	startTime := time.Now()
+	c.logger.WithField("key", key).Debug("syncing cluster")
 	defer func() {
-		glog.V(4).Infof("Finished syncing cluster %q (%v)", key, time.Now().Sub(startTime))
+		c.logger.WithFields(log.Fields{
+			"key":      key,
+			"duration": time.Now().Sub(startTime),
+		}).Debug("finished syncing cluster")
 	}()
 
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
@@ -315,13 +339,14 @@ func (c *ClusterController) syncCluster(key string) error {
 	}
 	cluster, err := c.clustersLister.Clusters(namespace).Get(name)
 	if errors.IsNotFound(err) {
-		glog.V(4).Infof("Cluster has been deleted %v", key)
+		c.logger.WithField("key", key).Debug("cluster has been deleted")
 		c.expectations.DeleteExpectations(key)
 		return nil
 	}
 	if err != nil {
 		return err
 	}
+	clusterLog := colog.WithCluster(c.logger, cluster)
 
 	clusterNeedsSync := c.expectations.SatisfiedExpectations(key)
 
@@ -346,28 +371,63 @@ func (c *ClusterController) syncCluster(key string) error {
 	}
 
 	var manageMachineSetsErr error
-	if clusterNeedsSync && cluster.DeletionTimestamp == nil {
-		manageMachineSetsErr = c.manageMachineSets(filteredMachineSets, cluster)
+
+	// Only attempt to manage cluster machine sets if the version they should run is fully resolvable:
+	clusterVersion, resolveCVErr := c.resolveClusterVersion(cluster)
+	if errors.IsNotFound(resolveCVErr) {
+		clusterLog.Debugf("cluster version %v does not yet exist, skipping machine set management and requeuing cluster",
+			cluster.Spec.ClusterVersionRef)
+	} else if resolveCVErr != nil {
+		clusterLog.Errorf("unexpected error looking up cluster version %v: %v",
+			cluster.Spec.ClusterVersionRef, resolveCVErr)
+	} else if clusterNeedsSync && cluster.DeletionTimestamp == nil {
+		manageMachineSetsErr = c.manageMachineSets(filteredMachineSets, cluster, clusterVersion)
 	}
 
 	original := cluster
 	cluster = cluster.DeepCopy()
-	cluster.Status = calculateStatus(cluster, filteredMachineSets, manageMachineSetsErr)
+
+	// Despite some potential errors above, we still want to update status, then return the errors to have
+	// the cluster re-queued.
+	newStatus, updateStatusErr := c.calculateStatus(clusterLog, cluster, clusterVersion, filteredMachineSets)
+	cluster.Status = newStatus
+
 	if err := controller.PatchClusterStatus(c.client, original, cluster); err != nil {
+		// Multiple things could lead to this update failing. Requeuing the cluster ensures
+		// returning an error causes a requeue without forcing a hotloop
 		return err
 	}
+	clusterLog.Debugf("updated status: %v", cluster.Status)
 
-	return manageMachineSetsErr
+	if resolveCVErr != nil {
+		return resolveCVErr
+	} else if updateStatusErr != nil {
+		return updateStatusErr
+	} else if manageMachineSetsErr != nil {
+		return manageMachineSetsErr
+	}
+
+	return nil
 }
 
 // manageMachineSets checks and updates machine sets for the given cluster.
 // Does NOT modify <machineSets>.
 // It will requeue the cluster in case of an error while creating/deleting machine sets.
-func (c *ClusterController) manageMachineSets(machineSets []*clusteroperator.MachineSet, cluster *clusteroperator.Cluster) error {
+func (c *ClusterController) manageMachineSets(machineSets []*clusteroperator.MachineSet, cluster *clusteroperator.Cluster, clusterVersion *clusteroperator.ClusterVersion) error {
+	clusterLog := colog.WithCluster(c.logger, cluster)
 	clusterKey, err := controller.KeyFunc(cluster)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("Couldn't get key for Cluster %#v: %v", cluster, err))
 		return nil
+	}
+	clusterLog.Debugf("managing machine sets")
+
+	// Safeguard against the cluster status version ref somehow getting cleared, but machine sets exist.
+	// This should not happen but if so, make sure we don't go wipe out all existing machine sets.
+	if clusterVersion == nil && len(machineSets) > 0 {
+		clusterLog.Warnf("cluster version unresolved %v but %d machine sets exist", cluster.Spec.ClusterVersionRef, len(machineSets))
+		return fmt.Errorf("cluster status version ref unresolved %v but %d machine sets exist",
+			cluster.Spec.ClusterVersionRef, len(machineSets))
 	}
 
 	machineSetPrefixes := make([]string, len(cluster.Spec.MachineSets))
@@ -410,7 +470,7 @@ func (c *ClusterController) manageMachineSets(machineSets []*clusteroperator.Mac
 		}
 		machineSetConfig.Hardware = mergedHardwareSpec
 
-		machineSetToCreate, deleteMachineSet, err := c.manageMachineSet(cluster, clusterMachineSets[i], machineSetConfig, machineSetPrefixes[i])
+		machineSetToCreate, deleteMachineSet, err := c.manageMachineSet(cluster, clusterVersion, clusterMachineSets[i], machineSetConfig, machineSetPrefixes[i])
 		if err != nil {
 			errCh <- err
 			continue
@@ -437,7 +497,7 @@ func (c *ClusterController) manageMachineSets(machineSets []*clusteroperator.Mac
 
 	if len(machineSetsToCreate) > 0 {
 		var wg sync.WaitGroup
-		glog.V(2).Infof("Creating %d new machine sets for cluster %q/%q", len(machineSetsToCreate), cluster.Namespace, cluster.Name)
+		clusterLog.Infof("creating %d new machine sets", len(machineSetsToCreate))
 		wg.Add(len(machineSetsToCreate))
 		for i, ng := range machineSetsToCreate {
 			go func(ix int, machineSet *clusteroperator.MachineSet) {
@@ -455,9 +515,11 @@ func (c *ClusterController) manageMachineSets(machineSets []*clusteroperator.Mac
 				}
 				if err != nil {
 					// Decrement the expected number of creates because the informer won't observe this machine set
-					glog.V(2).Infof("Failed creation, decrementing expectations for cluster %q/%q", cluster.Namespace, cluster.Name)
+					clusterLog.Errorf("failed creation, decrementing expectations for cluster: %v", err)
 					c.expectations.CreationObserved(clusterKey)
 					errCh <- err
+				} else {
+					colog.WithMachineSet(clusterLog, machineSet).Info("created machine set")
 				}
 			}(i, ng)
 		}
@@ -473,10 +535,13 @@ func (c *ClusterController) manageMachineSets(machineSets []*clusteroperator.Mac
 				if err := c.client.ClusteroperatorV1alpha1().MachineSets(cluster.Namespace).Delete(machineSet.Name, &metav1.DeleteOptions{}); err != nil {
 					// Decrement the expected number of deletes because the informer won't observe this deletion
 					machineSetKey := deletedMachineSetKeys[ix]
-					glog.V(2).Infof("Failed to delete %v, decrementing expectations for controller %q/%q", machineSetKey, cluster.Namespace, cluster.Name)
+					clusterLog.Errorf("Failed to delete %v, decrementing expectations for cluster", machineSetKey)
 					c.expectations.DeletionObserved(clusterKey, machineSetKey)
 					errCh <- err
+				} else {
+					colog.WithMachineSet(clusterLog, machineSet).Info("deleted machine set")
 				}
+
 			}(i, ng)
 		}
 		wg.Wait()
@@ -494,24 +559,27 @@ func (c *ClusterController) manageMachineSets(machineSets []*clusteroperator.Mac
 }
 
 // manageMachineSet determines whether or not a machine set needs to be created because it does not exist, or replaced because it is out of date.
-func (c *ClusterController) manageMachineSet(cluster *clusteroperator.Cluster, machineSet *clusteroperator.MachineSet, clusterMachineSetConfig clusteroperator.MachineSetConfig, machineSetNamePrefix string) (*clusteroperator.MachineSet, bool, error) {
+func (c *ClusterController) manageMachineSet(cluster *clusteroperator.Cluster, clusterVersion *clusteroperator.ClusterVersion, machineSet *clusteroperator.MachineSet, clusterMachineSetConfig clusteroperator.MachineSetConfig, machineSetNamePrefix string) (*clusteroperator.MachineSet, bool, error) {
+	clusterLog := colog.WithCluster(c.logger, cluster)
 	if machineSet == nil {
-		machineSet, err := buildNewMachineSet(cluster, clusterMachineSetConfig, machineSetNamePrefix)
+		clusterLog.Debugf("building new machine set")
+		machineSet, err := buildNewMachineSet(cluster, clusterVersion, clusterMachineSetConfig, machineSetNamePrefix)
 		return machineSet, false, err
 	}
 
+	msLog := colog.WithMachineSet(clusterLog, machineSet)
+
 	if !apiequality.Semantic.DeepEqual(machineSet.Spec.MachineSetConfig, clusterMachineSetConfig) {
-		glog.V(2).Infof("The configuration of the machine set %s has changed from %v to %v", machineSet.Name, machineSet.Spec.MachineSetConfig, clusterMachineSetConfig)
-		machineSet, err := buildNewMachineSet(cluster, clusterMachineSetConfig, machineSetNamePrefix)
+		msLog.Infof("machine set configuration has changed from %v to %v",
+			machineSet.Spec.MachineSetConfig, clusterMachineSetConfig)
+		machineSet, err := buildNewMachineSet(cluster, clusterVersion, clusterMachineSetConfig, machineSetNamePrefix)
 		return machineSet, true, err
 	}
 
-	// TODO: compare against cluster status instead and cover the UID
-	if machineSet.Spec.ClusterVersionRef.Name != cluster.Spec.ClusterVersionRef.Name ||
-		machineSet.Spec.ClusterVersionRef.Namespace != cluster.Spec.ClusterVersionRef.Namespace {
-
-		glog.V(2).Infof("The cluster version of the machine set %s has changed from %v to %v", machineSet.Name, machineSet.Spec.ClusterVersionRef, cluster.Spec.ClusterVersionRef)
-		machineSet, err := buildNewMachineSet(cluster, clusterMachineSetConfig, machineSetNamePrefix)
+	if machineSet.Spec.ClusterVersionRef.UID != clusterVersion.UID {
+		msLog.Infof("machine set cluster version has changed from %v to %s/%s",
+			machineSet.Spec.ClusterVersionRef, clusterVersion.Namespace, clusterVersion.Name)
+		machineSet, err := buildNewMachineSet(cluster, clusterVersion, clusterMachineSetConfig, machineSetNamePrefix)
 		return machineSet, true, err
 	}
 
@@ -539,12 +607,14 @@ func (c *ClusterController) resolveControllerRef(namespace string, controllerRef
 	return cluster
 }
 
-func calculateStatus(cluster *clusteroperator.Cluster, machineSets []*clusteroperator.MachineSet, manageMachineSetsErr error) clusteroperator.ClusterStatus {
+func (c *ClusterController) calculateStatus(clusterLog log.FieldLogger, cluster *clusteroperator.Cluster, resolvedClusterVersion *clusteroperator.ClusterVersion, machineSets []*clusteroperator.MachineSet) (clusteroperator.ClusterStatus, error) {
 	newStatus := cluster.Status
+	oldClusterVersion := cluster.Status.ClusterVersionRef
 
 	newStatus.MachineSetCount = 0
 	for _, ms := range cluster.Spec.MachineSets {
 		if machineSet := findMachineSetWithPrefix(machineSets, getNamePrefixForMachineSet(cluster, ms.Name)); machineSet != nil {
+			clusterLog.Debugf("found machine set")
 			newStatus.MachineSetCount++
 			if machineSet.Spec.NodeType == clusteroperator.NodeTypeMaster {
 				newStatus.MasterMachineSetName = machineSet.Name
@@ -555,7 +625,35 @@ func calculateStatus(cluster *clusteroperator.Cluster, machineSets []*clusterope
 		}
 	}
 
-	return newStatus
+	if resolvedClusterVersion != nil &&
+		(resolvedClusterVersion.Name != oldClusterVersion.Name ||
+			resolvedClusterVersion.Namespace != oldClusterVersion.Namespace) {
+
+		clusterLog.Infof("cluster version has changed from %s/%s to %s/%s",
+			oldClusterVersion.Namespace,
+			oldClusterVersion.Name,
+			resolvedClusterVersion.Namespace,
+			resolvedClusterVersion.Name)
+		newStatus.ClusterVersionRef = corev1.ObjectReference{
+			Name:      resolvedClusterVersion.Name,
+			Namespace: resolvedClusterVersion.Namespace, // Namespace will always be resolved on the status+machine sets
+			UID:       resolvedClusterVersion.UID,
+		}
+	}
+	return newStatus, nil
+}
+
+// resolveClusterVersion checks if the cluster version referenced by the ClusterSpec exists and returns it. If not found or the lookup fails, an error is returned.
+func (c *ClusterController) resolveClusterVersion(cluster *clusteroperator.Cluster) (*clusteroperator.ClusterVersion, error) {
+	// Namespace may have been left empty signalling to use the cluster's namespace to locate the version:
+	versionNS := cluster.Spec.ClusterVersionRef.Namespace
+	if versionNS == "" {
+		versionNS = cluster.Namespace
+	}
+
+	cv, err := c.clusterVersionsLister.ClusterVersions(versionNS).Get(
+		cluster.Spec.ClusterVersionRef.Name)
+	return cv, err
 }
 
 func applyDefaultMachineSetHardwareSpec(machineSetHardwareSpec, defaultHardwareSpec *clusteroperator.MachineSetHardwareSpec) (*clusteroperator.MachineSetHardwareSpec, error) {
@@ -578,7 +676,7 @@ func applyDefaultMachineSetHardwareSpec(machineSetHardwareSpec, defaultHardwareS
 	return mergedSpec, nil
 }
 
-func buildNewMachineSet(cluster *clusteroperator.Cluster, machineSetConfig clusteroperator.MachineSetConfig, machineSetNamePrefix string) (*clusteroperator.MachineSet, error) {
+func buildNewMachineSet(cluster *clusteroperator.Cluster, clusterVersion *clusteroperator.ClusterVersion, machineSetConfig clusteroperator.MachineSetConfig, machineSetNamePrefix string) (*clusteroperator.MachineSet, error) {
 	return &clusteroperator.MachineSet{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName:    machineSetNamePrefix,
@@ -586,11 +684,10 @@ func buildNewMachineSet(cluster *clusteroperator.Cluster, machineSetConfig clust
 		},
 		Spec: clusteroperator.MachineSetSpec{
 			MachineSetConfig: machineSetConfig,
-			// TODO: resolve and set UID here
 			ClusterVersionRef: corev1.ObjectReference{
-				Name:      cluster.Spec.ClusterVersionRef.Name,
-				Namespace: cluster.Spec.ClusterVersionRef.Namespace,
-				UID:       "very fake",
+				Name:      clusterVersion.Name,
+				Namespace: clusterVersion.Namespace,
+				UID:       clusterVersion.UID,
 			},
 		},
 	}, nil

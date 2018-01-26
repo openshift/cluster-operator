@@ -40,8 +40,9 @@ import (
 )
 
 const (
-	testNamespace   = "test-namespace"
-	testClusterName = "test-cluster"
+	testNamespace          = "test-namespace"
+	testClusterName        = "test-cluster"
+	testClusterVersionName = "v3-9"
 )
 
 // TestClusterCreate tests that creating a cluster creates the machine sets
@@ -75,14 +76,41 @@ func TestClusterCreate(t *testing.T) {
 			_, clusterOperatorClient, tearDown := startServerAndClusterController(t)
 			defer tearDown()
 
+			clusterVersion := &v1alpha1.ClusterVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: testClusterVersionName,
+				},
+				Spec: v1alpha1.ClusterVersionSpec{
+					ImageFormat: "openshift/origin-${component}:${version}",
+					YumRepositories: []v1alpha1.YumRepository{
+						{
+							ID:       "testrepo",
+							Name:     "a testing repo",
+							BaseURL:  "http://example.com/nobodycares/",
+							Enabled:  1,
+							GPGCheck: 1,
+							GPGKey:   "http://example.com/notreal.gpg",
+						},
+					},
+					VMImages: v1alpha1.VMImages{
+						AWSImages: &v1alpha1.AWSVMImages{
+							AMIByRegion: map[string]string{
+								"us-east-1": "fakeami",
+							},
+						},
+					},
+				},
+			}
+			clusterOperatorClient.ClusteroperatorV1alpha1().ClusterVersions(testNamespace).Create(clusterVersion)
+
 			cluster := &v1alpha1.Cluster{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: testClusterName,
 				},
 				Spec: v1alpha1.ClusterSpec{
 					ClusterVersionRef: v1alpha1.ClusterVersionReference{
-						Namespace: "cluster-operator",
-						Name:      "v3-9",
+						Namespace: clusterVersion.Namespace,
+						Name:      clusterVersion.Name,
 					},
 					MachineSets: []v1alpha1.ClusterMachineSet{
 						{
@@ -213,6 +241,7 @@ func startServerAndClusterController(t *testing.T) (
 	testController := clustercontroller.NewClusterController(
 		clusterOperatorSharedInformers.Clusters(),
 		clusterOperatorSharedInformers.MachineSets(),
+		clusterOperatorSharedInformers.ClusterVersions(),
 		fakeKubeClient,
 		clusterOperatorClient,
 	)
