@@ -57,7 +57,7 @@ const (
 
 	controllerLogName = "infra"
 
-	infraPlaybook = "playbooks/aws/openshift-cluster/prerequisites.yml"
+	infraPlaybook = "playbooks/cluster-operator/aws/infrastructure.yml"
 	// jobPrefix is used when generating a name for the configmap and job used for each
 	// Ansible execution.
 	jobPrefix = "job-infra-"
