@@ -168,13 +168,13 @@ type MachineSetController struct {
 
 func (c *MachineSetController) addMachineSet(obj interface{}) {
 	ms := obj.(*clusteroperator.MachineSet)
-	c.logger.Debugf("enqueueing added machine set %s/%s", ms.Namespace, ms.Name)
+	loggerForMachineSet(c.logger, ms).Debugf("enqueueing added machine set")
 	c.enqueueMachineSet(ms)
 }
 
 func (c *MachineSetController) updateMachineSet(old, cur interface{}) {
 	ms := cur.(*clusteroperator.MachineSet)
-	c.logger.Debugf("enqueuing updated machine set %s/%s", ms.Namespace, ms.Name)
+	loggerForMachineSet(c.logger, ms).Debugf("enqueueing updated machine set")
 	c.enqueueMachineSet(ms)
 }
 
@@ -192,35 +192,37 @@ func (c *MachineSetController) deleteMachineSet(obj interface{}) {
 			return
 		}
 	}
-	c.logger.Debugf("enqueuing deleted machine set %s/%s", ms.Namespace, ms.Name)
+	loggerForMachineSet(c.logger, ms).Debugf("enqueueing deleted machine set")
 	c.enqueueMachineSet(ms)
 }
 
 func (c *MachineSetController) addCluster(obj interface{}) {
 	cluster := obj.(*clusteroperator.Cluster)
+	logger := loggerForCluster(c.logger, cluster)
 	machineSets, err := c.machineSetsForCluster(cluster)
 	if err != nil {
-		c.logger.Errorf("Cannot retrieve machine sets for cluster %s/%s: %v", cluster.Namespace, cluster.Name, err)
+		logger.Errorf("Cannot retrieve machine sets for cluster: %v", err)
 		utilruntime.HandleError(err)
 		return
 	}
 
 	for _, machineSet := range machineSets {
-		c.logger.Debugf("enqueueing machine set %s/%s for created cluster %s/%s", machineSet.Namespace, machineSet.Name, cluster.Namespace, cluster.Name)
+		loggerForMachineSet(logger, machineSet).Debugf("enqueueing machine set for created cluster")
 		c.enqueueMachineSet(machineSet)
 	}
 }
 
 func (c *MachineSetController) updateCluster(old, obj interface{}) {
 	cluster := obj.(*clusteroperator.Cluster)
+	logger := loggerForCluster(c.logger, cluster)
 	machineSets, err := c.machineSetsForCluster(cluster)
 	if err != nil {
-		c.logger.Errorf("Cannot retrieve machine sets for cluster %s/%s: %v", cluster.Namespace, cluster.Name, err)
+		logger.Errorf("Cannot retrieve machine sets for cluster: %v", err)
 		utilruntime.HandleError(err)
 		return
 	}
 	for _, machineSet := range machineSets {
-		c.logger.Debugf("enqueueing machine set %s/%s for updated cluster %s/%s", machineSet.Namespace, machineSet.Name, cluster.Namespace, cluster.Name)
+		loggerForMachineSet(logger, machineSet).Debugf("enqueueing machine set for update cluster")
 		c.enqueueMachineSet(machineSet)
 	}
 }
@@ -296,7 +298,7 @@ func (c *MachineSetController) handleErr(err error, key interface{}) {
 		return
 	}
 
-	logger := c.logger.WithField("cluster", key)
+	logger := c.logger.WithField("machineset", key)
 
 	logger.Errorf("error syncing machine set: %v", err)
 	if c.queue.NumRequeues(key) < maxRetries {
@@ -316,9 +318,7 @@ func (c *MachineSetController) syncMachineSet(key string) error {
 	startTime := time.Now()
 	logger := c.logger.WithField("machineset", key)
 	logger.Debugln("Started syncing machine set")
-	defer func() {
-		logger.WithField("duration", time.Since(startTime)).Debugln("Finished syncing machine set")
-	}()
+	defer logger.WithField("duration", time.Since(startTime)).Debugln("Finished syncing machine set")
 
 	ns, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -340,7 +340,10 @@ func (c *MachineSetController) syncMachineSet(key string) error {
 		return err
 	}
 
-	shouldProvisionMachineSet := c.shouldProvision(machineSet)
+	shouldProvisionMachineSet, err := c.shouldProvision(machineSet)
+	if err != nil {
+		return err
+	}
 
 	jobFactory, err := c.getJobFactory(machineSet)
 	if err != nil {
@@ -357,8 +360,8 @@ func (c *MachineSetController) syncMachineSet(key string) error {
 	}
 
 	switch {
-	// New job has not been created, so an old job must exist. Set the cluster
-	// to not provisioning yet as the old job is deleted.
+	// New job has not been created, so an old job must exist. Set the machine
+	// set to not provisioning as the old job is deleted.
 	case job == nil:
 		return c.setMachineSetToNotProvisioning(machineSet)
 	// Job was not newly created, so sync machine set status with job.
@@ -392,28 +395,36 @@ func (c *MachineSetController) clusterForMachineSet(machineSet *clusteroperator.
 	return cluster, nil
 }
 
-func (c *MachineSetController) shouldProvision(machineSet *clusteroperator.MachineSet) bool {
+func (c *MachineSetController) shouldProvision(machineSet *clusteroperator.MachineSet) (bool, error) {
 	if machineSet.Status.ProvisionedJobGeneration == machineSet.Generation {
-		return false
+		return false, nil
 	}
 	cluster, err := c.clusterForMachineSet(machineSet)
 	if err != nil {
-		return false
+		return false, err
 	}
 	if !cluster.Status.Provisioned || cluster.Status.ProvisionedJobGeneration != cluster.Generation {
-		return false
+		return false, nil
 	}
 	switch machineSet.Spec.NodeType {
 	case clusteroperator.NodeTypeMaster:
-		return true
+		return true, nil
 	case clusteroperator.NodeTypeCompute:
 		masterMachineSet, err := c.machineSetsLister.MachineSets(machineSet.Namespace).Get(cluster.Status.MasterMachineSetName)
 		if err != nil {
-			return false
+			return false, err
 		}
-		return masterMachineSet.Status.Installed && masterMachineSet.Status.InstalledJobGeneration == masterMachineSet.Generation
+		// Only provision compute nodes if openshift has been installed on
+		// master nodes.
+		// We need to verify that the generation of the master machine set
+		// has not been changed since the installation. If the generation
+		// has changed, then the installation is no longer valid. The master
+		// controller needs to re-work the installation first.
+		masterInstalled := masterMachineSet.Status.Installed &&
+			masterMachineSet.Status.InstalledJobGeneration == masterMachineSet.Generation
+		return masterInstalled, nil
 	default:
-		return false
+		return false, fmt.Errorf("unknown node type")
 	}
 }
 
@@ -466,6 +477,10 @@ func (c *MachineSetController) getJobFactory(machineSet *clusteroperator.Machine
 	}), nil
 }
 
+// setMachineSetToNotProvisioning updates the HardwareProvisioning condition
+// for the machine set to reflect that a machine set that had an in=progress
+// provision is no longer provisioning due to a change in the spec of the
+// machine set.
 func (c *MachineSetController) setMachineSetToNotProvisioning(original *clusteroperator.MachineSet) error {
 	machineSet := original.DeepCopy()
 	now := metav1.Now()
@@ -476,13 +491,21 @@ func (c *MachineSetController) setMachineSetToNotProvisioning(original *clustero
 		provisioning.Status = kapi.ConditionFalse
 		provisioning.LastTransitionTime = now
 		provisioning.LastProbeTime = now
-		provisioning.Reason = "SpecChanged"
+		provisioning.Reason = controller.ReasonSpecChanged
 		provisioning.Message = "Spec changed. New provisioning needed"
 	}
 
 	return c.updateMachineSetStatus(original, machineSet)
 }
 
+// syncMachineSetStatusWithJob update the status of the machine set to
+// reflect the current status of the job that is provisioning the machine set.
+// If the job completed successfully, the machine set will be marked as
+// provisioned.
+// If the job completed with a failure, the machine set will be marked as
+// not provisioned.
+// If the job is still in progress, the machine set will be marked as
+// provisioning.
 func (c *MachineSetController) syncMachineSetStatusWithJob(original *clusteroperator.MachineSet, job *v1batch.Job) error {
 	machineSet := original.DeepCopy()
 	now := metav1.Now()
@@ -490,6 +513,7 @@ func (c *MachineSetController) syncMachineSetStatusWithJob(original *clusteroper
 	jobCompleted := jobCondition(job, v1batch.JobComplete)
 	jobFailed := jobCondition(job, v1batch.JobFailed)
 	switch {
+	// Provision job completed successfully
 	case jobCompleted != nil && jobCompleted.Status == kapi.ConditionTrue:
 		provisioning := machineSetCondition(machineSet, clusteroperator.MachineSetHardwareProvisioning)
 		if provisioning != nil &&
@@ -497,7 +521,7 @@ func (c *MachineSetController) syncMachineSetStatusWithJob(original *clusteroper
 			provisioning.Status = kapi.ConditionFalse
 			provisioning.LastTransitionTime = now
 			provisioning.LastProbeTime = now
-			provisioning.Reason = "JobCompleted"
+			provisioning.Reason = controller.ReasonJobCompleted
 			provisioning.Message = fmt.Sprintf("Job %s/%s completed at %v", job.Namespace, job.Name, jobCompleted.LastTransitionTime)
 		}
 		provisioned := machineSetCondition(machineSet, clusteroperator.MachineSetHardwareProvisioned)
@@ -506,7 +530,7 @@ func (c *MachineSetController) syncMachineSetStatusWithJob(original *clusteroper
 			provisioned.Status = kapi.ConditionTrue
 			provisioned.LastTransitionTime = now
 			provisioned.LastProbeTime = now
-			provisioned.Reason = "JobCompleted"
+			provisioned.Reason = controller.ReasonJobCompleted
 			provisioning.Message = fmt.Sprintf("Job %s/%s completed at %v", job.Namespace, job.Name, jobCompleted.LastTransitionTime)
 		}
 		if provisioned == nil {
@@ -515,7 +539,7 @@ func (c *MachineSetController) syncMachineSetStatusWithJob(original *clusteroper
 				Status:             kapi.ConditionTrue,
 				LastProbeTime:      now,
 				LastTransitionTime: now,
-				Reason:             "JobCompleted",
+				Reason:             controller.ReasonJobCompleted,
 				Message:            fmt.Sprintf("Job %s/%s completed at %v", job.Namespace, job.Name, jobCompleted.LastTransitionTime),
 			})
 		}
@@ -530,6 +554,7 @@ func (c *MachineSetController) syncMachineSetStatusWithJob(original *clusteroper
 		}
 		machineSet.Status.Provisioned = true
 		machineSet.Status.ProvisionedJobGeneration = machineSet.Generation
+	// Provision job failed
 	case jobFailed != nil && jobFailed.Status == kapi.ConditionTrue:
 		provisioning := machineSetCondition(machineSet, clusteroperator.MachineSetHardwareProvisioning)
 		if provisioning != nil &&
@@ -537,7 +562,7 @@ func (c *MachineSetController) syncMachineSetStatusWithJob(original *clusteroper
 			provisioning.Status = kapi.ConditionFalse
 			provisioning.LastTransitionTime = now
 			provisioning.LastProbeTime = now
-			provisioning.Reason = "JobFailed"
+			provisioning.Reason = controller.ReasonJobFailed
 			provisioning.Message = fmt.Sprintf("Job %s/%s failed at %v, reason: %s", job.Namespace, job.Name, jobFailed.LastTransitionTime, jobFailed.Reason)
 		}
 		provisioningFailed := machineSetCondition(machineSet, clusteroperator.MachineSetHardwareProvisioningFailed)
@@ -545,7 +570,7 @@ func (c *MachineSetController) syncMachineSetStatusWithJob(original *clusteroper
 			provisioningFailed.Status = kapi.ConditionTrue
 			provisioningFailed.LastTransitionTime = now
 			provisioningFailed.LastProbeTime = now
-			provisioningFailed.Reason = "JobFailed"
+			provisioningFailed.Reason = controller.ReasonJobFailed
 			provisioningFailed.Message = fmt.Sprintf("Job %s/%s failed at %v, reason: %s", job.Namespace, job.Name, jobFailed.LastTransitionTime, jobFailed.Reason)
 		} else {
 			machineSet.Status.Conditions = append(machineSet.Status.Conditions, clusteroperator.MachineSetCondition{
@@ -553,14 +578,18 @@ func (c *MachineSetController) syncMachineSetStatusWithJob(original *clusteroper
 				Status:             kapi.ConditionTrue,
 				LastProbeTime:      now,
 				LastTransitionTime: now,
-				Reason:             "JobFailed",
+				Reason:             controller.ReasonJobFailed,
 				Message:            fmt.Sprintf("Job %s/%s failed at %v, reason: %s", job.Namespace, job.Name, jobFailed.LastTransitionTime, jobFailed.Reason),
 			})
 		}
+		// ProvisionedJobGeneration is set even when the job failed because we
+		// do not want to run the provision job again until there have been
+		// changes in the spec of the machine set.
 		machineSet.Status.ProvisionedJobGeneration = machineSet.Generation
+	// Provision job still in progress
 	default:
 		provisioning := machineSetCondition(machineSet, clusteroperator.MachineSetHardwareProvisioning)
-		reason := "JobRunning"
+		reason := controller.ReasonJobRunning
 		message := fmt.Sprintf("Job %s/%s is running since %v. Pod completions: %d, failures: %d", job.Namespace, job.Name, job.Status.StartTime, job.Status.Succeeded, job.Status.Failed)
 		if provisioning != nil {
 			if provisioning.Status != kapi.ConditionTrue {
@@ -589,7 +618,7 @@ func (c *MachineSetController) syncMachineSetStatusWithJob(original *clusteroper
 func (c *MachineSetController) setJobNotFoundStatus(original *clusteroperator.MachineSet) error {
 	machineSet := original.DeepCopy()
 	now := metav1.Now()
-	reason := "JobMissing"
+	reason := controller.ReasonJobMissing
 	message := "Provisioning job not found."
 	if provisioning := machineSetCondition(machineSet, clusteroperator.MachineSetHardwareProvisioning); provisioning != nil {
 		provisioning.Status = kapi.ConditionFalse
@@ -645,4 +674,12 @@ func machineSetCondition(machineSet *clusteroperator.MachineSet, conditionType c
 		}
 	}
 	return nil
+}
+
+func loggerForMachineSet(logger log.FieldLogger, machineSet *clusteroperator.MachineSet) log.FieldLogger {
+	return logger.WithFields(log.Fields{"machineset": machineSet.Name, "namespace": machineSet.Namespace})
+}
+
+func loggerForCluster(logger log.FieldLogger, cluster *clusteroperator.Cluster) log.FieldLogger {
+	return logger.WithFields(log.Fields{"cluster": cluster.Name, "namespace": cluster.Namespace})
 }

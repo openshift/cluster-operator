@@ -56,7 +56,7 @@ func PatchMachineSetStatus(c clusteroperatorclientset.Interface, oldMachineSet, 
 	logger.Debugf("about to patch machineset with %s", string(patchBytes))
 	_, err = c.Clusteroperator().MachineSets(newMachineSet.Namespace).Patch(newMachineSet.Name, types.StrategicMergePatchType, patchBytes, "status")
 	if err != nil {
-		logger.Warningf("Error patching cluster: %v", err)
+		logger.Warningf("Error patching machineset: %v", err)
 	}
 	return err
 }
