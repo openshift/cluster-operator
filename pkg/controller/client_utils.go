@@ -46,3 +46,37 @@ func preparePatchBytesforClusterStatus(oldCluster, newCluster *clusteroperator.C
 	}
 	return patchBytes, nil
 }
+
+func PatchMachineSetStatus(c clusteroperatorclientset.Interface, oldMachineSet, newMachineSet *clusteroperator.MachineSet) error {
+	logger := log.WithField("machineset", fmt.Sprintf("%s/%s", oldMachineSet.Namespace, oldMachineSet.Name))
+	patchBytes, err := preparePatchBytesForMachineSetStatus(oldMachineSet, newMachineSet)
+	if err != nil {
+		return err
+	}
+	logger.Debugf("about to patch machineset with %s", string(patchBytes))
+	_, err = c.Clusteroperator().MachineSets(newMachineSet.Namespace).Patch(newMachineSet.Name, types.StrategicMergePatchType, patchBytes, "status")
+	if err != nil {
+		logger.Warningf("Error patching machineset: %v", err)
+	}
+	return err
+}
+
+func preparePatchBytesForMachineSetStatus(oldMachineSet, newMachineSet *clusteroperator.MachineSet) ([]byte, error) {
+	oldData, err := json.Marshal(oldMachineSet)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal oldData for machine set %s/%s: %v", oldMachineSet.Namespace, oldMachineSet.Name, err)
+	}
+
+	// Reset spec to make sure only patch for Status or ObjectMeta is generated.
+	newMachineSet.Spec = oldMachineSet.Spec
+	newData, err := json.Marshal(newMachineSet)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal newData for machine set %s/%s: %v", newMachineSet.Namespace, newMachineSet.Name, err)
+	}
+
+	patchBytes, err := strategicpatch.CreateTwoWayMergePatch(oldData, newData, clusteroperator.MachineSet{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create two way merge patch for machine set %s/%s: %v", newMachineSet.Namespace, newMachineSet.Name, err)
+	}
+	return patchBytes, nil
+}

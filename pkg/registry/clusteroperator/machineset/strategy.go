@@ -18,6 +18,7 @@ package machineset
 
 import (
 	"github.com/openshift/cluster-operator/pkg/api"
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
@@ -91,6 +92,8 @@ func (machinesetRESTStrategy) PrepareForCreate(ctx genericapirequest.Context, ob
 	// status. We can't fail here if they passed a status in, so
 	// we just wipe it clean.
 	machineset.Status = clusteroperator.MachineSetStatus{}
+
+	machineset.Generation = 1
 }
 
 func (machinesetRESTStrategy) Validate(ctx genericapirequest.Context, obj runtime.Object) field.ErrorList {
@@ -113,6 +116,13 @@ func (machinesetRESTStrategy) PrepareForUpdate(ctx genericapirequest.Context, ne
 	oldMachineSet, ok := old.(*clusteroperator.MachineSet)
 	if !ok {
 		glog.Fatal("received a non-machineset object to update from")
+	}
+
+	// Any changes to the spec increment the generation number, any changes to the
+	// status should reflect the generation number of the corresponding object.
+	// See metav1.ObjectMeta description for more information on Generation.
+	if !equality.Semantic.DeepEqual(oldMachineSet.Spec, newMachineSet.Spec) {
+		newMachineSet.Generation = oldMachineSet.Generation + 1
 	}
 
 	newMachineSet.Status = oldMachineSet.Status

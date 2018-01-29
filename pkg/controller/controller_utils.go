@@ -25,6 +25,23 @@ import (
 	"github.com/golang/glog"
 )
 
+const (
+	// ReasonJobRunning is a condition reason used when a job is still
+	// running.
+	ReasonJobRunning = "JobRunning"
+	// ReasonJobCompleted is a condition reason used when a job has been
+	// completed successfully.
+	ReasonJobCompleted = "JobCompleted"
+	// ReasonJobFailed is a condition reason used when a job has failed.
+	ReasonJobFailed = "JobFailed"
+	// ReasonJobMissing is a condition reason used when a job that was
+	// expected to exist does not exist.
+	ReasonJobMissing = "JobMissing"
+	// ReasonSpecChanged is a condition reason used when the spec of an
+	// object changes, invalidating existing jobs.
+	ReasonSpecChanged = "SpecChanged"
+)
+
 var (
 	// KeyFunc returns the key identifying a cluster-operator resource.
 	KeyFunc = cache.DeletionHandlingMetaNamespaceKeyFunc

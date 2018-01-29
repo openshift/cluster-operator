@@ -476,9 +476,13 @@ func startMachineSetController(ctx ControllerContext) (bool, error) {
 		return false, nil
 	}
 	go machineset.NewMachineSetController(
+		ctx.InformerFactory.Clusteroperator().V1alpha1().Clusters(),
 		ctx.InformerFactory.Clusteroperator().V1alpha1().MachineSets(),
-		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-node-group-controller"),
-		ctx.ClientBuilder.ClientOrDie("clusteroperator-node-group-controller"),
+		ctx.KubeInformerFactory.Batch().V1().Jobs(),
+		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-machine-set-controller"),
+		ctx.ClientBuilder.ClientOrDie("clusteroperator-machine-set-controller"),
+		ctx.Options.AnsibleImage,
+		v1.PullPolicy(ctx.Options.AnsibleImagePullPolicy),
 	).Run(int(ctx.Options.ConcurrentMachineSetSyncs), ctx.Stop)
 	return true, nil
 }
@@ -489,8 +493,8 @@ func startMachineController(ctx ControllerContext) (bool, error) {
 	}
 	go machine.NewMachineController(
 		ctx.InformerFactory.Clusteroperator().V1alpha1().Machines(),
-		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-node-controller"),
-		ctx.ClientBuilder.ClientOrDie("clusteroperator-node-controller"),
+		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-machine-controller"),
+		ctx.ClientBuilder.ClientOrDie("clusteroperator-machine-controller"),
 	).Run(int(ctx.Options.ConcurrentMachineSyncs), ctx.Stop)
 	return true, nil
 }
