@@ -478,22 +478,19 @@ func (c *MachineSetController) getJobFactory(machineSet *clusteroperator.Machine
 }
 
 // setMachineSetToNotProvisioning updates the HardwareProvisioning condition
-// for the machine set to reflect that a machine set that had an in=progress
+// for the machine set to reflect that a machine set that had an in-progress
 // provision is no longer provisioning due to a change in the spec of the
 // machine set.
 func (c *MachineSetController) setMachineSetToNotProvisioning(original *clusteroperator.MachineSet) error {
 	machineSet := original.DeepCopy()
-	now := metav1.Now()
 
-	provisioning := machineSetCondition(machineSet, clusteroperator.MachineSetHardwareProvisioning)
-	if provisioning != nil &&
-		provisioning.Status == kapi.ConditionTrue {
-		provisioning.Status = kapi.ConditionFalse
-		provisioning.LastTransitionTime = now
-		provisioning.LastProbeTime = now
-		provisioning.Reason = controller.ReasonSpecChanged
-		provisioning.Message = "Spec changed. New provisioning needed"
-	}
+	controller.SetMachineSetCondition(
+		machineSet,
+		clusteroperator.MachineSetHardwareProvisioning,
+		kapi.ConditionFalse,
+		controller.ReasonSpecChanged,
+		"Spec changed. New provisioning needed",
+	)
 
 	return c.updateMachineSetStatus(original, machineSet)
 }
@@ -508,107 +505,42 @@ func (c *MachineSetController) setMachineSetToNotProvisioning(original *clustero
 // provisioning.
 func (c *MachineSetController) syncMachineSetStatusWithJob(original *clusteroperator.MachineSet, job *v1batch.Job) error {
 	machineSet := original.DeepCopy()
-	now := metav1.Now()
 
 	jobCompleted := jobCondition(job, v1batch.JobComplete)
 	jobFailed := jobCondition(job, v1batch.JobFailed)
 	switch {
 	// Provision job completed successfully
 	case jobCompleted != nil && jobCompleted.Status == kapi.ConditionTrue:
-		provisioning := machineSetCondition(machineSet, clusteroperator.MachineSetHardwareProvisioning)
-		if provisioning != nil &&
-			provisioning.Status == kapi.ConditionTrue {
-			provisioning.Status = kapi.ConditionFalse
-			provisioning.LastTransitionTime = now
-			provisioning.LastProbeTime = now
-			provisioning.Reason = controller.ReasonJobCompleted
-			provisioning.Message = fmt.Sprintf("Job %s/%s completed at %v", job.Namespace, job.Name, jobCompleted.LastTransitionTime)
-		}
-		provisioned := machineSetCondition(machineSet, clusteroperator.MachineSetHardwareProvisioned)
-		if provisioned != nil &&
-			provisioned.Status == kapi.ConditionFalse {
-			provisioned.Status = kapi.ConditionTrue
-			provisioned.LastTransitionTime = now
-			provisioned.LastProbeTime = now
-			provisioned.Reason = controller.ReasonJobCompleted
-			provisioning.Message = fmt.Sprintf("Job %s/%s completed at %v", job.Namespace, job.Name, jobCompleted.LastTransitionTime)
-		}
-		if provisioned == nil {
-			machineSet.Status.Conditions = append(machineSet.Status.Conditions, clusteroperator.MachineSetCondition{
-				Type:               clusteroperator.MachineSetHardwareProvisioned,
-				Status:             kapi.ConditionTrue,
-				LastProbeTime:      now,
-				LastTransitionTime: now,
-				Reason:             controller.ReasonJobCompleted,
-				Message:            fmt.Sprintf("Job %s/%s completed at %v", job.Namespace, job.Name, jobCompleted.LastTransitionTime),
-			})
-		}
-		provisioningFailed := machineSetCondition(machineSet, clusteroperator.MachineSetHardwareProvisioningFailed)
-		if provisioningFailed != nil &&
-			provisioningFailed.Status == kapi.ConditionTrue {
-			provisioningFailed.Status = kapi.ConditionFalse
-			provisioningFailed.LastTransitionTime = now
-			provisioningFailed.LastProbeTime = now
-			provisioningFailed.Reason = ""
-			provisioningFailed.Message = ""
-		}
+		reason := controller.ReasonJobCompleted
+		message := fmt.Sprintf("Job %s/%s completed at %v", job.Namespace, job.Name, jobCompleted.LastTransitionTime)
+		controller.SetMachineSetCondition(machineSet, clusteroperator.MachineSetHardwareProvisioning, kapi.ConditionFalse, reason, message)
+		controller.SetMachineSetCondition(machineSet, clusteroperator.MachineSetHardwareProvisioned, kapi.ConditionTrue, reason, message)
+		controller.SetMachineSetCondition(machineSet, clusteroperator.MachineSetHardwareProvisioningFailed, kapi.ConditionFalse, reason, message)
 		machineSet.Status.Provisioned = true
 		machineSet.Status.ProvisionedJobGeneration = machineSet.Generation
 	// Provision job failed
 	case jobFailed != nil && jobFailed.Status == kapi.ConditionTrue:
-		provisioning := machineSetCondition(machineSet, clusteroperator.MachineSetHardwareProvisioning)
-		if provisioning != nil &&
-			provisioning.Status == kapi.ConditionTrue {
-			provisioning.Status = kapi.ConditionFalse
-			provisioning.LastTransitionTime = now
-			provisioning.LastProbeTime = now
-			provisioning.Reason = controller.ReasonJobFailed
-			provisioning.Message = fmt.Sprintf("Job %s/%s failed at %v, reason: %s", job.Namespace, job.Name, jobFailed.LastTransitionTime, jobFailed.Reason)
-		}
-		provisioningFailed := machineSetCondition(machineSet, clusteroperator.MachineSetHardwareProvisioningFailed)
-		if provisioningFailed != nil {
-			provisioningFailed.Status = kapi.ConditionTrue
-			provisioningFailed.LastTransitionTime = now
-			provisioningFailed.LastProbeTime = now
-			provisioningFailed.Reason = controller.ReasonJobFailed
-			provisioningFailed.Message = fmt.Sprintf("Job %s/%s failed at %v, reason: %s", job.Namespace, job.Name, jobFailed.LastTransitionTime, jobFailed.Reason)
-		} else {
-			machineSet.Status.Conditions = append(machineSet.Status.Conditions, clusteroperator.MachineSetCondition{
-				Type:               clusteroperator.MachineSetHardwareProvisioningFailed,
-				Status:             kapi.ConditionTrue,
-				LastProbeTime:      now,
-				LastTransitionTime: now,
-				Reason:             controller.ReasonJobFailed,
-				Message:            fmt.Sprintf("Job %s/%s failed at %v, reason: %s", job.Namespace, job.Name, jobFailed.LastTransitionTime, jobFailed.Reason),
-			})
-		}
+		reason := controller.ReasonJobFailed
+		message := fmt.Sprintf("Job %s/%s failed at %v, reason: %s", job.Namespace, job.Name, jobFailed.LastTransitionTime, jobFailed.Reason)
+		controller.SetMachineSetCondition(machineSet, clusteroperator.MachineSetHardwareProvisioning, kapi.ConditionFalse, reason, message)
+		controller.SetMachineSetCondition(machineSet, clusteroperator.MachineSetHardwareProvisioningFailed, kapi.ConditionTrue, reason, message)
 		// ProvisionedJobGeneration is set even when the job failed because we
 		// do not want to run the provision job again until there have been
 		// changes in the spec of the machine set.
 		machineSet.Status.ProvisionedJobGeneration = machineSet.Generation
-	// Provision job still in progress
 	default:
-		provisioning := machineSetCondition(machineSet, clusteroperator.MachineSetHardwareProvisioning)
 		reason := controller.ReasonJobRunning
 		message := fmt.Sprintf("Job %s/%s is running since %v. Pod completions: %d, failures: %d", job.Namespace, job.Name, job.Status.StartTime, job.Status.Succeeded, job.Status.Failed)
-		if provisioning != nil {
-			if provisioning.Status != kapi.ConditionTrue {
-				provisioning.Status = kapi.ConditionTrue
-				provisioning.LastTransitionTime = now
-				provisioning.LastProbeTime = now
-				provisioning.Reason = reason
-				provisioning.Message = message
-			}
-		} else {
-			machineSet.Status.Conditions = append(machineSet.Status.Conditions, clusteroperator.MachineSetCondition{
-				Type:               clusteroperator.MachineSetHardwareProvisioning,
-				Status:             kapi.ConditionTrue,
-				LastProbeTime:      now,
-				LastTransitionTime: now,
-				Reason:             reason,
-				Message:            message,
-			})
-		}
+		controller.SetMachineSetCondition(
+			machineSet,
+			clusteroperator.MachineSetHardwareProvisioning,
+			kapi.ConditionTrue,
+			reason,
+			message,
+			func(old, new clusteroperator.MachineSetCondition) bool {
+				return new.Message != old.Message
+			},
+		)
 	}
 
 	return c.updateMachineSetStatus(original, machineSet)
@@ -617,33 +549,10 @@ func (c *MachineSetController) syncMachineSetStatusWithJob(original *clusteroper
 
 func (c *MachineSetController) setJobNotFoundStatus(original *clusteroperator.MachineSet) error {
 	machineSet := original.DeepCopy()
-	now := metav1.Now()
 	reason := controller.ReasonJobMissing
 	message := "Provisioning job not found."
-	if provisioning := machineSetCondition(machineSet, clusteroperator.MachineSetHardwareProvisioning); provisioning != nil {
-		provisioning.Status = kapi.ConditionFalse
-		provisioning.Reason = reason
-		provisioning.Message = message
-		provisioning.LastTransitionTime = now
-		provisioning.LastProbeTime = now
-	}
-	provisioningFailed := machineSetCondition(machineSet, clusteroperator.MachineSetHardwareProvisioningFailed)
-	if provisioningFailed != nil {
-		provisioningFailed.Status = kapi.ConditionTrue
-		provisioningFailed.Reason = reason
-		provisioningFailed.Message = message
-		provisioningFailed.LastTransitionTime = now
-		provisioningFailed.LastProbeTime = now
-	} else {
-		machineSet.Status.Conditions = append(machineSet.Status.Conditions, clusteroperator.MachineSetCondition{
-			Type:               clusteroperator.MachineSetHardwareProvisioningFailed,
-			Status:             kapi.ConditionTrue,
-			Reason:             reason,
-			Message:            message,
-			LastTransitionTime: now,
-			LastProbeTime:      now,
-		})
-	}
+	controller.SetMachineSetCondition(machineSet, clusteroperator.MachineSetHardwareProvisioning, kapi.ConditionFalse, reason, message)
+	controller.SetMachineSetCondition(machineSet, clusteroperator.MachineSetHardwareProvisioningFailed, kapi.ConditionTrue, reason, message)
 	return c.updateMachineSetStatus(original, machineSet)
 }
 
@@ -654,7 +563,7 @@ func (c *MachineSetController) updateMachineSetStatus(original, machineSet *clus
 }
 
 func isMachineSetProvisioning(machineSet *clusteroperator.MachineSet) bool {
-	provisioning := machineSetCondition(machineSet, clusteroperator.MachineSetHardwareProvisioning)
+	provisioning := controller.FindMachineSetCondition(machineSet, clusteroperator.MachineSetHardwareProvisioning)
 	return provisioning != nil && provisioning.Status == kapi.ConditionTrue
 }
 
@@ -662,15 +571,6 @@ func jobCondition(job *v1batch.Job, conditionType v1batch.JobConditionType) *v1b
 	for i, condition := range job.Status.Conditions {
 		if condition.Type == conditionType {
 			return &job.Status.Conditions[i]
-		}
-	}
-	return nil
-}
-
-func machineSetCondition(machineSet *clusteroperator.MachineSet, conditionType clusteroperator.MachineSetConditionType) *clusteroperator.MachineSetCondition {
-	for i, condition := range machineSet.Status.Conditions {
-		if condition.Type == conditionType {
-			return &machineSet.Status.Conditions[i]
 		}
 	}
 	return nil
