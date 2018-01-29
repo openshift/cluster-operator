@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM openshift/origin-ansible:v3.8
+FROM openshift/origin-ansible:latest
 
 ADD fake-openshift-ansible /usr/local/bin
 
