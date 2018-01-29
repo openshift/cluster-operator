@@ -414,6 +414,13 @@ func (c *InfraController) syncCluster(key string) error {
 		}
 		return nil
 	}
+
+	finalizers := sets.NewString(cluster.ObjectMeta.Finalizers...)
+	if !finalizers.Has(clusteroperator.FinalizerClusterOperator) {
+		finalizers.Insert(clusteroperator.FinalizerClusterOperator)
+		cluster.ObjectMeta.Finalizers = finalizers.List()
+	}
+
 	specChanged := cluster.Status.ProvisionedJobGeneration != cluster.Generation
 
 	jobFactory := c.getProvisionJobFactory(cluster)
@@ -547,7 +554,6 @@ func (f jobFactory) BuildJob(name string) (*v1batch.Job, *kapi.ConfigMap, error)
 }
 
 func (c *InfraController) getJobFactory(cluster *clusteroperator.Cluster, playbook string) controller.JobFactory {
-	c.logger.Infof("PLAYBOOK: %s", playbook)
 	return jobFactory(func(name string) (*v1batch.Job, *kapi.ConfigMap, error) {
 		varsGenerator := ansible.NewVarsGenerator(cluster)
 		vars, err := varsGenerator.GenerateVars()
