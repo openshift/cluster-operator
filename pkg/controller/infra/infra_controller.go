@@ -247,103 +247,53 @@ func (c *InfraController) handleErr(err error, key interface{}) {
 	c.queue.Forget(key)
 }
 
+// syncClusterStatusWithJob update the status of the cluster to
+// reflect the current status of the job that is provisioning the cluster.
+// If the job completed successfully, the cluster will be marked as
+// provisioned.
+// If the job completed with a failure, the cluster will be marked as
+// not provisioned.
+// If the job is still in progress, the cluster will be marked as
+// provisioning.
 func (c *InfraController) syncClusterStatusWithJob(original *clusteroperator.Cluster, job *v1batch.Job) error {
 	cluster := original.DeepCopy()
-	now := metav1.Now()
 
 	jobCompleted := jobCondition(job, v1batch.JobComplete)
 	jobFailed := jobCondition(job, v1batch.JobFailed)
 	switch {
+	// Provision job completed successfully
 	case jobCompleted != nil && jobCompleted.Status == kapi.ConditionTrue:
-		clusterProvisioning := clusterCondition(cluster, clusteroperator.ClusterInfraProvisioning)
-		if clusterProvisioning != nil &&
-			clusterProvisioning.Status == kapi.ConditionTrue {
-			clusterProvisioning.Status = kapi.ConditionFalse
-			clusterProvisioning.LastTransitionTime = now
-			clusterProvisioning.LastProbeTime = now
-			clusterProvisioning.Reason = controller.ReasonJobCompleted
-			clusterProvisioning.Message = fmt.Sprintf("Job %s/%s completed at %v", job.Namespace, job.Name, jobCompleted.LastTransitionTime)
-		}
-		clusterProvisioned := clusterCondition(cluster, clusteroperator.ClusterInfraProvisioned)
-		if clusterProvisioned != nil &&
-			clusterProvisioned.Status == kapi.ConditionFalse {
-			clusterProvisioned.Status = kapi.ConditionTrue
-			clusterProvisioned.LastTransitionTime = now
-			clusterProvisioned.LastProbeTime = now
-			clusterProvisioned.Reason = controller.ReasonJobCompleted
-			clusterProvisioning.Message = fmt.Sprintf("Job %s/%s completed at %v", job.Namespace, job.Name, jobCompleted.LastTransitionTime)
-		}
-		if clusterProvisioned == nil {
-			cluster.Status.Conditions = append(cluster.Status.Conditions, clusteroperator.ClusterCondition{
-				Type:               clusteroperator.ClusterInfraProvisioned,
-				Status:             kapi.ConditionTrue,
-				LastProbeTime:      now,
-				LastTransitionTime: now,
-				Reason:             controller.ReasonJobCompleted,
-				Message:            fmt.Sprintf("Job %s/%s completed at %v", job.Namespace, job.Name, jobCompleted.LastTransitionTime),
-			})
-		}
-		provisioningFailed := clusterCondition(cluster, clusteroperator.ClusterInfraProvisioningFailed)
-		if provisioningFailed != nil &&
-			provisioningFailed.Status == kapi.ConditionTrue {
-			provisioningFailed.Status = kapi.ConditionFalse
-			provisioningFailed.LastTransitionTime = now
-			provisioningFailed.LastProbeTime = now
-			provisioningFailed.Reason = ""
-			provisioningFailed.Message = ""
-		}
+		reason := controller.ReasonJobCompleted
+		message := fmt.Sprintf("Job %s/%s completed at %v", job.Namespace, job.Name, jobCompleted.LastTransitionTime)
+		controller.SetClusterCondition(cluster, clusteroperator.ClusterInfraProvisioning, kapi.ConditionFalse, reason, message)
+		controller.SetClusterCondition(cluster, clusteroperator.ClusterInfraProvisioned, kapi.ConditionTrue, reason, message)
+		controller.SetClusterCondition(cluster, clusteroperator.ClusterInfraProvisioningFailed, kapi.ConditionFalse, reason, message)
 		cluster.Status.Provisioned = true
 		cluster.Status.ProvisionedJobGeneration = cluster.Generation
+	// Provision job failed
 	case jobFailed != nil && jobFailed.Status == kapi.ConditionTrue:
-		clusterProvisioning := clusterCondition(cluster, clusteroperator.ClusterInfraProvisioning)
-		if clusterProvisioning != nil &&
-			clusterProvisioning.Status == kapi.ConditionTrue {
-			clusterProvisioning.Status = kapi.ConditionFalse
-			clusterProvisioning.LastTransitionTime = now
-			clusterProvisioning.LastProbeTime = now
-			clusterProvisioning.Reason = controller.ReasonJobFailed
-			clusterProvisioning.Message = fmt.Sprintf("Job %s/%s failed at %v, reason: %s", job.Namespace, job.Name, jobFailed.LastTransitionTime, jobFailed.Reason)
-		}
-		provisioningFailed := clusterCondition(cluster, clusteroperator.ClusterInfraProvisioningFailed)
-		if provisioningFailed != nil {
-			provisioningFailed.Status = kapi.ConditionTrue
-			provisioningFailed.LastTransitionTime = now
-			provisioningFailed.LastProbeTime = now
-			provisioningFailed.Reason = controller.ReasonJobFailed
-			provisioningFailed.Message = fmt.Sprintf("Job %s/%s failed at %v, reason: %s", job.Namespace, job.Name, jobFailed.LastTransitionTime, jobFailed.Reason)
-		} else {
-			cluster.Status.Conditions = append(cluster.Status.Conditions, clusteroperator.ClusterCondition{
-				Type:               clusteroperator.ClusterInfraProvisioningFailed,
-				Status:             kapi.ConditionTrue,
-				LastProbeTime:      now,
-				LastTransitionTime: now,
-				Reason:             controller.ReasonJobFailed,
-				Message:            fmt.Sprintf("Job %s/%s failed at %v, reason: %s", job.Namespace, job.Name, jobFailed.LastTransitionTime, jobFailed.Reason),
-			})
-		}
+		reason := controller.ReasonJobFailed
+		message := fmt.Sprintf("Job %s/%s failed at %v, reason: %s", job.Namespace, job.Name, jobFailed.LastTransitionTime, jobFailed.Reason)
+		controller.SetClusterCondition(cluster, clusteroperator.ClusterInfraProvisioning, kapi.ConditionFalse, reason, message)
+		controller.SetClusterCondition(cluster, clusteroperator.ClusterInfraProvisioningFailed, kapi.ConditionTrue, reason, message)
+		// ProvisionedJobGeneration is set even when the job failed because we
+		// do not want to run the provision job again until there have been
+		// changes in the spec of the cluster.
 		cluster.Status.ProvisionedJobGeneration = cluster.Generation
+	// Provision job still in progress
 	default:
-		clusterProvisioning := clusterCondition(cluster, clusteroperator.ClusterInfraProvisioning)
 		reason := controller.ReasonJobRunning
 		message := fmt.Sprintf("Job %s/%s is running since %v. Pod completions: %d, failures: %d", job.Namespace, job.Name, job.Status.StartTime, job.Status.Succeeded, job.Status.Failed)
-		if clusterProvisioning != nil {
-			if clusterProvisioning.Status != kapi.ConditionTrue {
-				clusterProvisioning.Status = kapi.ConditionTrue
-				clusterProvisioning.LastTransitionTime = now
-				clusterProvisioning.LastProbeTime = now
-				clusterProvisioning.Reason = reason
-				clusterProvisioning.Message = message
-			}
-		} else {
-			cluster.Status.Conditions = append(cluster.Status.Conditions, clusteroperator.ClusterCondition{
-				Type:               clusteroperator.ClusterInfraProvisioning,
-				Status:             kapi.ConditionTrue,
-				LastProbeTime:      now,
-				LastTransitionTime: now,
-				Reason:             reason,
-				Message:            message,
-			})
-		}
+		controller.SetClusterCondition(
+			cluster,
+			clusteroperator.ClusterInfraProvisioning,
+			kapi.ConditionTrue,
+			reason,
+			message,
+			func(old, new clusteroperator.ClusterCondition) bool {
+				return new.Message != old.Message
+			},
+		)
 	}
 
 	return c.updateClusterStatus(original, cluster)
@@ -438,25 +388,26 @@ func (c *InfraController) syncCluster(key string) error {
 	}
 }
 
+// setClusterToNotProvisioning updates the InfraProvisioning condition
+// for the cluster to reflect that a cluster that had an in-progress
+// provision is no longer provisioning due to a change in the spec of the
+// cluster.
 func (c *InfraController) setClusterToNotProvisioning(original *clusteroperator.Cluster) error {
 	cluster := original.DeepCopy()
-	now := metav1.Now()
 
-	clusterProvisioning := clusterCondition(cluster, clusteroperator.ClusterInfraProvisioning)
-	if clusterProvisioning != nil &&
-		clusterProvisioning.Status == kapi.ConditionTrue {
-		clusterProvisioning.Status = kapi.ConditionFalse
-		clusterProvisioning.LastTransitionTime = now
-		clusterProvisioning.LastProbeTime = now
-		clusterProvisioning.Reason = controller.ReasonSpecChanged
-		clusterProvisioning.Message = "Spec changed. New provisioning needed"
-	}
+	controller.SetClusterCondition(
+		cluster,
+		clusteroperator.ClusterInfraProvisioning,
+		kapi.ConditionFalse,
+		controller.ReasonSpecChanged,
+		"Spec changed. New provisioning needed",
+	)
 
 	return c.updateClusterStatus(original, cluster)
 }
 
 func isClusterProvisioning(cluster *clusteroperator.Cluster) bool {
-	provisioning := clusterCondition(cluster, clusteroperator.ClusterInfraProvisioning)
+	provisioning := controller.FindClusterCondition(cluster, clusteroperator.ClusterInfraProvisioning)
 	return provisioning != nil && provisioning.Status == kapi.ConditionTrue
 }
 
@@ -469,44 +420,12 @@ func jobCondition(job *v1batch.Job, conditionType v1batch.JobConditionType) *v1b
 	return nil
 }
 
-func clusterCondition(cluster *clusteroperator.Cluster, conditionType clusteroperator.ClusterConditionType) *clusteroperator.ClusterCondition {
-	for i, condition := range cluster.Status.Conditions {
-		if condition.Type == conditionType {
-			return &cluster.Status.Conditions[i]
-		}
-	}
-	return nil
-}
-
 func (c *InfraController) setJobNotFoundStatus(original *clusteroperator.Cluster) error {
 	cluster := original.DeepCopy()
-	now := metav1.Now()
 	reason := controller.ReasonJobMissing
 	message := "Provisioning job not found."
-	if provisioning := clusterCondition(cluster, clusteroperator.ClusterInfraProvisioning); provisioning != nil {
-		provisioning.Status = kapi.ConditionFalse
-		provisioning.Reason = reason
-		provisioning.Message = message
-		provisioning.LastTransitionTime = now
-		provisioning.LastProbeTime = now
-	}
-	provisioningFailed := clusterCondition(cluster, clusteroperator.ClusterInfraProvisioningFailed)
-	if provisioningFailed != nil {
-		provisioningFailed.Status = kapi.ConditionTrue
-		provisioningFailed.Reason = reason
-		provisioningFailed.Message = message
-		provisioningFailed.LastTransitionTime = now
-		provisioningFailed.LastProbeTime = now
-	} else {
-		cluster.Status.Conditions = append(cluster.Status.Conditions, clusteroperator.ClusterCondition{
-			Type:               clusteroperator.ClusterInfraProvisioningFailed,
-			Status:             kapi.ConditionTrue,
-			Reason:             reason,
-			Message:            message,
-			LastTransitionTime: now,
-			LastProbeTime:      now,
-		})
-	}
+	controller.SetClusterCondition(cluster, clusteroperator.ClusterInfraProvisioning, kapi.ConditionFalse, reason, message)
+	controller.SetClusterCondition(cluster, clusteroperator.ClusterInfraProvisioningFailed, kapi.ConditionTrue, reason, message)
 	return c.updateClusterStatus(original, cluster)
 }
 
