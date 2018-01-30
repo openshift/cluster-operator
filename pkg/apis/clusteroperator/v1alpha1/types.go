@@ -99,6 +99,7 @@ type ClusterVersionStatus struct {
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
+// ClusterVersionList is a list of ClusterVersions.
 type ClusterVersionList struct {
 	metav1.TypeMeta `json:",inline"`
 	// +optional
@@ -513,11 +514,13 @@ type MachineList struct {
 	Items []Machine `json:"items"`
 }
 
+// MachineSpec is the specificiation of a Machine.
 type MachineSpec struct {
 	// NodeType is the type of the node
 	NodeType NodeType `json:"nodeType"`
 }
 
+// MachineStatus is the status of a Machine.
 type MachineStatus struct {
 }
 

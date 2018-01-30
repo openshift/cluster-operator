@@ -44,7 +44,7 @@ func getValidMachineSet() *clusteroperator.MachineSet {
 			OwnerReferences: []metav1.OwnerReference{getValidClusterOwnerRef()},
 		},
 		Spec: clusteroperator.MachineSetSpec{
-			clusteroperator.MachineSetConfig{
+			MachineSetConfig: clusteroperator.MachineSetConfig{
 				NodeType: clusteroperator.NodeTypeMaster,
 				Size:     1,
 			},
@@ -409,7 +409,7 @@ func TestValidateMachineSetSpec(t *testing.T) {
 		{
 			name: "valid",
 			spec: &clusteroperator.MachineSetSpec{
-				clusteroperator.MachineSetConfig{
+				MachineSetConfig: clusteroperator.MachineSetConfig{
 					NodeType: clusteroperator.NodeTypeMaster,
 					Size:     1,
 				},
@@ -419,7 +419,7 @@ func TestValidateMachineSetSpec(t *testing.T) {
 		{
 			name: "invalid node type",
 			spec: &clusteroperator.MachineSetSpec{
-				clusteroperator.MachineSetConfig{
+				MachineSetConfig: clusteroperator.MachineSetConfig{
 					NodeType: clusteroperator.NodeType(""),
 					Size:     1,
 				},
@@ -428,7 +428,7 @@ func TestValidateMachineSetSpec(t *testing.T) {
 		{
 			name: "invalid size",
 			spec: &clusteroperator.MachineSetSpec{
-				clusteroperator.MachineSetConfig{
+				MachineSetConfig: clusteroperator.MachineSetConfig{
 					NodeType: clusteroperator.NodeTypeMaster,
 					Size:     0,
 				},

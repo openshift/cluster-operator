@@ -69,8 +69,8 @@ var (
 	clusterKind    = clusteroperator.SchemeGroupVersion.WithKind("Cluster")
 )
 
-// NewMachineSetController returns a new *MachineSetController.
-func NewMachineSetController(
+// NewController returns a new *Controller.
+func NewController(
 	clusterInformer informers.ClusterInformer,
 	machineSetInformer informers.MachineSetInformer,
 	jobInformer batchinformers.JobInformer,
@@ -78,7 +78,7 @@ func NewMachineSetController(
 	clusteroperatorClient clusteroperatorclientset.Interface,
 	ansibleImage string,
 	ansibleImagePullPolicy kapi.PullPolicy,
-) *MachineSetController {
+) *Controller {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(glog.Infof)
 	// TODO: remove the wrapper when every clients have moved to use the clientset.
@@ -90,7 +90,7 @@ func NewMachineSetController(
 
 	logger := log.WithField("controller", controllerLogName)
 
-	c := &MachineSetController{
+	c := &Controller{
 		client:     clusteroperatorClient,
 		kubeClient: kubeClient,
 		queue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "machineSet"),
@@ -126,8 +126,8 @@ func NewMachineSetController(
 	return c
 }
 
-// MachineSetController manages provisioning machine sets.
-type MachineSetController struct {
+// Controller manages provisioning machine sets.
+type Controller struct {
 	client     clusteroperatorclientset.Interface
 	kubeClient kubeclientset.Interface
 
@@ -145,7 +145,7 @@ type MachineSetController struct {
 	enqueueMachineSet func(machineSet *clusteroperator.MachineSet)
 
 	// machineSetsLister is able to list/get machine sets and is populated by the shared informer passed to
-	// NewMachineSetController.
+	// NewController.
 	machineSetsLister lister.MachineSetLister
 	// machineSetsSynced returns true if the machine set shared informer has been synced at least once.
 	// Added as a member to the struct to allow injection for testing.
@@ -167,19 +167,19 @@ type MachineSetController struct {
 	logger log.FieldLogger
 }
 
-func (c *MachineSetController) addMachineSet(obj interface{}) {
+func (c *Controller) addMachineSet(obj interface{}) {
 	ms := obj.(*clusteroperator.MachineSet)
 	loggerForMachineSet(c.logger, ms).Debugf("enqueueing added machine set")
 	c.enqueueMachineSet(ms)
 }
 
-func (c *MachineSetController) updateMachineSet(old, cur interface{}) {
+func (c *Controller) updateMachineSet(old, cur interface{}) {
 	ms := cur.(*clusteroperator.MachineSet)
 	loggerForMachineSet(c.logger, ms).Debugf("enqueueing updated machine set")
 	c.enqueueMachineSet(ms)
 }
 
-func (c *MachineSetController) deleteMachineSet(obj interface{}) {
+func (c *Controller) deleteMachineSet(obj interface{}) {
 	ms, ok := obj.(*clusteroperator.MachineSet)
 	if !ok {
 		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
@@ -197,7 +197,7 @@ func (c *MachineSetController) deleteMachineSet(obj interface{}) {
 	c.enqueueMachineSet(ms)
 }
 
-func (c *MachineSetController) addCluster(obj interface{}) {
+func (c *Controller) addCluster(obj interface{}) {
 	cluster := obj.(*clusteroperator.Cluster)
 	logger := loggerForCluster(c.logger, cluster)
 	machineSets, err := c.machineSetsForCluster(cluster)
@@ -213,7 +213,7 @@ func (c *MachineSetController) addCluster(obj interface{}) {
 	}
 }
 
-func (c *MachineSetController) updateCluster(old, obj interface{}) {
+func (c *Controller) updateCluster(old, obj interface{}) {
 	cluster := obj.(*clusteroperator.Cluster)
 	logger := loggerForCluster(c.logger, cluster)
 	machineSets, err := c.machineSetsForCluster(cluster)
@@ -228,7 +228,7 @@ func (c *MachineSetController) updateCluster(old, obj interface{}) {
 	}
 }
 
-func (c *MachineSetController) machineSetsForCluster(cluster *clusteroperator.Cluster) ([]*clusteroperator.MachineSet, error) {
+func (c *Controller) machineSetsForCluster(cluster *clusteroperator.Cluster) ([]*clusteroperator.MachineSet, error) {
 	clusterMachineSets := []*clusteroperator.MachineSet{}
 	allMachineSets, err := c.machineSetsLister.MachineSets(cluster.Namespace).List(labels.Everything())
 	if err != nil {
@@ -242,9 +242,9 @@ func (c *MachineSetController) machineSetsForCluster(cluster *clusteroperator.Cl
 	return clusterMachineSets, nil
 }
 
-// Runs c; will not return until stopCh is closed. workers determines how many
-// machine sets will be handled in parallel.
-func (c *MachineSetController) Run(workers int, stopCh <-chan struct{}) {
+// Run runs c; will not return until stopCh is closed. workers determines how
+// many machine sets will be handled in parallel.
+func (c *Controller) Run(workers int, stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer c.queue.ShutDown()
 
@@ -263,7 +263,7 @@ func (c *MachineSetController) Run(workers int, stopCh <-chan struct{}) {
 	<-stopCh
 }
 
-func (c *MachineSetController) enqueue(machineSet *clusteroperator.MachineSet) {
+func (c *Controller) enqueue(machineSet *clusteroperator.MachineSet) {
 	key, err := controller.KeyFunc(machineSet)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("Couldn't get key for object %#v: %v", machineSet, err))
@@ -275,12 +275,12 @@ func (c *MachineSetController) enqueue(machineSet *clusteroperator.MachineSet) {
 
 // worker runs a worker thread that just dequeues items, processes them, and marks them done.
 // It enforces that the syncHandler is never invoked concurrently with the same key.
-func (c *MachineSetController) worker() {
+func (c *Controller) worker() {
 	for c.processNextWorkItem() {
 	}
 }
 
-func (c *MachineSetController) processNextWorkItem() bool {
+func (c *Controller) processNextWorkItem() bool {
 	key, quit := c.queue.Get()
 	if quit {
 		return false
@@ -293,7 +293,7 @@ func (c *MachineSetController) processNextWorkItem() bool {
 	return true
 }
 
-func (c *MachineSetController) handleErr(err error, key interface{}) {
+func (c *Controller) handleErr(err error, key interface{}) {
 	if err == nil {
 		c.queue.Forget(key)
 		return
@@ -314,7 +314,7 @@ func (c *MachineSetController) handleErr(err error, key interface{}) {
 }
 
 type jobOwnerControl struct {
-	controller *MachineSetController
+	controller *Controller
 }
 
 func (c *jobOwnerControl) GetOwnerKey(owner metav1.Object) (string, error) {
@@ -342,7 +342,7 @@ func (f jobFactory) BuildJob(name string) (*v1batch.Job, *kapi.ConfigMap, error)
 }
 
 type jobSyncStrategy struct {
-	controller *MachineSetController
+	controller *Controller
 }
 
 func (s *jobSyncStrategy) GetOwner(key string) (metav1.Object, error) {

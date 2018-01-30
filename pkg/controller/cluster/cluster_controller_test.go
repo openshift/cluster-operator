@@ -42,10 +42,10 @@ const (
 	testClusterUUID = types.UID("test-cluster-uuid")
 )
 
-// newTestClusterController creates a test ClusterController with fake
+// newTestController creates a test Controller with fake
 // clients and informers.
-func newTestClusterController() (
-	*ClusterController,
+func newTestController() (
+	*Controller,
 	cache.Store, // cluster store
 	cache.Store, // machine set store
 	*clientgofake.Clientset,
@@ -55,7 +55,7 @@ func newTestClusterController() (
 	clusterOperatorClient := &clusteroperatorclientset.Clientset{}
 	informers := informers.NewSharedInformerFactory(clusterOperatorClient, 0)
 
-	controller := NewClusterController(
+	controller := NewController(
 		informers.Clusteroperator().V1alpha1().Clusters(),
 		informers.Clusteroperator().V1alpha1().MachineSets(),
 		kubeClient,
@@ -79,12 +79,12 @@ var alwaysReady = func() bool { return true }
 // getKey gets the key for the cluster to use when checking expectations
 // set on a cluster.
 func getKey(cluster *clusteroperator.Cluster, t *testing.T) string {
-	if key, err := controller.KeyFunc(cluster); err != nil {
+	key, err := controller.KeyFunc(cluster)
+	if err != nil {
 		t.Errorf("Unexpected error getting key for Cluster %v: %v", cluster.Name, err)
 		return ""
-	} else {
-		return key
 	}
+	return key
 }
 
 // newCluster creates a new cluster with compute machine sets that have
@@ -203,7 +203,7 @@ func newMachineSetsWithSizes(store cache.Store, cluster *clusteroperator.Cluster
 
 // processSync initiates a sync via processNextWorkItem() to test behavior that
 // depends on both functions (such as re-queueing on sync error).
-func processSync(c *ClusterController, key string) error {
+func processSync(c *Controller, key string) error {
 	// Save old syncHandler and replace with one that captures the error.
 	oldSyncHandler := c.syncHandler
 	defer func() {
@@ -396,11 +396,11 @@ func (ea expectedClusterStatusUpdateAction) validate(t *testing.T, action client
 
 // validateControllerExpectations validates that the specified cluster is
 // expecting the specified number of creations and deletions of machine sets.
-func validateControllerExpectations(t *testing.T, testName string, ctrlr *ClusterController, cluster *clusteroperator.Cluster, expectedAdds, expectedDeletes int) {
+func validateControllerExpectations(t *testing.T, testName string, ctrlr *Controller, cluster *clusteroperator.Cluster, expectedAdds, expectedDeletes int) {
 	expectations, ok, err := ctrlr.expectations.GetExpectations(getKey(cluster, t))
 	switch {
 	case err != nil:
-		t.Errorf("%s: error getting expecations: %v", testName, cluster.GetName(), err)
+		t.Errorf("%s: error getting expecations: %v", testName, err)
 	case !ok:
 		if expectedAdds != 0 || expectedDeletes != 0 {
 			t.Errorf("%s: no expectations found: expectedAdds %v, expectedDeletes %v", testName, expectedAdds, expectedDeletes)
@@ -493,7 +493,7 @@ func TestSyncClusterSteadyState(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			controller, clusterStore, machineSetStore, _, clusterOperatorClient := newTestClusterController()
+			controller, clusterStore, machineSetStore, _, clusterOperatorClient := newTestController()
 
 			cluster := newCluster(tc.computes...)
 			cluster.Status.MachineSetCount = len(tc.computes) + 1
@@ -551,7 +551,7 @@ func TestSyncClusterCreateMachineSets(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			controller, clusterStore, machineSetStore, _, clusterOperatorClient := newTestClusterController()
+			controller, clusterStore, machineSetStore, _, clusterOperatorClient := newTestController()
 
 			cluster := newCluster(append(tc.existingComputes, tc.newComputes...)...)
 			cluster.Status.MachineSetCount = len(tc.existingComputes) + 1
@@ -615,7 +615,7 @@ func TestSyncClusterMachineSetsAdded(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			controller, clusterStore, machineSetStore, _, clusterOperatorClient := newTestClusterController()
+			controller, clusterStore, machineSetStore, _, clusterOperatorClient := newTestController()
 
 			cluster := newCluster(tc.computes...)
 			cluster.Status.MachineSetCount = tc.oldComputes
@@ -669,7 +669,7 @@ func TestSyncClusterDeletedMachineSets(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			controller, clusterStore, machineSetStore, _, clusterOperatorClient := newTestClusterController()
+			controller, clusterStore, machineSetStore, _, clusterOperatorClient := newTestController()
 
 			cluster := newCluster(tc.clusterComputes...)
 			cluster.Status.MachineSetCount = len(tc.clusterComputes) + 1
@@ -733,7 +733,7 @@ func TestSyncClusterMachineSetsRemoved(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			controller, clusterStore, machineSetStore, _, clusterOperatorClient := newTestClusterController()
+			controller, clusterStore, machineSetStore, _, clusterOperatorClient := newTestController()
 
 			cluster := newCluster(tc.clusterComputes...)
 			cluster.Status.MachineSetCount = len(tc.clusterComputes) + 1
@@ -813,7 +813,7 @@ func TestSyncClusterMachineSetsMutated(t *testing.T) {
 				t.Skipf("clusterComputeSizes length must be equal to realizedComputeSizes length: %v, %v", a, b)
 			}
 
-			controller, clusterStore, machineSetStore, _, clusterOperatorClient := newTestClusterController()
+			controller, clusterStore, machineSetStore, _, clusterOperatorClient := newTestController()
 
 			clusterComputes := make([]clusteroperator.ClusterMachineSet, len(tc.clusterComputeSizes))
 			realizedComputes := make([]clusteroperator.ClusterMachineSet, len(tc.realizedComputeSizes))
@@ -901,7 +901,7 @@ func TestSyncClusterMachineSetOwnerReference(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			controller, clusterStore, machineSetStore, _, clusterOperatorClient := newTestClusterController()
+			controller, clusterStore, machineSetStore, _, clusterOperatorClient := newTestController()
 
 			cluster := newCluster()
 			clusterStore.Add(cluster)
@@ -957,7 +957,7 @@ func TestSyncClusterMachineSetDeletionTimestamp(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			controller, clusterStore, machineSetStore, _, clusterOperatorClient := newTestClusterController()
+			controller, clusterStore, machineSetStore, _, clusterOperatorClient := newTestController()
 
 			cluster := newCluster()
 			clusterStore.Add(cluster)
@@ -993,7 +993,7 @@ func TestSyncClusterMachineSetDeletionTimestamp(t *testing.T) {
 // TestSyncClusterComplex tests syncing a cluster when there are numerous
 // changes to the cluster spec and the machine sets.
 func TestSyncClusterComplex(t *testing.T) {
-	controller, clusterStore, machineSetStore, _, clusterOperatorClient := newTestClusterController()
+	controller, clusterStore, machineSetStore, _, clusterOperatorClient := newTestController()
 
 	cluster := newClusterWithSizes(1,
 		clusteroperator.ClusterMachineSet{

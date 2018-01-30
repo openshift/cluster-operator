@@ -62,8 +62,8 @@ const (
 
 var machineSetKind = clusteroperator.SchemeGroupVersion.WithKind("MachineSet")
 
-// NewMasterController returns a new *MasterController.
-func NewMasterController(
+// NewController returns a new *Controller.
+func NewController(
 	clusterInformer informers.ClusterInformer,
 	machineSetInformer informers.MachineSetInformer,
 	jobInformer batchinformers.JobInformer,
@@ -71,7 +71,7 @@ func NewMasterController(
 	clusteroperatorClient clusteroperatorclientset.Interface,
 	ansibleImage string,
 	ansibleImagePullPolicy kapi.PullPolicy,
-) *MasterController {
+) *Controller {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(glog.Infof)
 	// TODO: remove the wrapper when every clients have moved to use the clientset.
@@ -83,7 +83,7 @@ func NewMasterController(
 
 	logger := log.WithField("controller", controllerLogName)
 
-	c := &MasterController{
+	c := &Controller{
 		client:     clusteroperatorClient,
 		kubeClient: kubeClient,
 		queue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "master"),
@@ -115,9 +115,9 @@ func NewMasterController(
 	return c
 }
 
-// MasterController manages launching the master/control plane on machines
+// Controller manages launching the master/control plane on machines
 // that are masters in the cluster.
-type MasterController struct {
+type Controller struct {
 	client     clusteroperatorclientset.Interface
 	kubeClient kubeclientset.Interface
 
@@ -135,14 +135,14 @@ type MasterController struct {
 	enqueueMachineSet func(machineSet *clusteroperator.MachineSet)
 
 	// machineSetsLister is able to list/get machine sets and is populated by the shared informer passed to
-	// NewMasterController.
+	// NewController.
 	machineSetsLister lister.MachineSetLister
 	// machineSetsSynced returns true if the machine set shared informer has been synced at least once.
 	// Added as a member to the struct to allow injection for testing.
 	machineSetsSynced cache.InformerSynced
 
 	// clustersLister is able to list/get clusters and is populated by the shared informer passed to
-	// NewMasterController.
+	// NewController.
 	clustersLister lister.ClusterLister
 	// clustersSynced returns true if the cluster shared informer has been synced at least once.
 	// Added as a member to the struct to allow injection for testing.
@@ -157,7 +157,7 @@ type MasterController struct {
 	logger log.FieldLogger
 }
 
-func (c *MasterController) addMachineSet(obj interface{}) {
+func (c *Controller) addMachineSet(obj interface{}) {
 	machineSet := obj.(*clusteroperator.MachineSet)
 	if !isMasterMachineSet(machineSet) {
 		return
@@ -167,7 +167,7 @@ func (c *MasterController) addMachineSet(obj interface{}) {
 	c.enqueueMachineSet(machineSet)
 }
 
-func (c *MasterController) updateMachineSet(old, cur interface{}) {
+func (c *Controller) updateMachineSet(old, cur interface{}) {
 	machineSet := cur.(*clusteroperator.MachineSet)
 	if !isMasterMachineSet(machineSet) {
 		return
@@ -177,7 +177,7 @@ func (c *MasterController) updateMachineSet(old, cur interface{}) {
 	c.enqueueMachineSet(machineSet)
 }
 
-func (c *MasterController) deleteMachineSet(obj interface{}) {
+func (c *Controller) deleteMachineSet(obj interface{}) {
 	machineSet, ok := obj.(*clusteroperator.MachineSet)
 	if !ok {
 		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
@@ -199,9 +199,9 @@ func (c *MasterController) deleteMachineSet(obj interface{}) {
 	c.enqueueMachineSet(machineSet)
 }
 
-// Runs c; will not return until stopCh is closed. workers determines how many
-// machine sets will be handled in parallel.
-func (c *MasterController) Run(workers int, stopCh <-chan struct{}) {
+// Run runs c; will not return until stopCh is closed. workers determines how
+// many machine sets will be handled in parallel.
+func (c *Controller) Run(workers int, stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer c.queue.ShutDown()
 
@@ -220,7 +220,7 @@ func (c *MasterController) Run(workers int, stopCh <-chan struct{}) {
 	<-stopCh
 }
 
-func (c *MasterController) enqueue(machineSet *clusteroperator.MachineSet) {
+func (c *Controller) enqueue(machineSet *clusteroperator.MachineSet) {
 	key, err := controller.KeyFunc(machineSet)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("Couldn't get key for object %#v: %v", machineSet, err))
@@ -232,12 +232,12 @@ func (c *MasterController) enqueue(machineSet *clusteroperator.MachineSet) {
 
 // worker runs a worker thread that just dequeues items, processes them, and marks them done.
 // It enforces that the syncHandler is never invoked concurrently with the same key.
-func (c *MasterController) worker() {
+func (c *Controller) worker() {
 	for c.processNextWorkItem() {
 	}
 }
 
-func (c *MasterController) processNextWorkItem() bool {
+func (c *Controller) processNextWorkItem() bool {
 	key, quit := c.queue.Get()
 	if quit {
 		return false
@@ -250,7 +250,7 @@ func (c *MasterController) processNextWorkItem() bool {
 	return true
 }
 
-func (c *MasterController) handleErr(err error, key interface{}) {
+func (c *Controller) handleErr(err error, key interface{}) {
 	if err == nil {
 		c.queue.Forget(key)
 		return
@@ -280,7 +280,7 @@ func (f jobFactory) BuildJob(name string) (*v1batch.Job, *kapi.ConfigMap, error)
 }
 
 type jobOwnerControl struct {
-	controller *MasterController
+	controller *Controller
 }
 
 func (c *jobOwnerControl) GetOwnerKey(owner metav1.Object) (string, error) {
@@ -302,7 +302,7 @@ func (c *jobOwnerControl) OnOwnedJobEvent(owner metav1.Object) {
 }
 
 type jobSyncStrategy struct {
-	controller *MasterController
+	controller *Controller
 }
 
 func (s *jobSyncStrategy) GetOwner(key string) (metav1.Object, error) {

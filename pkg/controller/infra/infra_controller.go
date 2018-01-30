@@ -66,15 +66,15 @@ const (
 
 var clusterKind = clusteroperator.SchemeGroupVersion.WithKind("Cluster")
 
-// NewInfraController returns a new *InfraController.
-func NewInfraController(
+// NewController returns a new *Controller.
+func NewController(
 	clusterInformer informers.ClusterInformer,
 	jobInformer batchinformers.JobInformer,
 	kubeClient kubeclientset.Interface,
 	clusteroperatorClient clusteroperatorclientset.Interface,
 	ansibleImage string,
 	ansibleImagePullPolicy kapi.PullPolicy,
-) *InfraController {
+) *Controller {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(glog.Infof)
 	// TODO: remove the wrapper when every clients have moved to use the clientset.
@@ -85,7 +85,7 @@ func NewInfraController(
 	}
 
 	logger := log.WithField("controller", controllerLogName)
-	c := &InfraController{
+	c := &Controller{
 		coClient:   clusteroperatorClient,
 		kubeClient: kubeClient,
 		queue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "cluster"),
@@ -114,8 +114,8 @@ func NewInfraController(
 	return c
 }
 
-// InfraController manages clusters.
-type InfraController struct {
+// Controller manages clusters.
+type Controller struct {
 	coClient   clusteroperatorclientset.Interface
 	kubeClient kubeclientset.Interface
 
@@ -133,7 +133,7 @@ type InfraController struct {
 	enqueueCluster func(cluster *clusteroperator.Cluster)
 
 	// clustersLister is able to list/get clusters and is populated by the shared informer passed to
-	// NewInfraController.
+	// NewController.
 	clustersLister lister.ClusterLister
 	// clustersSynced returns true if the cluster shared informer has been synced at least once.
 	// Added as a member to the struct to allow injection for testing.
@@ -148,19 +148,19 @@ type InfraController struct {
 	logger *log.Entry
 }
 
-func (c *InfraController) addCluster(obj interface{}) {
+func (c *Controller) addCluster(obj interface{}) {
 	cluster := obj.(*clusteroperator.Cluster)
 	c.logger.Debugf("enqueueing added cluster %s/%s", cluster.Namespace, cluster.Name)
 	c.enqueueCluster(cluster)
 }
 
-func (c *InfraController) updateCluster(old, obj interface{}) {
+func (c *Controller) updateCluster(old, obj interface{}) {
 	cluster := obj.(*clusteroperator.Cluster)
 	c.logger.Debugf("enqueueing updated cluster %s/%s", cluster.Namespace, cluster.Name)
 	c.enqueueCluster(cluster)
 }
 
-func (c *InfraController) deleteCluster(obj interface{}) {
+func (c *Controller) deleteCluster(obj interface{}) {
 	cluster, ok := obj.(*clusteroperator.Cluster)
 	if !ok {
 		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
@@ -178,9 +178,9 @@ func (c *InfraController) deleteCluster(obj interface{}) {
 	c.enqueueCluster(cluster)
 }
 
-// Runs c; will not return until stopCh is closed. workers determines how many
-// clusters will be handled in parallel.
-func (c *InfraController) Run(workers int, stopCh <-chan struct{}) {
+// Run runs c; will not return until stopCh is closed. workers determines how
+// many clusters will be handled in parallel.
+func (c *Controller) Run(workers int, stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer c.queue.ShutDown()
 
@@ -199,7 +199,7 @@ func (c *InfraController) Run(workers int, stopCh <-chan struct{}) {
 	<-stopCh
 }
 
-func (c *InfraController) enqueue(cluster *clusteroperator.Cluster) {
+func (c *Controller) enqueue(cluster *clusteroperator.Cluster) {
 	key, err := controller.KeyFunc(cluster)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("couldn't get key for object %#v: %v", cluster, err))
@@ -211,12 +211,12 @@ func (c *InfraController) enqueue(cluster *clusteroperator.Cluster) {
 
 // worker runs a worker thread that just dequeues items, processes them, and marks them done.
 // It enforces that the syncHandler is never invoked concurrently with the same key.
-func (c *InfraController) worker() {
+func (c *Controller) worker() {
 	for c.processNextWorkItem() {
 	}
 }
 
-func (c *InfraController) processNextWorkItem() bool {
+func (c *Controller) processNextWorkItem() bool {
 	key, quit := c.queue.Get()
 	if quit {
 		return false
@@ -229,7 +229,7 @@ func (c *InfraController) processNextWorkItem() bool {
 	return true
 }
 
-func (c *InfraController) handleErr(err error, key interface{}) {
+func (c *Controller) handleErr(err error, key interface{}) {
 	if err == nil {
 		c.queue.Forget(key)
 		return
@@ -250,7 +250,7 @@ func (c *InfraController) handleErr(err error, key interface{}) {
 }
 
 type jobOwnerControl struct {
-	controller *InfraController
+	controller *Controller
 }
 
 func (c *jobOwnerControl) GetOwnerKey(owner metav1.Object) (string, error) {
@@ -277,7 +277,7 @@ func (f jobFactory) BuildJob(name string) (*v1batch.Job, *kapi.ConfigMap, error)
 	return f(name)
 }
 
-func (c *InfraController) getJobFactory(cluster *clusteroperator.Cluster, playbook string) controller.JobFactory {
+func (c *Controller) getJobFactory(cluster *clusteroperator.Cluster, playbook string) controller.JobFactory {
 	return jobFactory(func(name string) (*v1batch.Job, *kapi.ConfigMap, error) {
 		vars, err := ansible.GenerateClusterVars(cluster)
 		if err != nil {
@@ -288,16 +288,16 @@ func (c *InfraController) getJobFactory(cluster *clusteroperator.Cluster, playbo
 	})
 }
 
-func (c *InfraController) getProvisionJobFactory(cluster *clusteroperator.Cluster) controller.JobFactory {
+func (c *Controller) getProvisionJobFactory(cluster *clusteroperator.Cluster) controller.JobFactory {
 	return c.getJobFactory(cluster, infraPlaybook)
 }
 
-func (c *InfraController) getDeprovisionJobFactory(cluster *clusteroperator.Cluster) controller.JobFactory {
+func (c *Controller) getDeprovisionJobFactory(cluster *clusteroperator.Cluster) controller.JobFactory {
 	return c.getJobFactory(cluster, deprovisionInfraPlaybook)
 }
 
 // fire-and-forget infra deprovision Job
-func (c *InfraController) runDeprovisionJob(cluster *clusteroperator.Cluster) error {
+func (c *Controller) runDeprovisionJob(cluster *clusteroperator.Cluster) error {
 	name := names.SimpleNameGenerator.GenerateName(fmt.Sprintf("infra-deprovision-%s-", cluster.Name))
 
 	job, configMap, err := c.getDeprovisionJobFactory(cluster).BuildJob(name)
@@ -314,7 +314,7 @@ func (c *InfraController) runDeprovisionJob(cluster *clusteroperator.Cluster) er
 }
 
 type jobSyncStrategy struct {
-	controller *InfraController
+	controller *Controller
 }
 
 func (s *jobSyncStrategy) GetOwner(key string) (metav1.Object, error) {

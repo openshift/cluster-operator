@@ -206,7 +206,7 @@ func startServerAndClusterController(t *testing.T) (
 	clusterOperatorSharedInformers := informerFactory.Clusteroperator().V1alpha1()
 
 	// create a test controller
-	testController := clustercontroller.NewClusterController(
+	testController := clustercontroller.NewController(
 		clusterOperatorSharedInformers.Clusters(),
 		clusterOperatorSharedInformers.MachineSets(),
 		fakeKubeClient,

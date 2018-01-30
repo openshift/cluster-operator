@@ -23,7 +23,7 @@ import (
 )
 
 func TestUIDExpectations(t *testing.T) {
-	uidExp := NewUIDTrackingControllerExpectations(NewControllerExpectations())
+	uidExp := NewUIDTrackingExpectations(NewExpectations())
 	ownersList := []struct {
 		name  string
 		count int
@@ -47,7 +47,7 @@ func TestUIDExpectations(t *testing.T) {
 		ownerKeys[i] = owner.name
 		childNames := make([]string, owner.count)
 		for j := 0; j < owner.count; j++ {
-			childNames[j] = fmt.Sprint("%v-%v", owner.name, j)
+			childNames[j] = fmt.Sprintf("%v-%v", owner.name, j)
 		}
 		ownerToChild[owner.name] = childNames
 		uidExp.ExpectDeletions(owner.name, childNames)

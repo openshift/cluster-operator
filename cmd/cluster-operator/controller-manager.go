@@ -39,6 +39,4 @@ func NewControllerManager() *hyperkube.Server {
 	}
 	s.AddFlags(hks.Flags(), app.KnownControllers(), app.ControllersDisabledByDefault.List())
 	return &hks
-
-	return nil
 }

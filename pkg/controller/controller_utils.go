@@ -147,11 +147,11 @@ func FindClusterCondition(cluster *clusteroperator.Cluster, conditionType cluste
 	return nil
 }
 
-// SetClusterCondition sets the condition for the cluster.
-// If the cluster does not already have a condition with the specified type,
-// a condition will be added to the cluster if and only if the specified
-// status is True.
-// If the cluster does already have a condition with the specified type,
+// SetMachineSetCondition sets the condition for the machine set.
+// If the machine set does not already have a condition with the specified
+// type, a condition will be added to the machine set if and only if the
+// specified status is True.
+// If the machine set does already have a condition with the specified type,
 // the condition will be updated if either of the following are true.
 // 1) Requested status is different than existing status.
 // 2) The updateConditionCheck function returns true.

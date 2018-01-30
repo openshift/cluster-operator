@@ -50,8 +50,8 @@ import (
 // controllerKind contains the schema.GroupVersionKind for this controller type.
 var controllerKind = clusteroperator.SchemeGroupVersion.WithKind("Cluster")
 
-// NewClusterController returns a new *ClusterController.
-func NewClusterController(clusterInformer informers.ClusterInformer, machineSetInformer informers.MachineSetInformer, kubeClient kubeclientset.Interface, clusteroperatorClient clusteroperatorclientset.Interface) *ClusterController {
+// NewController returns a new controller.
+func NewController(clusterInformer informers.ClusterInformer, machineSetInformer informers.MachineSetInformer, kubeClient kubeclientset.Interface, clusteroperatorClient clusteroperatorclientset.Interface) *Controller {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(glog.Infof)
 	// TODO: remove the wrapper when every clients have moved to use the clientset.
@@ -61,9 +61,9 @@ func NewClusterController(clusterInformer informers.ClusterInformer, machineSetI
 		metrics.RegisterMetricAndTrackRateLimiterUsage("clusteroperator_cluster_controller", kubeClient.CoreV1().RESTClient().GetRateLimiter())
 	}
 
-	c := &ClusterController{
+	c := &Controller{
 		client:       clusteroperatorClient,
-		expectations: controller.NewUIDTrackingControllerExpectations(controller.NewControllerExpectations()),
+		expectations: controller.NewUIDTrackingExpectations(controller.NewExpectations()),
 		queue:        workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "cluster"),
 	}
 
@@ -89,8 +89,8 @@ func NewClusterController(clusterInformer informers.ClusterInformer, machineSetI
 	return c
 }
 
-// ClusterController manages clusters.
-type ClusterController struct {
+// Controller manages clusters.
+type Controller struct {
 	client clusteroperatorclientset.Interface
 
 	// To allow injection of syncCluster for testing.
@@ -99,17 +99,17 @@ type ClusterController struct {
 	enqueueCluster func(cluster *clusteroperator.Cluster)
 
 	// A TTLCache of machine set creates/deletes each cluster expects to see.
-	expectations *controller.UIDTrackingControllerExpectations
+	expectations *controller.UIDTrackingExpectations
 
 	// clustersLister is able to list/get clusters and is populated by the shared informer passed to
-	// NewClusterController.
+	// NewController.
 	clustersLister lister.ClusterLister
 	// clustersSynced returns true if the cluster shared informer has been synced at least once.
 	// Added as a member to the struct to allow injection for testing.
 	clustersSynced cache.InformerSynced
 
 	// machineSetsLister is able to list/get machine sets and is populated by the shared informer passed to
-	// NewClusterController.
+	// NewController.
 	machineSetsLister lister.MachineSetLister
 	// machineSetsSynced returns true if the machine set shared informer has been synced at least once.
 	// Added as a member to the struct to allow injection for testing.
@@ -119,20 +119,20 @@ type ClusterController struct {
 	queue workqueue.RateLimitingInterface
 }
 
-func (c *ClusterController) addCluster(obj interface{}) {
+func (c *Controller) addCluster(obj interface{}) {
 	cluster := obj.(*clusteroperator.Cluster)
 	glog.V(4).Infof("Adding cluster %s", cluster.Name)
 	c.enqueueCluster(cluster)
 }
 
-func (c *ClusterController) updateCluster(old, cur interface{}) {
+func (c *Controller) updateCluster(old, cur interface{}) {
 	oldCluster := old.(*clusteroperator.Cluster)
 	curCluster := cur.(*clusteroperator.Cluster)
 	glog.V(4).Infof("Updating cluster %s", oldCluster.Name)
 	c.enqueueCluster(curCluster)
 }
 
-func (c *ClusterController) deleteCluster(obj interface{}) {
+func (c *Controller) deleteCluster(obj interface{}) {
 	cluster, ok := obj.(*clusteroperator.Cluster)
 	if !ok {
 		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
@@ -151,7 +151,7 @@ func (c *ClusterController) deleteCluster(obj interface{}) {
 }
 
 // When a machine set is created, enqueue the cluster that manages it and update its expectations.
-func (c *ClusterController) addMachineSet(obj interface{}) {
+func (c *Controller) addMachineSet(obj interface{}) {
 	machineSet := obj.(*clusteroperator.MachineSet)
 
 	if machineSet.DeletionTimestamp != nil {
@@ -182,7 +182,7 @@ func (c *ClusterController) addMachineSet(obj interface{}) {
 
 // When a machine set is updated, figure out what cluster manages it and wake it
 // up.
-func (c *ClusterController) updateMachineSet(old, cur interface{}) {
+func (c *Controller) updateMachineSet(old, cur interface{}) {
 	oldMachineSet := old.(*clusteroperator.MachineSet)
 	curMachineSet := cur.(*clusteroperator.MachineSet)
 	if curMachineSet.ResourceVersion == oldMachineSet.ResourceVersion {
@@ -216,7 +216,7 @@ func (c *ClusterController) updateMachineSet(old, cur interface{}) {
 }
 
 // When a machine set is deleted, enqueue the cluster that manages the machine set and update its expectations.
-func (c *ClusterController) deleteMachineSet(obj interface{}) {
+func (c *Controller) deleteMachineSet(obj interface{}) {
 	machineSet, ok := obj.(*clusteroperator.MachineSet)
 	if !ok {
 		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
@@ -250,9 +250,9 @@ func (c *ClusterController) deleteMachineSet(obj interface{}) {
 	c.enqueueCluster(cluster)
 }
 
-// Runs c; will not return until stopCh is closed. workers determines how many
-// clusters will be handled in parallel.
-func (c *ClusterController) Run(workers int, stopCh <-chan struct{}) {
+// Run runs c; will not return until stopCh is closed. workers determines how
+// many clusters will be handled in parallel.
+func (c *Controller) Run(workers int, stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer c.queue.ShutDown()
 
@@ -270,7 +270,7 @@ func (c *ClusterController) Run(workers int, stopCh <-chan struct{}) {
 	<-stopCh
 }
 
-func (c *ClusterController) enqueue(cluster *clusteroperator.Cluster) {
+func (c *Controller) enqueue(cluster *clusteroperator.Cluster) {
 	key, err := controller.KeyFunc(cluster)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("Couldn't get key for object %#v: %v", cluster, err))
@@ -282,12 +282,12 @@ func (c *ClusterController) enqueue(cluster *clusteroperator.Cluster) {
 
 // worker runs a worker thread that just dequeues items, processes them, and marks them done.
 // It enforces that the syncHandler is never invoked concurrently with the same key.
-func (c *ClusterController) worker() {
+func (c *Controller) worker() {
 	for c.processNextWorkItem() {
 	}
 }
 
-func (c *ClusterController) processNextWorkItem() bool {
+func (c *Controller) processNextWorkItem() bool {
 	key, quit := c.queue.Get()
 	if quit {
 		return false
@@ -308,7 +308,7 @@ func (c *ClusterController) processNextWorkItem() bool {
 
 // syncCluster will sync the cluster with the given key.
 // This function is not meant to be invoked concurrently with the same key.
-func (c *ClusterController) syncCluster(key string) error {
+func (c *Controller) syncCluster(key string) error {
 	startTime := time.Now()
 	defer func() {
 		glog.V(4).Infof("Finished syncing cluster %q (%v)", key, time.Now().Sub(startTime))
@@ -368,7 +368,7 @@ func (c *ClusterController) syncCluster(key string) error {
 // manageMachineSets checks and updates machine sets for the given cluster.
 // Does NOT modify <machineSets>.
 // It will requeue the cluster in case of an error while creating/deleting machine sets.
-func (c *ClusterController) manageMachineSets(machineSets []*clusteroperator.MachineSet, cluster *clusteroperator.Cluster) error {
+func (c *Controller) manageMachineSets(machineSets []*clusteroperator.MachineSet, cluster *clusteroperator.Cluster) error {
 	clusterKey, err := controller.KeyFunc(cluster)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("Couldn't get key for Cluster %#v: %v", cluster, err))
@@ -498,7 +498,7 @@ func (c *ClusterController) manageMachineSets(machineSets []*clusteroperator.Mac
 	return nil
 }
 
-func (c *ClusterController) manageMachineSet(cluster *clusteroperator.Cluster, machineSet *clusteroperator.MachineSet, clusterMachineSetConfig clusteroperator.MachineSetConfig, machineSetNamePrefix string) (*clusteroperator.MachineSet, bool, error) {
+func (c *Controller) manageMachineSet(cluster *clusteroperator.Cluster, machineSet *clusteroperator.MachineSet, clusterMachineSetConfig clusteroperator.MachineSetConfig, machineSetNamePrefix string) (*clusteroperator.MachineSet, bool, error) {
 	if machineSet == nil {
 		machineSet, err := buildNewMachineSet(cluster, clusterMachineSetConfig, machineSetNamePrefix)
 		return machineSet, false, err
