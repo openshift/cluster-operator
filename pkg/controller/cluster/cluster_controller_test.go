@@ -237,7 +237,15 @@ func newMachineSetsWithSizes(store cache.Store, cluster *clusteroperator.Cluster
 		}
 	}
 	return machineSets
+}
 
+func newHardwareSpec(instanceType, amiName string) *clusteroperator.MachineSetHardwareSpec {
+	return &clusteroperator.MachineSetHardwareSpec{
+		AWS: &clusteroperator.MachineSetAWSHardwareSpec{
+			InstanceType: instanceType,
+			AMIName:      amiName,
+		},
+	}
 }
 
 // newClusterVer will create an actual ClusterVersion for the given reference.
@@ -338,7 +346,8 @@ type expectedClientAction interface {
 // expectedMachineSetCreateAction is an expected client action to create a
 // machine set.
 type expectedMachineSetCreateAction struct {
-	namePrefix string
+	namePrefix   string
+	hardwareSpec *clusteroperator.MachineSetHardwareSpec
 }
 
 func (ea expectedMachineSetCreateAction) resource() schema.GroupVersionResource {
@@ -361,14 +370,34 @@ func (ea expectedMachineSetCreateAction) validate(t *testing.T, action clientgot
 		t.Errorf("machine set create action object is not a MachineSet: %t", machineSet)
 		return false
 	}
-	return machineSet.GenerateName == ea.namePrefix
+	if machineSet.GenerateName != ea.namePrefix {
+		return false
+	}
+	if ea.hardwareSpec != nil {
+		if e, a := ea.hardwareSpec, machineSet.Spec.Hardware; !reflect.DeepEqual(e, a) {
+			t.Errorf("unexpected hardware spec: expected %v, got %v", e, a)
+		}
+	}
+	return true
 }
 
 // newExpectedMachineSetCreateAction creates a new expected client
-// action for creating a compute machine set.
+// action for creating a machine set.
 func newExpectedMachineSetCreateAction(cluster *clusteroperator.Cluster, name string) expectedMachineSetCreateAction {
+	return newExpectedMachineSetCreateActionWithHardwareSpec(cluster, name, nil)
+}
+
+// newExpectedMachineSetCreateActionWithHardwareSpec creates a new expected
+// client action for creating a machine set that also validates the hardware
+// spec in the machine set created.
+func newExpectedMachineSetCreateActionWithHardwareSpec(
+	cluster *clusteroperator.Cluster,
+	name string,
+	hardwareSpec *clusteroperator.MachineSetHardwareSpec,
+) expectedMachineSetCreateAction {
 	return expectedMachineSetCreateAction{
-		namePrefix: getNamePrefixForMachineSet(cluster, name),
+		namePrefix:   getNamePrefixForMachineSet(cluster, name),
+		hardwareSpec: hardwareSpec,
 	}
 }
 
@@ -1331,4 +1360,111 @@ func TestSyncClusterComplex(t *testing.T) {
 	)
 
 	validateControllerExpectations(t, "TestSyncClusterComplex", controller, cluster, 3, 3)
+}
+
+// TestSyncClusterMachineSetsHardwareChange tests syncing a cluster when the
+// hardware spec has changed.
+func TestSyncClusterMachineSetsHardwareChange(t *testing.T) {
+	cases := []struct {
+		name             string
+		old              *clusteroperator.MachineSetHardwareSpec
+		newDefault       *clusteroperator.MachineSetHardwareSpec
+		newForMachineSet *clusteroperator.MachineSetHardwareSpec
+		expected         *clusteroperator.MachineSetHardwareSpec
+	}{
+		{
+			name:             "hardware from defaults",
+			old:              newHardwareSpec("instance-type", "ami-name"),
+			newDefault:       newHardwareSpec("instance-type", "ami-name"),
+			newForMachineSet: newHardwareSpec("", ""),
+		},
+		{
+			name:             "hardware from machine set",
+			old:              newHardwareSpec("instance-type", "ami-name"),
+			newDefault:       newHardwareSpec("", ""),
+			newForMachineSet: newHardwareSpec("instance-type", "ami-name"),
+		},
+		{
+			name:             "hardware mixed from default and machine set",
+			old:              newHardwareSpec("instance-type", "ami-name"),
+			newDefault:       newHardwareSpec("instance-type", ""),
+			newForMachineSet: newHardwareSpec("", "ami-name"),
+		},
+		{
+			name:             "hardware from machine set overriding default",
+			old:              newHardwareSpec("instance-type", "ami-name"),
+			newDefault:       newHardwareSpec("overriden-instance-type", "overriden-ami-name"),
+			newForMachineSet: newHardwareSpec("instance-type", "ami-name"),
+		},
+		{
+			name:             "instance type changed for machine set",
+			old:              newHardwareSpec("instance-type", "ami-name"),
+			newDefault:       newHardwareSpec("", ""),
+			newForMachineSet: newHardwareSpec("new-instance-type", "ami-name"),
+			expected:         newHardwareSpec("new-instance-type", "ami-name"),
+		},
+		{
+			name:             "ami name type changed for machine set",
+			old:              newHardwareSpec("instance-type", "ami-name"),
+			newDefault:       newHardwareSpec("", ""),
+			newForMachineSet: newHardwareSpec("instance-type", "new-ami-name"),
+			expected:         newHardwareSpec("instance-type", "new-ami-name"),
+		},
+		{
+			name:             "instance type changed for default",
+			old:              newHardwareSpec("instance-type", "ami-name"),
+			newDefault:       newHardwareSpec("new-instance-type", "ami-name"),
+			newForMachineSet: newHardwareSpec("", ""),
+			expected:         newHardwareSpec("new-instance-type", "ami-name"),
+		},
+		{
+			name:             "ami name type changed for default",
+			old:              newHardwareSpec("instance-type", "ami-name"),
+			newDefault:       newHardwareSpec("instance-type", "new-ami-name"),
+			newForMachineSet: newHardwareSpec("", ""),
+			expected:         newHardwareSpec("instance-type", "new-ami-name"),
+		},
+		{
+			name:             "changed by overriding for machine set",
+			old:              newHardwareSpec("instance-type", "ami-name"),
+			newDefault:       newHardwareSpec("instance-type", "ami-name"),
+			newForMachineSet: newHardwareSpec("new-instance-type", "new-ami-name"),
+			expected:         newHardwareSpec("new-instance-type", "new-ami-name"),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			controller, clusterStore, machineSetStore, clusterVerStore, _, clusterOperatorClient := newTestController()
+
+			cv := newClusterVer(testClusterVerNS, testClusterVerName, testClusterVerUID)
+			clusterVerStore.Add(cv)
+			cluster := newClusterWithSizes(cv, 1)
+			cluster.Status.MachineSetCount = 1
+			cluster.Spec.DefaultHardwareSpec = tc.newDefault
+			cluster.Spec.MachineSets[0].Hardware = tc.newForMachineSet
+			clusterStore.Add(cluster)
+			machineSets := newMachineSetsWithSizes(nil, cluster, cv, 1)
+			masterMachineSet := machineSets[0]
+			masterMachineSet.Spec.Hardware = tc.old
+			machineSetStore.Add(masterMachineSet)
+
+			controller.syncCluster(getKey(cluster, t))
+
+			expectedActions := []expectedClientAction{}
+			expectedAdditions := 0
+			expectedDeletions := 0
+			if tc.expected != nil {
+				expectedActions = append(expectedActions,
+					newExpectedMachineSetDeleteAction(cluster, "master"),
+					newExpectedMachineSetCreateActionWithHardwareSpec(cluster, "master", tc.expected),
+				)
+				expectedAdditions = 1
+				expectedDeletions = 1
+			}
+
+			validateClientActions(t, "TestSyncClusterMachineSetsHardwareChange."+tc.name, clusterOperatorClient, expectedActions...)
+
+			validateControllerExpectations(t, "TestSyncClusterMachineSetsMutated."+tc.name, controller, cluster, expectedAdditions, expectedDeletions)
+		})
+	}
 }
