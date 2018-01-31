@@ -17,6 +17,7 @@ limitations under the License.
 package cluster
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strings"
@@ -341,26 +342,54 @@ func (ea expectedClusterStatusUpdateAction) resource() schema.GroupVersionResour
 }
 
 func (ea expectedClusterStatusUpdateAction) verb() string {
-	return "update"
+	return "patch"
 }
 
 func (ea expectedClusterStatusUpdateAction) validate(t *testing.T, action clientgotesting.Action) bool {
 	if action.GetSubresource() != "status" {
 		return false
 	}
-	updateAction, ok := action.(clientgotesting.UpdateAction)
+	updateAction, ok := action.(clientgotesting.PatchAction)
 	if !ok {
 		t.Errorf("update action is not an UpdateAction: %t", updateAction)
 		return false
 	}
-	updatedObject := updateAction.GetObject()
-	cluster, ok := updatedObject.(*clusteroperator.Cluster)
-	if !ok {
-		t.Errorf("cluster status update action object is not a Cluster: %t", cluster)
+	patch := map[string]interface{}{}
+	if err := json.Unmarshal(updateAction.GetPatch(), &patch); err != nil {
+		t.Errorf("cannot unmarshal patch: %v. %v", string(updateAction.GetPatch()), err)
 		return true
 	}
-	if e, a := ea.machineSets, cluster.Status.MachineSetCount; e != a {
+	if e, a := 1, len(patch); e != a {
+		t.Errorf("unexpected number of fields in patch: expected %v, got %v", e, a)
+		return true
+	}
+	statusAsInterface := patch["status"]
+	if statusAsInterface == nil {
+		t.Errorf("expected status field in patch")
+		return true
+	}
+	status, ok := statusAsInterface.(map[string]interface{})
+	if !ok {
+		t.Errorf("status field is not an object")
+		return true
+	}
+	if e, a := 1, len(status); e != a {
+		t.Errorf("unexpected number of fields in status field; expected %v, got %v", e, a)
+		return true
+	}
+	machineSetCountAsInterface := status["machineSetCount"]
+	if machineSetCountAsInterface == nil {
+		t.Errorf("expected status.machineSetCount field in patch")
+		return true
+	}
+	machineSetCount, ok := machineSetCountAsInterface.(float64)
+	if !ok {
+		t.Errorf("status.machineSetCount is not an int: %T", machineSetCountAsInterface)
+		return true
+	}
+	if e, a := ea.machineSets, int(machineSetCount); e != a {
 		t.Errorf("unexpected machineSets in cluster update status: expected %v, got %v", e, a)
+		return true
 	}
 	return true
 }

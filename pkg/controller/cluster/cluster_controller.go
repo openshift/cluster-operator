@@ -34,6 +34,7 @@ import (
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/golang/glog"
@@ -370,14 +371,10 @@ func (c *ClusterController) syncCluster(key string) error {
 		manageMachineSetsErr = c.manageMachineSets(filteredMachineSets, cluster)
 	}
 
+	original := cluster
 	cluster = cluster.DeepCopy()
-
-	newStatus := calculateStatus(cluster, filteredMachineSets, manageMachineSetsErr)
-
-	// Always updates status as machine sets come up or die.
-	if _, err := c.updateClusterStatus(cluster, newStatus); err != nil {
-		// Multiple things could lead to this update failing. Requeuing the cluster ensures
-		// returning an error causes a requeue without forcing a hotloop
+	cluster.Status = calculateStatus(cluster, filteredMachineSets, manageMachineSetsErr)
+	if err := c.updateClusterStatus(original, cluster); err != nil {
 		return err
 	}
 
@@ -621,13 +618,8 @@ func getMachineSetKey(machineSet *clusteroperator.MachineSet) string {
 	return fmt.Sprintf("%s/%s", machineSet.Namespace, machineSet.Name)
 }
 
-func (c *ClusterController) updateClusterStatus(cluster *clusteroperator.Cluster, newStatus clusteroperator.ClusterStatus) (*clusteroperator.Cluster, error) {
-	if cluster.Status.MachineSetCount == newStatus.MachineSetCount &&
-		cluster.Status.MasterMachineSetName == newStatus.MasterMachineSetName &&
-		cluster.Status.InfraMachineSetName == newStatus.InfraMachineSetName {
-		return cluster, nil
-	}
-
-	cluster.Status = newStatus
-	return c.client.ClusteroperatorV1alpha1().Clusters(cluster.Namespace).UpdateStatus(cluster)
+func (c *ClusterController) updateClusterStatus(original, cluster *clusteroperator.Cluster) error {
+	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		return controller.PatchClusterStatus(c.client, original, cluster)
+	})
 }
