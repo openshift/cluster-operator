@@ -394,6 +394,8 @@ func (c *jobControl) deleteOldJobs(ownerKey string, oldJobs []*kbatch.Job, logge
 	}
 	wg.Wait()
 
+	c.deleteConfigMapsForJobs(oldJobs, logger)
+
 	select {
 	case err := <-errCh:
 		// all errors have been reported before and they're likely to be the same, so we'll only return the first one we hit.
@@ -404,6 +406,28 @@ func (c *jobControl) deleteOldJobs(ownerKey string, oldJobs []*kbatch.Job, logge
 	}
 
 	return nil
+}
+
+func (c *jobControl) deleteConfigMapsForJobs(oldJobs []*kbatch.Job, logger log.FieldLogger) {
+	var wg sync.WaitGroup
+	wg.Add(len(oldJobs))
+	for i, j := range oldJobs {
+		go func(ix int, job *kbatch.Job) {
+			defer wg.Done()
+			for _, volume := range job.Spec.Template.Spec.Volumes {
+				if volume.ConfigMap == nil {
+					continue
+				}
+				if err := c.kubeClient.CoreV1().ConfigMaps(job.Namespace).Delete(volume.ConfigMap.Name, &metav1.DeleteOptions{}); err != nil {
+					logger.WithFields(log.Fields{
+						"job":       fmt.Sprintf("%s/%s", job.Namespace, job.Name),
+						"configmap": fmt.Sprintf("%s/%s", job.Namespace, volume.ConfigMap.Name),
+					}).Infof("could not delete configmap for job: %v", err)
+				}
+			}
+		}(i, j)
+	}
+	wg.Wait()
 }
 
 func jobOwnerGeneration(job *kbatch.Job) int64 {
