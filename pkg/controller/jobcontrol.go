@@ -38,6 +38,17 @@ import (
 	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 )
 
+type JobControlResult string
+
+const (
+	JobControlPendingExpectations JobControlResult = "PendingExpectations"
+	JobControlNoWork              JobControlResult = "NoWork"
+	JobControlJobWorking          JobControlResult = "JobWorking"
+	JobControlCreatingJob         JobControlResult = "CreatingJob"
+	JobControlDeletingJobs        JobControlResult = "DeletingJobs"
+	JobControlLostCurrentJob      JobControlResult = "LostCurrentJob"
+)
+
 // JobControl is used to control jobs that are needed by a controller.
 type JobControl interface {
 	// OnAdd from ResourceEventHandler for a Job informer
@@ -51,20 +62,23 @@ type JobControl interface {
 	//
 	// ownerKey: key to identify the owner (namespace/name)
 	// owner: owner owning the jobs
+	// currentJobName: name of the current job for the owner. Or an empty
+	//   string if there is not a current job.
 	// buildNewJob: true if a new job should be built if one does not already
 	//   exist
 	// jobFactory: function to call to build a new job
 	//
 	// Return:
+	//  (JobControlResult) result of control
 	//  (*kbatch.Job) current job
-	//  (bool) true if the current job was newly created
 	//  (error) error that prevented handling the jobs
 	ControlJobs(
 		ownerKey string,
 		owner metav1.Object,
+		currentJobName string,
 		buildNewJob bool,
 		jobFactory JobFactory,
-	) (*kbatch.Job, bool, error)
+	) (JobControlResult, *kbatch.Job, error)
 
 	// ObserveOwnerDeletion observes that the owner with the specified key was
 	// deleted.
@@ -128,13 +142,22 @@ func NewJobControl(
 	}
 }
 
-func (c *jobControl) ControlJobs(ownerKey string, owner metav1.Object, buildNewJob bool, jobFactory JobFactory) (*kbatch.Job, bool, error) {
+func (c *jobControl) ControlJobs(
+	ownerKey string,
+	owner metav1.Object,
+	currentJobName string,
+	buildNewJob bool,
+	jobFactory JobFactory,
+) (JobControlResult, *kbatch.Job, error) {
+
 	logger := loggerForOwner(c.logger, owner)
 
+	// If there are expectations of creating or deleting jobs that have not
+	// yet been met, then do not do anything while we wait for those
+	// expectations to be met.
 	if !c.expectations.SatisfiedExpectations(ownerKey) {
-		// expectations have not been met, come back later
 		logger.Debugln("expectations have not been satisfied yet")
-		return nil, false, nil
+		return JobControlPendingExpectations, nil, nil
 	}
 
 	// Look through jobs that belong to the owner and that match the type
@@ -143,11 +166,12 @@ func (c *jobControl) ControlJobs(ownerKey string, owner metav1.Object, buildNewJ
 	// generation, sync the owner status with the job's latest status.
 	// If the job does not correspond to the owner's current generation,
 	// delete the job.
-	oldJobs := []*kbatch.Job{}
+	jobsToDelete := []*kbatch.Job{}
 	var currentJob *kbatch.Job
+	var generationJob *kbatch.Job
 	jobs, err := c.jobsLister.Jobs(owner.GetNamespace()).List(labels.Everything())
 	if err != nil {
-		return nil, false, err
+		return JobControlResult(""), nil, err
 	}
 	for _, job := range jobs {
 		if !metav1.IsControlledBy(job, owner) {
@@ -156,29 +180,50 @@ func (c *jobControl) ControlJobs(ownerKey string, owner metav1.Object, buildNewJ
 		if !c.isControlledJob(job) {
 			continue
 		}
-		if jobOwnerGeneration(job) == owner.GetGeneration() {
+		if job.Name == currentJobName {
 			currentJob = job
+		}
+		if jobOwnerGeneration(job) == owner.GetGeneration() {
+			generationJob = job
 		} else {
-			loggerForJob(logger, job).
-				Debugln("found job that does not correspond to owner's current generation")
-			oldJobs = append(oldJobs, job)
+			jobsToDelete = append(jobsToDelete, job)
 		}
 	}
 
-	if len(oldJobs) > 0 {
-		return nil, false, c.deleteOldJobs(ownerKey, oldJobs, logger)
+	// Job exists for the current generation of the owner.
+	if generationJob != nil {
+		loggerForJob(logger, generationJob).Debug("job working")
+		return JobControlJobWorking, generationJob, nil
 	}
 
-	if currentJob != nil {
-		return currentJob, false, nil
+	// There is a current job associated with the owner, but it was not found.
+	// The current job has been lost. Do not do anything more until the
+	// association with the lost job is cleaned up.
+	if currentJobName != "" && currentJob == nil {
+		logger.WithField("job", fmt.Sprintf("%s/%s", owner.GetNamespace(), currentJobName)).
+			Debug("lost current job")
+		return JobControlLostCurrentJob, nil, nil
 	}
 
+	// There are existing jobs for previous generations of the owner. All the
+	// jobs need to be deleted. A job to process the current generation of the
+	// owner cannot be started until all outstanding jobs are deleted.
+	if len(jobsToDelete) > 0 {
+		logger.Debugf("deleting %d old jobs", len(jobsToDelete))
+		err := c.deleteOldJobs(ownerKey, jobsToDelete, logger)
+		return JobControlDeletingJobs, nil, err
+	}
+
+	// The owner needs a job to process its current generaton. A job needs to
+	// be created to do this processing.
 	if buildNewJob {
-		job, err := c.createJob(ownerKey, owner, jobFactory, logger)
-		return job, job != nil, err
+		logger.Debugf("building new job")
+		_, err := c.createJob(ownerKey, owner, jobFactory, logger)
+		return JobControlCreatingJob, nil, err
 	}
 
-	return nil, false, nil
+	// The owner is up to date and does not have any outstanding jobs.
+	return JobControlNoWork, nil, nil
 }
 
 func (c *jobControl) ObserveOwnerDeletion(ownerKey string) {

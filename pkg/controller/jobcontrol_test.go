@@ -181,15 +181,15 @@ func newTestConfigMap(name string) *kapi.ConfigMap {
 func TestJobControlWithoutNeedForNewJob(t *testing.T) {
 	jobControl, _, _, _, _, _, loggerHook := newTestJobControl(testJobPrefix, testOwnerKind)
 	testOwner := newTestOwner(1)
-	job, isNew, err := jobControl.ControlJobs(testOwnerKey, testOwner, false, nil)
+	result, job, err := jobControl.ControlJobs(testOwnerKey, testOwner, "", false, nil)
 	if err != nil {
 		t.Fatalf("no error expected: %v", err)
 	}
+	if e, a := JobControlNoWork, result; e != a {
+		t.Fatalf("unexpected job control result: expected %v, got %v", e, a)
+	}
 	if job != nil {
 		t.Fatalf("no job expected: %v", job)
-	}
-	if isNew {
-		t.Fatalf("job should not be created")
 	}
 	assert.Empty(t, getDireLogEntries(loggerHook), "unexpected dire log entries")
 }
@@ -201,15 +201,15 @@ func TestJobControlWithPendingExpectations(t *testing.T) {
 	testOwner := newTestOwner(1)
 	jobControl.expectations.ExpectCreations(testOwnerKey, 1)
 	jobFactory := newTestJobFactory(nil, nil, nil)
-	job, isNew, err := jobControl.ControlJobs(testOwnerKey, testOwner, true, jobFactory)
+	result, job, err := jobControl.ControlJobs(testOwnerKey, testOwner, "", true, jobFactory)
 	if err != nil {
 		t.Fatalf("no error expected: %v", err)
 	}
+	if e, a := JobControlPendingExpectations, result; e != a {
+		t.Fatalf("unexpected job control result: expected %v, got %v", e, a)
+	}
 	if job != nil {
 		t.Fatalf("no job expected: %v", job)
-	}
-	if isNew {
-		t.Fatalf("job should not be created")
 	}
 	if len(jobFactory.calls) > 0 {
 		t.Fatalf("should not build new jobs while expectations pending")
@@ -225,21 +225,18 @@ func TestJobControlForNewJob(t *testing.T) {
 	newJob := newTestJob("new-job")
 	newConfigMap := newTestConfigMap("new-configmap")
 	jobFactory := newTestJobFactory(newJob, newConfigMap, nil)
-	job, isNew, err := jobControl.ControlJobs(testOwnerKey, testOwner, true, jobFactory)
+	result, job, err := jobControl.ControlJobs(testOwnerKey, testOwner, "", true, jobFactory)
 	if err != nil {
 		t.Fatalf("no error expected: %v", err)
 	}
-	if job == nil {
-		t.Fatalf("job expected")
+	if e, a := JobControlCreatingJob, result; e != a {
+		t.Fatalf("unexpected job control result: expected %v, got %v", e, a)
 	}
-	if !isNew {
-		t.Fatalf("job should be created")
+	if job != nil {
+		t.Fatalf("no job expected: %v", job)
 	}
 	if e, a := 1, len(jobFactory.calls); e != a {
 		t.Fatalf("unexpected number of calls to build jobs: expected %v, got %v", e, a)
-	}
-	if e, a := newJob.Name, job.Name; e != a {
-		t.Fatalf("unexpected job created: expected %v, got %v", e, a)
 	}
 	actions := kubeClient.Actions()
 	if e, a := 2, len(actions); e != a {
@@ -286,15 +283,15 @@ func TestJobControlForExistingJob(t *testing.T) {
 	newJob := newTestJob("new-job")
 	newConfigMap := newTestConfigMap("new-configmap")
 	jobFactory := newTestJobFactory(newJob, newConfigMap, nil)
-	job, isNew, err := jobControl.ControlJobs(testOwnerKey, testOwner, true, jobFactory)
+	result, job, err := jobControl.ControlJobs(testOwnerKey, testOwner, existingJob.Name, true, jobFactory)
 	if err != nil {
 		t.Fatalf("no error expected: %v", err)
 	}
+	if e, a := JobControlJobWorking, result; e != a {
+		t.Fatalf("unexpected job control result: expected %v, got %v", e, a)
+	}
 	if job == nil {
 		t.Fatalf("job expected")
-	}
-	if isNew {
-		t.Fatalf("job should not be created")
 	}
 	if e, a := 0, len(jobFactory.calls); e != a {
 		t.Fatalf("unexpected number of calls to build jobs: expected %v, got %v", e, a)
@@ -319,9 +316,12 @@ func TestJobControlForExistingOldJob(t *testing.T) {
 	newJob := newTestJob("new-job")
 	newConfigMap := newTestConfigMap("new-configmap")
 	jobFactory := newTestJobFactory(newJob, newConfigMap, nil)
-	job, _, err := jobControl.ControlJobs(testOwnerKey, testOwner, true, jobFactory)
+	result, job, err := jobControl.ControlJobs(testOwnerKey, testOwner, existingJob.Name, true, jobFactory)
 	if err != nil {
 		t.Fatalf("no error expected: %v", err)
+	}
+	if e, a := JobControlDeletingJobs, result; e != a {
+		t.Fatalf("unexpected job control result: expected %v, got %v", e, a)
 	}
 	if job != nil {
 		t.Fatalf("unexpected job: %v", job)
@@ -359,9 +359,12 @@ func TestJobControlWhenJobDeleteFails(t *testing.T) {
 	newJob := newTestJob("new-job")
 	newConfigMap := newTestConfigMap("new-configmap")
 	jobFactory := newTestJobFactory(newJob, newConfigMap, nil)
-	_, _, err := jobControl.ControlJobs(testOwnerKey, testOwner, true, jobFactory)
+	result, _, err := jobControl.ControlJobs(testOwnerKey, testOwner, existingJob.Name, true, jobFactory)
 	if err == nil {
 		t.Fatalf("error expected")
+	}
+	if e, a := JobControlDeletingJobs, result; e != a {
+		t.Fatalf("unexpected job control result: expected %v, got %v", e, a)
 	}
 	if e, a := "delete failed", err.Error(); e != a {
 		t.Fatalf("unexpected error: expected %v, got %v", e, a)

@@ -34,7 +34,6 @@ import (
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/client-go/util/retry"
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/golang/glog"
@@ -275,27 +274,6 @@ func (c *ClusterController) enqueue(cluster *clusteroperator.Cluster) {
 	c.queue.Add(key)
 }
 
-func (c *ClusterController) enqueueRateLimited(cluster *clusteroperator.Cluster) {
-	key, err := controller.KeyFunc(cluster)
-	if err != nil {
-		utilruntime.HandleError(fmt.Errorf("Couldn't get key for object %#v: %v", cluster, err))
-		return
-	}
-
-	c.queue.AddRateLimited(key)
-}
-
-// enqueueAfter will enqueue a cluster after the provided amount of time.
-func (c *ClusterController) enqueueAfter(cluster *clusteroperator.Cluster, after time.Duration) {
-	key, err := controller.KeyFunc(cluster)
-	if err != nil {
-		utilruntime.HandleError(fmt.Errorf("Couldn't get key for object %#v: %v", cluster, err))
-		return
-	}
-
-	c.queue.AddAfter(key, after)
-}
-
 // worker runs a worker thread that just dequeues items, processes them, and marks them done.
 // It enforces that the syncHandler is never invoked concurrently with the same key.
 func (c *ClusterController) worker() {
@@ -374,7 +352,7 @@ func (c *ClusterController) syncCluster(key string) error {
 	original := cluster
 	cluster = cluster.DeepCopy()
 	cluster.Status = calculateStatus(cluster, filteredMachineSets, manageMachineSetsErr)
-	if err := c.updateClusterStatus(original, cluster); err != nil {
+	if err := controller.PatchClusterStatus(c.client, original, cluster); err != nil {
 		return err
 	}
 
@@ -616,10 +594,4 @@ func findMachineSetWithPrefix(machineSets []*clusteroperator.MachineSet, prefix 
 
 func getMachineSetKey(machineSet *clusteroperator.MachineSet) string {
 	return fmt.Sprintf("%s/%s", machineSet.Namespace, machineSet.Name)
-}
-
-func (c *ClusterController) updateClusterStatus(original, cluster *clusteroperator.Cluster) error {
-	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		return controller.PatchClusterStatus(c.client, original, cluster)
-	})
 }

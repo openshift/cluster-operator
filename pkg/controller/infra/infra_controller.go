@@ -32,7 +32,6 @@ import (
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/client-go/util/retry"
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/golang/glog"
@@ -250,12 +249,6 @@ func (c *InfraController) handleErr(err error, key interface{}) {
 	c.queue.Forget(key)
 }
 
-func (c *InfraController) updateClusterStatus(original, cluster *clusteroperator.Cluster) error {
-	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		return controller.PatchClusterStatus(c.coClient, original, cluster)
-	})
-}
-
 type jobOwnerControl struct {
 	controller *InfraController
 }
@@ -324,15 +317,6 @@ type jobSyncStrategy struct {
 	controller *InfraController
 }
 
-func (s *jobSyncStrategy) EnqueueOwner(owner metav1.Object) {
-	cluster, ok := owner.(*clusteroperator.Cluster)
-	if !ok {
-		s.controller.logger.Warn("could not convert owner from JobSync into a cluster: %#v", owner)
-		return
-	}
-	s.controller.enqueue(cluster)
-}
-
 func (s *jobSyncStrategy) GetOwner(key string) (metav1.Object, error) {
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -361,15 +345,29 @@ func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object) (controller.JobFact
 	return s.controller.getProvisionJobFactory(cluster), nil
 }
 
-func (s *jobSyncStrategy) GetOwnerJobSyncConditionStatus(owner metav1.Object, conditionType controller.JobSyncConditionType) bool {
+func (s *jobSyncStrategy) GetOwnerCurrentJob(owner metav1.Object) string {
 	cluster, ok := owner.(*clusteroperator.Cluster)
 	if !ok {
 		s.controller.logger.Warn("could not convert owner from JobSync into a cluster: %#v", owner)
-		return false
+		return ""
 	}
-	clusterConditionType := convertJobSyncConditionType(conditionType)
-	condition := controller.FindClusterCondition(cluster, clusterConditionType)
-	return condition != nil && condition.Status == kapi.ConditionTrue
+	if cluster.Status.ProvisionJob == nil {
+		return ""
+	}
+	return cluster.Status.ProvisionJob.Name
+}
+
+func (s *jobSyncStrategy) SetOwnerCurrentJob(owner metav1.Object, jobName string) {
+	cluster, ok := owner.(*clusteroperator.Cluster)
+	if !ok {
+		s.controller.logger.Warn("could not convert owner from JobSync into a cluster: %#v", owner)
+		return
+	}
+	if jobName == "" {
+		cluster.Status.ProvisionJob = nil
+	} else {
+		cluster.Status.ProvisionJob = &kapi.LocalObjectReference{Name: jobName}
+	}
 }
 
 func (s *jobSyncStrategy) DeepCopyOwner(owner metav1.Object) metav1.Object {
@@ -387,7 +385,7 @@ func (s *jobSyncStrategy) SetOwnerJobSyncCondition(
 	status kapi.ConditionStatus,
 	reason string,
 	message string,
-	updateConditionCheck ...controller.UpdateConditionCheck,
+	updateConditionCheck controller.UpdateConditionCheck,
 ) {
 	cluster, ok := owner.(*clusteroperator.Cluster)
 	if !ok {
@@ -400,7 +398,7 @@ func (s *jobSyncStrategy) SetOwnerJobSyncCondition(
 		status,
 		reason,
 		message,
-		updateConditionCheck...,
+		updateConditionCheck,
 	)
 }
 
@@ -443,7 +441,7 @@ func (s *jobSyncStrategy) UpdateOwnerStatus(original, owner metav1.Object) error
 		cluster.ObjectMeta.Finalizers = finalizers.List()
 	}
 
-	return s.controller.updateClusterStatus(originalCluster, cluster)
+	return controller.PatchClusterStatus(s.controller.coClient, originalCluster, cluster)
 }
 
 func (s *jobSyncStrategy) ProcessDeletedOwner(owner metav1.Object) error {
@@ -462,7 +460,9 @@ func (s *jobSyncStrategy) ProcessDeletedOwner(owner metav1.Object) error {
 	// Clear the finalizer for the cluster
 	finalizers.Delete(clusteroperator.FinalizerClusterOperator)
 	cluster.ObjectMeta.Finalizers = finalizers.List()
-	s.controller.updateClusterStatus(originalCluster, cluster)
+	if err := controller.PatchClusterStatus(s.controller.coClient, originalCluster, cluster); err != nil {
+		return err
+	}
 
 	return s.controller.runDeprovisionJob(cluster)
 }

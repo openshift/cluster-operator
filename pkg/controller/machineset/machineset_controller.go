@@ -31,7 +31,6 @@ import (
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/client-go/util/retry"
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/golang/glog"
@@ -346,15 +345,6 @@ type jobSyncStrategy struct {
 	controller *MachineSetController
 }
 
-func (s *jobSyncStrategy) EnqueueOwner(owner metav1.Object) {
-	machineSet, ok := owner.(*clusteroperator.MachineSet)
-	if !ok {
-		s.controller.logger.Warn("could not convert owner from JobSync into a machineset: %#v", owner)
-		return
-	}
-	s.controller.enqueue(machineSet)
-}
-
 func (s *jobSyncStrategy) GetOwner(key string) (metav1.Object, error) {
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -442,15 +432,29 @@ func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object) (controller.JobFact
 	}), nil
 }
 
-func (s *jobSyncStrategy) GetOwnerJobSyncConditionStatus(owner metav1.Object, conditionType controller.JobSyncConditionType) bool {
+func (s *jobSyncStrategy) GetOwnerCurrentJob(owner metav1.Object) string {
 	machineSet, ok := owner.(*clusteroperator.MachineSet)
 	if !ok {
 		s.controller.logger.Warn("could not convert owner from JobSync into a machineset: %#v", owner)
-		return false
+		return ""
 	}
-	machineSetConditionType := convertJobSyncConditionType(conditionType)
-	condition := controller.FindMachineSetCondition(machineSet, machineSetConditionType)
-	return condition != nil && condition.Status == kapi.ConditionTrue
+	if machineSet.Status.ProvisionJob == nil {
+		return ""
+	}
+	return machineSet.Status.ProvisionJob.Name
+}
+
+func (s *jobSyncStrategy) SetOwnerCurrentJob(owner metav1.Object, jobName string) {
+	machineSet, ok := owner.(*clusteroperator.MachineSet)
+	if !ok {
+		s.controller.logger.Warn("could not convert owner from JobSync into a machineset: %#v", owner)
+		return
+	}
+	if jobName == "" {
+		machineSet.Status.ProvisionJob = nil
+	} else {
+		machineSet.Status.ProvisionJob = &kapi.LocalObjectReference{Name: jobName}
+	}
 }
 
 func (s *jobSyncStrategy) DeepCopyOwner(owner metav1.Object) metav1.Object {
@@ -468,7 +472,7 @@ func (s *jobSyncStrategy) SetOwnerJobSyncCondition(
 	status kapi.ConditionStatus,
 	reason string,
 	message string,
-	updateConditionCheck ...controller.UpdateConditionCheck,
+	updateConditionCheck controller.UpdateConditionCheck,
 ) {
 	machineSet, ok := owner.(*clusteroperator.MachineSet)
 	if !ok {
@@ -481,7 +485,7 @@ func (s *jobSyncStrategy) SetOwnerJobSyncCondition(
 		status,
 		reason,
 		message,
-		updateConditionCheck...,
+		updateConditionCheck,
 	)
 }
 
@@ -516,7 +520,7 @@ func (s *jobSyncStrategy) UpdateOwnerStatus(original, owner metav1.Object) error
 	if !ok {
 		return fmt.Errorf("could not convert owner from JobSync into a machineset")
 	}
-	return s.controller.updateMachineSetStatus(originalMachineSet, machineSet)
+	return controller.PatchMachineSetStatus(s.controller.client, originalMachineSet, machineSet)
 }
 
 func (s *jobSyncStrategy) ProcessDeletedOwner(owner metav1.Object) error {
@@ -534,12 +538,6 @@ func convertJobSyncConditionType(conditionType controller.JobSyncConditionType) 
 	default:
 		return clusteroperator.MachineSetConditionType("")
 	}
-}
-
-func (c *MachineSetController) updateMachineSetStatus(original, machineSet *clusteroperator.MachineSet) error {
-	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		return controller.PatchMachineSetStatus(c.client, original, machineSet)
-	})
 }
 
 func loggerForMachineSet(logger log.FieldLogger, machineSet *clusteroperator.MachineSet) log.FieldLogger {

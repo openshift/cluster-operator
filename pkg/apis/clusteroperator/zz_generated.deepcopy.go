@@ -252,6 +252,15 @@ func (in *ClusterStatus) DeepCopyInto(out *ClusterStatus) {
 			**out = **in
 		}
 	}
+	if in.ProvisionJob != nil {
+		in, out := &in.ProvisionJob, &out.ProvisionJob
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(v1.LocalObjectReference)
+			**out = **in
+		}
+	}
 	if in.Conditions != nil {
 		in, out := &in.Conditions, &out.Conditions
 		*out = make([]ClusterCondition, len(*in))
@@ -615,6 +624,24 @@ func (in *MachineSetStatus) DeepCopyInto(out *MachineSetStatus) {
 		*out = make([]MachineSetCondition, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
+	if in.InstallationJob != nil {
+		in, out := &in.InstallationJob, &out.InstallationJob
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(v1.LocalObjectReference)
+			**out = **in
+		}
+	}
+	if in.ProvisionJob != nil {
+		in, out := &in.ProvisionJob, &out.ProvisionJob
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(v1.LocalObjectReference)
+			**out = **in
 		}
 	}
 	return
