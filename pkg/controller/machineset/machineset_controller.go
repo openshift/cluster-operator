@@ -501,6 +501,9 @@ func (s *jobSyncStrategy) OnJobFailure(owner metav1.Object) {
 		s.controller.logger.Warn("could not convert owner from JobSync into a machineset: %#v", owner)
 		return
 	}
+	// ProvisionedJobGeneration is set even when the job failed because we
+	// do not want to run the provision job again until there have been
+	// changes in the spec of the machine set.
 	machineSet.Status.ProvisionedJobGeneration = machineSet.Generation
 }
 
