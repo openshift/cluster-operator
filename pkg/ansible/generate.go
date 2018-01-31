@@ -38,9 +38,6 @@ openshift_master_bootstrap_enabled: True
 openshift_hosted_router_wait: False
 openshift_hosted_registry_wait: False
 
-openshift_master_api_port: 443
-openshift_master_console_port: 443
-
 ################################################################################
 # cluster specific settings
 ################################################################################
