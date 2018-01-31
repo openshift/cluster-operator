@@ -19,6 +19,12 @@ func PatchClusterStatus(c clusteroperatorclientset.Interface, oldCluster, newClu
 	if err != nil {
 		return err
 	}
+
+	// Do not send patch request if there is nothing to patch
+	if string(patchBytes) == "{}" {
+		return nil
+	}
+
 	logger.Debugf("about to patch cluster with %s", string(patchBytes))
 	_, err = c.Clusteroperator().Clusters(newCluster.Namespace).Patch(newCluster.Name, types.StrategicMergePatchType, patchBytes, "status")
 	if err != nil {
@@ -53,6 +59,12 @@ func PatchMachineSetStatus(c clusteroperatorclientset.Interface, oldMachineSet, 
 	if err != nil {
 		return err
 	}
+
+	// Do not send patch request if there is nothing to patch
+	if string(patchBytes) == "{}" {
+		return nil
+	}
+
 	logger.Debugf("about to patch machineset with %s", string(patchBytes))
 	_, err = c.Clusteroperator().MachineSets(newMachineSet.Namespace).Patch(newMachineSet.Name, types.StrategicMergePatchType, patchBytes, "status")
 	if err != nil {
