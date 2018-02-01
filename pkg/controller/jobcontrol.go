@@ -38,6 +38,8 @@ import (
 	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 )
 
+//go:generate mockgen -source=./jobcontrol.go -destination=./mockjobcontrol_generated_test.go -package=controller
+
 type JobControlResult string
 
 const (

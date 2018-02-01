@@ -1,5 +1,5 @@
 hash: 474ef6ca0a4e12e5e99a1fa15a4a65c90aa0d4c457b4c2ef5ac15cebbd1539c4
-updated: 2018-01-04T11:24:54.137841228-05:00
+updated: 2018-02-01T09:47:48.299827512-05:00
 imports:
 - name: bitbucket.org/ww/goautoneg
   version: 75cd24fc2f2c2a2088577d12123ddee5f54e0675
@@ -119,6 +119,10 @@ imports:
   version: 02826c3e79038b59d737d3b1c0a1d937f71a4433
   subpackages:
   - lru
+- name: github.com/golang/mock
+  version: b3e60bcdc577185fce3cf625fc96b62857ce5574
+  subpackages:
+  - gomock
 - name: github.com/golang/protobuf
   version: 1643683e1b54a9e88ad26d98f81400c8c9d9f4f9
   subpackages:
@@ -140,9 +144,9 @@ imports:
   - compiler
   - extensions
 - name: github.com/gorilla/context
-  version: 08b5f424b9271eedf6f9f0ce86cb9396ed337a42
+  version: 215affda49addc4c8ef7e2534915df2c8c35c6cd
 - name: github.com/gorilla/mux
-  version: 7f08801859139f86dfafd1c296e2cba9a80d292e
+  version: 8096f47503459bcc74d1f4c487b7e6e42e5746b5
 - name: github.com/gregjones/httpcache
   version: 787624de3eb7bd915c329cba748687a3b22666a6
   subpackages:
@@ -174,7 +178,7 @@ imports:
 - name: github.com/karlseguin/ccache
   version: 3ba9789cfd2cb7b4fb4657efc994cc1c599a648c
 - name: github.com/kubernetes/repo-infra
-  version: 2d2eb5e12b4663fc4d764b5db9daab39334d3f37
+  version: e26fc85d14a1d3dc25569831acc06919673c545a
 - name: github.com/mailru/easyjson
   version: 2f5df55504ebc322e4d52d34df6a1f5b503bf26d
   subpackages:
@@ -219,6 +223,8 @@ imports:
   version: 5bd2802263f21d8788851d5305584c82a5c75d7e
 - name: github.com/sirupsen/logrus
   version: f006c2ac4710855cf0f916dd6b77acf6b048dc6e
+  subpackages:
+  - hooks/test
 - name: github.com/spf13/cobra
   version: f62e98d28ab7ad31d707ba837a966378465c7b57
 - name: github.com/spf13/pflag
@@ -633,6 +639,7 @@ imports:
   - util/flowcontrol
   - util/homedir
   - util/integer
+  - util/retry
   - util/workqueue
 - name: k8s.io/code-generator
   version: fef8bcdbaf36ac6a1a18c9ef7d85200b249fad30

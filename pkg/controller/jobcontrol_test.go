@@ -18,7 +18,6 @@ package controller
 
 import (
 	"fmt"
-	"runtime"
 	"strconv"
 	"testing"
 
@@ -37,6 +36,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	"github.com/openshift/cluster-operator/test"
 )
 
 const (
@@ -123,7 +123,7 @@ func newTestJobControl(jobPrefix string, ownerKind schema.GroupVersionKind) (
 
 	jobOwnerControl := &testJobOwnerControl{}
 
-	logger, hook := getTestLogger()
+	logger, hook := test.Logger()
 
 	c := NewJobControl(
 		jobPrefix,
@@ -191,7 +191,7 @@ func TestJobControlWithoutNeedForNewJob(t *testing.T) {
 	if job != nil {
 		t.Fatalf("no job expected: %v", job)
 	}
-	assert.Empty(t, getDireLogEntries(loggerHook), "unexpected dire log entries")
+	assert.Empty(t, test.GetDireLogEntries(loggerHook), "unexpected dire log entries")
 }
 
 // TestJobControlWithPendingExpectations tests controlling jobs when there
@@ -214,7 +214,7 @@ func TestJobControlWithPendingExpectations(t *testing.T) {
 	if len(jobFactory.calls) > 0 {
 		t.Fatalf("should not build new jobs while expectations pending")
 	}
-	assert.Empty(t, getDireLogEntries(loggerHook), "unexpected dire log entries")
+	assert.Empty(t, test.GetDireLogEntries(loggerHook), "unexpected dire log entries")
 }
 
 // TestJobControlForNewJob tests controlling jobs when there are no existing
@@ -270,7 +270,7 @@ func TestJobControlForNewJob(t *testing.T) {
 			t.Fatalf("created job does not match expected: expected %v, got %v", e, a)
 		}
 	}
-	assert.Empty(t, getDireLogEntries(loggerHook), "unexpected dire log entries")
+	assert.Empty(t, test.GetDireLogEntries(loggerHook), "unexpected dire log entries")
 }
 
 // TestJobControlForExistingJob tests controlling jobs when there is an
@@ -303,7 +303,7 @@ func TestJobControlForExistingJob(t *testing.T) {
 	if e, a := 0, len(actions); e != a {
 		t.Fatalf("unexpected number of kube client actions: expected %v, got %v", e, a)
 	}
-	assert.Empty(t, getDireLogEntries(loggerHook), "unexpected dire log entries")
+	assert.Empty(t, test.GetDireLogEntries(loggerHook), "unexpected dire log entries")
 }
 
 // TestJobControlForExistingOldJob tests controlling jobs when there is an
@@ -343,7 +343,7 @@ func TestJobControlForExistingOldJob(t *testing.T) {
 			t.Fatalf("deleted job does not match expected: expected %v, got %v", e, a)
 		}
 	}
-	assert.Empty(t, getDireLogEntries(loggerHook), "unexpected dire log entries")
+	assert.Empty(t, test.GetDireLogEntries(loggerHook), "unexpected dire log entries")
 }
 
 // TestJobControlWhenJobDeleteFails tests controlling jobs when the delete
@@ -369,7 +369,7 @@ func TestJobControlWhenJobDeleteFails(t *testing.T) {
 	if e, a := "delete failed", err.Error(); e != a {
 		t.Fatalf("unexpected error: expected %v, got %v", e, a)
 	}
-	assert.Empty(t, getDireLogEntries(loggerHook), "unexpected dire log entries")
+	assert.Empty(t, test.GetDireLogEntries(loggerHook), "unexpected dire log entries")
 }
 
 // TestJobControlWhenControlledJobAdded tests adding a job that is controlled
@@ -388,7 +388,7 @@ func TestJobControlWhenControlledJobAdded(t *testing.T) {
 	newJob := newTestControlledJob(testJobPrefix, "new-job", testOwner, testOwnerKind, 1)
 	jobControl.OnAdd(newJob)
 	assert.True(t, ownerEnqueued, "owner not enqueued")
-	assert.Empty(t, getDireLogEntries(loggerHook), "unexpected dire log entries")
+	assert.Empty(t, test.GetDireLogEntries(loggerHook), "unexpected dire log entries")
 }
 
 // TestJobControlWhenUncontrolledJobAdded tests adding a job that is not
@@ -407,7 +407,7 @@ func TestJobControlWhenUncontrolledJobAdded(t *testing.T) {
 	newJob := newTestJob("new-job")
 	jobControl.OnAdd(newJob)
 	assert.False(t, ownerEnqueued, "owner enqueued unexpectedly")
-	assert.Empty(t, getDireLogEntries(loggerHook), "unexpected dire log entries")
+	assert.Empty(t, test.GetDireLogEntries(loggerHook), "unexpected dire log entries")
 }
 
 // TestJobControlWhenControlledJobAddedWithMissingOwner tests adding a job
@@ -426,7 +426,7 @@ func TestJobControlWhenControlledJobAddedWithMissingOwner(t *testing.T) {
 	newJob := newTestControlledJob(testJobPrefix, "new-job", testOwner, testOwnerKind, 1)
 	jobControl.OnAdd(newJob)
 	assert.False(t, ownerEnqueued, "owner enqueued unexpectedly")
-	assert.NotEmpty(t, getDireLogEntries(loggerHook), "expected dire log entries")
+	assert.NotEmpty(t, test.GetDireLogEntries(loggerHook), "expected dire log entries")
 }
 
 // TestJobControlWhenControlledJobUpdated tests updating a job that is
@@ -445,7 +445,7 @@ func TestJobControlWhenControlledJobUpdated(t *testing.T) {
 	newJob := newTestControlledJob(testJobPrefix, "new-job", testOwner, testOwnerKind, 1)
 	jobControl.OnUpdate(newJob, newJob)
 	assert.True(t, ownerEnqueued, "owner not enqueued")
-	assert.Empty(t, getDireLogEntries(loggerHook), "unexpected dire log entries")
+	assert.Empty(t, test.GetDireLogEntries(loggerHook), "unexpected dire log entries")
 }
 
 // TestJobControlWhenUncontrolledJobUpdated tests updating a job that is not
@@ -464,7 +464,7 @@ func TestJobControlWhenUncontrolledJobUpdated(t *testing.T) {
 	newJob := newTestJob("new-job")
 	jobControl.OnUpdate(newJob, newJob)
 	assert.False(t, ownerEnqueued, "owner enqueued unexpectedly")
-	assert.Empty(t, getDireLogEntries(loggerHook), "unexpected dire log entries")
+	assert.Empty(t, test.GetDireLogEntries(loggerHook), "unexpected dire log entries")
 }
 
 // TestJobControlWhenControlledJobUpdatedWithMissingOwner tests updating a job
@@ -483,7 +483,7 @@ func TestJobControlWhenControlledJobUpdatedWithMissingOwner(t *testing.T) {
 	newJob := newTestControlledJob(testJobPrefix, "new-job", testOwner, testOwnerKind, 1)
 	jobControl.OnUpdate(newJob, newJob)
 	assert.False(t, ownerEnqueued, "owner enqueued unexpectedly")
-	assert.NotEmpty(t, getDireLogEntries(loggerHook), "expected dire log entries")
+	assert.NotEmpty(t, test.GetDireLogEntries(loggerHook), "expected dire log entries")
 }
 
 // TestJobControlWhenControlledJobDeleted tests deleting a job that is
@@ -502,7 +502,7 @@ func TestJobControlWhenControlledJobDeleted(t *testing.T) {
 	newJob := newTestControlledJob(testJobPrefix, "new-job", testOwner, testOwnerKind, 1)
 	jobControl.OnDelete(newJob)
 	assert.True(t, ownerEnqueued, "owner not enqueued")
-	assert.Empty(t, getDireLogEntries(loggerHook), "unexpected dire log entries")
+	assert.Empty(t, test.GetDireLogEntries(loggerHook), "unexpected dire log entries")
 }
 
 // TestJobControlWhenUncontrolledJobDeleted tests deleting a job that is not
@@ -521,7 +521,7 @@ func TestJobControlWhenUncontrolledJobDeleted(t *testing.T) {
 	newJob := newTestJob("new-job")
 	jobControl.OnDelete(newJob)
 	assert.False(t, ownerEnqueued, "owner enqueued unexpectedly")
-	assert.Empty(t, getDireLogEntries(loggerHook), "unexpected dire log entries")
+	assert.Empty(t, test.GetDireLogEntries(loggerHook), "unexpected dire log entries")
 }
 
 // TestJobControlWhenControlledJobDeletedWithMissingOwner tests deleting a job
@@ -540,23 +540,5 @@ func TestJobControlWhenControlledJobDeletedWithMissingOwner(t *testing.T) {
 	newJob := newTestControlledJob(testJobPrefix, "new-job", testOwner, testOwnerKind, 1)
 	jobControl.OnDelete(newJob)
 	assert.False(t, ownerEnqueued, "owner enqueued unexpectedly")
-	assert.NotEmpty(t, getDireLogEntries(loggerHook), "expected dire log entries")
-}
-
-func getTestLogger() (log.FieldLogger, *testlog.Hook) {
-	logger := log.StandardLogger()
-	hook := testlog.NewLocal(logger)
-	function, _, _, _ := runtime.Caller(1)
-	fieldLogger := logger.WithField("test", runtime.FuncForPC(function).Name())
-	return fieldLogger, hook
-}
-
-func getDireLogEntries(hook *testlog.Hook) []*log.Entry {
-	direEntries := []*log.Entry{}
-	for _, entry := range hook.Entries {
-		if entry.Level < log.InfoLevel {
-			direEntries = append(direEntries, entry)
-		}
-	}
-	return direEntries
+	assert.NotEmpty(t, test.GetDireLogEntries(loggerHook), "expected dire log entries")
 }

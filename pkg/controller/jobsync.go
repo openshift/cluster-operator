@@ -66,56 +66,6 @@ const (
 	ReasonSpecChanged = "SpecChanged"
 )
 
-// JobSyncStrategy provides a strategy to the job sync for details on how
-// to sync for the controller.
-type JobSyncStrategy interface {
-	// GetOwner gets the owner object with the specified key.
-	GetOwner(key string) (metav1.Object, error)
-
-	// DoesOwnerNeedProcessing returns true if the owner is not up to date
-	// and needs a processing job to bring the owner up to date.
-	DoesOwnerNeedProcessing(owner metav1.Object) bool
-
-	// GetJobFactory gets a factory for building a job to do the processing.
-	GetJobFactory(owner metav1.Object) (JobFactory, error)
-
-	// GetOwnerCurrentJob gets the name of the current job for the owner. If
-	// there is not a current job, then returns an empty string.
-	GetOwnerCurrentJob(owner metav1.Object) string
-
-	// SetOwnerCurrentJob sets the name of the current job for the owner.
-	SetOwnerCurrentJob(owner metav1.Object, jobName string)
-
-	// DeepCopyOwner returns a deep copy of the owner object.
-	DeepCopyOwner(owner metav1.Object) metav1.Object
-
-	// SetOwnerJobSyncCondition sets the specified condition for the specified
-	// owner.
-	SetOwnerJobSyncCondition(
-		owner metav1.Object,
-		conditionType JobSyncConditionType,
-		status kapi.ConditionStatus,
-		reason string,
-		message string,
-		updateConditionCheck UpdateConditionCheck,
-	)
-
-	// OnJobCompletion is called when the processing job for the owner
-	// completes successfully.
-	OnJobCompletion(owner metav1.Object)
-
-	// OnJobFailure is called when the processing job for the owner fails.
-	OnJobFailure(owner metav1.Object)
-
-	// UpdateOwnerStatus updates the status of the owner from the original
-	// copy to the owner copy.
-	UpdateOwnerStatus(original, owner metav1.Object) error
-
-	// ProcessDeletedOwner processes an owner that has been marked for
-	// deletion.
-	ProcessDeletedOwner(owner metav1.Object) error
-}
-
 type jobSync struct {
 	jobControl JobControl
 	strategy   JobSyncStrategy
@@ -182,8 +132,7 @@ func (s *jobSync) Sync(key string) error {
 	case JobControlCreatingJob, JobControlPendingExpectations, JobControlNoWork:
 		return nil
 	default:
-		logger.Warnf("unknown job control result: %v", jobControlResult)
-		return nil
+		return fmt.Errorf("unknown job control result: %v", jobControlResult)
 	}
 }
 
@@ -213,6 +162,10 @@ func (s *jobSync) setOwnerStatusForOutdatedJob(original metav1.Object) error {
 // If the job is still in progress, the owner will be marked as
 // processing.
 func (s *jobSync) syncOwnerStatusWithJob(owner metav1.Object, job *v1batch.Job) error {
+	if job == nil {
+		return fmt.Errorf("job control result was that a job was working, but no job was returned")
+	}
+
 	jobCompleted := findJobCondition(job, v1batch.JobComplete)
 	if jobCompleted != nil && jobCompleted.Status == kapi.ConditionTrue {
 		return s.setOwnerStatusForCompletedJob(
