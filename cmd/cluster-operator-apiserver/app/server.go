@@ -101,7 +101,7 @@ func CreateServer(opts *options.ClusterOperatorServerRunOptions, stopCh <-chan s
 
 	// make the server
 	glog.V(4).Infoln("Completing API server configuration")
-	server, err := completed.NewServer()
+	server, err := completed.NewServer(stopCh)
 	if err != nil {
 		return nil, fmt.Errorf("error completing API server configuration: %v", err)
 	}

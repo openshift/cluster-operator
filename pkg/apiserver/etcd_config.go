@@ -19,6 +19,8 @@ package apiserver
 import (
 	"github.com/golang/glog"
 	"k8s.io/apiserver/pkg/registry/generic"
+	"k8s.io/apiserver/pkg/registry/generic/registry"
+	"k8s.io/apiserver/pkg/registry/rest"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/apiserver/pkg/server/storage"
 )
@@ -78,7 +80,7 @@ type completedEtcdConfig struct {
 
 // NewServer creates a new server that can be run. Returns a non-nil error if the server couldn't
 // be created
-func (c completedEtcdConfig) NewServer() (*ClusterOperatorAPIServer, error) {
+func (c completedEtcdConfig) NewServer(stopCh <-chan struct{}) (*ClusterOperatorAPIServer, error) {
 	s, err := createSkeletonServer(c.genericConfig)
 	if err != nil {
 		return nil, err
@@ -109,6 +111,21 @@ func (c completedEtcdConfig) NewServer() (*ClusterOperatorAPIServer, error) {
 		glog.V(4).Infof("Installing API group %v", provider.GroupName())
 		if err := s.GenericAPIServer.InstallAPIGroup(groupInfo); err != nil {
 			glog.Fatalf("Error installing API group %v: %v", provider.GroupName(), err)
+		}
+
+		// We've successfully installed, so hook the stopCh to the destroy func of all the sucessfully installed apigroups
+		for _, mappings := range groupInfo.VersionedResourcesStorageMap {
+			for _, storage := range mappings {
+				go func(store rest.Storage) {
+					s, ok := store.(*registry.Store)
+					if ok {
+						// The other end of this channel will close it when we're shutting down,
+						// which results in all of these go funcs becoming unblocked.
+						<-stopCh
+						s.DestroyFunc()
+					}
+				}(storage)
+			}
 		}
 	}
 
