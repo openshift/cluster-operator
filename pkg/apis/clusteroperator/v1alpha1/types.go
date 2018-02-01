@@ -255,6 +255,11 @@ type ClusterStatus struct {
 	// regardless of the job having succeeded or failed.
 	ProvisionedJobGeneration int64 `json:"provisionedJobGeneration"`
 
+	// ProvisionJob is the job that is actively performing provisioning
+	// on the cluster.
+	// +optional
+	ProvisionJob *corev1.LocalObjectReference `json:"provisionJob,omitempty"`
+
 	// Running is true if the master of the cluster is running and can be accessed using
 	// the KubeconfigSecret
 	Running bool `json:"running"`
@@ -403,6 +408,11 @@ type MachineSetStatus struct {
 	// regardless of the job having succeeded or failed.
 	InstalledJobGeneration int64 `json:"installedJobGeneration"`
 
+	// InstallationJob is the job that is actively performing installation
+	// on the machine set.
+	// +optional
+	InstallationJob *corev1.LocalObjectReference `json:"installationJob,omitempty"`
+
 	// Provisioned is true if the hardware that corresponds to this MachineSet has
 	// been provisioned
 	Provisioned bool `json:"provisioned"`
@@ -411,6 +421,11 @@ type MachineSetStatus struct {
 	// to generate the latest completed hardware provisioning job. The value will be set
 	// regardless of the job having succeeded or failed.
 	ProvisionedJobGeneration int64 `json:"provisionedJobGeneration"`
+
+	// ProvisionJob is the job that is actively performing provisioning
+	// on the machine set.
+	// +optional
+	ProvisionJob *corev1.LocalObjectReference `json:"provisionJob,omitempty"`
 }
 
 // MachineSetCondition contains details for the current condition of a MachineSet
@@ -449,6 +464,18 @@ const (
 	// MachineSetHardwareProvisioned is true if the corresponding cloud resource(s) for
 	// this machine set have been provisioned (ie. AWS autoscaling group)
 	MachineSetHardwareProvisioned MachineSetConditionType = "HardwareProvisioned"
+
+	// MachineSetInstalling is true if OpenShift is being installed on
+	// this machine set.
+	MachineSetInstalling MachineSetConditionType = "Installing"
+
+	// MachineSetInstallationFailed is true if the installation of
+	// OpenShift on this machine set failed.
+	MachineSetInstallationFailed MachineSetConditionType = "InstallationFailed"
+
+	// MachineSetInstalled is true if OpenShift has been installed
+	// on this machine set.
+	MachineSetInstalled MachineSetConditionType = "Installed"
 
 	// MachineSetHardwareReady is true if the hardware for the nodegroup is in ready
 	// state (is started and healthy)

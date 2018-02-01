@@ -457,6 +457,12 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Format:      "int64",
 							},
 						},
+						"provisionJob": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ProvisionJob is the job that is actively performing provisioning on the cluster.",
+								Ref:         ref("k8s.io/api/core/v1.LocalObjectReference"),
+							},
+						},
 						"running": {
 							SchemaProps: spec.SchemaProps{
 								Description: "Running is true if the master of the cluster is running and can be accessed using the KubeconfigSecret",
@@ -1025,6 +1031,12 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Format:      "int64",
 							},
 						},
+						"installationJob": {
+							SchemaProps: spec.SchemaProps{
+								Description: "InstallationJob is the job that is actively performing installation on the machine set.",
+								Ref:         ref("k8s.io/api/core/v1.LocalObjectReference"),
+							},
+						},
 						"provisioned": {
 							SchemaProps: spec.SchemaProps{
 								Description: "Provisioned is true if the hardware that corresponds to this MachineSet has been provisioned",
@@ -1039,12 +1051,18 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Format:      "int64",
 							},
 						},
+						"provisionJob": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ProvisionJob is the job that is actively performing provisioning on the machine set.",
+								Ref:         ref("k8s.io/api/core/v1.LocalObjectReference"),
+							},
+						},
 					},
 					Required: []string{"machineCount", "machinesReady", "conditions", "installed", "installedJobGeneration", "provisioned", "provisionedJobGeneration"},
 				},
 			},
 			Dependencies: []string{
-				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetCondition"},
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetCondition", "k8s.io/api/core/v1.LocalObjectReference"},
 		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSpec": {
 			Schema: spec.Schema{

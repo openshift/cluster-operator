@@ -21,6 +21,7 @@ import (
 
 	"github.com/golang/glog"
 
+	lister "github.com/openshift/cluster-operator/pkg/client/listers_generated/clusteroperator/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -29,26 +30,11 @@ import (
 	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 )
 
-const (
-	// ReasonJobRunning is a condition reason used when a job is still
-	// running.
-	ReasonJobRunning = "JobRunning"
-	// ReasonJobCompleted is a condition reason used when a job has been
-	// completed successfully.
-	ReasonJobCompleted = "JobCompleted"
-	// ReasonJobFailed is a condition reason used when a job has failed.
-	ReasonJobFailed = "JobFailed"
-	// ReasonJobMissing is a condition reason used when a job that was
-	// expected to exist does not exist.
-	ReasonJobMissing = "JobMissing"
-	// ReasonSpecChanged is a condition reason used when the spec of an
-	// object changes, invalidating existing jobs.
-	ReasonSpecChanged = "SpecChanged"
-)
-
 var (
 	// KeyFunc returns the key identifying a cluster-operator resource.
 	KeyFunc = cache.DeletionHandlingMetaNamespaceKeyFunc
+
+	clusterKind = clusteroperator.SchemeGroupVersion.WithKind("Cluster")
 )
 
 // WaitForCacheSync is a wrapper around cache.WaitForCacheSync that generates log messages
@@ -66,40 +52,88 @@ func WaitForCacheSync(controllerName string, stopCh <-chan struct{}, cacheSyncs 
 	return true
 }
 
-// SetClusterCondition ensures that the specified cluster has a condition
-// with the specified condition type and status. If there is not a condition
-// with the condition type, then one is added. Otherwise, the
-// existing condition is modified if any of the following are true.
-// 1) Requested status is True.
-// 2) Requested status is different than existing status.
-// 3) Any of the needsToBeUpdated checks return true.
+type Condition struct {
+	Status  corev1.ConditionStatus
+	Reason  string
+	Message string
+}
+
+type UpdateConditionCheck func(old, new Condition) bool
+
+func UpdateConditionAlways(old, new Condition) bool {
+	return true
+}
+
+func UpdateConditionNever(old, new Condition) bool {
+	return false
+}
+
+func UpdateConditionIfReasonOrMessageChange(old, new Condition) bool {
+	return old.Reason != new.Reason ||
+		old.Message != new.Message
+}
+
+func shouldUpdateCondition(
+	oldStatus corev1.ConditionStatus, oldReason, oldMessage string,
+	newStatus corev1.ConditionStatus, newReason, newMessage string,
+	updateConditionCheck UpdateConditionCheck,
+) bool {
+	if oldStatus != newStatus {
+		return true
+	}
+	return updateConditionCheck(
+		Condition{
+			Status:  oldStatus,
+			Reason:  oldReason,
+			Message: oldMessage,
+		},
+		Condition{
+			Status:  oldStatus,
+			Reason:  oldReason,
+			Message: oldMessage,
+		},
+	)
+}
+
+// SetClusterCondition sets the condition for the cluster.
+// If the cluster does not already have a condition with the specified type,
+// a condition will be added to the cluster if and only if the specified
+// status is True.
+// If the cluster does already have a condition with the specified type,
+// the condition will be updated if either of the following are true.
+// 1) Requested status is different than existing status.
+// 2) The updateConditionCheck function returns true.
 func SetClusterCondition(
 	cluster *clusteroperator.Cluster,
 	conditionType clusteroperator.ClusterConditionType,
 	status corev1.ConditionStatus,
 	reason string,
 	message string,
-	needsToBeUpdated ...func(old, new clusteroperator.ClusterCondition) bool,
+	updateConditionCheck UpdateConditionCheck,
 ) {
 	now := metav1.Now()
-	condition := clusteroperator.ClusterCondition{
-		Type:               conditionType,
-		Status:             status,
-		Reason:             reason,
-		Message:            message,
-		LastTransitionTime: now,
-		LastProbeTime:      now,
-	}
 	existingCondition := FindClusterCondition(cluster, conditionType)
 	if existingCondition == nil {
 		if status == corev1.ConditionTrue {
-			cluster.Status.Conditions = append(cluster.Status.Conditions, condition)
+			cluster.Status.Conditions = append(
+				cluster.Status.Conditions,
+				clusteroperator.ClusterCondition{
+					Type:               conditionType,
+					Status:             status,
+					Reason:             reason,
+					Message:            message,
+					LastTransitionTime: now,
+					LastProbeTime:      now,
+				},
+			)
 		}
 	} else {
-		if status != existingCondition.Status ||
-			status == corev1.ConditionTrue ||
-			verifyExtraClusterConditionChecks(*existingCondition, condition, needsToBeUpdated...) {
-			if existingCondition.Status != condition.Status {
+		if shouldUpdateCondition(
+			existingCondition.Status, existingCondition.Reason, existingCondition.Message,
+			status, reason, message,
+			updateConditionCheck,
+		) {
+			if existingCondition.Status != status {
 				existingCondition.LastTransitionTime = now
 			}
 			existingCondition.Status = status
@@ -108,18 +142,6 @@ func SetClusterCondition(
 			existingCondition.LastProbeTime = now
 		}
 	}
-}
-
-func verifyExtraClusterConditionChecks(
-	old, new clusteroperator.ClusterCondition,
-	needsToBeUpdated ...func(old, new clusteroperator.ClusterCondition) bool,
-) bool {
-	for _, check := range needsToBeUpdated {
-		if check(old, new) {
-			return true
-		}
-	}
-	return false
 }
 
 // FindClusterCondition finds in the cluster the condition that has the
@@ -133,40 +155,45 @@ func FindClusterCondition(cluster *clusteroperator.Cluster, conditionType cluste
 	return nil
 }
 
-// SetMachineSetCondition ensures that the specified machine set has a
-// condition with the specified condition type and status. If there is not a
-// condition with the condition type, then one is added. Otherwise, the
-// existing condition is modified if any of the following are true.
-// 1) Requested status is True.
-// 2) Requested status is different than existing status.
-// 3) Any of the needsToBeUpdated checks return true.
+// SetClusterCondition sets the condition for the cluster.
+// If the cluster does not already have a condition with the specified type,
+// a condition will be added to the cluster if and only if the specified
+// status is True.
+// If the cluster does already have a condition with the specified type,
+// the condition will be updated if either of the following are true.
+// 1) Requested status is different than existing status.
+// 2) The updateConditionCheck function returns true.
 func SetMachineSetCondition(
 	machineSet *clusteroperator.MachineSet,
 	conditionType clusteroperator.MachineSetConditionType,
 	status corev1.ConditionStatus,
 	reason string,
 	message string,
-	needsToBeUpdated ...func(old, new clusteroperator.MachineSetCondition) bool,
+	updateConditionCheck UpdateConditionCheck,
 ) {
 	now := metav1.Now()
-	condition := clusteroperator.MachineSetCondition{
-		Type:               conditionType,
-		Status:             status,
-		Reason:             reason,
-		Message:            message,
-		LastTransitionTime: now,
-		LastProbeTime:      now,
-	}
 	existingCondition := FindMachineSetCondition(machineSet, conditionType)
 	if existingCondition == nil {
 		if status == corev1.ConditionTrue {
-			machineSet.Status.Conditions = append(machineSet.Status.Conditions, condition)
+			machineSet.Status.Conditions = append(
+				machineSet.Status.Conditions,
+				clusteroperator.MachineSetCondition{
+					Type:               conditionType,
+					Status:             status,
+					Reason:             reason,
+					Message:            message,
+					LastTransitionTime: now,
+					LastProbeTime:      now,
+				},
+			)
 		}
 	} else {
-		if status != existingCondition.Status ||
-			status == corev1.ConditionTrue ||
-			verifyExtraMachineSetConditionChecks(*existingCondition, condition, needsToBeUpdated...) {
-			if existingCondition.Status != condition.Status {
+		if shouldUpdateCondition(
+			existingCondition.Status, existingCondition.Reason, existingCondition.Message,
+			status, reason, message,
+			updateConditionCheck,
+		) {
+			if existingCondition.Status != status {
 				existingCondition.LastTransitionTime = now
 			}
 			existingCondition.Status = status
@@ -198,4 +225,22 @@ func FindMachineSetCondition(machineSet *clusteroperator.MachineSet, conditionTy
 		}
 	}
 	return nil
+}
+
+// ClusterForMachineSet retrieves the cluster to which a machine set belongs.
+func ClusterForMachineSet(machineSet *clusteroperator.MachineSet, clustersLister lister.ClusterLister) (*clusteroperator.Cluster, error) {
+	controllerRef := metav1.GetControllerOf(machineSet)
+	if controllerRef.Kind != clusterKind.Kind {
+		return nil, nil
+	}
+	cluster, err := clustersLister.Clusters(machineSet.Namespace).Get(controllerRef.Name)
+	if err != nil {
+		return nil, err
+	}
+	if cluster.UID != controllerRef.UID {
+		// The controller we found with this Name is not the same one that the
+		// ControllerRef points to.
+		return nil, nil
+	}
+	return cluster, nil
 }

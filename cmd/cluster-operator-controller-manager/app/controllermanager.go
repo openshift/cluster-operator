@@ -488,7 +488,7 @@ func startMachineSetController(ctx ControllerContext) (bool, error) {
 }
 
 func startMachineController(ctx ControllerContext) (bool, error) {
-	if !ctx.AvailableResources[schema.GroupVersionResource{Group: "clusteroperator.openshift.io", Version: "v1alpha1", Resource: "nodes"}] {
+	if !ctx.AvailableResources[schema.GroupVersionResource{Group: "clusteroperator.openshift.io", Version: "v1alpha1", Resource: "machines"}] {
 		return false, nil
 	}
 	go machine.NewMachineController(
@@ -500,13 +500,17 @@ func startMachineController(ctx ControllerContext) (bool, error) {
 }
 
 func startMasterController(ctx ControllerContext) (bool, error) {
-	if !ctx.AvailableResources[schema.GroupVersionResource{Group: "clusteroperator.openshift.io", Version: "v1alpha1", Resource: "nodes"}] {
+	if !ctx.AvailableResources[schema.GroupVersionResource{Group: "clusteroperator.openshift.io", Version: "v1alpha1", Resource: "machinesets"}] {
 		return false, nil
 	}
 	go master.NewMasterController(
-		ctx.InformerFactory.Clusteroperator().V1alpha1().Machines(),
-		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-master-node-controller"),
-		ctx.ClientBuilder.ClientOrDie("clusteroperator-master-node-controller"),
+		ctx.InformerFactory.Clusteroperator().V1alpha1().Clusters(),
+		ctx.InformerFactory.Clusteroperator().V1alpha1().MachineSets(),
+		ctx.KubeInformerFactory.Batch().V1().Jobs(),
+		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-master-controller"),
+		ctx.ClientBuilder.ClientOrDie("clusteroperator-master-controller"),
+		ctx.Options.AnsibleImage,
+		v1.PullPolicy(ctx.Options.AnsibleImagePullPolicy),
 	).Run(int(ctx.Options.ConcurrentMasterSyncs), ctx.Stop)
 	return true, nil
 }

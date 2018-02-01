@@ -160,27 +160,6 @@ func (c *MachineController) enqueue(machine *clusteroperator.Machine) {
 	c.queue.Add(key)
 }
 
-func (c *MachineController) enqueueRateLimited(machine *clusteroperator.Machine) {
-	key, err := controller.KeyFunc(machine)
-	if err != nil {
-		utilruntime.HandleError(fmt.Errorf("Couldn't get key for object %#v: %v", machine, err))
-		return
-	}
-
-	c.queue.AddRateLimited(key)
-}
-
-// enqueueAfter will enqueue a machine after the provided amount of time.
-func (c *MachineController) enqueueAfter(machine *clusteroperator.Machine, after time.Duration) {
-	key, err := controller.KeyFunc(machine)
-	if err != nil {
-		utilruntime.HandleError(fmt.Errorf("Couldn't get key for object %#v: %v", machine, err))
-		return
-	}
-
-	c.queue.AddAfter(key, after)
-}
-
 // worker runs a worker thread that just dequeues items, processes them, and marks them done.
 // It enforces that the syncHandler is never invoked concurrently with the same key.
 func (c *MachineController) worker() {

@@ -8,12 +8,23 @@ import (
 
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
+	"k8s.io/client-go/util/retry"
 
 	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	clusteroperatorclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
 )
 
-func PatchClusterStatus(c clusteroperatorclientset.Interface, oldCluster, newCluster *clusteroperator.Cluster) error {
+// PatchClusterStatus will patch the cluster with the difference
+// between original and cluster. If the patch request fails due to a
+// conflict, the request will be retried until it succeeds or fails for other
+// reasons.
+func PatchClusterStatus(c clusteroperatorclientset.Interface, original, cluster *clusteroperator.Cluster) error {
+	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		return patchClusterStatus(c, original, cluster)
+	})
+}
+
+func patchClusterStatus(c clusteroperatorclientset.Interface, oldCluster, newCluster *clusteroperator.Cluster) error {
 	logger := log.WithField("cluster", fmt.Sprintf("%s/%s", oldCluster.Namespace, oldCluster.Name))
 	patchBytes, err := preparePatchBytesforClusterStatus(oldCluster, newCluster)
 	if err != nil {
@@ -53,7 +64,17 @@ func preparePatchBytesforClusterStatus(oldCluster, newCluster *clusteroperator.C
 	return patchBytes, nil
 }
 
-func PatchMachineSetStatus(c clusteroperatorclientset.Interface, oldMachineSet, newMachineSet *clusteroperator.MachineSet) error {
+// PatchMachineSetStatus will patch the machine set with the difference
+// between original and machineSet. If the patch request fails due to a
+// conflict, the request will be retried until it succeeds or fails for other
+// reasons.
+func PatchMachineSetStatus(c clusteroperatorclientset.Interface, original, machineSet *clusteroperator.MachineSet) error {
+	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		return patchMachineSetStatus(c, original, machineSet)
+	})
+}
+
+func patchMachineSetStatus(c clusteroperatorclientset.Interface, oldMachineSet, newMachineSet *clusteroperator.MachineSet) error {
 	logger := log.WithField("machineset", fmt.Sprintf("%s/%s", oldMachineSet.Namespace, oldMachineSet.Name))
 	patchBytes, err := preparePatchBytesForMachineSetStatus(oldMachineSet, newMachineSet)
 	if err != nil {

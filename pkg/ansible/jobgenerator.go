@@ -18,6 +18,7 @@ package ansible
 
 import (
 	"path"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 
@@ -208,7 +209,8 @@ func (r *jobGenerator) GeneratePlaybookJob(name string, hardware *clusteroperato
 	}
 
 	completions := int32(1)
-	deadline := int64(60 * 60) // one hour for now
+	deadline := int64((24 * time.Hour).Seconds())
+	backoffLimit := int32(123456) // effectively limitless
 
 	job := &kbatch.Job{
 		ObjectMeta: metav1.ObjectMeta{
@@ -217,6 +219,7 @@ func (r *jobGenerator) GeneratePlaybookJob(name string, hardware *clusteroperato
 		Spec: kbatch.JobSpec{
 			Completions:           &completions,
 			ActiveDeadlineSeconds: &deadline,
+			BackoffLimit:          &backoffLimit,
 			Template: kapi.PodTemplateSpec{
 				Spec: podSpec,
 			},

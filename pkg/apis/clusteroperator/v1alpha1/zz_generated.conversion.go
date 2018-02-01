@@ -346,6 +346,7 @@ func autoConvert_v1alpha1_ClusterStatus_To_clusteroperator_ClusterStatus(in *Clu
 	out.AdminKubeconfig = (*v1.LocalObjectReference)(unsafe.Pointer(in.AdminKubeconfig))
 	out.Provisioned = in.Provisioned
 	out.ProvisionedJobGeneration = in.ProvisionedJobGeneration
+	out.ProvisionJob = (*v1.LocalObjectReference)(unsafe.Pointer(in.ProvisionJob))
 	out.Running = in.Running
 	out.Conditions = *(*[]clusteroperator.ClusterCondition)(unsafe.Pointer(&in.Conditions))
 	return nil
@@ -363,6 +364,7 @@ func autoConvert_clusteroperator_ClusterStatus_To_v1alpha1_ClusterStatus(in *clu
 	out.AdminKubeconfig = (*v1.LocalObjectReference)(unsafe.Pointer(in.AdminKubeconfig))
 	out.Provisioned = in.Provisioned
 	out.ProvisionedJobGeneration = in.ProvisionedJobGeneration
+	out.ProvisionJob = (*v1.LocalObjectReference)(unsafe.Pointer(in.ProvisionJob))
 	out.Running = in.Running
 	out.Conditions = *(*[]ClusterCondition)(unsafe.Pointer(&in.Conditions))
 	return nil
@@ -711,8 +713,10 @@ func autoConvert_v1alpha1_MachineSetStatus_To_clusteroperator_MachineSetStatus(i
 	out.Conditions = *(*[]clusteroperator.MachineSetCondition)(unsafe.Pointer(&in.Conditions))
 	out.Installed = in.Installed
 	out.InstalledJobGeneration = in.InstalledJobGeneration
+	out.InstallationJob = (*v1.LocalObjectReference)(unsafe.Pointer(in.InstallationJob))
 	out.Provisioned = in.Provisioned
 	out.ProvisionedJobGeneration = in.ProvisionedJobGeneration
+	out.ProvisionJob = (*v1.LocalObjectReference)(unsafe.Pointer(in.ProvisionJob))
 	return nil
 }
 
@@ -727,8 +731,10 @@ func autoConvert_clusteroperator_MachineSetStatus_To_v1alpha1_MachineSetStatus(i
 	out.Conditions = *(*[]MachineSetCondition)(unsafe.Pointer(&in.Conditions))
 	out.Installed = in.Installed
 	out.InstalledJobGeneration = in.InstalledJobGeneration
+	out.InstallationJob = (*v1.LocalObjectReference)(unsafe.Pointer(in.InstallationJob))
 	out.Provisioned = in.Provisioned
 	out.ProvisionedJobGeneration = in.ProvisionedJobGeneration
+	out.ProvisionJob = (*v1.LocalObjectReference)(unsafe.Pointer(in.ProvisionJob))
 	return nil
 }
 

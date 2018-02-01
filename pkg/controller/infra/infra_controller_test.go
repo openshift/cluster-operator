@@ -132,7 +132,7 @@ func TestInfraController(t *testing.T) {
 			cluster := newCluster()
 			clusterStore.Add(cluster)
 
-			err := controller.syncCluster(getKey(cluster, t))
+			err := controller.syncHandler(getKey(cluster, t))
 			if tc.expectedErr {
 				assert.Error(t, err)
 			} else {

@@ -22,7 +22,6 @@ import (
 
 	v1batch "k8s.io/api/batch/v1"
 	kapi "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -32,20 +31,18 @@ import (
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/client-go/util/retry"
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/golang/glog"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/openshift/cluster-operator/pkg/ansible"
-	"github.com/openshift/cluster-operator/pkg/kubernetes/pkg/util/metrics"
-
 	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	clusteroperatorclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
 	informers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions/clusteroperator/v1alpha1"
 	lister "github.com/openshift/cluster-operator/pkg/client/listers_generated/clusteroperator/v1alpha1"
 	"github.com/openshift/cluster-operator/pkg/controller"
+	"github.com/openshift/cluster-operator/pkg/kubernetes/pkg/util/metrics"
 )
 
 const (
@@ -120,7 +117,9 @@ func NewMachineSetController(
 	jobInformer.Informer().AddEventHandler(c.jobControl)
 	c.jobsSynced = jobInformer.Informer().HasSynced
 
-	c.syncHandler = c.syncMachineSet
+	c.jobSync = controller.NewJobSync(c.jobControl, &jobSyncStrategy{controller: c}, logger)
+
+	c.syncHandler = c.jobSync.Sync
 	c.enqueueMachineSet = c.enqueue
 	c.ansibleGenerator = ansible.NewJobGenerator(ansibleImage, ansibleImagePullPolicy)
 
@@ -140,6 +139,8 @@ type MachineSetController struct {
 
 	jobControl controller.JobControl
 
+	jobSync controller.JobSync
+
 	// used for unit testing
 	enqueueMachineSet func(machineSet *clusteroperator.MachineSet)
 
@@ -151,7 +152,7 @@ type MachineSetController struct {
 	machineSetsSynced cache.InformerSynced
 
 	// clustersLister is able to list/get clusters and is populated by the shared informer passed to
-	// NewClusterController.
+	// NewMachineSetController.
 	clustersLister lister.ClusterLister
 	// clustersSynced returns true if the cluster shared informer has been synced at least once.
 	// Added as a member to the struct to allow injection for testing.
@@ -163,7 +164,7 @@ type MachineSetController struct {
 	// MachineSets that need to be synced
 	queue workqueue.RateLimitingInterface
 
-	logger *log.Entry
+	logger log.FieldLogger
 }
 
 func (c *MachineSetController) addMachineSet(obj interface{}) {
@@ -312,122 +313,6 @@ func (c *MachineSetController) handleErr(err error, key interface{}) {
 	c.queue.Forget(key)
 }
 
-// syncMachineSet will sync the machine set with the given key.
-// This function is not meant to be invoked concurrently with the same key.
-func (c *MachineSetController) syncMachineSet(key string) error {
-	startTime := time.Now()
-	logger := c.logger.WithField("machineset", key)
-	logger.Debugln("Started syncing machine set")
-	defer logger.WithField("duration", time.Since(startTime)).Debugln("Finished syncing machine set")
-
-	ns, name, err := cache.SplitMetaNamespaceKey(key)
-	if err != nil {
-		utilruntime.HandleError(fmt.Errorf("cannot parse machine set key %q: %v", key, err))
-		return nil
-	}
-	if len(ns) == 0 || len(name) == 0 {
-		utilruntime.HandleError(fmt.Errorf("invalid machineset key %q: either namespace or name is missing", key))
-		return nil
-	}
-
-	machineSet, err := c.machineSetsLister.MachineSets(ns).Get(name)
-	if errors.IsNotFound(err) {
-		logger.Debugln("machine set has been deleted")
-		c.jobControl.ObserveOwnerDeletion(key)
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-
-	shouldProvisionMachineSet, err := c.shouldProvision(machineSet)
-	if err != nil {
-		return err
-	}
-
-	jobFactory, err := c.getJobFactory(machineSet)
-	if err != nil {
-		return err
-	}
-
-	job, isJobNew, err := c.jobControl.ControlJobs(key, machineSet, shouldProvisionMachineSet, jobFactory)
-	if err != nil {
-		return err
-	}
-
-	if !shouldProvisionMachineSet {
-		return nil
-	}
-
-	switch {
-	// New job has not been created, so an old job must exist. Set the machine
-	// set to not provisioning as the old job is deleted.
-	case job == nil:
-		return c.setMachineSetToNotProvisioning(machineSet)
-	// Job was not newly created, so sync machine set status with job.
-	case !isJobNew:
-		logger.Debugln("provisioning job exists, will sync with job")
-		return c.syncMachineSetStatusWithJob(machineSet, job)
-	// MachineSet should have a job to provision the current spec but it was not
-	// found.
-	case isMachineSetProvisioning(machineSet):
-		return c.setJobNotFoundStatus(machineSet)
-	// New job created for new provisioning
-	default:
-		return nil
-	}
-}
-
-func (c *MachineSetController) clusterForMachineSet(machineSet *clusteroperator.MachineSet) (*clusteroperator.Cluster, error) {
-	controllerRef := metav1.GetControllerOf(machineSet)
-	if controllerRef.Kind != clusterKind.Kind {
-		return nil, nil
-	}
-	cluster, err := c.clustersLister.Clusters(machineSet.Namespace).Get(controllerRef.Name)
-	if err != nil {
-		return nil, err
-	}
-	if cluster.UID != controllerRef.UID {
-		// The controller we found with this Name is not the same one that the
-		// ControllerRef points to.
-		return nil, nil
-	}
-	return cluster, nil
-}
-
-func (c *MachineSetController) shouldProvision(machineSet *clusteroperator.MachineSet) (bool, error) {
-	if machineSet.Status.ProvisionedJobGeneration == machineSet.Generation {
-		return false, nil
-	}
-	cluster, err := c.clusterForMachineSet(machineSet)
-	if err != nil {
-		return false, err
-	}
-	if !cluster.Status.Provisioned || cluster.Status.ProvisionedJobGeneration != cluster.Generation {
-		return false, nil
-	}
-	switch machineSet.Spec.NodeType {
-	case clusteroperator.NodeTypeMaster:
-		return true, nil
-	case clusteroperator.NodeTypeCompute:
-		masterMachineSet, err := c.machineSetsLister.MachineSets(machineSet.Namespace).Get(cluster.Status.MasterMachineSetName)
-		if err != nil {
-			return false, err
-		}
-		// Only provision compute nodes if openshift has been installed on
-		// master nodes.
-		// We need to verify that the generation of the master machine set
-		// has not been changed since the installation. If the generation
-		// has changed, then the installation is no longer valid. The master
-		// controller needs to re-work the installation first.
-		masterInstalled := masterMachineSet.Status.Installed &&
-			masterMachineSet.Status.InstalledJobGeneration == masterMachineSet.Generation
-		return masterInstalled, nil
-	default:
-		return false, fmt.Errorf("unknown node type")
-	}
-}
-
 type jobOwnerControl struct {
 	controller *MachineSetController
 }
@@ -456,8 +341,72 @@ func (f jobFactory) BuildJob(name string) (*v1batch.Job, *kapi.ConfigMap, error)
 	return f(name)
 }
 
-func (c *MachineSetController) getJobFactory(machineSet *clusteroperator.MachineSet) (controller.JobFactory, error) {
-	cluster, err := c.clusterForMachineSet(machineSet)
+type jobSyncStrategy struct {
+	controller *MachineSetController
+}
+
+func (s *jobSyncStrategy) GetOwner(key string) (metav1.Object, error) {
+	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+	if err != nil {
+		return nil, err
+	}
+	if len(namespace) == 0 || len(name) == 0 {
+		return nil, fmt.Errorf("invalid key %q: either namespace or name is missing", key)
+	}
+	return s.controller.machineSetsLister.MachineSets(namespace).Get(name)
+}
+
+func (s *jobSyncStrategy) DoesOwnerNeedProcessing(owner metav1.Object) bool {
+	machineSet, ok := owner.(*clusteroperator.MachineSet)
+	if !ok {
+		s.controller.logger.Warn("could not convert owner from JobSync into a machineset: %#v", owner)
+		return false
+	}
+	if machineSet.Status.ProvisionedJobGeneration == machineSet.Generation {
+		return false
+	}
+	cluster, err := controller.ClusterForMachineSet(machineSet, s.controller.clustersLister)
+	if err != nil {
+		loggerForMachineSet(s.controller.logger, machineSet).
+			Warn("could not get cluster for machine set")
+		return false
+	}
+	if !cluster.Status.Provisioned || cluster.Status.ProvisionedJobGeneration != cluster.Generation {
+		return false
+	}
+	switch machineSet.Spec.NodeType {
+	case clusteroperator.NodeTypeMaster:
+		return true
+	case clusteroperator.NodeTypeCompute:
+		masterMachineSet, err := s.controller.machineSetsLister.MachineSets(machineSet.Namespace).Get(cluster.Status.MasterMachineSetName)
+		if err != nil {
+			loggerForCluster(loggerForMachineSet(s.controller.logger, machineSet), cluster).
+				WithField("master", cluster.Status.MasterMachineSetName).
+				Warn("could not get master machine set")
+			return false
+		}
+		// Only provision compute nodes if openshift has been installed on
+		// master nodes.
+		// We need to verify that the generation of the master machine set
+		// has not been changed since the installation. If the generation
+		// has changed, then the installation is no longer valid. The master
+		// controller needs to re-work the installation first.
+		masterInstalled := masterMachineSet.Status.Installed &&
+			masterMachineSet.Status.InstalledJobGeneration == masterMachineSet.Generation
+		return masterInstalled
+	default:
+		loggerForMachineSet(s.controller.logger, machineSet).
+			Warnf("unknown node type %q", machineSet.Spec.NodeType)
+		return false
+	}
+}
+
+func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object) (controller.JobFactory, error) {
+	machineSet, ok := owner.(*clusteroperator.MachineSet)
+	if !ok {
+		return nil, fmt.Errorf("could not convert owner from JobSync into a machineset")
+	}
+	cluster, err := controller.ClusterForMachineSet(machineSet, s.controller.clustersLister)
 	if err != nil {
 		return nil, err
 	}
@@ -472,108 +421,123 @@ func (c *MachineSetController) getJobFactory(machineSet *clusteroperator.Machine
 		} else {
 			playbook = computeProvisioningPlaybook
 		}
-		job, configMap := c.ansibleGenerator.GeneratePlaybookJob(name, &cluster.Spec.Hardware, playbook, ansible.DefaultInventory, vars)
+		job, configMap := s.controller.ansibleGenerator.GeneratePlaybookJob(
+			name,
+			&cluster.Spec.Hardware,
+			playbook,
+			ansible.DefaultInventory,
+			vars,
+		)
 		return job, configMap, nil
 	}), nil
 }
 
-// setMachineSetToNotProvisioning updates the HardwareProvisioning condition
-// for the machine set to reflect that a machine set that had an in-progress
-// provision is no longer provisioning due to a change in the spec of the
-// machine set.
-func (c *MachineSetController) setMachineSetToNotProvisioning(original *clusteroperator.MachineSet) error {
-	machineSet := original.DeepCopy()
+func (s *jobSyncStrategy) GetOwnerCurrentJob(owner metav1.Object) string {
+	machineSet, ok := owner.(*clusteroperator.MachineSet)
+	if !ok {
+		s.controller.logger.Warn("could not convert owner from JobSync into a machineset: %#v", owner)
+		return ""
+	}
+	if machineSet.Status.ProvisionJob == nil {
+		return ""
+	}
+	return machineSet.Status.ProvisionJob.Name
+}
 
+func (s *jobSyncStrategy) SetOwnerCurrentJob(owner metav1.Object, jobName string) {
+	machineSet, ok := owner.(*clusteroperator.MachineSet)
+	if !ok {
+		s.controller.logger.Warn("could not convert owner from JobSync into a machineset: %#v", owner)
+		return
+	}
+	if jobName == "" {
+		machineSet.Status.ProvisionJob = nil
+	} else {
+		machineSet.Status.ProvisionJob = &kapi.LocalObjectReference{Name: jobName}
+	}
+}
+
+func (s *jobSyncStrategy) DeepCopyOwner(owner metav1.Object) metav1.Object {
+	machineSet, ok := owner.(*clusteroperator.MachineSet)
+	if !ok {
+		s.controller.logger.Warn("could not convert owner from JobSync into a machineset: %#v", owner)
+		return machineSet
+	}
+	return machineSet.DeepCopy()
+}
+
+func (s *jobSyncStrategy) SetOwnerJobSyncCondition(
+	owner metav1.Object,
+	conditionType controller.JobSyncConditionType,
+	status kapi.ConditionStatus,
+	reason string,
+	message string,
+	updateConditionCheck controller.UpdateConditionCheck,
+) {
+	machineSet, ok := owner.(*clusteroperator.MachineSet)
+	if !ok {
+		s.controller.logger.Warn("could not convert owner from JobSync into a machineset: %#v", owner)
+		return
+	}
 	controller.SetMachineSetCondition(
 		machineSet,
-		clusteroperator.MachineSetHardwareProvisioning,
-		kapi.ConditionFalse,
-		controller.ReasonSpecChanged,
-		"Spec changed. New provisioning needed",
+		convertJobSyncConditionType(conditionType),
+		status,
+		reason,
+		message,
+		updateConditionCheck,
 	)
-
-	return c.updateMachineSetStatus(original, machineSet)
 }
 
-// syncMachineSetStatusWithJob update the status of the machine set to
-// reflect the current status of the job that is provisioning the machine set.
-// If the job completed successfully, the machine set will be marked as
-// provisioned.
-// If the job completed with a failure, the machine set will be marked as
-// not provisioned.
-// If the job is still in progress, the machine set will be marked as
-// provisioning.
-func (c *MachineSetController) syncMachineSetStatusWithJob(original *clusteroperator.MachineSet, job *v1batch.Job) error {
-	machineSet := original.DeepCopy()
-
-	jobCompleted := jobCondition(job, v1batch.JobComplete)
-	jobFailed := jobCondition(job, v1batch.JobFailed)
-	switch {
-	// Provision job completed successfully
-	case jobCompleted != nil && jobCompleted.Status == kapi.ConditionTrue:
-		reason := controller.ReasonJobCompleted
-		message := fmt.Sprintf("Job %s/%s completed at %v", job.Namespace, job.Name, jobCompleted.LastTransitionTime)
-		controller.SetMachineSetCondition(machineSet, clusteroperator.MachineSetHardwareProvisioning, kapi.ConditionFalse, reason, message)
-		controller.SetMachineSetCondition(machineSet, clusteroperator.MachineSetHardwareProvisioned, kapi.ConditionTrue, reason, message)
-		controller.SetMachineSetCondition(machineSet, clusteroperator.MachineSetHardwareProvisioningFailed, kapi.ConditionFalse, reason, message)
-		machineSet.Status.Provisioned = true
-		machineSet.Status.ProvisionedJobGeneration = machineSet.Generation
-	// Provision job failed
-	case jobFailed != nil && jobFailed.Status == kapi.ConditionTrue:
-		reason := controller.ReasonJobFailed
-		message := fmt.Sprintf("Job %s/%s failed at %v, reason: %s", job.Namespace, job.Name, jobFailed.LastTransitionTime, jobFailed.Reason)
-		controller.SetMachineSetCondition(machineSet, clusteroperator.MachineSetHardwareProvisioning, kapi.ConditionFalse, reason, message)
-		controller.SetMachineSetCondition(machineSet, clusteroperator.MachineSetHardwareProvisioningFailed, kapi.ConditionTrue, reason, message)
-		// ProvisionedJobGeneration is set even when the job failed because we
-		// do not want to run the provision job again until there have been
-		// changes in the spec of the machine set.
-		machineSet.Status.ProvisionedJobGeneration = machineSet.Generation
-	default:
-		reason := controller.ReasonJobRunning
-		message := fmt.Sprintf("Job %s/%s is running since %v. Pod completions: %d, failures: %d", job.Namespace, job.Name, job.Status.StartTime, job.Status.Succeeded, job.Status.Failed)
-		controller.SetMachineSetCondition(
-			machineSet,
-			clusteroperator.MachineSetHardwareProvisioning,
-			kapi.ConditionTrue,
-			reason,
-			message,
-			func(old, new clusteroperator.MachineSetCondition) bool {
-				return new.Message != old.Message
-			},
-		)
+func (s *jobSyncStrategy) OnJobCompletion(owner metav1.Object) {
+	machineSet, ok := owner.(*clusteroperator.MachineSet)
+	if !ok {
+		s.controller.logger.Warn("could not convert owner from JobSync into a machineset: %#v", owner)
+		return
 	}
-
-	return c.updateMachineSetStatus(original, machineSet)
-
+	machineSet.Status.Provisioned = true
+	machineSet.Status.ProvisionedJobGeneration = machineSet.Generation
 }
 
-func (c *MachineSetController) setJobNotFoundStatus(original *clusteroperator.MachineSet) error {
-	machineSet := original.DeepCopy()
-	reason := controller.ReasonJobMissing
-	message := "Provisioning job not found."
-	controller.SetMachineSetCondition(machineSet, clusteroperator.MachineSetHardwareProvisioning, kapi.ConditionFalse, reason, message)
-	controller.SetMachineSetCondition(machineSet, clusteroperator.MachineSetHardwareProvisioningFailed, kapi.ConditionTrue, reason, message)
-	return c.updateMachineSetStatus(original, machineSet)
-}
-
-func (c *MachineSetController) updateMachineSetStatus(original, machineSet *clusteroperator.MachineSet) error {
-	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		return controller.PatchMachineSetStatus(c.client, original, machineSet)
-	})
-}
-
-func isMachineSetProvisioning(machineSet *clusteroperator.MachineSet) bool {
-	provisioning := controller.FindMachineSetCondition(machineSet, clusteroperator.MachineSetHardwareProvisioning)
-	return provisioning != nil && provisioning.Status == kapi.ConditionTrue
-}
-
-func jobCondition(job *v1batch.Job, conditionType v1batch.JobConditionType) *v1batch.JobCondition {
-	for i, condition := range job.Status.Conditions {
-		if condition.Type == conditionType {
-			return &job.Status.Conditions[i]
-		}
+func (s *jobSyncStrategy) OnJobFailure(owner metav1.Object) {
+	machineSet, ok := owner.(*clusteroperator.MachineSet)
+	if !ok {
+		s.controller.logger.Warn("could not convert owner from JobSync into a machineset: %#v", owner)
+		return
 	}
+	// ProvisionedJobGeneration is set even when the job failed because we
+	// do not want to run the provision job again until there have been
+	// changes in the spec of the machine set.
+	machineSet.Status.ProvisionedJobGeneration = machineSet.Generation
+}
+
+func (s *jobSyncStrategy) UpdateOwnerStatus(original, owner metav1.Object) error {
+	originalMachineSet, ok := original.(*clusteroperator.MachineSet)
+	if !ok {
+		return fmt.Errorf("could not convert original from JobSync into a machineset")
+	}
+	machineSet, ok := owner.(*clusteroperator.MachineSet)
+	if !ok {
+		return fmt.Errorf("could not convert owner from JobSync into a machineset")
+	}
+	return controller.PatchMachineSetStatus(s.controller.client, originalMachineSet, machineSet)
+}
+
+func (s *jobSyncStrategy) ProcessDeletedOwner(owner metav1.Object) error {
 	return nil
+}
+
+func convertJobSyncConditionType(conditionType controller.JobSyncConditionType) clusteroperator.MachineSetConditionType {
+	switch conditionType {
+	case controller.JobSyncProcessing:
+		return clusteroperator.MachineSetHardwareProvisioning
+	case controller.JobSyncProcessed:
+		return clusteroperator.MachineSetHardwareProvisioned
+	case controller.JobSyncProcessingFailed:
+		return clusteroperator.MachineSetHardwareProvisioningFailed
+	default:
+		return clusteroperator.MachineSetConditionType("")
+	}
 }
 
 func loggerForMachineSet(logger log.FieldLogger, machineSet *clusteroperator.MachineSet) log.FieldLogger {
