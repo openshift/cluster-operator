@@ -234,26 +234,6 @@ func (c *jobControl) isControlledJob(job *kbatch.Job) bool {
 	return strings.HasPrefix(job.Name, c.jobPrefix)
 }
 
-func (c *jobControl) ownerForJob(job *kbatch.Job) (metav1.Object, error) {
-	controllerRef := metav1.GetControllerOf(job)
-	if controllerRef == nil {
-		return nil, nil
-	}
-	if controllerRef.Kind != c.ownerKind.Kind {
-		return nil, nil
-	}
-	owner, err := c.ownerControl.GetOwner(job.Namespace, controllerRef.Name)
-	if err != nil || owner == nil {
-		return owner, err
-	}
-	if owner.GetUID() != controllerRef.UID {
-		// The controller we found with this Name is not the same one that the
-		// ControllerRef points to.
-		return nil, nil
-	}
-	return owner, nil
-}
-
 func (c *jobControl) convertEventHandlerObjectToControlledJob(obj interface{}, lookAtTombstone bool) (*kbatch.Job, bool) {
 	job, ok := obj.(*kbatch.Job)
 	if !ok {
@@ -319,7 +299,13 @@ func (c *jobControl) onJobEvent(obj interface{}, eventType string) {
 
 	logger := loggerForJob(c.logger, job)
 
-	owner, err := c.ownerForJob(job)
+	owner, err := GetObjectController(
+		job,
+		c.ownerKind,
+		func(name string) (metav1.Object, error) {
+			return c.ownerControl.GetOwner(job.Namespace, name)
+		},
+	)
 	if err != nil || owner == nil {
 		logger.Warn("owner no longer exists for job")
 		return

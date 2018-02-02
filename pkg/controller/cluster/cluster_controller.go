@@ -161,14 +161,16 @@ func (c *ClusterController) addMachineSet(obj interface{}) {
 		return
 	}
 
-	controllerRef := metav1.GetControllerOf(machineSet)
-	if controllerRef == nil {
+	cluster, err := controller.ClusterForMachineSet(machineSet, c.clustersLister)
+	if err != nil {
+		glog.V(2).Infof("error retrieving cluster for machine set %q/%q: %v", machineSet.Namespace, machineSet.Name, err)
 		return
 	}
-	cluster := c.resolveControllerRef(machineSet.Namespace, controllerRef)
 	if cluster == nil {
+		glog.V(6).Infof("machine set %q/%q added that is not controlled by a cluster", machineSet.Namespace, machineSet.Name)
 		return
 	}
+
 	clusterKey, err := controller.KeyFunc(cluster)
 	if err != nil {
 		return
@@ -199,14 +201,16 @@ func (c *ClusterController) updateMachineSet(old, cur interface{}) {
 		return
 	}
 
-	controllerRef := metav1.GetControllerOf(curMachineSet)
-	if controllerRef == nil {
+	cluster, err := controller.ClusterForMachineSet(curMachineSet, c.clustersLister)
+	if err != nil {
+		glog.V(2).Infof("error retrieving cluster for machine set %q/%q: %v", curMachineSet.Namespace, curMachineSet.Name, err)
 		return
 	}
-	cluster := c.resolveControllerRef(curMachineSet.Namespace, controllerRef)
 	if cluster == nil {
+		glog.V(6).Infof("machine set %q/%q updated that is not controlled by a cluster", curMachineSet.Namespace, curMachineSet.Name)
 		return
 	}
+
 	glog.V(4).Infof("Machine set %s updated, objectMeta %+v -> %+v.", curMachineSet.Name, oldMachineSet.ObjectMeta, curMachineSet.ObjectMeta)
 	c.enqueueCluster(cluster)
 }
@@ -227,14 +231,16 @@ func (c *ClusterController) deleteMachineSet(obj interface{}) {
 		}
 	}
 
-	controllerRef := metav1.GetControllerOf(machineSet)
-	if controllerRef == nil {
+	cluster, err := controller.ClusterForMachineSet(machineSet, c.clustersLister)
+	if err != nil {
+		glog.V(2).Infof("error retrieving cluster for machine set %q/%q: %v", machineSet.Namespace, machineSet.Name, err)
 		return
 	}
-	cluster := c.resolveControllerRef(machineSet.Namespace, controllerRef)
 	if cluster == nil {
+		glog.V(6).Infof("machine set %q/%q deleted that is not controlled by a cluster", machineSet.Namespace, machineSet.Name)
 		return
 	}
+
 	clusterKey, err := controller.KeyFunc(cluster)
 	if err != nil {
 		return
@@ -505,27 +511,6 @@ func (c *ClusterController) manageMachineSet(cluster *clusteroperator.Cluster, m
 	}
 
 	return nil, false, nil
-}
-
-// resolveControllerRef returns the controller referenced by a ControllerRef,
-// or nil if the ControllerRef could not be resolved to a matching controller
-// of the correct Kind.
-func (c *ClusterController) resolveControllerRef(namespace string, controllerRef *metav1.OwnerReference) *clusteroperator.Cluster {
-	// We can't look up by UID, so look up by Name and then verify UID.
-	// Don't even try to look up by Name if it's the wrong Kind.
-	if controllerRef.Kind != controllerKind.Kind {
-		return nil
-	}
-	cluster, err := c.clustersLister.Clusters(namespace).Get(controllerRef.Name)
-	if err != nil {
-		return nil
-	}
-	if cluster.UID != controllerRef.UID {
-		// The controller we found with this Name is not the same one that the
-		// ControllerRef points to.
-		return nil
-	}
-	return cluster
 }
 
 func calculateStatus(cluster *clusteroperator.Cluster, machineSets []*clusteroperator.MachineSet, manageMachineSetsErr error) clusteroperator.ClusterStatus {

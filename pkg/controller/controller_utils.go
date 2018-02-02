@@ -24,6 +24,7 @@ import (
 	lister "github.com/openshift/cluster-operator/pkg/client/listers_generated/clusteroperator/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/cache"
 
@@ -52,25 +53,27 @@ func WaitForCacheSync(controllerName string, stopCh <-chan struct{}, cacheSyncs 
 	return true
 }
 
-type Condition struct {
-	Status  corev1.ConditionStatus
-	Reason  string
-	Message string
-}
+// UpdateConditionCheck tests whether a condition should be updated from the
+// old condition to the new condition. Returns true if the condition should
+// be updated.
+type UpdateConditionCheck func(oldReason, oldMessage, newReason, newMessage string) bool
 
-type UpdateConditionCheck func(old, new Condition) bool
-
-func UpdateConditionAlways(old, new Condition) bool {
+// UpdateConditionAlways returns true. The condition will always be updated.
+func UpdateConditionAlways(_, _, _, _ string) bool {
 	return true
 }
 
-func UpdateConditionNever(old, new Condition) bool {
+// UpdateConditionNever return false. The condition will never be updated,
+// unless there is a change in the status of the condition.
+func UpdateConditionNever(_, _, _, _ string) bool {
 	return false
 }
 
-func UpdateConditionIfReasonOrMessageChange(old, new Condition) bool {
-	return old.Reason != new.Reason ||
-		old.Message != new.Message
+// UpdateConditionIfReasonOrMessageChange returns true if there is a change
+// in the reason or the message of the condition.
+func UpdateConditionIfReasonOrMessageChange(oldReason, oldMessage, newReason, newMessage string) bool {
+	return oldReason != newReason ||
+		oldMessage != newMessage
 }
 
 func shouldUpdateCondition(
@@ -81,18 +84,7 @@ func shouldUpdateCondition(
 	if oldStatus != newStatus {
 		return true
 	}
-	return updateConditionCheck(
-		Condition{
-			Status:  oldStatus,
-			Reason:  oldReason,
-			Message: oldMessage,
-		},
-		Condition{
-			Status:  oldStatus,
-			Reason:  oldReason,
-			Message: oldMessage,
-		},
-	)
+	return updateConditionCheck(oldReason, oldMessage, newReason, newMessage)
 }
 
 // SetClusterCondition sets the condition for the cluster.
@@ -204,18 +196,6 @@ func SetMachineSetCondition(
 	}
 }
 
-func verifyExtraMachineSetConditionChecks(
-	old, new clusteroperator.MachineSetCondition,
-	needsToBeUpdated ...func(old, new clusteroperator.MachineSetCondition) bool,
-) bool {
-	for _, check := range needsToBeUpdated {
-		if check(old, new) {
-			return true
-		}
-	}
-	return false
-}
-
 // FindMachineSetCondition finds in the machine set the condition that has the
 // specified condition type. If none exists, then returns nil.
 func FindMachineSetCondition(machineSet *clusteroperator.MachineSet, conditionType clusteroperator.MachineSetConditionType) *clusteroperator.MachineSetCondition {
@@ -227,20 +207,55 @@ func FindMachineSetCondition(machineSet *clusteroperator.MachineSet, conditionTy
 	return nil
 }
 
-// ClusterForMachineSet retrieves the cluster to which a machine set belongs.
-func ClusterForMachineSet(machineSet *clusteroperator.MachineSet, clustersLister lister.ClusterLister) (*clusteroperator.Cluster, error) {
-	controllerRef := metav1.GetControllerOf(machineSet)
-	if controllerRef.Kind != clusterKind.Kind {
+// GetObjectController get the controlling owner for the specified object.
+// If there is no controlling owner or the controller owner does not have
+// the specified kind, then returns nil for the controller.
+func GetObjectController(
+	obj metav1.Object,
+	controllerKind schema.GroupVersionKind,
+	getController func(name string) (metav1.Object, error),
+) (metav1.Object, error) {
+	controllerRef := metav1.GetControllerOf(obj)
+	if controllerRef == nil {
 		return nil, nil
 	}
-	cluster, err := clustersLister.Clusters(machineSet.Namespace).Get(controllerRef.Name)
+	if apiVersion, kind := controllerKind.ToAPIVersionAndKind(); controllerRef.APIVersion != apiVersion ||
+		controllerRef.Kind != kind {
+		return nil, nil
+	}
+	controller, err := getController(controllerRef.Name)
 	if err != nil {
 		return nil, err
 	}
-	if cluster.UID != controllerRef.UID {
+	if controller == nil {
+		return nil, nil
+	}
+	if controller.GetUID() != controllerRef.UID {
 		// The controller we found with this Name is not the same one that the
 		// ControllerRef points to.
 		return nil, nil
+	}
+	return controller, nil
+}
+
+// ClusterForMachineSet retrieves the cluster to which a machine set belongs.
+func ClusterForMachineSet(machineSet *clusteroperator.MachineSet, clustersLister lister.ClusterLister) (*clusteroperator.Cluster, error) {
+	controller, err := GetObjectController(
+		machineSet,
+		clusterKind,
+		func(name string) (metav1.Object, error) {
+			return clustersLister.Clusters(machineSet.Namespace).Get(name)
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	if controller == nil {
+		return nil, nil
+	}
+	cluster, ok := controller.(*clusteroperator.Cluster)
+	if !ok {
+		return nil, fmt.Errorf("Could not convert controller into a Cluster")
 	}
 	return cluster, nil
 }

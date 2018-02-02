@@ -481,7 +481,7 @@ const (
 
 	// MachineSetReady is true if the nodes of this nodegroup are ready for work
 	// (have joined the cluster and have a healthy node status)
-	MachineSetReady ClusterConditionType = "Ready"
+	MachineSetReady MachineSetConditionType = "Ready"
 )
 
 // +genclient
