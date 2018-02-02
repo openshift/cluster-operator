@@ -161,6 +161,7 @@ openshift_aws_iam_cert_path: /ansible/ssl/server.crt
 openshift_aws_iam_cert_key_path: /ansible/ssl/server.key
 openshift_aws_iam_cert_chain_path: /ansible/ssl/ca.crt
 
+openshift_aws_create_iam_role: True
 openshift_node_use_instance_profiles: True
 
 openshift_aws_clusterid: [[ .Name ]]
