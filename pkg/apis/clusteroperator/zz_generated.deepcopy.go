@@ -269,7 +269,15 @@ func (in *ClusterStatus) DeepCopyInto(out *ClusterStatus) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
-	out.ClusterVersionRef = in.ClusterVersionRef
+	if in.ClusterVersionRef != nil {
+		in, out := &in.ClusterVersionRef, &out.ClusterVersionRef
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(v1.ObjectReference)
+			**out = **in
+		}
+	}
 	return
 }
 

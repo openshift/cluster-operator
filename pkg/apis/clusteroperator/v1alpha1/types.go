@@ -155,6 +155,7 @@ type ClusterSpec struct {
 // ClusterVersionReference provides information to locate a cluster version to use.
 type ClusterVersionReference struct {
 	// Namespace of the clusterversion.
+	// +optional
 	Namespace string `json:"namespace,omitempty"`
 
 	// Name of the clusterversion.
@@ -281,7 +282,7 @@ type ClusterStatus struct {
 
 	// ClusterVersionRef references the resolved clusterversion the cluster should be running.
 	// +optional
-	ClusterVersionRef corev1.ObjectReference `json:"clusterVersionRef,omitempty"`
+	ClusterVersionRef *corev1.ObjectReference `json:"clusterVersionRef,omitempty"`
 }
 
 // ClusterCondition contains details for the current condition of a cluster

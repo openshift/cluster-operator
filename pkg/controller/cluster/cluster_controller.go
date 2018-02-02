@@ -625,6 +625,10 @@ func (c *ClusterController) calculateStatus(clusterLog log.FieldLogger, cluster 
 		}
 	}
 
+	if oldClusterVersion == nil {
+		oldClusterVersion = &corev1.ObjectReference{}
+	}
+
 	if resolvedClusterVersion != nil &&
 		(resolvedClusterVersion.Name != oldClusterVersion.Name ||
 			resolvedClusterVersion.Namespace != oldClusterVersion.Namespace) {
@@ -634,7 +638,7 @@ func (c *ClusterController) calculateStatus(clusterLog log.FieldLogger, cluster 
 			oldClusterVersion.Name,
 			resolvedClusterVersion.Namespace,
 			resolvedClusterVersion.Name)
-		newStatus.ClusterVersionRef = corev1.ObjectReference{
+		newStatus.ClusterVersionRef = &corev1.ObjectReference{
 			Name:      resolvedClusterVersion.Name,
 			Namespace: resolvedClusterVersion.Namespace, // Namespace will always be resolved on the status+machine sets
 			UID:       resolvedClusterVersion.UID,

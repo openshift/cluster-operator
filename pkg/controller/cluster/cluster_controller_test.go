@@ -150,7 +150,7 @@ func newClusterWithSizes(cv *clusteroperator.ClusterVersion, masterSize int, com
 			Name:      cv.Name,
 			Namespace: cv.Namespace,
 		}
-		cluster.Status.ClusterVersionRef = corev1.ObjectReference{
+		cluster.Status.ClusterVersionRef = &corev1.ObjectReference{
 			Name:      cv.Name,
 			Namespace: cv.Namespace,
 			UID:       cv.UID,
@@ -707,7 +707,7 @@ func TestSyncClusterWithVersion(t *testing.T) {
 
 			if tc.currentClusterVersion != nil {
 				clusterVerStore.Add(tc.currentClusterVersion)
-				cluster.Status.ClusterVersionRef = corev1.ObjectReference{
+				cluster.Status.ClusterVersionRef = &corev1.ObjectReference{
 					Name:      tc.currentClusterVersion.Name,
 					Namespace: tc.currentClusterVersion.Namespace,
 					UID:       tc.currentClusterVersion.UID,
@@ -1260,7 +1260,7 @@ func TestSyncClusterMachineSetOwnerReference(t *testing.T) {
 			machineSet.Spec.NodeType = clusteroperator.NodeTypeMaster
 			machineSet.Spec.Size = 1
 			machineSet.Spec.Infra = true
-			machineSet.Spec.ClusterVersionRef = cluster.Status.ClusterVersionRef
+			machineSet.Spec.ClusterVersionRef = *cluster.Status.ClusterVersionRef
 			if tc.ownerRef != nil {
 				machineSet.OwnerReferences = []metav1.OwnerReference{*tc.ownerRef}
 			}
@@ -1320,7 +1320,7 @@ func TestSyncClusterMachineSetDeletionTimestamp(t *testing.T) {
 			machineSet.Spec.NodeType = clusteroperator.NodeTypeMaster
 			machineSet.Spec.Size = 1
 			machineSet.Spec.Infra = true
-			machineSet.Spec.ClusterVersionRef = cluster.Status.ClusterVersionRef
+			machineSet.Spec.ClusterVersionRef = *cluster.Status.ClusterVersionRef
 			machineSet.DeletionTimestamp = tc.deletionTimestamp
 			machineSetStore.Add(machineSet)
 
