@@ -290,6 +290,7 @@ const (
 )
 
 func (c *jobControl) onJobEvent(obj interface{}, eventType string) {
+	c.logger.Debugf("onJobEvent: %v", eventType)
 	job, ok := obj.(*kbatch.Job)
 	if !ok {
 		if eventType != jobDelete {
@@ -318,11 +319,12 @@ func (c *jobControl) onJobEvent(obj interface{}, eventType string) {
 		job,
 		c.ownerKind,
 		func(name string) (metav1.Object, error) {
+			logger.Debugf("getting owner %s/%s", job.Namespace, name)
 			return c.ownerControl.GetOwner(job.Namespace, name)
 		},
 	)
 	if err != nil || owner == nil {
-		logger.Warn("owner no longer exists for job")
+		logger.Warnf("owner no longer exists for job. job=%#v. err=%v.", job, err)
 		return
 	}
 
@@ -372,6 +374,7 @@ func (c *jobControl) createJob(ownerKey string, owner metav1.Object, jobFactory 
 
 	ownerRef := metav1.NewControllerRef(owner, c.ownerKind)
 
+	job.Namespace = owner.GetNamespace()
 	job.OwnerReferences = append(job.OwnerReferences, *ownerRef)
 	if job.Annotations == nil {
 		job.Annotations = map[string]string{}
@@ -380,6 +383,7 @@ func (c *jobControl) createJob(ownerKey string, owner metav1.Object, jobFactory 
 
 	cleanUpConfigMap := true
 	if configMap != nil {
+		configMap.Namespace = owner.GetNamespace()
 		configMap.OwnerReferences = append(configMap.OwnerReferences, *ownerRef)
 
 		configMap, err = c.kubeClient.CoreV1().ConfigMaps(owner.GetNamespace()).Create(configMap)
