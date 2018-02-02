@@ -32,7 +32,7 @@ import (
 )
 
 func newStorage(t *testing.T) (*genericregistry.Store, *etcdtesting.EtcdTestServer) {
-	etcdStorage, server := registrytest.NewEtcdStorage(t, clusteroperatorapi.GroupName)
+	etcdStorage, server := registrytest.NewEtcdStorage(t)
 	restOptions := generic.RESTOptions{
 		StorageConfig:           etcdStorage,
 		Decorator:               generic.UndecoratedStorage,

@@ -29,28 +29,24 @@ import (
 func ValidateMachineSet(machineSet *clusteroperator.MachineSet) field.ErrorList {
 	allErrs := field.ErrorList{}
 
-	allErrs = append(allErrs, validateMachineSetClusterOwner(machineSet.GetOwnerReferences(), field.NewPath("metadata").Child("ownerReferences"))...)
+	allErrs = append(allErrs, validateMachineSetClusterOwner(machineSet)...)
 	allErrs = append(allErrs, validateMachineSetSpec(&machineSet.Spec, field.NewPath("spec"))...)
 
 	return allErrs
 }
 
-// validateMachineSetClusterOwner validates that a machine set has an owner and
-// that the first owner is a cluster.
-func validateMachineSetClusterOwner(ownerRefs []metav1.OwnerReference, fldPath *field.Path) field.ErrorList {
+// validateMachineSetClusterOwner validates that a machine set has a
+// controlling owner that is a cluster.
+func validateMachineSetClusterOwner(machineSet *clusteroperator.MachineSet) field.ErrorList {
 	allErrs := field.ErrorList{}
 
-	if len(ownerRefs) != 0 {
-		ownerRef := ownerRefs[0]
-		if ownerRef.APIVersion != cov1alpha1.SchemeGroupVersion.String() ||
-			ownerRef.Kind != "Cluster" {
-			allErrs = append(allErrs, field.Invalid(fldPath.Index(0), ownerRef, "first owner of machineset must be a cluster"))
-		}
-		if ownerRef.Controller == nil || !*ownerRef.Controller {
-			allErrs = append(allErrs, field.Invalid(fldPath.Index(0).Child("controller"), ownerRef.Controller, "first owner must be the managing controller"))
-		}
-	} else {
-		allErrs = append(allErrs, field.Required(fldPath, "machineset must have an owner"))
+	ownerReferencePath := field.NewPath("metadata").Child("ownerReferences")
+	controllerRef := metav1.GetControllerOf(machineSet)
+	switch {
+	case controllerRef == nil:
+		allErrs = append(allErrs, field.Required(ownerReferencePath, "machineset must have a controlling owner"))
+	case controllerRef.APIVersion != cov1alpha1.SchemeGroupVersion.String() || controllerRef.Kind != "Cluster":
+		allErrs = append(allErrs, field.Invalid(ownerReferencePath, controllerRef, "controlling owner of machineset must be a cluster"))
 	}
 
 	return allErrs
@@ -91,22 +87,15 @@ func ValidateMachineSetUpdate(new *clusteroperator.MachineSet, old *clusteropera
 	allErrs := field.ErrorList{}
 
 	allErrs = append(allErrs, validateMachineSetSpec(&new.Spec, field.NewPath("spec"))...)
-	allErrs = append(allErrs, validateMachineSetImmutableClusterOwner(new.GetOwnerReferences(), old.GetOwnerReferences(), field.NewPath("metadata").Child("ownerReferences"))...)
+	allErrs = append(
+		allErrs,
+		apivalidation.ValidateImmutableField(
+			metav1.GetControllerOf(new),
+			metav1.GetControllerOf(old),
+			field.NewPath("metadata").Child("ownerReferences"),
+		)...,
+	)
 	allErrs = append(allErrs, apivalidation.ValidateImmutableField(new.Spec.ClusterVersionRef, old.Spec.ClusterVersionRef, field.NewPath("spec").Child("clusterVersionRef"))...)
-
-	return allErrs
-}
-
-// validateMachineSetImmutableClusterOwner validates that the cluster owner of
-// a machine set is immutable.
-func validateMachineSetImmutableClusterOwner(newOwnerRefs, oldOwnerRefs []metav1.OwnerReference, fldPath *field.Path) field.ErrorList {
-	allErrs := field.ErrorList{}
-
-	if len(newOwnerRefs) != 0 {
-		allErrs = append(allErrs, apivalidation.ValidateImmutableField(newOwnerRefs[0], oldOwnerRefs[0], fldPath.Index(0))...)
-	} else {
-		allErrs = append(allErrs, field.Required(fldPath, "machineset must have an owner"))
-	}
 
 	return allErrs
 }

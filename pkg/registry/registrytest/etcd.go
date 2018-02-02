@@ -30,7 +30,8 @@ import (
 	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
 )
 
-func NewEtcdStorage(t *testing.T, group string) (*storagebackend.Config, *etcdtesting.EtcdTestServer) {
+// NewEtcdStorage creates a new etcd storage for the clusteroperator schema.
+func NewEtcdStorage(t *testing.T) (*storagebackend.Config, *etcdtesting.EtcdTestServer) {
 	server, config := etcdtesting.NewUnsecuredEtcd3TestClientServer(t)
 	mediaType, _, err := mime.ParseMediaType(runtime.ContentTypeJSON)
 	if err != nil {

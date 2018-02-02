@@ -545,6 +545,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterVersionList": {
 			Schema: spec.Schema{
 				SchemaProps: spec.SchemaProps{
+					Description: "ClusterVersionList is a list of ClusterVersions.",
 					Properties: map[string]spec.Schema{
 						"kind": {
 							SchemaProps: spec.SchemaProps{
@@ -1110,6 +1111,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSpec": {
 			Schema: spec.Schema{
 				SchemaProps: spec.SchemaProps{
+					Description: "MachineSpec is the specificiation of a Machine.",
 					Properties: map[string]spec.Schema{
 						"nodeType": {
 							SchemaProps: spec.SchemaProps{
@@ -1127,7 +1129,8 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineStatus": {
 			Schema: spec.Schema{
 				SchemaProps: spec.SchemaProps{
-					Properties: map[string]spec.Schema{},
+					Description: "MachineStatus is the status of a Machine.",
+					Properties:  map[string]spec.Schema{},
 				},
 			},
 			Dependencies: []string{},

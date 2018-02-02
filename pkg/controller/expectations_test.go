@@ -25,19 +25,19 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-// NewFakeControllerExpectationsLookup creates a fake store for PodExpectations.
-func NewFakeControllerExpectationsLookup(ttl time.Duration) (*ControllerExpectations, *clock.FakeClock) {
+// NewFakeExpectationsLookup creates a fake store for PodExpectations.
+func NewFakeExpectationsLookup(ttl time.Duration) (*Expectations, *clock.FakeClock) {
 	fakeTime := time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
 	fakeClock := clock.NewFakeClock(fakeTime)
 	ttlPolicy := &cache.TTLPolicy{Ttl: ttl, Clock: fakeClock}
 	ttlStore := cache.NewFakeExpirationStore(
 		ExpKeyFunc, nil, ttlPolicy, fakeClock)
-	return &ControllerExpectations{ttlStore}, fakeClock
+	return &Expectations{ttlStore}, fakeClock
 }
 
-func TestControllerExpectations(t *testing.T) {
+func TestExpectations(t *testing.T) {
 	ttl := 30 * time.Second
-	e, fakeClock := NewFakeControllerExpectationsLookup(ttl)
+	e, fakeClock := NewFakeExpectationsLookup(ttl)
 
 	adds, dels := 10, 30
 	ownerKey := "owner-key"

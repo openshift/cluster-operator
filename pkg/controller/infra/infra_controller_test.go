@@ -1,3 +1,19 @@
+/*
+Copyright 2018 The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package infra
 
 import (
@@ -24,10 +40,10 @@ const (
 	testClusterUUID = types.UID("test-cluster-uuid")
 )
 
-// newTestInfraController creates a test InfraController with fake
+// newTestController creates a test Controller with fake
 // clients and informers.
-func newTestInfraController() (
-	*InfraController,
+func newTestController() (
+	*Controller,
 	cache.Store, // cluster store
 	cache.Store, // jobs store
 	*clientgofake.Clientset,
@@ -38,7 +54,7 @@ func newTestInfraController() (
 	clusterOperatorClient := &clusteroperatorclientset.Clientset{}
 	clusterOperatorInformers := informers.NewSharedInformerFactory(clusterOperatorClient, 0)
 
-	controller := NewInfraController(
+	controller := NewController(
 		clusterOperatorInformers.Clusteroperator().V1alpha1().Clusters(),
 		kubeInformers.Batch().V1().Jobs(),
 		kubeClient,
@@ -79,12 +95,12 @@ func (r *fakeAnsibleRunner) RunPlaybook(namespace, clusterName, jobPrefix, playb
 // getKey gets the key for the cluster to use when checking expectations
 // set on a cluster.
 func getKey(cluster *clusteroperator.Cluster, t *testing.T) string {
-	if key, err := controller.KeyFunc(cluster); err != nil {
+	key, err := controller.KeyFunc(cluster)
+	if err != nil {
 		t.Errorf("Unexpected error getting key for Cluster %v: %v", cluster.Name, err)
 		return ""
-	} else {
-		return key
 	}
+	return key
 }
 
 func newCluster() *clusteroperator.Cluster {
@@ -110,9 +126,9 @@ func newCluster() *clusteroperator.Cluster {
 	return cluster
 }
 
-// TestInfraController performs basic unit tests on the infra controller to ensure it
+// TestController performs basic unit tests on the infra controller to ensure it
 // interacts with the AnsibleRunner correctly.
-func TestInfraController(t *testing.T) {
+func TestController(t *testing.T) {
 	cases := []struct {
 		name             string
 		clusterName      string
@@ -127,7 +143,7 @@ func TestInfraController(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			controller, clusterStore, _, _, _ := newTestInfraController()
+			controller, clusterStore, _, _, _ := newTestController()
 
 			cluster := newCluster()
 			clusterStore.Add(cluster)

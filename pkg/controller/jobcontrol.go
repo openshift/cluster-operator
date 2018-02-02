@@ -38,15 +38,30 @@ import (
 	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 )
 
+//go:generate mockgen -source=./jobcontrol.go -destination=./mockjobcontrol_generated_test.go -package=controller
+
+// JobControlResult describes what was done by a call to
+// JobControl.ControlJobs.
 type JobControlResult string
 
 const (
+	// JobControlPendingExpectations indicates that no work was done because
+	// there are pending expectations that need to be met first.
 	JobControlPendingExpectations JobControlResult = "PendingExpectations"
-	JobControlNoWork              JobControlResult = "NoWork"
-	JobControlJobWorking          JobControlResult = "JobWorking"
-	JobControlCreatingJob         JobControlResult = "CreatingJob"
-	JobControlDeletingJobs        JobControlResult = "DeletingJobs"
-	JobControlLostCurrentJob      JobControlResult = "LostCurrentJob"
+	// JobControlNoWork indicates that no work was done because the owner
+	// is already up to date and there are no outstanding jobs.
+	JobControlNoWork JobControlResult = "NoWork"
+	// JobControlJobWorking indicates that there is an outstanding job
+	// processing the current generation of the owner.
+	JobControlJobWorking JobControlResult = "JobWorking"
+	// JobControlCreatingJob indicates that a job is being created to process
+	// the current generation of the owner.
+	JobControlCreatingJob JobControlResult = "CreatingJob"
+	// JobControlDeletingJobs indicates that outdated jobs are being deleted.
+	JobControlDeletingJobs JobControlResult = "DeletingJobs"
+	// JobControlLostCurrentJob indicates that there was an outstanding job
+	// that can no longer be found.
+	JobControlLostCurrentJob JobControlResult = "LostCurrentJob"
 )
 
 // JobControl is used to control jobs that are needed by a controller.
@@ -118,7 +133,7 @@ type jobControl struct {
 	ownerControl JobOwnerControl
 	logger       log.FieldLogger
 	// A TTLCache of job creations/deletions we're expecting to see
-	expectations *UIDTrackingControllerExpectations
+	expectations *UIDTrackingExpectations
 }
 
 // NewJobControl creates a new JobControl.
@@ -138,7 +153,7 @@ func NewJobControl(
 		jobsLister:   jobsLister,
 		ownerControl: ownerControl,
 		logger:       logger,
-		expectations: NewUIDTrackingControllerExpectations(NewControllerExpectations()),
+		expectations: NewUIDTrackingExpectations(NewExpectations()),
 	}
 }
 
@@ -234,26 +249,6 @@ func (c *jobControl) isControlledJob(job *kbatch.Job) bool {
 	return strings.HasPrefix(job.Name, c.jobPrefix)
 }
 
-func (c *jobControl) ownerForJob(job *kbatch.Job) (metav1.Object, error) {
-	controllerRef := metav1.GetControllerOf(job)
-	if controllerRef == nil {
-		return nil, nil
-	}
-	if controllerRef.Kind != c.ownerKind.Kind {
-		return nil, nil
-	}
-	owner, err := c.ownerControl.GetOwner(job.Namespace, controllerRef.Name)
-	if err != nil || owner == nil {
-		return owner, err
-	}
-	if owner.GetUID() != controllerRef.UID {
-		// The controller we found with this Name is not the same one that the
-		// ControllerRef points to.
-		return nil, nil
-	}
-	return owner, nil
-}
-
 func (c *jobControl) convertEventHandlerObjectToControlledJob(obj interface{}, lookAtTombstone bool) (*kbatch.Job, bool) {
 	job, ok := obj.(*kbatch.Job)
 	if !ok {
@@ -319,7 +314,13 @@ func (c *jobControl) onJobEvent(obj interface{}, eventType string) {
 
 	logger := loggerForJob(c.logger, job)
 
-	owner, err := c.ownerForJob(job)
+	owner, err := GetObjectController(
+		job,
+		c.ownerKind,
+		func(name string) (metav1.Object, error) {
+			return c.ownerControl.GetOwner(job.Namespace, name)
+		},
+	)
 	if err != nil || owner == nil {
 		logger.Warn("owner no longer exists for job")
 		return

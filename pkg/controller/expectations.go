@@ -28,8 +28,8 @@ import (
 )
 
 const (
-	// If a watch drops a delete event for a node group, it'll take this long
-	// before a dormant controller waiting for those packets is woken up anyway. It is
+	// ExpectationsTimeout defines the length of time that a dormant
+	// controller will wait for an expectation to be satisfied. It is
 	// specifically targeted at the case where some problem prevents an update
 	// of expectations, without it the controller could stay asleep forever. This should
 	// be set based on the expected latency of watch events.
@@ -37,7 +37,7 @@ const (
 )
 
 // Expectations are a way for controllers to tell the controller manager what they expect. eg:
-//	ControllerExpectations: {
+//	Expectations: {
 //		controller1: expects  2 adds in 2 minutes
 //		controller2: expects  2 dels in 2 minutes
 //		controller3: expects -1 adds in 2 minutes => controller3's expectations have already been met
@@ -45,7 +45,7 @@ const (
 //
 // Implementation:
 //	ControlleeExpectation = pair of atomic counters to track controllee's creation/deletion
-//	ControllerExpectationsStore = TTLStore + a ControlleeExpectation per controller
+//	ExpectationsStore = TTLStore + a ControlleeExpectation per controller
 //
 // * Once set expectations can only be lowered
 // * A controller isn't synced till its expectations are either fulfilled, or expire
@@ -59,11 +59,11 @@ var ExpKeyFunc = func(obj interface{}) (string, error) {
 	return "", fmt.Errorf("Could not find key for obj %#v", obj)
 }
 
-// ControllerExpectationsInterface is an interface that allows users to set and wait on expectations.
+// ExpectationsInterface is an interface that allows users to set and wait on expectations.
 // Only abstracted out for testing.
-// Warning: if using KeyFunc it is not safe to use a single ControllerExpectationsInterface with different
+// Warning: if using KeyFunc it is not safe to use a single ExpectationsInterface with different
 // types of controllers, because the keys might conflict across types.
-type ControllerExpectationsInterface interface {
+type ExpectationsInterface interface {
 	GetExpectations(controllerKey string) (*ControlleeExpectations, bool, error)
 	SatisfiedExpectations(controllerKey string) bool
 	DeleteExpectations(controllerKey string)
@@ -76,22 +76,22 @@ type ControllerExpectationsInterface interface {
 	LowerExpectations(controllerKey string, add, del int)
 }
 
-// ControllerExpectations is a cache mapping controllers to what they expect to see before being woken up for a sync.
-type ControllerExpectations struct {
+// Expectations is a cache mapping controllers to what they expect to see before being woken up for a sync.
+type Expectations struct {
 	cache.Store
 }
 
 // GetExpectations returns the ControlleeExpectations of the given controller.
-func (r *ControllerExpectations) GetExpectations(controllerKey string) (*ControlleeExpectations, bool, error) {
-	if exp, exists, err := r.GetByKey(controllerKey); err == nil && exists {
-		return exp.(*ControlleeExpectations), true, nil
-	} else {
+func (r *Expectations) GetExpectations(controllerKey string) (*ControlleeExpectations, bool, error) {
+	exp, exists, err := r.GetByKey(controllerKey)
+	if err != nil || !exists {
 		return nil, false, err
 	}
+	return exp.(*ControlleeExpectations), true, nil
 }
 
 // DeleteExpectations deletes the expectations of the given controller from the TTLStore.
-func (r *ControllerExpectations) DeleteExpectations(controllerKey string) {
+func (r *Expectations) DeleteExpectations(controllerKey string) {
 	if exp, exists, err := r.GetByKey(controllerKey); err == nil && exists {
 		if err := r.Delete(exp); err != nil {
 			glog.V(2).Infof("Error deleting expectations for controller %v: %v", controllerKey, err)
@@ -102,7 +102,7 @@ func (r *ControllerExpectations) DeleteExpectations(controllerKey string) {
 // SatisfiedExpectations returns true if the required adds/dels for the given controller have been observed.
 // Add/del counts are established by the controller at sync time, and updated as controllees are observed by the controller
 // manager.
-func (r *ControllerExpectations) SatisfiedExpectations(controllerKey string) bool {
+func (r *Expectations) SatisfiedExpectations(controllerKey string) bool {
 	if exp, exists, err := r.GetExpectations(controllerKey); exists {
 		if exp.Fulfilled() {
 			glog.V(4).Infof("Controller expectations fulfilled %#v", exp)
@@ -129,30 +129,28 @@ func (r *ControllerExpectations) SatisfiedExpectations(controllerKey string) boo
 	return true
 }
 
-// TODO: Extend ExpirationCache to support explicit expiration.
-// TODO: Make this possible to disable in tests.
-// TODO: Support injection of clock.
-func (exp *ControlleeExpectations) isExpired() bool {
-	return clock.RealClock{}.Since(exp.timestamp) > ExpectationsTimeout
-}
-
 // SetExpectations registers new expectations for the given controller. Forgets existing expectations.
-func (r *ControllerExpectations) SetExpectations(controllerKey string, add, del int) error {
+func (r *Expectations) SetExpectations(controllerKey string, add, del int) error {
 	exp := &ControlleeExpectations{add: int64(add), del: int64(del), key: controllerKey, timestamp: clock.RealClock{}.Now()}
 	glog.V(4).Infof("Setting expectations %#v", exp)
 	return r.Add(exp)
 }
 
-func (r *ControllerExpectations) ExpectCreations(controllerKey string, adds int) error {
+// ExpectCreations sets the expectations to expect the specified number of
+// additions for the controller with the specified key.
+func (r *Expectations) ExpectCreations(controllerKey string, adds int) error {
 	return r.SetExpectations(controllerKey, adds, 0)
 }
 
-func (r *ControllerExpectations) ExpectDeletions(controllerKey string, dels int) error {
+// ExpectDeletions sets the expectations to expect the specified number of
+// deletions for the controller with the specified key.
+func (r *Expectations) ExpectDeletions(controllerKey string, dels int) error {
 	return r.SetExpectations(controllerKey, 0, dels)
 }
 
-// Decrements the expectation counts of the given controller.
-func (r *ControllerExpectations) LowerExpectations(controllerKey string, add, del int) {
+// LowerExpectations decrements the expectation counts of the given
+// controller.
+func (r *Expectations) LowerExpectations(controllerKey string, add, del int) {
 	if exp, exists, err := r.GetExpectations(controllerKey); err == nil && exists {
 		exp.Add(int64(-add), int64(-del))
 		// The expectations might've been modified since the update on the previous line.
@@ -160,8 +158,9 @@ func (r *ControllerExpectations) LowerExpectations(controllerKey string, add, de
 	}
 }
 
-// Increments the expectation counts of the given controller.
-func (r *ControllerExpectations) RaiseExpectations(controllerKey string, add, del int) {
+// RaiseExpectations increments the expectation counts of the given
+// controller.
+func (r *Expectations) RaiseExpectations(controllerKey string, add, del int) {
 	if exp, exists, err := r.GetExpectations(controllerKey); err == nil && exists {
 		exp.Add(int64(add), int64(del))
 		// The expectations might've been modified since the update on the previous line.
@@ -170,18 +169,13 @@ func (r *ControllerExpectations) RaiseExpectations(controllerKey string, add, de
 }
 
 // CreationObserved atomically decrements the `add` expectation count of the given controller.
-func (r *ControllerExpectations) CreationObserved(controllerKey string) {
+func (r *Expectations) CreationObserved(controllerKey string) {
 	r.LowerExpectations(controllerKey, 1, 0)
 }
 
 // DeletionObserved atomically decrements the `del` expectation count of the given controller.
-func (r *ControllerExpectations) DeletionObserved(controllerKey string) {
+func (r *Expectations) DeletionObserved(controllerKey string) {
 	r.LowerExpectations(controllerKey, 0, 1)
-}
-
-// Expectations are either fulfilled, or expire naturally.
-type Expectations interface {
-	Fulfilled() bool
 }
 
 // ControlleeExpectations track controllee creates/deletes.
@@ -211,7 +205,14 @@ func (e *ControlleeExpectations) GetExpectations() (int64, int64) {
 	return atomic.LoadInt64(&e.add), atomic.LoadInt64(&e.del)
 }
 
-// NewControllerExpectations returns a store for ControllerExpectations.
-func NewControllerExpectations() *ControllerExpectations {
-	return &ControllerExpectations{cache.NewStore(ExpKeyFunc)}
+// TODO: Extend ExpirationCache to support explicit expiration.
+// TODO: Make this possible to disable in tests.
+// TODO: Support injection of clock.
+func (e *ControlleeExpectations) isExpired() bool {
+	return clock.RealClock{}.Since(e.timestamp) > ExpectationsTimeout
+}
+
+// NewExpectations returns a store for Expectations.
+func NewExpectations() *Expectations {
+	return &Expectations{cache.NewStore(ExpKeyFunc)}
 }

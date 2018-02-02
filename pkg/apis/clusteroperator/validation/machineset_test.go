@@ -112,25 +112,149 @@ func TestValidateMachineSetUpdate(t *testing.T) {
 			valid: true,
 		},
 		{
-			name: "invalid cluster owner mutation",
-			old: func() *clusteroperator.MachineSet {
-				ms := getValidMachineSet()
-				ms.OwnerReferences[0].UID = "old-owner-uid"
-				return ms
-			}(),
-			new: func() *clusteroperator.MachineSet {
-				ms := getValidMachineSet()
-				ms.OwnerReferences[0].UID = "new-owner-uid"
-				return ms
-			}(),
-			valid: false,
-		},
-		{
 			name: "invalid spec",
 			old:  getValidMachineSet(),
 			new: func() *clusteroperator.MachineSet {
 				ms := getValidMachineSet()
 				ms.Spec.Size = 0
+				return ms
+			}(),
+			valid: false,
+		},
+		{
+			name: "valid single owner",
+			old: func() *clusteroperator.MachineSet {
+				ms := getValidMachineSet()
+				ms.OwnerReferences = []metav1.OwnerReference{
+					getValidClusterOwnerRef(),
+				}
+				return ms
+			}(),
+			new: func() *clusteroperator.MachineSet {
+				ms := getValidMachineSet()
+				ms.OwnerReferences = []metav1.OwnerReference{
+					getValidClusterOwnerRef(),
+				}
+				return ms
+			}(),
+			valid: true,
+		},
+		{
+			name: "valid multiple owners",
+			old: func() *clusteroperator.MachineSet {
+				ms := getValidMachineSet()
+				ms.OwnerReferences = []metav1.OwnerReference{
+					getValidClusterOwnerRef(),
+					{},
+					{},
+				}
+				return ms
+			}(),
+			new: func() *clusteroperator.MachineSet {
+				ms := getValidMachineSet()
+				ms.OwnerReferences = []metav1.OwnerReference{
+					getValidClusterOwnerRef(),
+					{},
+					{},
+				}
+				return ms
+			}(),
+			valid: true,
+		},
+		{
+			name: "single owner removed",
+			old: func() *clusteroperator.MachineSet {
+				ms := getValidMachineSet()
+				ms.OwnerReferences = []metav1.OwnerReference{
+					getValidClusterOwnerRef(),
+				}
+				return ms
+			}(),
+			new: func() *clusteroperator.MachineSet {
+				ms := getValidMachineSet()
+				ms.OwnerReferences = []metav1.OwnerReference{}
+				return ms
+			}(),
+			valid: false,
+		},
+		{
+			name: "cluster owner removed",
+			old: func() *clusteroperator.MachineSet {
+				ms := getValidMachineSet()
+				ms.OwnerReferences = []metav1.OwnerReference{
+					getValidClusterOwnerRef(),
+					{},
+					{},
+				}
+				return ms
+			}(),
+			new: func() *clusteroperator.MachineSet {
+				ms := getValidMachineSet()
+				ms.OwnerReferences = []metav1.OwnerReference{
+					{},
+					{},
+				}
+				return ms
+			}(),
+			valid: false,
+		},
+		{
+			name: "cluster owner moved",
+			old: func() *clusteroperator.MachineSet {
+				ms := getValidMachineSet()
+				ms.OwnerReferences = []metav1.OwnerReference{
+					getValidClusterOwnerRef(),
+					{},
+					{},
+				}
+				return ms
+			}(),
+			new: func() *clusteroperator.MachineSet {
+				ms := getValidMachineSet()
+				ms.OwnerReferences = []metav1.OwnerReference{
+					{},
+					getValidClusterOwnerRef(),
+					{},
+				}
+				return ms
+			}(),
+			valid: true,
+		},
+		{
+			name: "other owner removed",
+			old: func() *clusteroperator.MachineSet {
+				ms := getValidMachineSet()
+				ms.OwnerReferences = []metav1.OwnerReference{
+					getValidClusterOwnerRef(),
+					{},
+					{},
+				}
+				return ms
+			}(),
+			new: func() *clusteroperator.MachineSet {
+				ms := getValidMachineSet()
+				ms.OwnerReferences = []metav1.OwnerReference{
+					getValidClusterOwnerRef(),
+					{},
+				}
+				return ms
+			}(),
+			valid: true,
+		},
+		{
+			name: "cluster owner mutated",
+			old: func() *clusteroperator.MachineSet {
+				ms := getValidMachineSet()
+				owner := getValidClusterOwnerRef()
+				owner.UID = "old-owner-uid"
+				ms.OwnerReferences = []metav1.OwnerReference{owner}
+				return ms
+			}(),
+			new: func() *clusteroperator.MachineSet {
+				ms := getValidMachineSet()
+				owner := getValidClusterOwnerRef()
+				owner.UID = "new-owner-uid"
+				ms.OwnerReferences = []metav1.OwnerReference{owner}
 				return ms
 			}(),
 			valid: false,
@@ -215,6 +339,15 @@ func TestValidateMachineSetClusterOwner(t *testing.T) {
 			valid: true,
 		},
 		{
+			name: "non-first controlling owner",
+			ownerRefs: []metav1.OwnerReference{
+				{},
+				getValidClusterOwnerRef(),
+				{},
+			},
+			valid: true,
+		},
+		{
 			name:      "no owners",
 			ownerRefs: []metav1.OwnerReference{},
 			valid:     false,
@@ -267,7 +400,12 @@ func TestValidateMachineSetClusterOwner(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		errs := validateMachineSetClusterOwner(tc.ownerRefs, field.NewPath("metadata").Child("ownerReferences"))
+		machineSet := &clusteroperator.MachineSet{
+			ObjectMeta: metav1.ObjectMeta{
+				OwnerReferences: tc.ownerRefs,
+			},
+		}
+		errs := validateMachineSetClusterOwner(machineSet)
 		if len(errs) != 0 && tc.valid {
 			t.Errorf("%v: unexpected error: %v", tc.name, errs)
 			continue
@@ -364,118 +502,6 @@ func TestValidateMachineSetSpec(t *testing.T) {
 
 	for _, tc := range cases {
 		errs := validateMachineSetSpec(tc.spec, field.NewPath("spec"))
-		if len(errs) != 0 && tc.valid {
-			t.Errorf("%v: unexpected error: %v", tc.name, errs)
-			continue
-		} else if len(errs) == 0 && !tc.valid {
-			t.Errorf("%v: unexpected success", tc.name)
-		}
-	}
-}
-
-// TestValidateMachineSetImmutableClusterOwner tests the
-// validateMachineSetImmutableClusterOwner function.
-func TestValidateMachineSetImmutableClusterOwner(t *testing.T) {
-	cases := []struct {
-		name  string
-		old   []metav1.OwnerReference
-		new   []metav1.OwnerReference
-		valid bool
-	}{
-		{
-			name: "valid single owner",
-			old: []metav1.OwnerReference{
-				getValidClusterOwnerRef(),
-			},
-			new: []metav1.OwnerReference{
-				getValidClusterOwnerRef(),
-			},
-			valid: true,
-		},
-		{
-			name: "valid multiple owners",
-			old: []metav1.OwnerReference{
-				getValidClusterOwnerRef(),
-				{},
-				{},
-			},
-			new: []metav1.OwnerReference{
-				getValidClusterOwnerRef(),
-				{},
-				{},
-			},
-			valid: true,
-		},
-		{
-			name: "single owner removed",
-			old: []metav1.OwnerReference{
-				getValidClusterOwnerRef(),
-			},
-			new:   []metav1.OwnerReference{},
-			valid: false,
-		},
-		{
-			name: "cluster owner removed",
-			old: []metav1.OwnerReference{
-				getValidClusterOwnerRef(),
-				{},
-				{},
-			},
-			new: []metav1.OwnerReference{
-				{},
-				{},
-			},
-			valid: false,
-		},
-		{
-			name: "cluster owner moved",
-			old: []metav1.OwnerReference{
-				getValidClusterOwnerRef(),
-				{},
-				{},
-			},
-			new: []metav1.OwnerReference{
-				{},
-				getValidClusterOwnerRef(),
-				{},
-			},
-			valid: false,
-		},
-		{
-			name: "other owner removed",
-			old: []metav1.OwnerReference{
-				getValidClusterOwnerRef(),
-				{},
-				{},
-			},
-			new: []metav1.OwnerReference{
-				getValidClusterOwnerRef(),
-				{},
-			},
-			valid: true,
-		},
-		{
-			name: "cluster owner mutated",
-			old: []metav1.OwnerReference{
-				func() metav1.OwnerReference {
-					r := getValidClusterOwnerRef()
-					r.UID = "old-owner-uid"
-					return r
-				}(),
-			},
-			new: []metav1.OwnerReference{
-				func() metav1.OwnerReference {
-					r := getValidClusterOwnerRef()
-					r.UID = "new-owner-uid"
-					return r
-				}(),
-			},
-			valid: false,
-		},
-	}
-
-	for _, tc := range cases {
-		errs := validateMachineSetImmutableClusterOwner(tc.new, tc.old, field.NewPath("metadata").Child("ownerReferences"))
 		if len(errs) != 0 && tc.valid {
 			t.Errorf("%v: unexpected error: %v", tc.name, errs)
 			continue
