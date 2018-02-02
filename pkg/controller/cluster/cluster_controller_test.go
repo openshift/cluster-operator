@@ -629,7 +629,6 @@ func TestSyncClusterWithVersion(t *testing.T) {
 		currentClusterVersion      *clusteroperator.ClusterVersion
 		newClusterVersion          *clusteroperator.ClusterVersion
 		newClusterVersionExists    bool
-		expectedError              string
 		expectedMachineSetsCreated bool
 		expectedMachineSetsDeleted bool
 		expectedStatusUpdate       bool
@@ -640,7 +639,6 @@ func TestSyncClusterWithVersion(t *testing.T) {
 			currentClusterVersion:      nil,
 			newClusterVersion:          newClusterVer(testClusterVerNS, testClusterVerName, testClusterVerUID),
 			newClusterVersionExists:    false,
-			expectedError:              "\"v3-9\" not found",
 			expectedMachineSetsCreated: false,
 			expectedMachineSetsDeleted: false,
 			expectedStatusUpdate:       false,
@@ -665,7 +663,6 @@ func TestSyncClusterWithVersion(t *testing.T) {
 			currentClusterVersion:      newClusterVer(testClusterVerNS, "currentversion", "currentUID"),
 			newClusterVersion:          newClusterVer(testClusterVerNS, testClusterVerName, testClusterVerUID),
 			newClusterVersionExists:    false,
-			expectedError:              "\"v3-9\" not found",
 			expectedMachineSetsCreated: false,
 			expectedMachineSetsDeleted: false,
 			expectedStatusUpdate:       false,
@@ -680,7 +677,6 @@ func TestSyncClusterWithVersion(t *testing.T) {
 			currentClusterVersion:      newClusterVer(testClusterVerNS, "currentversion", "currentUID"),
 			newClusterVersion:          newClusterVer(testClusterVerNS, testClusterVerName, testClusterVerUID),
 			newClusterVersionExists:    true,
-			expectedError:              "",
 			expectedMachineSetsCreated: true,
 			expectedMachineSetsDeleted: true,
 			expectedStatusUpdate:       true,
@@ -722,15 +718,8 @@ func TestSyncClusterWithVersion(t *testing.T) {
 			clusterStore.Add(cluster)
 
 			err := controller.syncCluster(getKey(cluster, t))
-			if tc.expectedError == "" && err != nil {
+			if err != nil {
 				t.Errorf("unexpected error: %v", err)
-			}
-			if tc.expectedError != "" {
-				if err == nil {
-					t.Errorf("unexpected success")
-				} else {
-					assert.Contains(t, err.Error(), tc.expectedError)
-				}
 			}
 
 			if tc.expectedStatusClusterRef == nil {
@@ -1137,79 +1126,6 @@ func TestSyncClusterMachineSetSpecMutated(t *testing.T) {
 			validateControllerExpectations(t, "TestSyncClusterMachineSetsMutated."+tc.name, controller, cluster, len(expectedActions)/2, len(expectedActions)/2)
 		})
 	}
-}
-
-//  TestSyncClusterVersionMutated tests that changing a cluster spec version results in new machine sets being created with the new version.
-func TestSyncClusterVersionMutated(t *testing.T) {
-	controller, clusterStore, machineSetStore, clusterVerStore, _, clusterOperatorClient := newTestClusterController()
-
-	// A different cluster version to the default:
-	clusterVer310 := &clusteroperator.ClusterVersion{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "cluster-operator",
-			Name:      "v3-10",
-			UID:       types.UID("310"),
-		},
-	}
-	clusterVerStore.Add(clusterVer310)
-
-	// Create compute machine set
-	name := "compute0"
-	clusterCompute := clusteroperator.ClusterMachineSet{
-		MachineSetConfig: clusteroperator.MachineSetConfig{
-			NodeType: clusteroperator.NodeTypeCompute,
-			Size:     5,
-		},
-		Name: name,
-	}
-	realizedCompute := clusteroperator.ClusterMachineSet{
-		MachineSetConfig: clusteroperator.MachineSetConfig{
-			NodeType: clusteroperator.NodeTypeCompute,
-			Size:     5,
-		},
-		Name: name,
-	}
-
-	// Create the new incoming cluster state, now referencing 3.10:
-	cv := newClusterVer(testClusterVerNS, testClusterVerName, testClusterVerUID)
-	cluster := newClusterWithSizes(cv, 3, clusterCompute)
-	cluster.Status.MachineSetCount = 2
-	clusterVerStore.Add(cv)
-	clusterStore.Add(cluster)
-
-	// Simulate the pre-existing MachineSet state:
-	newMachineSetsWithSizes(machineSetStore, cluster, cv, 3, realizedCompute)
-
-	// Sync and ensure no expected actions as we haven't changed the version yet:
-	controller.syncCluster(getKey(cluster, t))
-	validateClientActions(t, "TestSyncClusterVersionMutated", clusterOperatorClient, []expectedClientAction{}...)
-	validateControllerExpectations(t, "TestSyncClusterVersionMutated", controller, cluster, 0, 0)
-
-	// Changing the cluster version to 3.10 should result in machine sets being recreated:
-	cluster.Spec.ClusterVersionRef = clusteroperator.ClusterVersionReference{
-		Name:      clusterVer310.Name,
-		Namespace: clusterVer310.Namespace,
-	}
-
-	controller.syncCluster(getKey(cluster, t))
-
-	expectedActions := []expectedClientAction{}
-	expectedActions = append(expectedActions,
-		newExpectedMachineSetDeleteAction(cluster, "master"),
-		newExpectedMachineSetCreateAction(cluster, "master"),
-	)
-
-	expectedActions = append(expectedActions,
-		newExpectedMachineSetDeleteAction(cluster, clusterCompute.Name),
-		newExpectedMachineSetCreateAction(cluster, clusterCompute.Name),
-	)
-	expectedActions = append(expectedActions, expectedClusterStatusUpdateAction{
-		clusterVersionRef: &corev1.ObjectReference{Name: clusterVer310.Name, Namespace: clusterVer310.Namespace, UID: clusterVer310.UID},
-	})
-
-	validateClientActions(t, "TestSyncClusterVersionMutated", clusterOperatorClient, expectedActions...)
-
-	validateControllerExpectations(t, "TestSyncClusterVersionMutated", controller, cluster, len(expectedActions)/2, len(expectedActions)/2)
 }
 
 // TestSyncClusterMachineSetOwnerReference tests syncing a cluster when there

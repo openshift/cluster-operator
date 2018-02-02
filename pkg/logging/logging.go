@@ -1,5 +1,5 @@
 /*
-Copyright 2017 The Kubernetes Authors.
+Copyright 2018 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -24,10 +24,12 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// WithMachineSet expands a logger's context to include info about the given machineset.
 func WithMachineSet(logger log.FieldLogger, machineSet *clusteroperator.MachineSet) log.FieldLogger {
 	return logger.WithField("machineset", fmt.Sprintf("%s/%s", machineSet.Namespace, machineSet.Name))
 }
 
+// WithMachineSet expands a logger's context to include info about the given cluster.
 func WithCluster(logger log.FieldLogger, cluster *clusteroperator.Cluster) log.FieldLogger {
 	return logger.WithField("cluster", fmt.Sprintf("%s/%s", cluster.Namespace, cluster.Name))
 }
