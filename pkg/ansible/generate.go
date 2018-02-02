@@ -61,7 +61,7 @@ openshift_hosted_registry_wait: False
 # openshift_release must be specified.  Use whatever version of openshift
 # that is supported by openshift-ansible that you wish.
 # TODO: Parameterize
-openshift_release: "v3.7" # v3.7
+openshift_release: "3.7" # v3.7
 
 # This will be dependent on the version provided by the yum repository
 # TODO: Parameterize
@@ -103,6 +103,7 @@ openshift_aws_create_security_groups: true
 # openshift_aws_build_ami_group is the name of the security group to build the
 # ami in.  This defaults to the value of openshift_aws_clusterid.
 #openshift_aws_build_ami_group: cluster-engine
+openshift_aws_base_ami: ami-ae7bfdb8
 
 # openshift_aws_launch_config_security_groups specifies the security groups to
 # apply to the launch config.  The launch config security groups will be what
@@ -172,8 +173,10 @@ openshift_aws_ami: [[ .DefaultAMI ]]
 [[ end ]]
 `
 	masterVarsTemplate = `
+[[ if .AMIName ]]
 openshift_aws_ami_map:
   master: [[ .AMIName ]]
+[[ end ]]
 
 openshift_aws_master_group_config:
   # The 'master' key is always required here.
@@ -192,11 +195,22 @@ openshift_aws_master_group_config:
     iam_role: "{{ openshift_aws_iam_role_name }}"
     policy_name: "{{ openshift_aws_iam_role_policy_name }}"
     policy_json: "{{ openshift_aws_iam_role_policy_json }}"
-    elbs: "{{ openshift_aws_elb_name_dict['master'].keys()| map('extract', openshift_aws_elb_name_dict['master']) | list }}"
+    elbs: "{{ openshift_aws_elb_dict | json_query('master.[*][0][*].name') }}"
+
+openshift_aws_master_group:
+- name: "{{ openshift_aws_clusterid }} master group"
+  group: master
+  tags:
+    host-type: master
+    sub-host-type: default
+    runtime: docker
+    Name: "{{ openshift_aws_clusterid }}-master"
 `
 	infraVarsTemplate = `
+[[ if .AMIName ]]
 openshift_aws_ami_map:
   infra: [[ .AMIName ]]
+[[ end ]]
 
 openshift_aws_node_group_config:
   infra:
@@ -213,7 +227,7 @@ openshift_aws_node_group_config:
     iam_role: "{{ openshift_aws_iam_role_name }}"
     policy_name: "{{ openshift_aws_iam_role_policy_name }}"
     policy_json: "{{ openshift_aws_iam_role_policy_json }}"
-    elbs: "{{ openshift_aws_elb_name_dict['infra'].keys()| map('extract', openshift_aws_elb_name_dict['infra']) | list }}"
+    elbs: "{{ openshift_aws_elb_dict | json_query('infra.[*][0][*].name') }}"
 
 openshift_aws_node_groups:
 - name: "{{ openshift_aws_clusterid }} infra group"
@@ -222,12 +236,14 @@ openshift_aws_node_groups:
     host-type: node
     sub-host-type: infra
     runtime: docker
-	Name: "{{ openshift_aws_clusterid }}-infra"
+    Name: "{{ openshift_aws_clusterid }}-infra"
 `
 
 	computeVarsTemplate = `
+[[ if .AMIName ]]
 openshift_aws_ami_map:
   [[ .Name ]]: [[ .AMIName ]]
+[[ end ]]
 
 openshift_aws_node_groups:
 - name: "{{ openshift_aws_clusterid }} [[ .Name ]] group"
@@ -236,8 +252,8 @@ openshift_aws_node_groups:
     host-type: node
     sub-host-type: compute
     runtime: docker
-	group: [[ .Name ]]
-	Name: [[ .Name ]]
+    group: [[ .Name ]]
+    Name: [[ .Name ]]
 
 openshift_aws_node_group_config:
   [[ .Name ]]:

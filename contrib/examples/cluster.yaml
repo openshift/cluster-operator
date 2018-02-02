@@ -21,8 +21,8 @@ objects:
         keyPairName: "libra"
     defaultHardwareSpec:
       aws:
-        instanceType: "t2.medium"
-        amiName: "ami-10aed306"
+        amiName: "ami-2ed6f454"
+        instanceType: "m4.xlarge"
     machineSets:
     - name: master
       nodeType: Master
