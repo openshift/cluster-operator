@@ -32,7 +32,7 @@ func ClusterFieldLabelConversionFunc(label, value string) (string, string, error
 	}
 }
 
-// NodeGroupFieldLabelConversionFunc does not convert anything, just returns
+// MachineSetFieldLabelConversionFunc does not convert anything, just returns
 // what it's given for the supported fields, and errors for unsupported.
 func MachineSetFieldLabelConversionFunc(label, value string) (string, string, error) {
 	switch label {

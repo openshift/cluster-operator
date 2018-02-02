@@ -31,7 +31,7 @@ import (
 )
 
 func newStorage(t *testing.T) (*genericregistry.Store, *etcdtesting.EtcdTestServer) {
-	etcdStorage, server := registrytest.NewEtcdStorage(t, clusteroperatorapi.GroupName)
+	etcdStorage, server := registrytest.NewEtcdStorage(t)
 	restOptions := generic.RESTOptions{
 		StorageConfig:           etcdStorage,
 		Decorator:               generic.UndecoratedStorage,
@@ -57,7 +57,7 @@ func validNewMachineSet(name string) *clusteroperatorapi.MachineSet {
 			},
 		},
 		Spec: clusteroperatorapi.MachineSetSpec{
-			clusteroperatorapi.MachineSetConfig{
+			MachineSetConfig: clusteroperatorapi.MachineSetConfig{
 				NodeType: clusteroperatorapi.NodeTypeMaster,
 				Size:     1,
 			},

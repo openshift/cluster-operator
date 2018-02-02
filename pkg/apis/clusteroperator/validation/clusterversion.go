@@ -40,6 +40,7 @@ func ValidateClusterVersionStatusUpdate(new *clusteroperator.ClusterVersion, old
 	return allErrs
 }
 
+// ValidateClusterVersionSpec validates the spec of a ClusterVersion.
 func ValidateClusterVersionSpec(spec *clusteroperator.ClusterVersionSpec, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 	if spec.ImageFormat == "" {
@@ -59,6 +60,7 @@ func ValidateClusterVersionSpec(spec *clusteroperator.ClusterVersionSpec, fldPat
 	return allErrs
 }
 
+// ValidateYumRepository validates a yum repository.
 func ValidateYumRepository(repo *clusteroperator.YumRepository, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 

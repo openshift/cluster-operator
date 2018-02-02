@@ -447,7 +447,7 @@ func startClusterController(ctx ControllerContext) (bool, error) {
 	if !ctx.AvailableResources[schema.GroupVersionResource{Group: "clusteroperator.openshift.io", Version: "v1alpha1", Resource: "clusters"}] {
 		return false, nil
 	}
-	go cluster.NewClusterController(
+	go cluster.NewController(
 		ctx.InformerFactory.Clusteroperator().V1alpha1().Clusters(),
 		ctx.InformerFactory.Clusteroperator().V1alpha1().MachineSets(),
 		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-cluster-controller"),
@@ -460,7 +460,7 @@ func startInfraController(ctx ControllerContext) (bool, error) {
 	if !ctx.AvailableResources[schema.GroupVersionResource{Group: "clusteroperator.openshift.io", Version: "v1alpha1", Resource: "clusters"}] {
 		return false, nil
 	}
-	go infra.NewInfraController(
+	go infra.NewController(
 		ctx.InformerFactory.Clusteroperator().V1alpha1().Clusters(),
 		ctx.KubeInformerFactory.Batch().V1().Jobs(),
 		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-infra-controller"),
@@ -475,7 +475,7 @@ func startMachineSetController(ctx ControllerContext) (bool, error) {
 	if !ctx.AvailableResources[schema.GroupVersionResource{Group: "clusteroperator.openshift.io", Version: "v1alpha1", Resource: "machinesets"}] {
 		return false, nil
 	}
-	go machineset.NewMachineSetController(
+	go machineset.NewController(
 		ctx.InformerFactory.Clusteroperator().V1alpha1().Clusters(),
 		ctx.InformerFactory.Clusteroperator().V1alpha1().MachineSets(),
 		ctx.KubeInformerFactory.Batch().V1().Jobs(),
@@ -491,7 +491,7 @@ func startMachineController(ctx ControllerContext) (bool, error) {
 	if !ctx.AvailableResources[schema.GroupVersionResource{Group: "clusteroperator.openshift.io", Version: "v1alpha1", Resource: "machines"}] {
 		return false, nil
 	}
-	go machine.NewMachineController(
+	go machine.NewController(
 		ctx.InformerFactory.Clusteroperator().V1alpha1().Machines(),
 		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-machine-controller"),
 		ctx.ClientBuilder.ClientOrDie("clusteroperator-machine-controller"),
@@ -503,7 +503,7 @@ func startMasterController(ctx ControllerContext) (bool, error) {
 	if !ctx.AvailableResources[schema.GroupVersionResource{Group: "clusteroperator.openshift.io", Version: "v1alpha1", Resource: "machinesets"}] {
 		return false, nil
 	}
-	go master.NewMasterController(
+	go master.NewController(
 		ctx.InformerFactory.Clusteroperator().V1alpha1().Clusters(),
 		ctx.InformerFactory.Clusteroperator().V1alpha1().MachineSets(),
 		ctx.KubeInformerFactory.Batch().V1().Jobs(),

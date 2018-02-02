@@ -39,6 +39,4 @@ func NewAPIServer() *hyperkube.Server {
 	}
 	s.AddFlags(hks.Flags())
 	return &hks
-
-	return nil
 }

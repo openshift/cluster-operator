@@ -49,8 +49,8 @@ const (
 	maxRetries = 15
 )
 
-// NewMachineController returns a new *MachineController.
-func NewMachineController(machineInformer informers.MachineInformer, kubeClient kubeclientset.Interface, clusteroperatorClient clusteroperatorclientset.Interface) *MachineController {
+// NewController returns a new *Controller.
+func NewController(machineInformer informers.MachineInformer, kubeClient kubeclientset.Interface, clusteroperatorClient clusteroperatorclientset.Interface) *Controller {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(glog.Infof)
 	// TODO: remove the wrapper when every clients have moved to use the clientset.
@@ -60,7 +60,7 @@ func NewMachineController(machineInformer informers.MachineInformer, kubeClient 
 		metrics.RegisterMetricAndTrackRateLimiterUsage("clusteroperator_machine_controller", kubeClient.CoreV1().RESTClient().GetRateLimiter())
 	}
 
-	c := &MachineController{
+	c := &Controller{
 		client: clusteroperatorClient,
 		queue:  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "machine"),
 	}
@@ -79,8 +79,8 @@ func NewMachineController(machineInformer informers.MachineInformer, kubeClient 
 	return c
 }
 
-// MachineController monitors machines creating in MachineGroups.
-type MachineController struct {
+// Controller monitors machines creating in machine sets.
+type Controller struct {
 	client clusteroperatorclientset.Interface
 
 	// To allow injection of syncMachine for testing.
@@ -89,7 +89,7 @@ type MachineController struct {
 	enqueueMachine func(machine *clusteroperator.Machine)
 
 	// machinesLister is able to list/get machines and is populated by the shared informer passed to
-	// NewMachineController.
+	// NewController.
 	machinesLister lister.MachineLister
 	// machinesSynced returns true if the machine shared informer has been synced at least once.
 	// Added as a member to the struct to allow injection for testing.
@@ -99,20 +99,20 @@ type MachineController struct {
 	queue workqueue.RateLimitingInterface
 }
 
-func (c *MachineController) addMachine(obj interface{}) {
+func (c *Controller) addMachine(obj interface{}) {
 	h := obj.(*clusteroperator.Machine)
 	glog.V(4).Infof("Adding machine %s", h.Name)
 	c.enqueueMachine(h)
 }
 
-func (c *MachineController) updateMachine(old, cur interface{}) {
+func (c *Controller) updateMachine(old, cur interface{}) {
 	oldH := old.(*clusteroperator.Machine)
 	curH := cur.(*clusteroperator.Machine)
 	glog.V(4).Infof("Updating machine %s", oldH.Name)
 	c.enqueueMachine(curH)
 }
 
-func (c *MachineController) deleteMachine(obj interface{}) {
+func (c *Controller) deleteMachine(obj interface{}) {
 	h, ok := obj.(*clusteroperator.Machine)
 	if !ok {
 		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
@@ -130,9 +130,9 @@ func (c *MachineController) deleteMachine(obj interface{}) {
 	c.enqueueMachine(h)
 }
 
-// Runs c; will not return until stopCh is closed. workers determines how many
-// machines will be handled in parallel.
-func (c *MachineController) Run(workers int, stopCh <-chan struct{}) {
+// Run runs c; will not return until stopCh is closed. workers determines how
+// many machines will be handled in parallel.
+func (c *Controller) Run(workers int, stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer c.queue.ShutDown()
 
@@ -150,7 +150,7 @@ func (c *MachineController) Run(workers int, stopCh <-chan struct{}) {
 	<-stopCh
 }
 
-func (c *MachineController) enqueue(machine *clusteroperator.Machine) {
+func (c *Controller) enqueue(machine *clusteroperator.Machine) {
 	key, err := controller.KeyFunc(machine)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("Couldn't get key for object %#v: %v", machine, err))
@@ -162,12 +162,12 @@ func (c *MachineController) enqueue(machine *clusteroperator.Machine) {
 
 // worker runs a worker thread that just dequeues items, processes them, and marks them done.
 // It enforces that the syncHandler is never invoked concurrently with the same key.
-func (c *MachineController) worker() {
+func (c *Controller) worker() {
 	for c.processNextWorkItem() {
 	}
 }
 
-func (c *MachineController) processNextWorkItem() bool {
+func (c *Controller) processNextWorkItem() bool {
 	key, quit := c.queue.Get()
 	if quit {
 		return false
@@ -180,7 +180,7 @@ func (c *MachineController) processNextWorkItem() bool {
 	return true
 }
 
-func (c *MachineController) handleErr(err error, key interface{}) {
+func (c *Controller) handleErr(err error, key interface{}) {
 	if err == nil {
 		c.queue.Forget(key)
 		return
@@ -199,7 +199,7 @@ func (c *MachineController) handleErr(err error, key interface{}) {
 
 // syncMachine will sync the machine with the given key.
 // This function is not meant to be invoked concurrently with the same key.
-func (c *MachineController) syncMachine(key string) error {
+func (c *Controller) syncMachine(key string) error {
 	startTime := time.Now()
 	glog.V(4).Infof("Started syncing machine %q (%v)", key, startTime)
 	defer func() {

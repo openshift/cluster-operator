@@ -35,33 +35,33 @@ var UIDSetKeyFunc = func(obj interface{}) (string, error) {
 }
 
 // UIDSet holds a key and a set of UIDs. Used by the
-// UIDTrackingControllerExpectations to remember which UID it has seen/still
+// UIDTrackingExpectations to remember which UID it has seen/still
 // waiting for.
 type UIDSet struct {
 	sets.String
 	key string
 }
 
-// UIDTrackingControllerExpectations tracks the UID of the resources it deletes.
+// UIDTrackingExpectations tracks the UID of the resources it deletes.
 // This cache is needed over plain old expectations to safely handle graceful
 // deletion. The desired behavior is to treat an update that sets the
 // DeletionTimestamp on an object as a delete. To do so consistently, one needs
 // to remember the expected deletes so they aren't double counted.
 // TODO: Track creates as well (#22599)
-type UIDTrackingControllerExpectations struct {
-	ControllerExpectationsInterface
+type UIDTrackingExpectations struct {
+	ExpectationsInterface
 	// TODO: There is a much nicer way to do this that involves a single store,
 	// a lock per entry, and a ControlleeExpectationsInterface type.
 	uidStoreLock sync.Mutex
 	// Store used for the UIDs associated with any expectation tracked via the
-	// ControllerExpectationsInterface.
+	// ExpectationsInterface.
 	uidStore cache.Store
 }
 
 // GetUIDs is a convenience method to avoid exposing the set of expected uids.
 // The returned set is not thread safe, all modifications must be made holding
 // the uidStoreLock.
-func (u *UIDTrackingControllerExpectations) GetUIDs(controllerKey string) sets.String {
+func (u *UIDTrackingExpectations) GetUIDs(controllerKey string) sets.String {
 	if uid, exists, err := u.uidStore.GetByKey(controllerKey); err == nil && exists {
 		return uid.(*UIDSet).String
 	}
@@ -69,7 +69,7 @@ func (u *UIDTrackingControllerExpectations) GetUIDs(controllerKey string) sets.S
 }
 
 // SetExpectations registers new expectations for the given controller. Forgets existing expectations.
-func (u *UIDTrackingControllerExpectations) SetExpectations(controllerKey string, adds int, deletedKeys []string) error {
+func (u *UIDTrackingExpectations) SetExpectations(controllerKey string, adds int, deletedKeys []string) error {
 	u.uidStoreLock.Lock()
 	defer u.uidStoreLock.Unlock()
 
@@ -84,39 +84,39 @@ func (u *UIDTrackingControllerExpectations) SetExpectations(controllerKey string
 	if err := u.uidStore.Add(&UIDSet{expectedUIDs, controllerKey}); err != nil {
 		return err
 	}
-	return u.ControllerExpectationsInterface.SetExpectations(controllerKey, adds, expectedUIDs.Len())
+	return u.ExpectationsInterface.SetExpectations(controllerKey, adds, expectedUIDs.Len())
 }
 
 // ExpectCreations records expectations for the given number of creations, against the given controller.
-func (u *UIDTrackingControllerExpectations) ExpectCreations(controllerKey string, adds int) error {
+func (u *UIDTrackingExpectations) ExpectCreations(controllerKey string, adds int) error {
 	return u.SetExpectations(controllerKey, adds, []string{})
 }
 
 // ExpectDeletions records expectations for the given deleteKeys, against the given controller.
-func (u *UIDTrackingControllerExpectations) ExpectDeletions(controllerKey string, deletedKeys []string) error {
+func (u *UIDTrackingExpectations) ExpectDeletions(controllerKey string, deletedKeys []string) error {
 	return u.SetExpectations(controllerKey, 0, deletedKeys)
 }
 
 // DeletionObserved records the given deleteKey as a deletion, for the given controller.
-func (u *UIDTrackingControllerExpectations) DeletionObserved(controllerKey, deleteKey string) {
+func (u *UIDTrackingExpectations) DeletionObserved(controllerKey, deleteKey string) {
 	u.uidStoreLock.Lock()
 	defer u.uidStoreLock.Unlock()
 
 	uids := u.GetUIDs(controllerKey)
 	if uids != nil && uids.Has(deleteKey) {
 		glog.V(4).Infof("Controller %v received delete for pod %v", controllerKey, deleteKey)
-		u.ControllerExpectationsInterface.DeletionObserved(controllerKey)
+		u.ExpectationsInterface.DeletionObserved(controllerKey)
 		uids.Delete(deleteKey)
 	}
 }
 
 // DeleteExpectations deletes the UID set and invokes DeleteExpectations on the
-// underlying ControllerExpectationsInterface.
-func (u *UIDTrackingControllerExpectations) DeleteExpectations(rcKey string) {
+// underlying ExpectationsInterface.
+func (u *UIDTrackingExpectations) DeleteExpectations(rcKey string) {
 	u.uidStoreLock.Lock()
 	defer u.uidStoreLock.Unlock()
 
-	u.ControllerExpectationsInterface.DeleteExpectations(rcKey)
+	u.ExpectationsInterface.DeleteExpectations(rcKey)
 	if uidExp, exists, err := u.uidStore.GetByKey(rcKey); err == nil && exists {
 		if err := u.uidStore.Delete(uidExp); err != nil {
 			glog.V(2).Infof("Error deleting uid expectations for controller %v: %v", rcKey, err)
@@ -124,8 +124,8 @@ func (u *UIDTrackingControllerExpectations) DeleteExpectations(rcKey string) {
 	}
 }
 
-// NewUIDTrackingControllerExpectations returns a wrapper around
-// ControllerExpectations that is aware of deleteKeys.
-func NewUIDTrackingControllerExpectations(ce ControllerExpectationsInterface) *UIDTrackingControllerExpectations {
-	return &UIDTrackingControllerExpectations{ControllerExpectationsInterface: ce, uidStore: cache.NewStore(UIDSetKeyFunc)}
+// NewUIDTrackingExpectations returns a wrapper around
+// Expectations that is aware of deleteKeys.
+func NewUIDTrackingExpectations(ce ExpectationsInterface) *UIDTrackingExpectations {
+	return &UIDTrackingExpectations{ExpectationsInterface: ce, uidStore: cache.NewStore(UIDSetKeyFunc)}
 }
