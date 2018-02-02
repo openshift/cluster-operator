@@ -341,7 +341,7 @@ func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object) (controller.JobFact
 		return nil, err
 	}
 	return jobFactory(func(name string) (*v1batch.Job, *kapi.ConfigMap, error) {
-		vars, err := ansible.GenerateMachineSetVars(cluster, machineSet)
+		vars, err := ansible.GenerateClusterVars(cluster)
 		if err != nil {
 			return nil, nil, err
 		}

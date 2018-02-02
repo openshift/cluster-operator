@@ -177,6 +177,25 @@ func (c *Controller) updateMachineSet(old, cur interface{}) {
 	ms := cur.(*clusteroperator.MachineSet)
 	loggerForMachineSet(c.logger, ms).Debugf("enqueueing updated machine set")
 	c.enqueueMachineSet(ms)
+	if ms.Spec.NodeType == clusteroperator.NodeTypeMaster && ms.Status.Installed {
+		cluster, err := controller.ClusterForMachineSet(ms, c.clustersLister)
+		if err != nil {
+			utilruntime.HandleError(fmt.Errorf("cannot retrieve cluster for machineset %s/%s: %v", ms.Namespace, ms.Name, err))
+			return
+		}
+		machineSets, err := c.machineSetsForCluster(cluster)
+		if err != nil {
+			c.logger.Errorf("cannot retrieve machine sets for cluster: %v", err)
+			utilruntime.HandleError(err)
+			return
+		}
+		for _, machineSet := range machineSets {
+			if machineSet.Name != ms.Name {
+				loggerForMachineSet(c.logger, machineSet).Debugf("enqueueing machine set for installed master")
+				c.enqueueMachineSet(machineSet)
+			}
+		}
+	}
 }
 
 func (c *Controller) deleteMachineSet(obj interface{}) {
