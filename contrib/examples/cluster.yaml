@@ -8,13 +8,13 @@ objects:
   kind: ClusterVersion
   metadata:
     name: ocp-v3-9
-    namespace: cluster-operator
+    namespace: ${CLUSTER_VERSION_NS}
   spec:
     imageFormat: "openshift/origin-${component}:v3.9.0-alpha.1"
     vmImages:
       awsVMImages:
         amiByRegion:
-          us-east-1: ami-10aed306a # TODO: not correct, need to find out how to lookup latest golden image.
+          us-east-1: ami-10aed306 # TODO: not correct, need to find out how to lookup latest golden image.
     yumRepositories:
     # TODO: replace with a usable OpenShift repo
     - id: dgoodwin-tito-copr
@@ -27,13 +27,13 @@ objects:
   kind: ClusterVersion
   metadata:
     name: ocp-v3-10
-    namespace: cluster-operator
+    namespace: ${CLUSTER_VERSION_NS}
   spec:
     imageFormat: "openshift/origin-${component}:v3.10.notrealyet"
     vmImages:
       awsVMImages:
         amiByRegion:
-          us-east-1: ami-10aed306a # TODO: not correct, need to find out how to lookup latest golden image.
+          us-east-1: ami-10aed306 # TODO: not correct, need to find out how to lookup latest golden image.
 - apiVersion: clusteroperator.openshift.io/v1alpha1
   kind: Cluster
   metadata:
@@ -74,3 +74,7 @@ parameters:
   description: The name to give to the Cluster created. If using real AWS, then this name should include your username so that resources created in AWS can be identified as yours.
   value: cluster1
   required: true
+- name: CLUSTER_VERSION_NS
+  displayName: Cluster Version Namespace
+  description: Namespace where cluster verions should live
+  value: cluster-operator
