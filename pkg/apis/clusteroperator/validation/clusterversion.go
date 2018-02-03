@@ -17,6 +17,7 @@ limitations under the License.
 package validation
 
 import (
+	apivalidation "k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
@@ -28,6 +29,16 @@ func ValidateClusterVersion(cv *clusteroperator.ClusterVersion) field.ErrorList 
 
 	allErrs = append(allErrs, ValidateClusterVersionSpec(&cv.Spec, field.NewPath("spec"))...)
 
+	return allErrs
+}
+
+func ValidateClusterVersionUpdate(newCV *clusteroperator.ClusterVersion, oldCV *clusteroperator.ClusterVersion) field.ErrorList {
+	allErrs := field.ErrorList{}
+	// For now updating cluster versions is not supported. In the future this may change if deemed useful.
+	// In the meantime it will be necessary to create a new cluster version and trigger an upgrade if modifications
+	// are required.
+
+	allErrs = append(allErrs, apivalidation.ValidateImmutableField(newCV.Spec, oldCV.Spec, field.NewPath("spec"))...)
 	return allErrs
 }
 

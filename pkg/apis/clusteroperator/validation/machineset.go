@@ -54,7 +54,14 @@ func validateMachineSetClusterOwner(machineSet *clusteroperator.MachineSet) fiel
 
 // validateMachineSetSpec validates the spec of a machine set
 func validateMachineSetSpec(spec *clusteroperator.MachineSetSpec, fldPath *field.Path) field.ErrorList {
-	return validateMachineSetConfig(&spec.MachineSetConfig, fldPath)
+	allErrs := validateMachineSetConfig(&spec.MachineSetConfig, fldPath)
+	if len(spec.ClusterVersionRef.Name) == 0 {
+		allErrs = append(allErrs, field.Required(fldPath.Child("clusterVersionRef").Child("name"), "must specify name"))
+	}
+	if len(spec.ClusterVersionRef.UID) == 0 {
+		allErrs = append(allErrs, field.Required(fldPath.Child("clusterVersionRef").Child("uid"), "must specify uid"))
+	}
+	return allErrs
 }
 
 // validateMachineSetConfig validates the configuration of a machine set
@@ -88,6 +95,7 @@ func ValidateMachineSetUpdate(new *clusteroperator.MachineSet, old *clusteropera
 			field.NewPath("metadata").Child("ownerReferences"),
 		)...,
 	)
+	allErrs = append(allErrs, apivalidation.ValidateImmutableField(new.Spec.ClusterVersionRef, old.Spec.ClusterVersionRef, field.NewPath("spec").Child("clusterVersionRef"))...)
 
 	return allErrs
 }

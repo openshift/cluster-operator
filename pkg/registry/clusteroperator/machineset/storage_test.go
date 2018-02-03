@@ -19,6 +19,7 @@ package machineset
 import (
 	"testing"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apiserver/pkg/registry/generic"
@@ -60,6 +61,11 @@ func validNewMachineSet(name string) *clusteroperatorapi.MachineSet {
 			MachineSetConfig: clusteroperatorapi.MachineSetConfig{
 				NodeType: clusteroperatorapi.NodeTypeMaster,
 				Size:     1,
+			},
+			ClusterVersionRef: corev1.ObjectReference{
+				Namespace: "cluster-operator",
+				Name:      "v3-9",
+				UID:       "faked",
 			},
 		},
 	}

@@ -19,6 +19,7 @@ package validation
 import (
 	"testing"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
@@ -48,6 +49,7 @@ func getValidMachineSet() *clusteroperator.MachineSet {
 				NodeType: clusteroperator.NodeTypeMaster,
 				Size:     1,
 			},
+			ClusterVersionRef: getClusterVersionReference(),
 		},
 	}
 }
@@ -257,6 +259,20 @@ func TestValidateMachineSetUpdate(t *testing.T) {
 			}(),
 			valid: false,
 		},
+		{
+			name: "invalid cluster version mutation",
+			old:  getValidMachineSet(),
+			new: func() *clusteroperator.MachineSet {
+				ms := getValidMachineSet()
+				ms.Spec.ClusterVersionRef = corev1.ObjectReference{
+					Namespace: "cluster-operator",
+					Name:      "newversion",
+					UID:       "somethingnew",
+				}
+				return ms
+			}(),
+			valid: false,
+		},
 	}
 
 	for _, tc := range cases {
@@ -413,6 +429,7 @@ func TestValidateMachineSetSpec(t *testing.T) {
 					NodeType: clusteroperator.NodeTypeMaster,
 					Size:     1,
 				},
+				ClusterVersionRef: getClusterVersionReference(),
 			},
 			valid: true,
 		},
@@ -423,6 +440,7 @@ func TestValidateMachineSetSpec(t *testing.T) {
 					NodeType: clusteroperator.NodeType(""),
 					Size:     1,
 				},
+				ClusterVersionRef: getClusterVersionReference(),
 			},
 		},
 		{
@@ -432,7 +450,53 @@ func TestValidateMachineSetSpec(t *testing.T) {
 					NodeType: clusteroperator.NodeTypeMaster,
 					Size:     0,
 				},
+				ClusterVersionRef: getClusterVersionReference(),
 			},
+		},
+		{
+			name: "missing version Name",
+			spec: &clusteroperator.MachineSetSpec{
+				MachineSetConfig: clusteroperator.MachineSetConfig{
+					NodeType: clusteroperator.NodeTypeMaster,
+					Size:     1,
+				},
+				ClusterVersionRef: func() corev1.ObjectReference {
+					cvr := getClusterVersionReference()
+					cvr.Name = ""
+					return cvr
+				}(),
+			},
+			valid: false,
+		},
+		{
+			name: "missing version UID",
+			spec: &clusteroperator.MachineSetSpec{
+				MachineSetConfig: clusteroperator.MachineSetConfig{
+					NodeType: clusteroperator.NodeTypeMaster,
+					Size:     1,
+				},
+				ClusterVersionRef: func() corev1.ObjectReference {
+					cvr := getClusterVersionReference()
+					cvr.UID = ""
+					return cvr
+				}(),
+			},
+			valid: false,
+		},
+		{
+			name: "version namespace optional",
+			spec: &clusteroperator.MachineSetSpec{
+				MachineSetConfig: clusteroperator.MachineSetConfig{
+					NodeType: clusteroperator.NodeTypeMaster,
+					Size:     1,
+				},
+				ClusterVersionRef: func() corev1.ObjectReference {
+					cvr := getClusterVersionReference()
+					cvr.Namespace = ""
+					return cvr
+				}(),
+			},
+			valid: true,
 		},
 	}
 

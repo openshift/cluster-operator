@@ -450,6 +450,7 @@ func startClusterController(ctx ControllerContext) (bool, error) {
 	go cluster.NewController(
 		ctx.InformerFactory.Clusteroperator().V1alpha1().Clusters(),
 		ctx.InformerFactory.Clusteroperator().V1alpha1().MachineSets(),
+		ctx.InformerFactory.Clusteroperator().V1alpha1().ClusterVersions(),
 		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-cluster-controller"),
 		ctx.ClientBuilder.ClientOrDie("clusteroperator-cluster-controller"),
 	).Run(int(ctx.Options.ConcurrentClusterSyncs), ctx.Stop)
