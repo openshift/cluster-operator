@@ -120,13 +120,14 @@ func (clusterVersionRESTStrategy) ValidateUpdate(ctx genericapirequest.Context, 
 	if !ok {
 		glog.Fatal("received a non-cluster version object to validate to")
 	}
-	_, ok = old.(*clusteroperator.ClusterVersion)
+	oldCV, ok := old.(*clusteroperator.ClusterVersion)
 	if !ok {
 		glog.Fatal("received a non-cluster version object to validate from")
 	}
 
-	// TODO: Implement update validation. Should cluster versions be mutable at all?
-	return validation.ValidateClusterVersion(newCV)
+	// Cluster versions are not actually mutable yet today, this will always return an error
+	// if the spec changed.
+	return validation.ValidateClusterVersionUpdate(newCV, oldCV)
 }
 
 func (clusterVersionStatusRESTStrategy) PrepareForUpdate(ctx genericapirequest.Context, new, old runtime.Object) {
