@@ -16,7 +16,7 @@ all: build test verify
 
 # Some env vars that devs might find useful:
 #  GOFLAGS         : extra "go build" flags to use - e.g. -v   (for verbose)
-#  USE_DOCKER=1    : execute each step in a Docker container, not natively
+#  NO_DOCKER=1     : execute each step in the native environment instead of a Docker container
 #  UNIT_TEST_DIRS= : only run the unit tests from the specified dirs
 #  INT_TEST_DIRS=  : only run the integration tests from the specified dirs
 #  TEST_FLAGS=     : add flags to the go test command
@@ -87,9 +87,9 @@ ifdef TEST_LOG_LEVEL
 	TEST_LOG_FLAGS=-args --alsologtostderr --v=$(TEST_LOG_LEVEL)
 endif
 
-ifdef USE_DOCKER
+ifndef NO_DOCKER
 	# Mount .pkg as pkg so that we save our cached "go build" output files
-	DOCKER_CMD = docker run --rm -v $(PWD):/go/src/$(CLUSTER_OPERATOR_PKG) \
+	DOCKER_CMD = docker run --security-opt label:disable --rm -v $(PWD):/go/src/$(CLUSTER_OPERATOR_PKG) \
 	  -v $(PWD)/.pkg:/go/pkg clusteroperatorbuildimage
 	clusterOperatorBuildImageTarget = .clusterOperatorBuildImage
 else
@@ -115,7 +115,7 @@ $(BINDIR)/cluster-operator: .init .generate_files cmd/cluster-operator $(NEWEST_
 
 fake-openshift-ansible: $(BINDIR)/fake-openshift-ansible
 $(BINDIR)/fake-openshift-ansible: $(wildcard contrib/fake-openshift-ansible/*)
-	cp contrib/fake-openshift-ansible/fake-openshift-ansible $(BINDIR)
+	$(DOCKER_CMD) cp contrib/fake-openshift-ansible/fake-openshift-ansible $(BINDIR)
 
 playbook-mock: $(BINDIR)/playbook-mock
 $(BINDIR)/playbook-mock: $(wildcard contrib/cmd/playbook-mock/*.go) $(wildcard contrib/pkg/playbookmock/*.go)

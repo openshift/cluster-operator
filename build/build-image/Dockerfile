@@ -30,10 +30,6 @@ RUN curl -sSL https://github.com/coreos/etcd/releases/download/v3.1.10/etcd-v3.1
 # Install the golint, use this to check our source for niceness
 RUN go get -u github.com/golang/lint/golint
 
-# Install the href checker for our md files, update PATH to include it
-RUN git clone https://github.com/duglin/vlinker.git /vlinker
-ENV PATH=$PATH:/vlinker/bin
-
 # Create the full dir tree that we'll mount our src into when we run the image
 RUN mkdir -p /go/src/github.com/openshift/cluster-operator
 
