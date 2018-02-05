@@ -444,6 +444,19 @@ type MachineSetStatus struct {
 	// on the machine set.
 	// +optional
 	ProvisionJob *corev1.LocalObjectReference
+
+	// Accepted is true if machine set nodes have been accepted on the master
+	Accepted bool
+
+	// AcceptedJobGeneration is the generation of the machine set resource used to
+	// run the latest completed accept job. The value will be set regardless of
+	// the job having succceeded or failed.
+	AcceptedJobGeneration int64
+
+	// AcceptJob is the job that is actively running to accept nodes from this machine
+	// set on the master.
+	// +optional
+	AcceptJob *corev1.LocalObjectReference
 }
 
 // MachineSetCondition contains details for the current condition of a MachineSet
@@ -502,6 +515,15 @@ const (
 	// MachineSetReady is true if the nodes of this nodegroup are ready for work
 	// (have joined the cluster and have a healthy node status)
 	MachineSetReady MachineSetConditionType = "Ready"
+
+	// MachineSetAccepting is true if the cluster is in the process of accepting the nodes from this machine set.
+	MachineSetAccepting MachineSetConditionType = "Accepting"
+
+	// MachineSetAcceptFailed is true when the job to accept nodes from this machine set has failed.
+	MachineSetAcceptFailed MachineSetConditionType = "AcceptFailed"
+
+	// MachineSetAccepted is true when nodes from this machine set have been accepted by the master of the cluster.
+	MachineSetAccepted MachineSetConditionType = "Accepted"
 )
 
 // +genclient

@@ -24,6 +24,7 @@ import (
 	lister "github.com/openshift/cluster-operator/pkg/client/listers_generated/clusteroperator/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/cache"
@@ -258,4 +259,19 @@ func ClusterForMachineSet(machineSet *clusteroperator.MachineSet, clustersLister
 		return nil, fmt.Errorf("Could not convert controller into a Cluster")
 	}
 	return cluster, nil
+}
+
+// MachineSetsForCluster retrieves the machinesets owned by a given cluster.
+func MachineSetsForCluster(cluster *clusteroperator.Cluster, machineSetsLister lister.MachineSetLister) ([]*clusteroperator.MachineSet, error) {
+	clusterMachineSets := []*clusteroperator.MachineSet{}
+	allMachineSets, err := machineSetsLister.MachineSets(cluster.Namespace).List(labels.Everything())
+	if err != nil {
+		return nil, err
+	}
+	for _, machineSet := range allMachineSets {
+		if metav1.IsControlledBy(machineSet, cluster) {
+			clusterMachineSets = append(clusterMachineSets, machineSet)
+		}
+	}
+	return clusterMachineSets, nil
 }

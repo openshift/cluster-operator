@@ -139,7 +139,7 @@ type Controller struct {
 	// Added as a member to the struct to allow injection for testing.
 	clustersSynced cache.InformerSynced
 
-	// jobsSynced returns true of the job shared informer has been synced at least once.
+	// jobsSynced returns true if the job shared informer has been synced at least once.
 	jobsSynced cache.InformerSynced
 
 	// Clusters that need to be synced

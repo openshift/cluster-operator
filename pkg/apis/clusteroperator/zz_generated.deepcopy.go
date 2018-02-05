@@ -671,6 +671,15 @@ func (in *MachineSetStatus) DeepCopyInto(out *MachineSetStatus) {
 			**out = **in
 		}
 	}
+	if in.AcceptJob != nil {
+		in, out := &in.AcceptJob, &out.AcceptJob
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(v1.LocalObjectReference)
+			**out = **in
+		}
+	}
 	return
 }
 

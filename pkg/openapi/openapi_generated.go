@@ -1101,8 +1101,28 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Ref:         ref("k8s.io/api/core/v1.LocalObjectReference"),
 							},
 						},
+						"accepted": {
+							SchemaProps: spec.SchemaProps{
+								Description: "Accepted is true if machine set nodes have been accepted on the master",
+								Type:        []string{"boolean"},
+								Format:      "",
+							},
+						},
+						"acceptedJobGeneration": {
+							SchemaProps: spec.SchemaProps{
+								Description: "AcceptedJobGeneration is the generation of the machine set resource used to run the latest completed accept job. The value will be set regardless of the job having succceeded or failed.",
+								Type:        []string{"integer"},
+								Format:      "int64",
+							},
+						},
+						"acceptJob": {
+							SchemaProps: spec.SchemaProps{
+								Description: "AcceptJob is the job that is actively running to accept nodes from this machine set on the master.",
+								Ref:         ref("k8s.io/api/core/v1.LocalObjectReference"),
+							},
+						},
 					},
-					Required: []string{"machineCount", "machinesReady", "conditions", "installed", "installedJobGeneration", "provisioned", "provisionedJobGeneration"},
+					Required: []string{"machineCount", "machinesReady", "conditions", "installed", "installedJobGeneration", "provisioned", "provisionedJobGeneration", "accepted", "acceptedJobGeneration"},
 				},
 			},
 			Dependencies: []string{
