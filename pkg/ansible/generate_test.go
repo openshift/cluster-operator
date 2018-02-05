@@ -149,8 +149,8 @@ func TestGenerateMachineSetVars(t *testing.T) {
 			cluster:    testCluster(),
 			machineSet: testMachineSet(),
 			shouldInclude: []string{
-				"testmachineset: myami",
-				"group: testmachineset",
+				"compute: myami",
+				"group: compute",
 				"sub-host-type: compute",
 				"instance_type: x9large",
 				"desired_size: 3",

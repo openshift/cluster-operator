@@ -242,21 +242,20 @@ openshift_aws_node_groups:
 	computeVarsTemplate = `
 [[ if .AMIName ]]
 openshift_aws_ami_map:
-  [[ .Name ]]: [[ .AMIName ]]
+  compute: [[ .AMIName ]]
 [[ end ]]
 
 openshift_aws_node_groups:
-- name: "{{ openshift_aws_clusterid }} [[ .Name ]] group"
-  group: [[ .Name ]]
+- name: "{{ openshift_aws_clusterid }} compute group"
+  group: compute
   tags:
     host-type: node
     sub-host-type: compute
     runtime: docker
-    group: [[ .Name ]]
-    Name: [[ .Name ]]
+    Name: "{{ openshift_aws_clusterid }}-compute"
 
 openshift_aws_node_group_config:
-  [[ .Name ]]:
+  compute:
     instance_type: [[ .InstanceType ]]
     volumes: "{{ openshift_aws_node_group_config_node_volumes }}"
     health_check:
@@ -270,29 +269,6 @@ openshift_aws_node_group_config:
     iam_role: "{{ openshift_aws_iam_role_name }}"
     policy_name: "{{ openshift_aws_iam_role_policy_name }}"
     policy_json: "{{ openshift_aws_iam_role_policy_json }}"
-
-openshift_aws_launch_config_security_groups:
-  [[ .Name ]]:
-  - "{{ openshift_aws_clusterid }}"  # default sg
-  - "{{ openshift_aws_clusterid }}_compute"  # node type sg
-  - "{{ openshift_aws_clusterid }}_compute_k8s"  # node type sg k8s
-
-openshift_aws_node_security_groups:
-  default:
-    name: "{{ openshift_aws_clusterid }}"
-    desc: "{{ openshift_aws_clusterid }} default"
-    rules:
-    - proto: tcp
-      from_port: 22
-      to_port: 22
-      cidr_ip: 0.0.0.0/0
-    - proto: all
-      from_port: all
-      to_port: all
-      group_name: "{{ openshift_aws_clusterid }}"
-  [[ .Name ]]:
-    name: "{{ openshift_aws_clusterid }}_compute"
-    desc: "{{ openshift_aws_clusterid }} compute node instances"
 `
 	DefaultInventory = `
 [OSEv3:children]
