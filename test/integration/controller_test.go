@@ -24,17 +24,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/glog"
 	"github.com/stretchr/testify/assert"
 
 	kbatch "k8s.io/api/batch/v1"
-	corev1 "k8s.io/api/core/v1"
 	kapi "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	serializer "k8s.io/apimachinery/pkg/runtime/serializer"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
 	kubeinformers "k8s.io/client-go/informers"
 	kubefake "k8s.io/client-go/kubernetes/fake"
@@ -201,7 +198,10 @@ func TestClusterCreate(t *testing.T) {
 				},
 			}
 
-			clusterOperatorClient.ClusteroperatorV1alpha1().Clusters(testNamespace).Create(cluster)
+			cluster, err := clusterOperatorClient.ClusteroperatorV1alpha1().Clusters(testNamespace).Create(cluster)
+			if !assert.NoError(t, err, "could not create the cluster") {
+				return
+			}
 
 			if err := waitForClusterToExist(clusterOperatorClient, testNamespace, testClusterName); err != nil {
 				t.Fatalf("error waiting for Cluster to exist: %v", err)
@@ -211,7 +211,7 @@ func TestClusterCreate(t *testing.T) {
 				return
 			}
 
-			if !verifyInfraProvision(t, kubeClient, clusterOperatorClient, cluster) {
+			if !completeInfraProvision(t, kubeClient, clusterOperatorClient, cluster) {
 				return
 			}
 
@@ -223,11 +223,11 @@ func TestClusterCreate(t *testing.T) {
 				return
 			}
 
-			if !verifyMachineSetProvision(t, kubeClient, clusterOperatorClient, masterMachineSet) {
+			if !completeMachineSetProvision(t, kubeClient, clusterOperatorClient, masterMachineSet) {
 				return
 			}
 
-			if !verifyMachineSetInstall(t, kubeClient, clusterOperatorClient, masterMachineSet) {
+			if !completeMachineSetInstall(t, kubeClient, clusterOperatorClient, masterMachineSet) {
 				return
 			}
 
@@ -237,13 +237,28 @@ func TestClusterCreate(t *testing.T) {
 			}
 
 			for _, machineSet := range computeMachineSets {
-				if !verifyMachineSetProvision(t, kubeClient, clusterOperatorClient, machineSet) {
+				if !completeMachineSetProvision(t, kubeClient, clusterOperatorClient, machineSet) {
 					return
 				}
 
-				if !verifyMachineSetAccept(t, kubeClient, clusterOperatorClient, machineSet) {
+				if !completeMachineSetAccept(t, kubeClient, clusterOperatorClient, machineSet) {
 					return
 				}
+			}
+
+			if err := clusterOperatorClient.ClusteroperatorV1alpha1().Clusters(cluster.Namespace).Delete(cluster.Name, &metav1.DeleteOptions{}); err != nil {
+				t.Fatalf("could not delete cluster: %v", err)
+			}
+
+			// There is no garbage collector controller running, so we need to clean up machine sets manually
+			deleteDependentMachineSets(clusterOperatorClient, cluster)
+
+			if !completeMachineSetsDeprovision(t, kubeClient, clusterOperatorClient, cluster) {
+				return
+			}
+
+			if !completeInfraDeprovision(t, kubeClient, clusterOperatorClient, cluster) {
+				return
 			}
 		})
 	}
@@ -276,7 +291,7 @@ func startServerAndControllers(t *testing.T) (
 	objectReaction := clientgotesting.ObjectReaction(objectTracker)
 	fakePtr.AddReactor("*", "jobs", func(action clientgotesting.Action) (bool, runtime.Object, error) {
 		var deletedObj runtime.Object
-		if action, ok := action.(*clientgotesting.DeleteActionImpl); ok {
+		if action, ok := action.(clientgotesting.DeleteActionImpl); ok {
 			deletedObj, _ = objectTracker.Get(action.GetResource(), action.GetNamespace(), action.GetName())
 		}
 		handled, obj, err := objectReaction(action)
@@ -286,7 +301,7 @@ func startServerAndControllers(t *testing.T) (
 		case clientgotesting.UpdateActionImpl:
 			kubeWatch.Modify(obj)
 		case clientgotesting.DeleteActionImpl:
-			if deletedObj == nil {
+			if deletedObj != nil {
 				kubeWatch.Delete(deletedObj)
 			}
 		}
@@ -422,103 +437,36 @@ func getMasterMachineSet(client clientset.Interface, cluster *v1alpha1.Cluster) 
 	return client.ClusteroperatorV1alpha1().MachineSets(cluster.Namespace).Get(storedCluster.Status.MasterMachineSetName, metav1.GetOptions{})
 }
 
-func getComputeMachineSets(client clientset.Interface, cluster *v1alpha1.Cluster) ([]*v1alpha1.MachineSet, error) {
-	storedCluster, err := getCluster(client, cluster.Namespace, cluster.Name)
-	if err != nil {
-		return nil, err
-	}
+func getMachineSetsForCluster(client clientset.Interface, cluster *v1alpha1.Cluster) ([]*v1alpha1.MachineSet, error) {
 	machineSetList, err := client.ClusteroperatorV1alpha1().MachineSets(cluster.Namespace).List(metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
 	machineSets := []*v1alpha1.MachineSet{}
 	for _, machineSet := range machineSetList.Items {
-		if machineSet.Spec.NodeType == v1alpha1.NodeTypeMaster {
-			continue
-		}
-		if metav1.IsControlledBy(&machineSet, storedCluster) {
+		if metav1.IsControlledBy(&machineSet, cluster) {
 			machineSets = append(machineSets, machineSet.DeepCopy())
 		}
 	}
 	return machineSets, nil
 }
 
+func getComputeMachineSets(client clientset.Interface, cluster *v1alpha1.Cluster) ([]*v1alpha1.MachineSet, error) {
+	allMachineSets, err := getMachineSetsForCluster(client, cluster)
+	if err != nil {
+		return nil, err
+	}
+	computeMachineSets := []*v1alpha1.MachineSet{}
+	for _, machineSet := range allMachineSets {
+		if machineSet.Spec.NodeType == v1alpha1.NodeTypeCompute {
+			computeMachineSets = append(computeMachineSets, machineSet)
+		}
+	}
+	return computeMachineSets, nil
+}
+
 func getJob(kubeClient *kubefake.Clientset, namespace, name string) (*kbatch.Job, error) {
 	return kubeClient.Batch().Jobs(namespace).Get(name, metav1.GetOptions{})
-}
-
-// waitForClusterToExist waits for the Cluster with the specified name to
-// exist in the specified namespace.
-func waitForClusterToExist(client clientset.Interface, namespace string, name string) error {
-	return wait.PollImmediate(500*time.Millisecond, wait.ForeverTestTimeout,
-		func() (bool, error) {
-			glog.V(5).Infof("Waiting for cluster %s/%s to exist", namespace, name)
-			_, err := getCluster(client, namespace, name)
-			if nil == err {
-				return true, nil
-			}
-
-			return false, nil
-		},
-	)
-}
-
-// waitForClusterMachineSetCount waits for the status of the cluster to
-// reflect that the machine sets have been created.
-func waitForClusterMachineSetCount(client clientset.Interface, namespace string, name string) error {
-	return wait.PollImmediate(500*time.Millisecond, wait.ForeverTestTimeout,
-		func() (bool, error) {
-			glog.V(5).Infof("Waiting for machine sets for cluster %s/%s to be created", namespace, name)
-			cluster, err := getCluster(client, namespace, name)
-			if err != nil {
-				return false, nil
-			}
-			if cluster.Status.MachineSetCount == len(cluster.Spec.MachineSets) {
-				return true, nil
-			}
-			return false, nil
-		},
-	)
-}
-
-// waitForClusterStatus waits for the cluster to have a specified status.
-func waitForClusterStatus(client clientset.Interface, namespace, name string, statusCheck func(*v1alpha1.Cluster) bool) error {
-	return wait.PollImmediate(500*time.Millisecond, wait.ForeverTestTimeout,
-		func() (bool, error) {
-			cluster, err := getCluster(client, namespace, name)
-			if err != nil {
-				return false, nil
-			}
-			return statusCheck(cluster), nil
-		},
-	)
-}
-
-// waitForClusterProvisioning waits for the cluster to be in a state of provisioning.
-func waitForClusterProvisioning(client clientset.Interface, namespace, name string) error {
-	return waitForClusterStatus(client, namespace, name, func(cluster *v1alpha1.Cluster) bool {
-		return cluster.Status.ProvisionJob != nil
-	})
-}
-
-// waitForClusterProvisioned waits for the cluster to be provisioned.
-func waitForClusterProvisioned(client clientset.Interface, namespace, name string) error {
-	return waitForClusterStatus(client, namespace, name, func(cluster *v1alpha1.Cluster) bool {
-		return cluster.Status.Provisioned
-	})
-}
-
-// waitForMachineSetStatus waits for the machine set to have a specified status.
-func waitForMachineSetStatus(client clientset.Interface, namespace, name string, statusCheck func(*v1alpha1.MachineSet) bool) error {
-	return wait.PollImmediate(500*time.Millisecond, wait.ForeverTestTimeout,
-		func() (bool, error) {
-			machineSet, err := getMachineSet(client, namespace, name)
-			if err != nil {
-				return false, nil
-			}
-			return statusCheck(machineSet), nil
-		},
-	)
 }
 
 func verifyMachineSetsCreated(t *testing.T, kubeClient *kubefake.Clientset, clusterOperatorClient clientset.Interface, cluster *v1alpha1.Cluster) bool {
@@ -585,132 +533,15 @@ func verifyMachineSetsCreated(t *testing.T, kubeClient *kubefake.Clientset, clus
 	return true
 }
 
-func verifyInfraProvision(t *testing.T, kubeClient *kubefake.Clientset, clusterOperatorClient clientset.Interface, cluster *v1alpha1.Cluster) bool {
-	if err := waitForClusterProvisioning(clusterOperatorClient, cluster.Namespace, cluster.Name); err != nil {
-		t.Fatalf("error waiting for cluster to be provisioning: %v", err)
+func deleteDependentMachineSets(clusterOperatorClient clientset.Interface, cluster *v1alpha1.Cluster) error {
+	machineSets, err := getMachineSetsForCluster(clusterOperatorClient, cluster)
+	if err != nil {
+		return err
 	}
-
-	storedCluster, err := getCluster(clusterOperatorClient, cluster.Namespace, cluster.Name)
-	if !assert.NoError(t, err, "error getting cluster") {
-		return false
+	for _, machineSet := range machineSets {
+		if err := clusterOperatorClient.ClusteroperatorV1alpha1().MachineSets(machineSet.Namespace).Delete(machineSet.Name, &metav1.DeleteOptions{}); err != nil {
+			return err
+		}
 	}
-	if !assert.NotNil(t, storedCluster, "expecting cluster to exist") {
-		return false
-	}
-	if !assert.NotNil(t, storedCluster.Status.ProvisionJob, "expecting cluster to be associated with an infra job") {
-		return false
-	}
-	infraJob, err := getJob(kubeClient, cluster.Namespace, storedCluster.Status.ProvisionJob.Name)
-	if !assert.NoError(t, err, "error getting infra job") {
-		return false
-	}
-	if !assert.NotNil(t, infraJob, "expecting infra job to exist") {
-		return false
-	}
-
-	if err := completeJob(kubeClient, infraJob); err != nil {
-		t.Fatalf("error updating infra job: %v", err)
-	}
-
-	if err := waitForClusterProvisioned(clusterOperatorClient, cluster.Namespace, cluster.Name); err != nil {
-		t.Fatalf("error waiting for cluster to be provisioned: %v", err)
-	}
-
-	return true
-}
-
-func verifyMachineSetJobCompletion(
-	t *testing.T,
-	kubeClient *kubefake.Clientset,
-	clusterOperatorClient clientset.Interface,
-	machineSet *v1alpha1.MachineSet,
-	getJobRef func(*v1alpha1.MachineSet) *corev1.LocalObjectReference,
-	isJobCompleted func(*v1alpha1.MachineSet) bool,
-) bool {
-	if err := waitForMachineSetStatus(
-		clusterOperatorClient,
-		machineSet.Namespace,
-		machineSet.Name,
-		func(machineSet *v1alpha1.MachineSet) bool { return getJobRef(machineSet) != nil },
-	); err != nil {
-		t.Fatalf("error waiting for job creation for machine set: %v", err)
-	}
-
-	storedMachineSet, err := getMachineSet(clusterOperatorClient, machineSet.Namespace, machineSet.Name)
-	if !assert.NoError(t, err, "error getting machine set") {
-		return false
-	}
-	if !assert.NotNil(t, storedMachineSet, "expecting machine set to exist") {
-		return false
-	}
-	jobRef := getJobRef(storedMachineSet)
-	if !assert.NotNil(t, jobRef, "expecting machine set to be associated with a job") {
-		return false
-	}
-	job, err := getJob(kubeClient, machineSet.Namespace, jobRef.Name)
-	if !assert.NoError(t, err, "error getting job") {
-		return false
-	}
-	if !assert.NotNil(t, job, "expecting job to exist") {
-		return false
-	}
-
-	if err := completeJob(kubeClient, job); err != nil {
-		t.Fatalf("error updating job: %v", err)
-	}
-
-	if err := waitForMachineSetStatus(clusterOperatorClient, machineSet.Namespace, machineSet.Name, isJobCompleted); err != nil {
-		t.Fatalf("error waiting for job completion for machine set: %v", err)
-	}
-
-	return true
-}
-
-func verifyMachineSetProvision(t *testing.T, kubeClient *kubefake.Clientset, clusterOperatorClient clientset.Interface, machineSet *v1alpha1.MachineSet) bool {
-	return verifyMachineSetJobCompletion(
-		t,
-		kubeClient,
-		clusterOperatorClient,
-		machineSet,
-		func(machineSet *v1alpha1.MachineSet) *corev1.LocalObjectReference {
-			return machineSet.Status.ProvisionJob
-		},
-		func(machineSet *v1alpha1.MachineSet) bool { return machineSet.Status.Provisioned },
-	)
-}
-
-func verifyMachineSetInstall(t *testing.T, kubeClient *kubefake.Clientset, clusterOperatorClient clientset.Interface, machineSet *v1alpha1.MachineSet) bool {
-	return verifyMachineSetJobCompletion(
-		t,
-		kubeClient,
-		clusterOperatorClient,
-		machineSet,
-		func(machineSet *v1alpha1.MachineSet) *corev1.LocalObjectReference {
-			return machineSet.Status.InstallationJob
-		},
-		func(machineSet *v1alpha1.MachineSet) bool { return machineSet.Status.Installed },
-	)
-}
-
-func verifyMachineSetAccept(t *testing.T, kubeClient *kubefake.Clientset, clusterOperatorClient clientset.Interface, machineSet *v1alpha1.MachineSet) bool {
-	return verifyMachineSetJobCompletion(
-		t,
-		kubeClient,
-		clusterOperatorClient,
-		machineSet,
-		func(machineSet *v1alpha1.MachineSet) *corev1.LocalObjectReference {
-			return machineSet.Status.AcceptJob
-		},
-		func(machineSet *v1alpha1.MachineSet) bool { return machineSet.Status.Accepted },
-	)
-}
-func completeJob(kubeClient *kubefake.Clientset, job *kbatch.Job) error {
-	job.Status.Conditions = []kbatch.JobCondition{
-		{
-			Type:   kbatch.JobComplete,
-			Status: kapi.ConditionTrue,
-		},
-	}
-	_, err := kubeClient.Batch().Jobs(job.Namespace).Update(job)
-	return err
+	return nil
 }

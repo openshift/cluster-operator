@@ -89,6 +89,18 @@ func (mr *MockJobControlMockRecorder) ObserveOwnerDeletion(ownerKey interface{})
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ObserveOwnerDeletion", reflect.TypeOf((*MockJobControl)(nil).ObserveOwnerDeletion), ownerKey)
 }
 
+// GetJobPrefix mocks base method
+func (m *MockJobControl) GetJobPrefix() string {
+	ret := m.ctrl.Call(m, "GetJobPrefix")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// GetJobPrefix indicates an expected call of GetJobPrefix
+func (mr *MockJobControlMockRecorder) GetJobPrefix() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetJobPrefix", reflect.TypeOf((*MockJobControl)(nil).GetJobPrefix))
+}
+
 // MockJobOwnerControl is a mock of JobOwnerControl interface
 type MockJobOwnerControl struct {
 	ctrl     *gomock.Controller

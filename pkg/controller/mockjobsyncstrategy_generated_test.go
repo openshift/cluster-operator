@@ -60,16 +60,16 @@ func (mr *MockJobSyncStrategyMockRecorder) DoesOwnerNeedProcessing(owner interfa
 }
 
 // GetJobFactory mocks base method
-func (m *MockJobSyncStrategy) GetJobFactory(owner v10.Object) (JobFactory, error) {
-	ret := m.ctrl.Call(m, "GetJobFactory", owner)
+func (m *MockJobSyncStrategy) GetJobFactory(owner v10.Object, deleting bool) (JobFactory, error) {
+	ret := m.ctrl.Call(m, "GetJobFactory", owner, deleting)
 	ret0, _ := ret[0].(JobFactory)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetJobFactory indicates an expected call of GetJobFactory
-func (mr *MockJobSyncStrategyMockRecorder) GetJobFactory(owner interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetJobFactory", reflect.TypeOf((*MockJobSyncStrategy)(nil).GetJobFactory), owner)
+func (mr *MockJobSyncStrategyMockRecorder) GetJobFactory(owner, deleting interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetJobFactory", reflect.TypeOf((*MockJobSyncStrategy)(nil).GetJobFactory), owner, deleting)
 }
 
 // GetOwnerCurrentJob mocks base method
@@ -146,16 +146,4 @@ func (m *MockJobSyncStrategy) UpdateOwnerStatus(original, owner v10.Object) erro
 // UpdateOwnerStatus indicates an expected call of UpdateOwnerStatus
 func (mr *MockJobSyncStrategyMockRecorder) UpdateOwnerStatus(original, owner interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOwnerStatus", reflect.TypeOf((*MockJobSyncStrategy)(nil).UpdateOwnerStatus), original, owner)
-}
-
-// ProcessDeletedOwner mocks base method
-func (m *MockJobSyncStrategy) ProcessDeletedOwner(owner v10.Object) error {
-	ret := m.ctrl.Call(m, "ProcessDeletedOwner", owner)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// ProcessDeletedOwner indicates an expected call of ProcessDeletedOwner
-func (mr *MockJobSyncStrategyMockRecorder) ProcessDeletedOwner(owner interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProcessDeletedOwner", reflect.TypeOf((*MockJobSyncStrategy)(nil).ProcessDeletedOwner), owner)
 }

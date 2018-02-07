@@ -373,6 +373,11 @@ func (c *Controller) syncCluster(key string) error {
 	}
 	clusterLog := colog.WithCluster(c.logger, cluster)
 
+	if cluster.DeletionTimestamp != nil {
+		clusterLog.Debug("skipping sync since cluster is being deleted")
+		return nil
+	}
+
 	clusterNeedsSync := c.expectations.SatisfiedExpectations(key)
 
 	// List all active machine sets owned by this cluster

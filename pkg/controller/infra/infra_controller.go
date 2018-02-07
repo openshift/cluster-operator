@@ -24,9 +24,7 @@ import (
 	kapi "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/apiserver/pkg/storage/names"
 	batchinformers "k8s.io/client-go/informers/batch/v1"
 	kubeclientset "k8s.io/client-go/kubernetes"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -105,7 +103,7 @@ func NewController(
 	jobInformer.Informer().AddEventHandler(c.jobControl)
 	c.jobsSynced = jobInformer.Informer().HasSynced
 
-	c.jobSync = controller.NewJobSync(c.jobControl, &jobSyncStrategy{controller: c}, logger)
+	c.jobSync = controller.NewJobSync(c.jobControl, &jobSyncStrategy{controller: c}, true, logger)
 
 	c.syncHandler = c.jobSync.Sync
 	c.enqueueCluster = c.enqueue
@@ -288,31 +286,6 @@ func (c *Controller) getJobFactory(cluster *clusteroperator.Cluster, playbook st
 	})
 }
 
-func (c *Controller) getProvisionJobFactory(cluster *clusteroperator.Cluster) controller.JobFactory {
-	return c.getJobFactory(cluster, infraPlaybook)
-}
-
-func (c *Controller) getDeprovisionJobFactory(cluster *clusteroperator.Cluster) controller.JobFactory {
-	return c.getJobFactory(cluster, deprovisionInfraPlaybook)
-}
-
-// fire-and-forget infra deprovision Job
-func (c *Controller) runDeprovisionJob(cluster *clusteroperator.Cluster) error {
-	name := names.SimpleNameGenerator.GenerateName(fmt.Sprintf("infra-deprovision-%s-", cluster.Name))
-
-	job, configMap, err := c.getDeprovisionJobFactory(cluster).BuildJob(name)
-	if err != nil {
-		return err
-	}
-
-	_, err = c.kubeClient.CoreV1().ConfigMaps(cluster.Namespace).Create(configMap)
-	if err != nil {
-		return err
-	}
-	_, err = c.kubeClient.BatchV1().Jobs(cluster.Namespace).Create(job)
-	return err
-}
-
 type jobSyncStrategy struct {
 	controller *Controller
 }
@@ -337,12 +310,16 @@ func (s *jobSyncStrategy) DoesOwnerNeedProcessing(owner metav1.Object) bool {
 	return cluster.Status.ProvisionedJobGeneration != cluster.Generation
 }
 
-func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object) (controller.JobFactory, error) {
+func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object, deleting bool) (controller.JobFactory, error) {
 	cluster, ok := owner.(*clusteroperator.Cluster)
 	if !ok {
 		return nil, fmt.Errorf("could not convert owner from JobSync into a cluster")
 	}
-	return s.controller.getProvisionJobFactory(cluster), nil
+	playbook := infraPlaybook
+	if deleting {
+		playbook = deprovisionInfraPlaybook
+	}
+	return s.controller.getJobFactory(cluster, playbook), nil
 }
 
 func (s *jobSyncStrategy) GetOwnerCurrentJob(owner metav1.Object) string {
@@ -433,39 +410,7 @@ func (s *jobSyncStrategy) UpdateOwnerStatus(original, owner metav1.Object) error
 	if !ok {
 		return fmt.Errorf("could not convert owner from JobSync into a cluster")
 	}
-
-	// Make sure finalizer is set if the cluster is not marked for deletion
-	finalizers := sets.NewString(cluster.ObjectMeta.Finalizers...)
-	if !finalizers.Has(clusteroperator.FinalizerClusterOperator) {
-		finalizers.Insert(clusteroperator.FinalizerClusterOperator)
-		cluster.ObjectMeta.Finalizers = finalizers.List()
-	}
-
 	return controller.PatchClusterStatus(s.controller.coClient, originalCluster, cluster)
-}
-
-func (s *jobSyncStrategy) ProcessDeletedOwner(owner metav1.Object) error {
-	originalCluster, ok := owner.(*clusteroperator.Cluster)
-	if !ok {
-		return fmt.Errorf("could not convert owner from JobSync into a cluster")
-	}
-	cluster := originalCluster.DeepCopy()
-
-	finalizers := sets.NewString(cluster.ObjectMeta.Finalizers...)
-
-	if !finalizers.Has(clusteroperator.FinalizerClusterOperator) {
-		return nil
-	}
-
-	// Clear the finalizer for the cluster
-	finalizers.Delete(clusteroperator.FinalizerClusterOperator)
-	cluster.ObjectMeta.Finalizers = finalizers.List()
-
-	if err := controller.PatchClusterStatus(s.controller.coClient, originalCluster, cluster); err != nil {
-		return err
-	}
-
-	return s.controller.runDeprovisionJob(cluster)
 }
 
 func convertJobSyncConditionType(conditionType controller.JobSyncConditionType) clusteroperator.ClusterConditionType {
@@ -476,6 +421,10 @@ func convertJobSyncConditionType(conditionType controller.JobSyncConditionType) 
 		return clusteroperator.ClusterInfraProvisioned
 	case controller.JobSyncProcessingFailed:
 		return clusteroperator.ClusterInfraProvisioningFailed
+	case controller.JobSyncUndoing:
+		return clusteroperator.ClusterInfraDeprovisioning
+	case controller.JobSyncUndoFailed:
+		return clusteroperator.ClusterInfraDeprovisioningFailed
 	default:
 		return clusteroperator.ClusterConditionType("")
 	}

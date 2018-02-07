@@ -98,6 +98,8 @@ type JobControl interface {
 	// ObserveOwnerDeletion observes that the owner with the specified key was
 	// deleted.
 	ObserveOwnerDeletion(ownerKey string)
+
+	GetJobPrefix() string
 }
 
 var _ cache.ResourceEventHandler = (JobControl)(nil)
@@ -243,6 +245,10 @@ func (c *jobControl) ControlJobs(
 
 func (c *jobControl) ObserveOwnerDeletion(ownerKey string) {
 	c.expectations.DeleteExpectations(ownerKey)
+}
+
+func (c *jobControl) GetJobPrefix() string {
+	return c.jobPrefix
 }
 
 func (c *jobControl) isControlledJob(job *kbatch.Job) bool {

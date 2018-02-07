@@ -26,6 +26,7 @@ import (
 	kapi "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 // JobSync is used by a controller to sync an object that uses a job to do
@@ -47,6 +48,10 @@ const (
 	JobSyncProcessed JobSyncConditionType = "Processed"
 	// JobSyncProcessingFailed indicates that the processing job has failed.
 	JobSyncProcessingFailed JobSyncConditionType = "ProcessingFailed"
+	// JobSyncUndoing indicates that the undoing job is in progress.
+	JobSyncUndoing JobSyncConditionType = "Undoing"
+	// JobSyncUndoFailed indicates that the undoing job has failed.
+	JobSyncUndoFailed JobSyncConditionType = "UndoFailed"
 )
 
 const (
@@ -67,17 +72,19 @@ const (
 )
 
 type jobSync struct {
-	jobControl JobControl
-	strategy   JobSyncStrategy
-	logger     log.FieldLogger
+	jobControl   JobControl
+	strategy     JobSyncStrategy
+	undoOnDelete bool
+	logger       log.FieldLogger
 }
 
 // NewJobSync creates a new JobSync.
-func NewJobSync(jobControl JobControl, strategy JobSyncStrategy, logger log.FieldLogger) JobSync {
+func NewJobSync(jobControl JobControl, strategy JobSyncStrategy, undoOnDelete bool, logger log.FieldLogger) JobSync {
 	return &jobSync{
-		jobControl: jobControl,
-		strategy:   strategy,
-		logger:     logger,
+		jobControl:   jobControl,
+		strategy:     strategy,
+		undoOnDelete: undoOnDelete,
+		logger:       logger,
 	}
 }
 
@@ -99,17 +106,25 @@ func (s *jobSync) Sync(key string) error {
 
 	logger = loggerForOwner(s.logger, owner)
 
+	deleting := false
+
 	// Are we dealing with an owner marked for deletion
 	if owner.GetDeletionTimestamp() != nil {
-		logger.Debugf("DeletionTimestamp set")
-		return s.strategy.ProcessDeletedOwner(owner)
+		if !s.undoOnDelete {
+			return nil
+		}
+		if !s.hasFinalizer(owner) {
+			return nil
+		}
+		logger.Debugf("Undoing job processing on delete")
+		deleting = true
 	}
 
 	currentJobName := s.strategy.GetOwnerCurrentJob(owner)
 
-	needsProcessing := s.strategy.DoesOwnerNeedProcessing(owner)
+	needsProcessing := deleting || s.strategy.DoesOwnerNeedProcessing(owner)
 
-	jobFactory, err := s.strategy.GetJobFactory(owner)
+	jobFactory, err := s.strategy.GetJobFactory(owner, deleting)
 	if err != nil {
 		return err
 	}
@@ -121,15 +136,22 @@ func (s *jobSync) Sync(key string) error {
 
 	switch jobControlResult {
 	case JobControlJobWorking:
-		return s.syncOwnerStatusWithJob(owner, job)
+		return s.syncOwnerStatusWithJob(owner, job, deleting)
 	case JobControlDeletingJobs:
 		if currentJobName == "" {
 			return nil
 		}
 		return s.setOwnerStatusForOutdatedJob(owner)
 	case JobControlLostCurrentJob:
-		return s.setOwnerStatusForLostJob(owner)
-	case JobControlCreatingJob, JobControlPendingExpectations, JobControlNoWork:
+		return s.setOwnerStatusForLostJob(owner, deleting)
+	case JobControlCreatingJob:
+		logger.Debugf("creating job")
+		if s.undoOnDelete {
+			logger.Debugf("adding finalizer")
+			return s.addFinalizer(owner)
+		}
+		return nil
+	case JobControlPendingExpectations, JobControlNoWork:
 		return nil
 	default:
 		return fmt.Errorf("unknown job control result: %v", jobControlResult)
@@ -161,7 +183,7 @@ func (s *jobSync) setOwnerStatusForOutdatedJob(original metav1.Object) error {
 // not processed.
 // If the job is still in progress, the owner will be marked as
 // processing.
-func (s *jobSync) syncOwnerStatusWithJob(owner metav1.Object, job *v1batch.Job) error {
+func (s *jobSync) syncOwnerStatusWithJob(owner metav1.Object, job *v1batch.Job, deleting bool) error {
 	if job == nil {
 		return fmt.Errorf("job control result was that a job was working, but no job was returned")
 	}
@@ -170,6 +192,7 @@ func (s *jobSync) syncOwnerStatusWithJob(owner metav1.Object, job *v1batch.Job) 
 	if jobCompleted != nil && jobCompleted.Status == kapi.ConditionTrue {
 		return s.setOwnerStatusForCompletedJob(
 			owner,
+			deleting,
 			ReasonJobCompleted,
 			fmt.Sprintf("Job %s/%s completed at %v", job.Namespace, job.Name, jobCompleted.LastTransitionTime),
 		)
@@ -179,6 +202,7 @@ func (s *jobSync) syncOwnerStatusWithJob(owner metav1.Object, job *v1batch.Job) 
 	if jobFailed != nil && jobFailed.Status == kapi.ConditionTrue {
 		return s.setOwnerStatusForFailedJob(
 			owner,
+			deleting,
 			ReasonJobFailed,
 			fmt.Sprintf("Job %s/%s failed at %v, reason: %s", job.Namespace, job.Name, jobFailed.LastTransitionTime, jobFailed.Reason),
 		)
@@ -187,39 +211,65 @@ func (s *jobSync) syncOwnerStatusWithJob(owner metav1.Object, job *v1batch.Job) 
 	return s.setOwnerStatusForInProgressJob(
 		owner,
 		job,
+		deleting,
 		ReasonJobRunning,
 		fmt.Sprintf("Job %s/%s is running since %v. Pod completions: %d, failures: %d", job.Namespace, job.Name, job.Status.StartTime, job.Status.Succeeded, job.Status.Failed),
 	)
 }
 
-func (s *jobSync) setOwnerStatusForLostJob(owner metav1.Object) error {
-	return s.setOwnerStatusForFailedJob(owner, ReasonJobMissing, "Job not found.")
+func (s *jobSync) setOwnerStatusForLostJob(owner metav1.Object, deleting bool) error {
+	return s.setOwnerStatusForFailedJob(owner, deleting, ReasonJobMissing, "Job not found.")
 }
 
-func (s *jobSync) setOwnerStatusForCompletedJob(original metav1.Object, reason, message string) error {
+func (s *jobSync) setOwnerStatusForCompletedJob(original metav1.Object, deleting bool, reason, message string) error {
 	owner := s.strategy.DeepCopyOwner(original)
-	s.strategy.SetOwnerJobSyncCondition(owner, JobSyncProcessing, kapi.ConditionFalse, reason, message, UpdateConditionNever)
-	s.strategy.SetOwnerJobSyncCondition(owner, JobSyncProcessed, kapi.ConditionTrue, reason, message, UpdateConditionAlways)
-	s.strategy.SetOwnerJobSyncCondition(owner, JobSyncProcessingFailed, kapi.ConditionFalse, reason, message, UpdateConditionNever)
+	if deleting {
+		s.strategy.SetOwnerJobSyncCondition(owner, JobSyncUndoing, kapi.ConditionFalse, reason, message, UpdateConditionNever)
+		s.strategy.SetOwnerJobSyncCondition(owner, JobSyncProcessed, kapi.ConditionFalse, reason, message, UpdateConditionNever)
+		s.strategy.SetOwnerJobSyncCondition(owner, JobSyncUndoFailed, kapi.ConditionFalse, reason, message, UpdateConditionNever)
+	} else {
+		s.strategy.SetOwnerJobSyncCondition(owner, JobSyncProcessing, kapi.ConditionFalse, reason, message, UpdateConditionNever)
+		s.strategy.SetOwnerJobSyncCondition(owner, JobSyncProcessed, kapi.ConditionTrue, reason, message, UpdateConditionAlways)
+		s.strategy.SetOwnerJobSyncCondition(owner, JobSyncProcessingFailed, kapi.ConditionFalse, reason, message, UpdateConditionNever)
+	}
 	s.strategy.SetOwnerCurrentJob(owner, "")
-	s.strategy.OnJobCompletion(owner)
+	if deleting {
+		finalizerName := s.getFinalizerName()
+		finalizers := sets.NewString(owner.GetFinalizers()...)
+		finalizers.Delete(finalizerName)
+		owner.SetFinalizers(finalizers.List())
+	} else {
+		s.strategy.OnJobCompletion(owner)
+	}
 	return s.strategy.UpdateOwnerStatus(original, owner)
 }
 
-func (s *jobSync) setOwnerStatusForFailedJob(original metav1.Object, reason, message string) error {
+func (s *jobSync) setOwnerStatusForFailedJob(original metav1.Object, deleting bool, reason, message string) error {
 	owner := s.strategy.DeepCopyOwner(original)
-	s.strategy.SetOwnerJobSyncCondition(owner, JobSyncProcessing, kapi.ConditionFalse, reason, message, UpdateConditionNever)
-	s.strategy.SetOwnerJobSyncCondition(owner, JobSyncProcessingFailed, kapi.ConditionTrue, reason, message, UpdateConditionAlways)
+	workingCondtion := JobSyncProcessing
+	workingFailedCondtion := JobSyncProcessingFailed
+	if deleting {
+		workingCondtion = JobSyncUndoing
+		workingFailedCondtion = JobSyncUndoFailed
+	}
+	s.strategy.SetOwnerJobSyncCondition(owner, workingCondtion, kapi.ConditionFalse, reason, message, UpdateConditionNever)
+	s.strategy.SetOwnerJobSyncCondition(owner, workingFailedCondtion, kapi.ConditionTrue, reason, message, UpdateConditionAlways)
 	s.strategy.SetOwnerCurrentJob(owner, "")
-	s.strategy.OnJobFailure(owner)
+	if !deleting {
+		s.strategy.OnJobFailure(owner)
+	}
 	return s.strategy.UpdateOwnerStatus(original, owner)
 }
 
-func (s *jobSync) setOwnerStatusForInProgressJob(original metav1.Object, job *v1batch.Job, reason, message string) error {
+func (s *jobSync) setOwnerStatusForInProgressJob(original metav1.Object, job *v1batch.Job, deleting bool, reason, message string) error {
 	owner := s.strategy.DeepCopyOwner(original)
+	workingCondtion := JobSyncProcessing
+	if deleting {
+		workingCondtion = JobSyncUndoing
+	}
 	s.strategy.SetOwnerJobSyncCondition(
 		owner,
-		JobSyncProcessing,
+		workingCondtion,
 		kapi.ConditionTrue,
 		reason,
 		message,
@@ -227,6 +277,33 @@ func (s *jobSync) setOwnerStatusForInProgressJob(original metav1.Object, job *v1
 	)
 	s.strategy.SetOwnerCurrentJob(owner, job.Name)
 	return s.strategy.UpdateOwnerStatus(original, owner)
+}
+
+func (s *jobSync) hasFinalizer(owner metav1.Object) bool {
+	finalizer := s.getFinalizerName()
+	for _, f := range owner.GetFinalizers() {
+		if f == finalizer {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *jobSync) addFinalizer(original metav1.Object) error {
+	if s.hasFinalizer(original) {
+		return nil
+	}
+	owner := s.strategy.DeepCopyOwner(original)
+	finalizers := sets.NewString(owner.GetFinalizers()...)
+	finalizers.Insert(s.getFinalizerName())
+	owner.SetFinalizers(finalizers.List())
+	return s.strategy.UpdateOwnerStatus(original, owner)
+}
+
+func (s *jobSync) getFinalizerName() string {
+	// Add a valid alphanumeric character to the end of the finalizer since the job
+	// prefix is likely to end in an invalid hyphen character.
+	return fmt.Sprintf("openshift/cluster-operator-%s1", s.jobControl.GetJobPrefix())
 }
 
 // findJobCondition finds in the job the condition that has the
