@@ -99,6 +99,8 @@ func TestClusterCreate(t *testing.T) {
 							},
 						},
 					},
+					DeploymentType: v1alpha1.ClusterDeploymentTypeOrigin,
+					Version:        "v3.7.0",
 				},
 			}
 			clusterOperatorClient.ClusteroperatorV1alpha1().ClusterVersions(testNamespace).Create(clusterVersion)

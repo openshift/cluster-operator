@@ -41,7 +41,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 						},
 						"sshSecret": {
 							SchemaProps: spec.SchemaProps{
-								Description: "SSHSecret refers to a secret that contains the ssh private key to access EC2 instances in this cluster",
+								Description: "SSHSecret refers to a secret that contains the ssh private key to access EC2 instances in this cluster.",
 								Ref:         ref("k8s.io/api/core/v1.LocalObjectReference"),
 							},
 						},
@@ -207,20 +207,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 				SchemaProps: spec.SchemaProps{
 					Description: "ClusterConfigSpec contains OpenShift configuration for a cluster",
 					Properties: map[string]spec.Schema{
-						"deploymentType": {
-							SchemaProps: spec.SchemaProps{
-								Description: "DeploymentType indicates the type of OpenShift deployment to create",
-								Type:        []string{"string"},
-								Format:      "",
-							},
-						},
-						"openshiftVersion": {
-							SchemaProps: spec.SchemaProps{
-								Description: "OpenShiftVersion is the version of OpenShift to install",
-								Type:        []string{"string"},
-								Format:      "",
-							},
-						},
 						"sdnPluginName": {
 							SchemaProps: spec.SchemaProps{
 								Description: "SDNPluginName is the name of the SDN plugin to use for this install",
@@ -243,7 +229,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 							},
 						},
 					},
-					Required: []string{"deploymentType", "openshiftVersion", "sdnPluginName"},
+					Required: []string{"sdnPluginName"},
 				},
 			},
 			Dependencies: []string{},
@@ -640,8 +626,22 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Ref: ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.VMImages"),
 							},
 						},
+						"deploymentType": {
+							SchemaProps: spec.SchemaProps{
+								Description: "DeploymentType indicates the type of OpenShift deployment to create.",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"version": {
+							SchemaProps: spec.SchemaProps{
+								Description: "Version is the version of OpenShift to install.",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
 					},
-					Required: []string{"imageFormat", "vmImages"},
+					Required: []string{"imageFormat", "vmImages", "deploymentType", "version"},
 				},
 			},
 			Dependencies: []string{
@@ -10122,15 +10122,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 			Schema: spec.Schema{
 				SchemaProps: spec.SchemaProps{
 					Description: "Duration is a wrapper around time.Duration which supports correct marshaling to YAML and JSON. In particular, it marshals into strings, which can be used as map keys in json.",
-					Properties: map[string]spec.Schema{
-						"Duration": {
-							SchemaProps: spec.SchemaProps{
-								Type:   []string{"integer"},
-								Format: "int64",
-							},
-						},
-					},
-					Required: []string{"Duration"},
+					Properties:  map[string]spec.Schema{},
 				},
 			},
 			Dependencies: []string{},

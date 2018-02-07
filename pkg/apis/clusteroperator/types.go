@@ -88,6 +88,12 @@ type ClusterVersionSpec struct {
 	ImageFormat string
 
 	VMImages VMImages
+
+	// DeploymentType indicates the type of OpenShift deployment to create.
+	DeploymentType ClusterDeploymentType
+
+	// Version is the version of OpenShift to install.
+	Version string
 }
 
 // ClusterVersionStatus is the status of a ClusterVersion. It may be used to indicate if the
@@ -211,12 +217,6 @@ type AWSClusterSpec struct {
 
 // ClusterConfigSpec contains OpenShift configuration for a cluster
 type ClusterConfigSpec struct {
-	// DeploymentType indicates the type of OpenShift deployment to create
-	DeploymentType ClusterDeploymentType
-
-	// OpenShiftVersion is the version of OpenShift to install
-	OpenshiftVersion string
-
 	// SDNPluginName is the name of the SDN plugin to use for this install
 	SDNPluginName string
 

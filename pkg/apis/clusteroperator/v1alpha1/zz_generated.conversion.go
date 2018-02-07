@@ -212,8 +212,6 @@ func Convert_clusteroperator_ClusterCondition_To_v1alpha1_ClusterCondition(in *c
 }
 
 func autoConvert_v1alpha1_ClusterConfigSpec_To_clusteroperator_ClusterConfigSpec(in *ClusterConfigSpec, out *clusteroperator.ClusterConfigSpec, s conversion.Scope) error {
-	out.DeploymentType = clusteroperator.ClusterDeploymentType(in.DeploymentType)
-	out.OpenshiftVersion = in.OpenshiftVersion
 	out.SDNPluginName = in.SDNPluginName
 	out.ServiceNetworkSubnet = in.ServiceNetworkSubnet
 	out.PodNetworkSubnet = in.PodNetworkSubnet
@@ -226,8 +224,6 @@ func Convert_v1alpha1_ClusterConfigSpec_To_clusteroperator_ClusterConfigSpec(in 
 }
 
 func autoConvert_clusteroperator_ClusterConfigSpec_To_v1alpha1_ClusterConfigSpec(in *clusteroperator.ClusterConfigSpec, out *ClusterConfigSpec, s conversion.Scope) error {
-	out.DeploymentType = ClusterDeploymentType(in.DeploymentType)
-	out.OpenshiftVersion = in.OpenshiftVersion
 	out.SDNPluginName = in.SDNPluginName
 	out.ServiceNetworkSubnet = in.ServiceNetworkSubnet
 	out.PodNetworkSubnet = in.PodNetworkSubnet
@@ -467,6 +463,8 @@ func autoConvert_v1alpha1_ClusterVersionSpec_To_clusteroperator_ClusterVersionSp
 	if err := Convert_v1alpha1_VMImages_To_clusteroperator_VMImages(&in.VMImages, &out.VMImages, s); err != nil {
 		return err
 	}
+	out.DeploymentType = clusteroperator.ClusterDeploymentType(in.DeploymentType)
+	out.Version = in.Version
 	return nil
 }
 
@@ -481,6 +479,8 @@ func autoConvert_clusteroperator_ClusterVersionSpec_To_v1alpha1_ClusterVersionSp
 	if err := Convert_clusteroperator_VMImages_To_v1alpha1_VMImages(&in.VMImages, &out.VMImages, s); err != nil {
 		return err
 	}
+	out.DeploymentType = ClusterDeploymentType(in.DeploymentType)
+	out.Version = in.Version
 	return nil
 }
 

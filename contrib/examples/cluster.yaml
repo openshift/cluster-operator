@@ -7,6 +7,19 @@ objects:
 - apiVersion: clusteroperator.openshift.io/v1alpha1
   kind: ClusterVersion
   metadata:
+    name: origin-v3-7
+    namespace: ${CLUSTER_VERSION_NS}
+  spec:
+    imageFormat: "openshift/origin-${component}:v3.7.0"
+    vmImages:
+      awsVMImages:
+        amiByRegion:
+          us-east-1: ami-10aed306 # TODO: not correct, need to find out how to lookup latest golden image.
+    deploymentType: origin
+    version: "v3.7.0"
+- apiVersion: clusteroperator.openshift.io/v1alpha1
+  kind: ClusterVersion
+  metadata:
     name: ocp-v3-9
     namespace: ${CLUSTER_VERSION_NS}
   spec:
@@ -15,14 +28,8 @@ objects:
       awsVMImages:
         amiByRegion:
           us-east-1: ami-10aed306 # TODO: not correct, need to find out how to lookup latest golden image.
-    yumRepositories:
-    # TODO: replace with a usable OpenShift repo
-    - id: dgoodwin-tito-copr
-      name: Tito Development Copr
-      baseurl: https://copr-be.cloud.fedoraproject.org/results/dgoodwin/tito/fedora-$releasever-$basearch/
-      gpgkey: https://copr-be.cloud.fedoraproject.org/results/dgoodwin/tito/pubkey.gpg
-      gpgcheck: 1
-      enabled: 0
+    deploymentType: openshift-enterprise
+    version: "v3.9.0"
 - apiVersion: clusteroperator.openshift.io/v1alpha1
   kind: ClusterVersion
   metadata:
@@ -34,6 +41,8 @@ objects:
       awsVMImages:
         amiByRegion:
           us-east-1: ami-10aed306 # TODO: not correct, need to find out how to lookup latest golden image.
+    deploymentType: openshift-enterprise
+    version: "v3.10.0"
 - apiVersion: clusteroperator.openshift.io/v1alpha1
   kind: Cluster
   metadata:
@@ -41,7 +50,7 @@ objects:
   spec:
     clusterVersionRef:
       namespace: cluster-operator
-      name: ocp-v3-9
+      name: origin-v3-7
     hardware:
       aws:
         accountSecret:

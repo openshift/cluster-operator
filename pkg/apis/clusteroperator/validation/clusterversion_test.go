@@ -49,6 +49,8 @@ func getValidClusterVersion() *clusteroperator.ClusterVersion {
 					},
 				},
 			},
+			DeploymentType: clusteroperator.ClusterDeploymentTypeOrigin,
+			Version:        "3.7.0",
 		},
 	}
 }
@@ -124,6 +126,33 @@ func TestValidateClusterVersion(t *testing.T) {
 			clusterVersion: func() *clusteroperator.ClusterVersion {
 				c := getValidClusterVersion()
 				c.Spec.VMImages = clusteroperator.VMImages{}
+				return c
+			}(),
+			valid: false,
+		},
+		{
+			name: "missing deployment type",
+			clusterVersion: func() *clusteroperator.ClusterVersion {
+				c := getValidClusterVersion()
+				c.Spec.DeploymentType = ""
+				return c
+			}(),
+			valid: false,
+		},
+		{
+			name: "invalid deployment type",
+			clusterVersion: func() *clusteroperator.ClusterVersion {
+				c := getValidClusterVersion()
+				c.Spec.DeploymentType = "badtype"
+				return c
+			}(),
+			valid: false,
+		},
+		{
+			name: "missing version",
+			clusterVersion: func() *clusteroperator.ClusterVersion {
+				c := getValidClusterVersion()
+				c.Spec.Version = ""
 				return c
 			}(),
 			valid: false,

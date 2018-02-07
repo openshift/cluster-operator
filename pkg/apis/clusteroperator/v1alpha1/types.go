@@ -90,6 +90,12 @@ type ClusterVersionSpec struct {
 	ImageFormat string `json:"imageFormat"`
 
 	VMImages VMImages `json:"vmImages"`
+
+	// DeploymentType indicates the type of OpenShift deployment to create.
+	DeploymentType ClusterDeploymentType `json:"deploymentType"`
+
+	// Version is the version of OpenShift to install.
+	Version string `json:"version"`
 }
 
 // ClusterVersionStatus is the status of a ClusterVersion. It may be used to indicate if the
@@ -180,7 +186,7 @@ type AWSClusterSpec struct {
 	AccountSecret corev1.LocalObjectReference `json:"accountSecret"`
 
 	// SSHSecret refers to a secret that contains the ssh private key to access
-	// EC2 instances in this cluster
+	// EC2 instances in this cluster.
 	SSHSecret corev1.LocalObjectReference `json:"sshSecret"`
 
 	// SSLSecret refers to a secret that contains the SSL certificate to use
@@ -214,12 +220,6 @@ type AWSClusterSpec struct {
 
 // ClusterConfigSpec contains OpenShift configuration for a cluster
 type ClusterConfigSpec struct {
-	// DeploymentType indicates the type of OpenShift deployment to create
-	DeploymentType ClusterDeploymentType `json:"deploymentType"`
-
-	// OpenShiftVersion is the version of OpenShift to install
-	OpenshiftVersion string `json:"openshiftVersion"`
-
 	// SDNPluginName is the name of the SDN plugin to use for this install
 	SDNPluginName string `json:"sdnPluginName"`
 
