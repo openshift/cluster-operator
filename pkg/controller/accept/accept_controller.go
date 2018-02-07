@@ -1,5 +1,5 @@
 /*
-Copyright 2017 The Kubernetes Authors.
+Copyright 2018 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,11 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package machineset
+package accept
 
 import (
 	"fmt"
 	"time"
+
+	"github.com/golang/glog"
+	log "github.com/sirupsen/logrus"
 
 	v1batch "k8s.io/api/batch/v1"
 	kapi "k8s.io/api/core/v1"
@@ -32,9 +35,6 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 
-	"github.com/golang/glog"
-	log "github.com/sirupsen/logrus"
-
 	"github.com/openshift/cluster-operator/pkg/ansible"
 	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	clusteroperatorclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
@@ -42,7 +42,7 @@ import (
 	lister "github.com/openshift/cluster-operator/pkg/client/listers_generated/clusteroperator/v1alpha1"
 	"github.com/openshift/cluster-operator/pkg/controller"
 	"github.com/openshift/cluster-operator/pkg/kubernetes/pkg/util/metrics"
-	colog "github.com/openshift/cluster-operator/pkg/logging"
+	"github.com/openshift/cluster-operator/pkg/logging"
 )
 
 const (
@@ -53,21 +53,15 @@ const (
 	// 5ms, 10ms, 20ms, 40ms, 80ms, 160ms, 320ms, 640ms, 1.3s, 2.6s, 5.1s, 10.2s, 20.4s, 41s, 82s
 	maxRetries = 15
 
-	controllerLogName = "machineSet"
+	controllerLogName = "accept"
 
+	acceptPlaybook = "playbooks/aws/openshift-cluster/accept.yml"
 	// jobPrefix is used when generating a name for the configmap and job used for each
 	// Ansible execution.
-	jobPrefix = "provision-machineset-"
-
-	masterProvisioningPlaybook = "playbooks/aws/openshift-cluster/provision.yml"
-
-	computeProvisioningPlaybook = "playbooks/aws/openshift-cluster/provision_nodes.yml"
+	jobPrefix = "job-accept-"
 )
 
-var (
-	machineSetKind = clusteroperator.SchemeGroupVersion.WithKind("MachineSet")
-	clusterKind    = clusteroperator.SchemeGroupVersion.WithKind("Cluster")
-)
+var machineSetKind = clusteroperator.SchemeGroupVersion.WithKind("MachineSet")
 
 // NewController returns a new *Controller.
 func NewController(
@@ -85,7 +79,7 @@ func NewController(
 	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: v1core.New(kubeClient.CoreV1().RESTClient()).Events("")})
 
 	if kubeClient != nil && kubeClient.CoreV1().RESTClient().GetRateLimiter() != nil {
-		metrics.RegisterMetricAndTrackRateLimiterUsage("clusteroperator_machine_set_controller", kubeClient.CoreV1().RESTClient().GetRateLimiter())
+		metrics.RegisterMetricAndTrackRateLimiterUsage("clusteroperator_accept_controller", kubeClient.CoreV1().RESTClient().GetRateLimiter())
 	}
 
 	logger := log.WithField("controller", controllerLogName)
@@ -93,22 +87,18 @@ func NewController(
 	c := &Controller{
 		client:     clusteroperatorClient,
 		kubeClient: kubeClient,
-		queue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "machineSet"),
+		queue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "master"),
 		logger:     logger,
 	}
 
 	machineSetInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.addMachineSet,
 		UpdateFunc: c.updateMachineSet,
-		DeleteFunc: c.deleteMachineSet,
 	})
+
 	c.machineSetsLister = machineSetInformer.Lister()
 	c.machineSetsSynced = machineSetInformer.Informer().HasSynced
 
-	clusterInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    c.addCluster,
-		UpdateFunc: c.updateCluster,
-	})
 	c.clustersLister = clusterInformer.Lister()
 	c.clustersSynced = clusterInformer.Informer().HasSynced
 
@@ -126,7 +116,7 @@ func NewController(
 	return c
 }
 
-// Controller manages provisioning machine sets.
+// Controller manages accepting compute and infra nodes on the master control plane
 type Controller struct {
 	client     clusteroperatorclientset.Interface
 	kubeClient kubeclientset.Interface
@@ -142,7 +132,7 @@ type Controller struct {
 	jobSync controller.JobSync
 
 	// used for unit testing
-	enqueueMachineSet func(machineSet *clusteroperator.MachineSet)
+	enqueueMachineSet func(*clusteroperator.MachineSet)
 
 	// machineSetsLister is able to list/get machine sets and is populated by the shared informer passed to
 	// NewController.
@@ -152,7 +142,7 @@ type Controller struct {
 	machineSetsSynced cache.InformerSynced
 
 	// clustersLister is able to list/get clusters and is populated by the shared informer passed to
-	// NewMachineSetController.
+	// NewController.
 	clustersLister lister.ClusterLister
 	// clustersSynced returns true if the cluster shared informer has been synced at least once.
 	// Added as a member to the struct to allow injection for testing.
@@ -168,83 +158,15 @@ type Controller struct {
 }
 
 func (c *Controller) addMachineSet(obj interface{}) {
-	ms := obj.(*clusteroperator.MachineSet)
-	colog.WithMachineSet(c.logger, ms).Debugf("enqueueing added machine set")
-	c.enqueueMachineSet(ms)
+	machineSet := obj.(*clusteroperator.MachineSet)
+	logging.WithMachineSet(c.logger, machineSet).Debugf("Enqueuing added machineset")
+	c.enqueueMachineSet(machineSet)
 }
 
 func (c *Controller) updateMachineSet(old, cur interface{}) {
-	ms := cur.(*clusteroperator.MachineSet)
-	colog.WithMachineSet(c.logger, ms).Debugf("enqueueing updated machine set")
-	c.enqueueMachineSet(ms)
-	if ms.Spec.NodeType == clusteroperator.NodeTypeMaster && ms.Status.Installed {
-		cluster, err := controller.ClusterForMachineSet(ms, c.clustersLister)
-		if err != nil {
-			utilruntime.HandleError(fmt.Errorf("cannot retrieve cluster for machineset %s/%s: %v", ms.Namespace, ms.Name, err))
-			return
-		}
-		machineSets, err := controller.MachineSetsForCluster(cluster, c.machineSetsLister)
-		if err != nil {
-			c.logger.Errorf("cannot retrieve machine sets for cluster: %v", err)
-			utilruntime.HandleError(err)
-			return
-		}
-		for _, machineSet := range machineSets {
-			if machineSet.Name != ms.Name {
-				colog.WithMachineSet(c.logger, machineSet).Debugf("enqueueing machine set for installed master")
-				c.enqueueMachineSet(machineSet)
-			}
-		}
-	}
-}
-
-func (c *Controller) deleteMachineSet(obj interface{}) {
-	ms, ok := obj.(*clusteroperator.MachineSet)
-	if !ok {
-		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
-		if !ok {
-			utilruntime.HandleError(fmt.Errorf("Couldn't get object from tombstone %#v", obj))
-			return
-		}
-		ms, ok = tombstone.Obj.(*clusteroperator.MachineSet)
-		if !ok {
-			utilruntime.HandleError(fmt.Errorf("Tombstone contained object that is not a MachineSet %#v", obj))
-			return
-		}
-	}
-	colog.WithMachineSet(c.logger, ms).Debugf("enqueueing deleted machine set")
-	c.enqueueMachineSet(ms)
-}
-
-func (c *Controller) addCluster(obj interface{}) {
-	cluster := obj.(*clusteroperator.Cluster)
-	logger := colog.WithCluster(c.logger, cluster)
-	machineSets, err := controller.MachineSetsForCluster(cluster, c.machineSetsLister)
-	if err != nil {
-		logger.Errorf("Cannot retrieve machine sets for cluster: %v", err)
-		utilruntime.HandleError(err)
-		return
-	}
-
-	for _, machineSet := range machineSets {
-		colog.WithMachineSet(logger, machineSet).Debugf("enqueueing machine set for created cluster")
-		c.enqueueMachineSet(machineSet)
-	}
-}
-
-func (c *Controller) updateCluster(old, obj interface{}) {
-	cluster := obj.(*clusteroperator.Cluster)
-	logger := colog.WithCluster(c.logger, cluster)
-	machineSets, err := controller.MachineSetsForCluster(cluster, c.machineSetsLister)
-	if err != nil {
-		logger.Errorf("Cannot retrieve machine sets for cluster: %v", err)
-		utilruntime.HandleError(err)
-		return
-	}
-	for _, machineSet := range machineSets {
-		colog.WithMachineSet(logger, machineSet).Debugf("enqueueing machine set for update cluster")
-		c.enqueueMachineSet(machineSet)
-	}
+	machineSet := cur.(*clusteroperator.MachineSet)
+	logging.WithMachineSet(c.logger, machineSet).Debugf("Enqueuing updated machineset")
+	c.enqueueMachineSet(machineSet)
 }
 
 // Run runs c; will not return until stopCh is closed. workers determines how
@@ -253,11 +175,11 @@ func (c *Controller) Run(workers int, stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer c.queue.ShutDown()
 
-	c.logger.Infof("Starting machine set controller")
-	defer c.logger.Infof("Shutting down machine set controller")
+	c.logger.Infof("Starting accept controller")
+	defer c.logger.Infof("Shutting down accept controller")
 
-	if !controller.WaitForCacheSync("machineset", stopCh, c.machineSetsSynced, c.clustersSynced, c.jobsSynced) {
-		c.logger.Errorf("Could not sync caches for machineset controller")
+	if !controller.WaitForCacheSync("accept", stopCh, c.machineSetsSynced, c.clustersSynced, c.jobsSynced) {
+		c.logger.Errorf("Could not sync caches for accept controller")
 		return
 	}
 
@@ -269,12 +191,15 @@ func (c *Controller) Run(workers int, stopCh <-chan struct{}) {
 }
 
 func (c *Controller) enqueue(machineSet *clusteroperator.MachineSet) {
-	key, err := controller.KeyFunc(machineSet)
-	if err != nil {
-		utilruntime.HandleError(fmt.Errorf("Couldn't get key for object %#v: %v", machineSet, err))
+	// Skip master machine sets because they do not need accepting
+	if machineSet.Spec.NodeType == clusteroperator.NodeTypeMaster {
 		return
 	}
-
+	key, err := controller.KeyFunc(machineSet)
+	if err != nil {
+		utilruntime.HandleError(fmt.Errorf("couldn't get key for object %#v: %v", machineSet, err))
+		return
+	}
 	c.queue.Add(key)
 }
 
@@ -304,18 +229,23 @@ func (c *Controller) handleErr(err error, key interface{}) {
 		return
 	}
 
-	logger := c.logger.WithField("machineset", key)
+	logger := c.logger.WithField("machineSet", key)
 
-	logger.Errorf("error syncing machine set: %v", err)
 	if c.queue.NumRequeues(key) < maxRetries {
-		logger.Infof("retrying machine set")
+		logger.Infof("Error syncing machine set: %v", err)
 		c.queue.AddRateLimited(key)
 		return
 	}
 
 	utilruntime.HandleError(err)
-	logger.Infof("dropping machine set out of the queue: %v", err)
+	logger.Infof("Dropping machine set out of the queue: %v", err)
 	c.queue.Forget(key)
+}
+
+type jobFactory func(string) (*v1batch.Job, *kapi.ConfigMap, error)
+
+func (f jobFactory) BuildJob(name string) (*v1batch.Job, *kapi.ConfigMap, error) {
+	return f(name)
 }
 
 type jobOwnerControl struct {
@@ -334,16 +264,10 @@ func (c *jobOwnerControl) OnOwnedJobEvent(owner metav1.Object) {
 	machineSet, ok := owner.(*clusteroperator.MachineSet)
 	if !ok {
 		c.controller.logger.WithFields(log.Fields{"owner": owner.GetName(), "namespace": owner.GetNamespace()}).
-			Errorf("attempt to enqueue owner that is not a machineset")
+			Errorf("attempt to enqueue owner that is not a machine set")
 		return
 	}
 	c.controller.enqueueMachineSet(machineSet)
-}
-
-type jobFactory func(string) (*v1batch.Job, *kapi.ConfigMap, error)
-
-func (f jobFactory) BuildJob(name string) (*v1batch.Job, *kapi.ConfigMap, error) {
-	return f(name)
 }
 
 type jobSyncStrategy struct {
@@ -364,72 +288,40 @@ func (s *jobSyncStrategy) GetOwner(key string) (metav1.Object, error) {
 func (s *jobSyncStrategy) DoesOwnerNeedProcessing(owner metav1.Object) bool {
 	machineSet, ok := owner.(*clusteroperator.MachineSet)
 	if !ok {
-		s.controller.logger.Warn("could not convert owner from JobSync into a machineset: %#v", owner)
+		s.controller.logger.Warn("could not convert owner from JobSync into a machine set: %#v", owner)
 		return false
 	}
-	if machineSet.Status.ProvisionedJobGeneration == machineSet.Generation {
+	if !machineSet.Status.Provisioned {
 		return false
 	}
-	cluster, err := controller.ClusterForMachineSet(machineSet, s.controller.clustersLister)
-	if err != nil {
-		colog.WithMachineSet(s.controller.logger, machineSet).
-			Warn("could not get cluster for machine set")
+	if machineSet.Status.Accepted && machineSet.Status.AcceptedJobGeneration == machineSet.Generation {
+		logging.WithMachineSet(s.controller.logger, machineSet).Debugf("machine set is already accepted for its current generation, it will not be processed")
 		return false
 	}
-	if !cluster.Status.Provisioned || cluster.Status.ProvisionedJobGeneration != cluster.Generation {
-		return false
-	}
-	switch machineSet.Spec.NodeType {
-	case clusteroperator.NodeTypeMaster:
-		return true
-	case clusteroperator.NodeTypeCompute:
-		masterMachineSet, err := s.controller.machineSetsLister.MachineSets(machineSet.Namespace).Get(cluster.Status.MasterMachineSetName)
-		if err != nil {
-			colog.WithCluster(colog.WithMachineSet(s.controller.logger, machineSet), cluster).
-				WithField("master", cluster.Status.MasterMachineSetName).
-				Warn("could not get master machine set")
-			return false
-		}
-		// Only provision compute nodes if openshift has been installed on
-		// master nodes.
-		// We need to verify that the generation of the master machine set
-		// has not been changed since the installation. If the generation
-		// has changed, then the installation is no longer valid. The master
-		// controller needs to re-work the installation first.
-		masterInstalled := masterMachineSet.Status.Installed &&
-			masterMachineSet.Status.InstalledJobGeneration == masterMachineSet.Generation
-		return masterInstalled
-	default:
-		colog.WithMachineSet(s.controller.logger, machineSet).
-			Warnf("unknown node type %q", machineSet.Spec.NodeType)
-		return false
-	}
+	return true
 }
 
 func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object) (controller.JobFactory, error) {
 	machineSet, ok := owner.(*clusteroperator.MachineSet)
 	if !ok {
-		return nil, fmt.Errorf("could not convert owner from JobSync into a machineset")
+		return nil, fmt.Errorf("could not convert owner from JobSync into a machine set")
 	}
 	cluster, err := controller.ClusterForMachineSet(machineSet, s.controller.clustersLister)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not obtain a cluster for the machine set: %v", err)
 	}
 	return jobFactory(func(name string) (*v1batch.Job, *kapi.ConfigMap, error) {
-		vars, err := ansible.GenerateMachineSetVars(cluster, machineSet)
+		// TODO: use machine set vars once we remove structs from machine set
+		// vars and playbooks support simple values for things like instance type
+		// and size.
+		vars, err := ansible.GenerateClusterVars(cluster)
 		if err != nil {
 			return nil, nil, err
-		}
-		var playbook string
-		if machineSet.Spec.NodeType == clusteroperator.NodeTypeMaster {
-			playbook = masterProvisioningPlaybook
-		} else {
-			playbook = computeProvisioningPlaybook
 		}
 		job, configMap := s.controller.ansibleGenerator.GeneratePlaybookJob(
 			name,
 			&cluster.Spec.Hardware,
-			playbook,
+			acceptPlaybook,
 			ansible.DefaultInventory,
 			vars,
 		)
@@ -440,33 +332,33 @@ func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object) (controller.JobFact
 func (s *jobSyncStrategy) GetOwnerCurrentJob(owner metav1.Object) string {
 	machineSet, ok := owner.(*clusteroperator.MachineSet)
 	if !ok {
-		s.controller.logger.Warn("could not convert owner from JobSync into a machineset: %#v", owner)
+		s.controller.logger.Warn("could not convert owner from JobSync into a machine set: %#v", owner)
 		return ""
 	}
-	if machineSet.Status.ProvisionJob == nil {
+	if machineSet.Status.AcceptJob == nil {
 		return ""
 	}
-	return machineSet.Status.ProvisionJob.Name
+	return machineSet.Status.AcceptJob.Name
 }
 
 func (s *jobSyncStrategy) SetOwnerCurrentJob(owner metav1.Object, jobName string) {
 	machineSet, ok := owner.(*clusteroperator.MachineSet)
 	if !ok {
-		s.controller.logger.Warn("could not convert owner from JobSync into a machineset: %#v", owner)
+		s.controller.logger.Warn("could not convert owner from JobSync into a machine set: %#v", owner)
 		return
 	}
 	if jobName == "" {
-		machineSet.Status.ProvisionJob = nil
+		machineSet.Status.AcceptJob = nil
 	} else {
-		machineSet.Status.ProvisionJob = &kapi.LocalObjectReference{Name: jobName}
+		machineSet.Status.AcceptJob = &kapi.LocalObjectReference{Name: jobName}
 	}
 }
 
 func (s *jobSyncStrategy) DeepCopyOwner(owner metav1.Object) metav1.Object {
 	machineSet, ok := owner.(*clusteroperator.MachineSet)
 	if !ok {
-		s.controller.logger.Warn("could not convert owner from JobSync into a machineset: %#v", owner)
-		return machineSet
+		s.controller.logger.Warn("could not convert owner from JobSync into a machine set: %#v", owner)
+		return nil
 	}
 	return machineSet.DeepCopy()
 }
@@ -481,7 +373,7 @@ func (s *jobSyncStrategy) SetOwnerJobSyncCondition(
 ) {
 	machineSet, ok := owner.(*clusteroperator.MachineSet)
 	if !ok {
-		s.controller.logger.Warn("could not convert owner from JobSync into a machineset: %#v", owner)
+		s.controller.logger.Warn("could not convert owner from JobSync into a machine set: %#v", owner)
 		return
 	}
 	controller.SetMachineSetCondition(
@@ -497,33 +389,33 @@ func (s *jobSyncStrategy) SetOwnerJobSyncCondition(
 func (s *jobSyncStrategy) OnJobCompletion(owner metav1.Object) {
 	machineSet, ok := owner.(*clusteroperator.MachineSet)
 	if !ok {
-		s.controller.logger.Warn("could not convert owner from JobSync into a machineset: %#v", owner)
+		s.controller.logger.Warn("could not convert owner from JobSync into a machine set: %#v", owner)
 		return
 	}
-	machineSet.Status.Provisioned = true
-	machineSet.Status.ProvisionedJobGeneration = machineSet.Generation
+	machineSet.Status.Accepted = true
+	machineSet.Status.AcceptedJobGeneration = machineSet.Generation
 }
 
 func (s *jobSyncStrategy) OnJobFailure(owner metav1.Object) {
 	machineSet, ok := owner.(*clusteroperator.MachineSet)
 	if !ok {
-		s.controller.logger.Warn("could not convert owner from JobSync into a machineset: %#v", owner)
+		s.controller.logger.Warn("could not convert owner from JobSync into a machine set: %#v", owner)
 		return
 	}
-	// ProvisionedJobGeneration is set even when the job failed because we
-	// do not want to run the provision job again until there have been
+	// AcceptedJobGeneration is set even when the job failed because we
+	// do not want to run the accept job again until there have been
 	// changes in the spec of the machine set.
-	machineSet.Status.ProvisionedJobGeneration = machineSet.Generation
+	machineSet.Status.AcceptedJobGeneration = machineSet.Generation
 }
 
 func (s *jobSyncStrategy) UpdateOwnerStatus(original, owner metav1.Object) error {
 	originalMachineSet, ok := original.(*clusteroperator.MachineSet)
 	if !ok {
-		return fmt.Errorf("could not convert original from JobSync into a machineset")
+		return fmt.Errorf("could not convert original from JobSync into a machine set: %#v", original)
 	}
 	machineSet, ok := owner.(*clusteroperator.MachineSet)
 	if !ok {
-		return fmt.Errorf("could not convert owner from JobSync into a machineset")
+		return fmt.Errorf("could not convert owner from JobSync into a machine set: %#v", owner)
 	}
 	return controller.PatchMachineSetStatus(s.controller.client, originalMachineSet, machineSet)
 }
@@ -535,11 +427,11 @@ func (s *jobSyncStrategy) ProcessDeletedOwner(owner metav1.Object) error {
 func convertJobSyncConditionType(conditionType controller.JobSyncConditionType) clusteroperator.MachineSetConditionType {
 	switch conditionType {
 	case controller.JobSyncProcessing:
-		return clusteroperator.MachineSetHardwareProvisioning
+		return clusteroperator.MachineSetAccepting
 	case controller.JobSyncProcessed:
-		return clusteroperator.MachineSetHardwareProvisioned
+		return clusteroperator.MachineSetAccepted
 	case controller.JobSyncProcessingFailed:
-		return clusteroperator.MachineSetHardwareProvisioningFailed
+		return clusteroperator.MachineSetAcceptFailed
 	default:
 		return clusteroperator.MachineSetConditionType("")
 	}

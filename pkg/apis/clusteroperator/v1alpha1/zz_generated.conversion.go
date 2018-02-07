@@ -751,6 +751,9 @@ func autoConvert_v1alpha1_MachineSetStatus_To_clusteroperator_MachineSetStatus(i
 	out.Provisioned = in.Provisioned
 	out.ProvisionedJobGeneration = in.ProvisionedJobGeneration
 	out.ProvisionJob = (*v1.LocalObjectReference)(unsafe.Pointer(in.ProvisionJob))
+	out.Accepted = in.Accepted
+	out.AcceptedJobGeneration = in.AcceptedJobGeneration
+	out.AcceptJob = (*v1.LocalObjectReference)(unsafe.Pointer(in.AcceptJob))
 	return nil
 }
 
@@ -769,6 +772,9 @@ func autoConvert_clusteroperator_MachineSetStatus_To_v1alpha1_MachineSetStatus(i
 	out.Provisioned = in.Provisioned
 	out.ProvisionedJobGeneration = in.ProvisionedJobGeneration
 	out.ProvisionJob = (*v1.LocalObjectReference)(unsafe.Pointer(in.ProvisionJob))
+	out.Accepted = in.Accepted
+	out.AcceptedJobGeneration = in.AcceptedJobGeneration
+	out.AcceptJob = (*v1.LocalObjectReference)(unsafe.Pointer(in.AcceptJob))
 	return nil
 }
 

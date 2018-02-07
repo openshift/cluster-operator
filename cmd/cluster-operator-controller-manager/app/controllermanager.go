@@ -62,6 +62,7 @@ import (
 	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	clusteroperatorinformers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions"
 	"github.com/openshift/cluster-operator/pkg/controller"
+	"github.com/openshift/cluster-operator/pkg/controller/accept"
 	"github.com/openshift/cluster-operator/pkg/controller/cluster"
 	"github.com/openshift/cluster-operator/pkg/controller/infra"
 	"github.com/openshift/cluster-operator/pkg/controller/machine"
@@ -321,6 +322,7 @@ func NewControllerInitializers() map[string]InitFunc {
 	controllers["machineset"] = startMachineSetController
 	controllers["machine"] = startMachineController
 	controllers["master"] = startMasterController
+	controllers["accept"] = startAcceptController
 	return controllers
 }
 
@@ -444,7 +446,7 @@ func StartControllers(ctx ControllerContext, controllers map[string]InitFunc) er
 }
 
 func startClusterController(ctx ControllerContext) (bool, error) {
-	if !ctx.AvailableResources[schema.GroupVersionResource{Group: "clusteroperator.openshift.io", Version: "v1alpha1", Resource: "clusters"}] {
+	if !resourcesAvailable(ctx) {
 		return false, nil
 	}
 	go cluster.NewController(
@@ -458,7 +460,7 @@ func startClusterController(ctx ControllerContext) (bool, error) {
 }
 
 func startInfraController(ctx ControllerContext) (bool, error) {
-	if !ctx.AvailableResources[schema.GroupVersionResource{Group: "clusteroperator.openshift.io", Version: "v1alpha1", Resource: "clusters"}] {
+	if !resourcesAvailable(ctx) {
 		return false, nil
 	}
 	go infra.NewController(
@@ -473,7 +475,7 @@ func startInfraController(ctx ControllerContext) (bool, error) {
 }
 
 func startMachineSetController(ctx ControllerContext) (bool, error) {
-	if !ctx.AvailableResources[schema.GroupVersionResource{Group: "clusteroperator.openshift.io", Version: "v1alpha1", Resource: "machinesets"}] {
+	if !resourcesAvailable(ctx) {
 		return false, nil
 	}
 	go machineset.NewController(
@@ -489,7 +491,7 @@ func startMachineSetController(ctx ControllerContext) (bool, error) {
 }
 
 func startMachineController(ctx ControllerContext) (bool, error) {
-	if !ctx.AvailableResources[schema.GroupVersionResource{Group: "clusteroperator.openshift.io", Version: "v1alpha1", Resource: "machines"}] {
+	if !resourcesAvailable(ctx) {
 		return false, nil
 	}
 	go machine.NewController(
@@ -501,7 +503,7 @@ func startMachineController(ctx ControllerContext) (bool, error) {
 }
 
 func startMasterController(ctx ControllerContext) (bool, error) {
-	if !ctx.AvailableResources[schema.GroupVersionResource{Group: "clusteroperator.openshift.io", Version: "v1alpha1", Resource: "machinesets"}] {
+	if !resourcesAvailable(ctx) {
 		return false, nil
 	}
 	go master.NewController(
@@ -514,4 +516,35 @@ func startMasterController(ctx ControllerContext) (bool, error) {
 		v1.PullPolicy(ctx.Options.AnsibleImagePullPolicy),
 	).Run(int(ctx.Options.ConcurrentMasterSyncs), ctx.Stop)
 	return true, nil
+}
+
+func startAcceptController(ctx ControllerContext) (bool, error) {
+	if !resourcesAvailable(ctx) {
+		return false, nil
+	}
+	go accept.NewController(
+		ctx.InformerFactory.Clusteroperator().V1alpha1().Clusters(),
+		ctx.InformerFactory.Clusteroperator().V1alpha1().MachineSets(),
+		ctx.KubeInformerFactory.Batch().V1().Jobs(),
+		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-accept-controller"),
+		ctx.ClientBuilder.ClientOrDie("clusteroperator-accept-controller"),
+		ctx.Options.AnsibleImage,
+		v1.PullPolicy(ctx.Options.AnsibleImagePullPolicy),
+	).Run(int(ctx.Options.ConcurrentAcceptSyncs), ctx.Stop)
+	return true, nil
+}
+
+func resourcesAvailable(ctx ControllerContext) bool {
+	gvrs := []schema.GroupVersionResource{
+		{Group: "clusteroperator.openshift.io", Version: "v1alpha1", Resource: "clusters"},
+		{Group: "clusteroperator.openshift.io", Version: "v1alpha1", Resource: "machinesets"},
+	}
+
+	for _, gvr := range gvrs {
+		if !ctx.AvailableResources[gvr] {
+			return false
+		}
+	}
+
+	return true
 }
