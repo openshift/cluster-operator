@@ -58,6 +58,9 @@ openshift_hosted_registry_wait: False
 # cluster specific settings
 ################################################################################
 
+# Use containerized installation of master
+containerized: True
+
 # openshift_release must be specified.  Use whatever version of openshift
 # that is supported by openshift-ansible that you wish.
 # TODO: Parameterize
