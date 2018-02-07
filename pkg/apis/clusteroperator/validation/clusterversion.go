@@ -23,6 +23,23 @@ import (
 	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
 )
 
+// validDeploymentTypes is a map containing an entry for every valid DeploymentType value.
+var validDeploymentTypes = map[clusteroperator.ClusterDeploymentType]bool{
+	clusteroperator.ClusterDeploymentTypeOrigin:     true,
+	clusteroperator.ClusterDeploymentTypeEnterprise: true,
+}
+
+// validDeploymentTypeValues is an array of every valid DeploymentType value.
+var validDeploymentTypeValues = func() []string {
+	validValues := make([]string, len(validDeploymentTypes))
+	i := 0
+	for dt := range validDeploymentTypes {
+		validValues[i] = string(dt)
+		i++
+	}
+	return validValues
+}()
+
 // ValidateClusterVersion validates a cluster version being created.
 func ValidateClusterVersion(cv *clusteroperator.ClusterVersion) field.ErrorList {
 	allErrs := field.ErrorList{}
@@ -67,6 +84,18 @@ func ValidateClusterVersionSpec(spec *clusteroperator.ClusterVersionSpec, fldPat
 	vmImagesPath := fldPath.Child("vmImages")
 	if spec.VMImages == (clusteroperator.VMImages{}) {
 		allErrs = append(allErrs, field.Required(vmImagesPath, "must define VM images"))
+	}
+
+	deploymentTypePath := fldPath.Child("deploymentType")
+	if spec.DeploymentType == "" {
+		allErrs = append(allErrs, field.Required(deploymentTypePath, "must define deployment type"))
+	} else if !validDeploymentTypes[spec.DeploymentType] {
+		allErrs = append(allErrs, field.NotSupported(deploymentTypePath, spec.DeploymentType, validDeploymentTypeValues))
+	}
+
+	versionPath := fldPath.Child("version")
+	if spec.Version == "" {
+		allErrs = append(allErrs, field.Required(versionPath, "must define version"))
 	}
 
 	return allErrs

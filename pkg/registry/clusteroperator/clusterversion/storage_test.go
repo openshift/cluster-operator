@@ -56,6 +56,8 @@ func validClusterVersion(name string) *clusteroperatorapi.ClusterVersion {
 					},
 				},
 			},
+			DeploymentType: clusteroperatorapi.ClusterDeploymentTypeOrigin,
+			Version:        "v3.9.0",
 		},
 	}
 }
