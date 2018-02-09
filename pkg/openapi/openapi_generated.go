@@ -86,29 +86,60 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 			Dependencies: []string{
 				"k8s.io/api/core/v1.LocalObjectReference"},
 		},
+		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.AWSRegionAMIs": {
+			Schema: spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Description: "AWSRegionAMIs defines which AMI to use for a node type in a given region.",
+					Properties: map[string]spec.Schema{
+						"region": {
+							SchemaProps: spec.SchemaProps{
+								Type:   []string{"string"},
+								Format: "",
+							},
+						},
+						"ami": {
+							SchemaProps: spec.SchemaProps{
+								Description: "AMI is the ID of the AMI to use for compute nodes in the cluster. If no MasterAMI is defined, it will be used for masters as well.",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"masterAMI": {
+							SchemaProps: spec.SchemaProps{
+								Description: "MasterAMI is the ID of the AMI to use for the master nodes in the cluster. If unset, the default AMI will be used instead.",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+					},
+					Required: []string{"region", "ami"},
+				},
+			},
+			Dependencies: []string{},
+		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.AWSVMImages": {
 			Schema: spec.Schema{
 				SchemaProps: spec.SchemaProps{
 					Description: "AWSVMImages indicates which AMI to use in each supported AWS region for this OpenShift version.",
 					Properties: map[string]spec.Schema{
-						"amiByRegion": {
+						"regionAMIs": {
 							SchemaProps: spec.SchemaProps{
-								Type: []string{"object"},
-								AdditionalProperties: &spec.SchemaOrBool{
+								Type: []string{"array"},
+								Items: &spec.SchemaOrArray{
 									Schema: &spec.Schema{
 										SchemaProps: spec.SchemaProps{
-											Type:   []string{"string"},
-											Format: "",
+											Ref: ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.AWSRegionAMIs"),
 										},
 									},
 								},
 							},
 						},
 					},
-					Required: []string{"amiByRegion"},
+					Required: []string{"regionAMIs"},
 				},
 			},
-			Dependencies: []string{},
+			Dependencies: []string{
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.AWSRegionAMIs"},
 		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.Cluster": {
 			Schema: spec.Schema{

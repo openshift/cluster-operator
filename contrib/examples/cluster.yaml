@@ -13,8 +13,9 @@ objects:
     imageFormat: "openshift/origin-${component}:v3.7.0"
     vmImages:
       awsVMImages:
-        amiByRegion:
-          us-east-1: ami-10aed306 # TODO: not correct, need to find out how to lookup latest golden image.
+        regionAMIs:
+        - region: us-east-1
+          ami: ami-10aed306
     deploymentType: origin
     version: "v3.7.0"
 - apiVersion: clusteroperator.openshift.io/v1alpha1
@@ -26,8 +27,9 @@ objects:
     imageFormat: "openshift/origin-${component}:v3.9.0-alpha.1"
     vmImages:
       awsVMImages:
-        amiByRegion:
-          us-east-1: ami-10aed306 # TODO: not correct, need to find out how to lookup latest golden image.
+        regionAMIs:
+        - region: us-east-1
+          ami: ami-10aed306
     deploymentType: openshift-enterprise
     version: "v3.9.0"
 - apiVersion: clusteroperator.openshift.io/v1alpha1
@@ -39,8 +41,9 @@ objects:
     imageFormat: "openshift/origin-${component}:v3.10.notrealyet"
     vmImages:
       awsVMImages:
-        amiByRegion:
-          us-east-1: ami-10aed306 # TODO: not correct, need to find out how to lookup latest golden image.
+        regionAMIs:
+        - region: us-east-1
+          ami: ami-10aed306
     deploymentType: openshift-enterprise
     version: "v3.10.0"
 - apiVersion: clusteroperator.openshift.io/v1alpha1

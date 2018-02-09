@@ -460,6 +460,7 @@ func (s *jobSyncStrategy) ProcessDeletedOwner(owner metav1.Object) error {
 	// Clear the finalizer for the cluster
 	finalizers.Delete(clusteroperator.FinalizerClusterOperator)
 	cluster.ObjectMeta.Finalizers = finalizers.List()
+
 	if err := controller.PatchClusterStatus(s.controller.coClient, originalCluster, cluster); err != nil {
 		return err
 	}

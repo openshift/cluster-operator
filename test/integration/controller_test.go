@@ -164,8 +164,11 @@ func TestClusterCreate(t *testing.T) {
 					},
 					VMImages: v1alpha1.VMImages{
 						AWSImages: &v1alpha1.AWSVMImages{
-							AMIByRegion: map[string]string{
-								"us-east-1": "fakeami",
+							RegionAMIs: []v1alpha1.AWSRegionAMIs{
+								{
+									Region: "us-east-1",
+									AMI:    "computeAMI_ID",
+								},
 							},
 						},
 					},

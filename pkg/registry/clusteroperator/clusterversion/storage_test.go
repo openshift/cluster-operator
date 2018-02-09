@@ -51,8 +51,11 @@ func validClusterVersion(name string) *clusteroperatorapi.ClusterVersion {
 			ImageFormat: "openshift/origin-${component}:v3.7.9",
 			VMImages: clusteroperatorapi.VMImages{
 				AWSImages: &clusteroperatorapi.AWSVMImages{
-					AMIByRegion: map[string]string{
-						"us-east-1": "fakeami",
+					RegionAMIs: []clusteroperatorapi.AWSRegionAMIs{
+						{
+							Region: "us-east-1",
+							AMI:    "computeAMI_ID",
+						},
 					},
 				},
 			},
