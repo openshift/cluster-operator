@@ -1047,6 +1047,12 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								},
 							},
 						},
+						"clusterHardware": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ClusterHardware specifies the hardware that the cluster will run on",
+								Ref:         ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterHardwareSpec"),
+							},
+						},
 						"clusterVersionRef": {
 							SchemaProps: spec.SchemaProps{
 								Description: "ClusterVersionRef references the clusterversion the machine set is running.",
@@ -1054,11 +1060,11 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 							},
 						},
 					},
-					Required: []string{"nodeType", "infra", "size", "nodeLabels", "clusterVersionRef"},
+					Required: []string{"nodeType", "infra", "size", "nodeLabels", "clusterHardware", "clusterVersionRef"},
 				},
 			},
 			Dependencies: []string{
-				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetHardwareSpec", "k8s.io/api/core/v1.ObjectReference"},
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterHardwareSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetHardwareSpec", "k8s.io/api/core/v1.ObjectReference"},
 		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetStatus": {
 			Schema: spec.Schema{
@@ -10173,7 +10179,15 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 			Schema: spec.Schema{
 				SchemaProps: spec.SchemaProps{
 					Description: "Duration is a wrapper around time.Duration which supports correct marshaling to YAML and JSON. In particular, it marshals into strings, which can be used as map keys in json.",
-					Properties:  map[string]spec.Schema{},
+					Properties: map[string]spec.Schema{
+						"Duration": {
+							SchemaProps: spec.SchemaProps{
+								Type:   []string{"integer"},
+								Format: "int64",
+							},
+						},
+					},
+					Required: []string{"Duration"},
 				},
 			},
 			Dependencies: []string{},

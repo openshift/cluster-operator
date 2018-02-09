@@ -397,6 +397,9 @@ type MachineSetSpec struct {
 	// MachineSetConfig is the configuration for the MachineSet
 	MachineSetConfig `json:",inline"`
 
+	// ClusterHardware specifies the hardware that the cluster will run on
+	ClusterHardware ClusterHardwareSpec `json:"clusterHardware"`
+
 	// ClusterVersionRef references the clusterversion the machine set is running.
 	ClusterVersionRef corev1.ObjectReference `json:"clusterVersionRef"`
 }

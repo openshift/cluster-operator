@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"text/template"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	coapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 )
 
@@ -171,15 +173,10 @@ openshift_node_use_instance_profiles: True
 openshift_aws_clusterid: [[ .Name ]]
 openshift_aws_elb_basename: [[ .Name ]]
 openshift_aws_vpc_name: [[ .Name ]]
-[[ if .DefaultAMI ]]
-openshift_aws_ami: [[ .DefaultAMI ]]
-[[ end ]]
 `
 	masterVarsTemplate = `
-[[ if .AMIName ]]
 openshift_aws_ami_map:
   master: [[ .AMIName ]]
-[[ end ]]
 
 openshift_aws_master_group_config:
   # The 'master' key is always required here.
@@ -210,10 +207,8 @@ openshift_aws_master_group:
     Name: "{{ openshift_aws_clusterid }}-master"
 `
 	infraVarsTemplate = `
-[[ if .AMIName ]]
 openshift_aws_ami_map:
   infra: [[ .AMIName ]]
-[[ end ]]
 
 openshift_aws_node_group_config:
   infra:
@@ -243,10 +238,8 @@ openshift_aws_node_groups:
 `
 
 	computeVarsTemplate = `
-[[ if .AMIName ]]
 openshift_aws_ami_map:
   compute: [[ .AMIName ]]
-[[ end ]]
 
 openshift_aws_node_groups:
 - name: "{{ openshift_aws_clusterid }} compute group"
@@ -294,7 +287,6 @@ type clusterParams struct {
 	Name       string
 	Region     string
 	SSHKeyName string
-	DefaultAMI string
 }
 
 type machineSetParams struct {
@@ -307,9 +299,15 @@ type machineSetParams struct {
 // GenerateClusterVars generates the vars to pass to the ansible playbook
 // for the cluster.
 func GenerateClusterVars(cluster *coapi.Cluster) (string, error) {
+	return GenerateClusterWideVars(cluster.Name, &cluster.Spec.Hardware)
+}
+
+// GenerateClusterWideVars generates the vars to pass to the ansible playbook
+// that are set at the cluster level.
+func GenerateClusterWideVars(name string, hardwareSpec *coapi.ClusterHardwareSpec) (string, error) {
 
 	// Currently only AWS is supported. If we don't have an AWS cluster spec, return an error
-	if cluster.Spec.Hardware.AWS == nil {
+	if hardwareSpec.AWS == nil {
 		return "", fmt.Errorf("no AWS spec found in the cluster, only AWS is currently supported")
 	}
 
@@ -320,13 +318,9 @@ func GenerateClusterVars(cluster *coapi.Cluster) (string, error) {
 	}
 
 	params := clusterParams{
-		Name:       cluster.Name,
-		Region:     cluster.Spec.Hardware.AWS.Region,
-		SSHKeyName: cluster.Spec.Hardware.AWS.KeyPairName,
-	}
-
-	if cluster.Spec.DefaultHardwareSpec != nil && cluster.Spec.DefaultHardwareSpec.AWS != nil {
-		params.DefaultAMI = cluster.Spec.DefaultHardwareSpec.AWS.AMIName
+		Name:       name,
+		Region:     hardwareSpec.AWS.Region,
+		SSHKeyName: hardwareSpec.AWS.KeyPairName,
 	}
 
 	var buf bytes.Buffer
@@ -337,14 +331,28 @@ func GenerateClusterVars(cluster *coapi.Cluster) (string, error) {
 	return buf.String(), nil
 }
 
+// GenerateClusterWideVarsForMachineSet generates the vars to pass to the
+// ansible playbook that are set at the cluster level for a machine set in
+// that cluster.
+func GenerateClusterWideVarsForMachineSet(machineSet *coapi.MachineSet) (string, error) {
+	controllerRef := metav1.GetControllerOf(machineSet)
+	if controllerRef == nil {
+		return "", fmt.Errorf("machineset does not have a controller")
+	}
+	return GenerateClusterWideVars(controllerRef.Name, &machineSet.Spec.ClusterHardware)
+}
+
 // GenerateMachineSetVars generates the vars to pass to the ansible playbook
 // for the machine set. The machine set must belong to the cluster.
-func GenerateMachineSetVars(cluster *coapi.Cluster, machineSet *coapi.MachineSet) (string, error) {
-	commonVars, err := GenerateClusterVars(cluster)
+func GenerateMachineSetVars(machineSet *coapi.MachineSet) (string, error) {
+	commonVars, err := GenerateClusterWideVarsForMachineSet(machineSet)
 	if err != nil {
 		return "", err
 	}
 
+	if machineSet.Spec.Hardware == nil {
+		return "", fmt.Errorf("no hardware for machine set")
+	}
 	if machineSet.Spec.Hardware.AWS == nil {
 		return "", fmt.Errorf("no AWS spec found on machine set, only AWS is currently supported")
 	}
@@ -370,8 +378,8 @@ func GenerateMachineSetVars(cluster *coapi.Cluster, machineSet *coapi.MachineSet
 	params := &machineSetParams{
 		Name:         machineSet.Name,
 		Size:         machineSet.Spec.Size,
-		InstanceType: getInstanceType(cluster, machineSet),
-		AMIName:      getAMIName(cluster, machineSet),
+		InstanceType: machineSet.Spec.Hardware.AWS.InstanceType,
+		AMIName:      machineSet.Spec.Hardware.AWS.AMIName,
 	}
 
 	err = t.Execute(&buf, params)
@@ -379,20 +387,4 @@ func GenerateMachineSetVars(cluster *coapi.Cluster, machineSet *coapi.MachineSet
 		return "", err
 	}
 	return buf.String(), nil
-}
-
-func getInstanceType(cluster *coapi.Cluster, machineSet *coapi.MachineSet) string {
-	instanceType := machineSet.Spec.Hardware.AWS.InstanceType
-	if instanceType == "" && cluster.Spec.DefaultHardwareSpec != nil && cluster.Spec.DefaultHardwareSpec.AWS != nil {
-		instanceType = cluster.Spec.DefaultHardwareSpec.AWS.InstanceType
-	}
-	return instanceType
-}
-
-func getAMIName(cluster *coapi.Cluster, machineSet *coapi.MachineSet) string {
-	amiName := machineSet.Spec.Hardware.AWS.AMIName
-	if amiName == "" && cluster.Spec.DefaultHardwareSpec != nil && cluster.Spec.DefaultHardwareSpec.AWS != nil {
-		amiName = cluster.Spec.DefaultHardwareSpec.AWS.AMIName
-	}
-	return amiName
 }

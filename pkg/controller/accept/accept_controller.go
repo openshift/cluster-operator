@@ -65,7 +65,6 @@ var machineSetKind = clusteroperator.SchemeGroupVersion.WithKind("MachineSet")
 
 // NewController returns a new *Controller.
 func NewController(
-	clusterInformer informers.ClusterInformer,
 	machineSetInformer informers.MachineSetInformer,
 	jobInformer batchinformers.JobInformer,
 	kubeClient kubeclientset.Interface,
@@ -98,9 +97,6 @@ func NewController(
 
 	c.machineSetsLister = machineSetInformer.Lister()
 	c.machineSetsSynced = machineSetInformer.Informer().HasSynced
-
-	c.clustersLister = clusterInformer.Lister()
-	c.clustersSynced = clusterInformer.Informer().HasSynced
 
 	jobOwnerControl := &jobOwnerControl{controller: c}
 	c.jobControl = controller.NewJobControl(jobPrefix, machineSetKind, kubeClient, jobInformer.Lister(), jobOwnerControl, logger)
@@ -141,13 +137,6 @@ type Controller struct {
 	// Added as a member to the struct to allow injection for testing.
 	machineSetsSynced cache.InformerSynced
 
-	// clustersLister is able to list/get clusters and is populated by the shared informer passed to
-	// NewController.
-	clustersLister lister.ClusterLister
-	// clustersSynced returns true if the cluster shared informer has been synced at least once.
-	// Added as a member to the struct to allow injection for testing.
-	clustersSynced cache.InformerSynced
-
 	// jobsSynced returns true if the job shared informer has been synced at least once.
 	jobsSynced cache.InformerSynced
 
@@ -178,7 +167,7 @@ func (c *Controller) Run(workers int, stopCh <-chan struct{}) {
 	c.logger.Infof("Starting accept controller")
 	defer c.logger.Infof("Shutting down accept controller")
 
-	if !controller.WaitForCacheSync("accept", stopCh, c.machineSetsSynced, c.clustersSynced, c.jobsSynced) {
+	if !controller.WaitForCacheSync("accept", stopCh, c.machineSetsSynced, c.jobsSynced) {
 		c.logger.Errorf("Could not sync caches for accept controller")
 		return
 	}
@@ -306,21 +295,17 @@ func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object) (controller.JobFact
 	if !ok {
 		return nil, fmt.Errorf("could not convert owner from JobSync into a machine set")
 	}
-	cluster, err := controller.ClusterForMachineSet(machineSet, s.controller.clustersLister)
-	if err != nil {
-		return nil, fmt.Errorf("could not obtain a cluster for the machine set: %v", err)
-	}
 	return jobFactory(func(name string) (*v1batch.Job, *kapi.ConfigMap, error) {
 		// TODO: use machine set vars once we remove structs from machine set
 		// vars and playbooks support simple values for things like instance type
 		// and size.
-		vars, err := ansible.GenerateClusterVars(cluster)
+		vars, err := ansible.GenerateClusterWideVarsForMachineSet(machineSet)
 		if err != nil {
 			return nil, nil, err
 		}
 		job, configMap := s.controller.ansibleGenerator.GeneratePlaybookJob(
 			name,
-			&cluster.Spec.Hardware,
+			&machineSet.Spec.ClusterHardware,
 			acceptPlaybook,
 			ansible.DefaultInventory,
 			vars,
