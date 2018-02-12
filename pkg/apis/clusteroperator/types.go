@@ -121,7 +121,17 @@ type VMImages struct {
 
 // AWSVMImages indicates which AMI to use in each supported AWS region for this OpenShift version.
 type AWSVMImages struct {
-	AMIByRegion map[string]string
+	RegionAMIs []AWSRegionAMIs
+}
+
+// AWSRegionAMIs defines which AMI to use for a node type in a given region.
+type AWSRegionAMIs struct {
+	Region string
+	// AMI is the ID of the AMI to use for compute nodes in the cluster. If no MasterAMI is defined, it will be used for masters as well.
+	AMI string
+	// MasterAMI is the ID of the AMI to use for the master nodes in the cluster. If unset, the default AMI will be used instead.
+	// +optional
+	MasterAMI *string
 }
 
 // YumRepository represents optional yum repositories to deploy onto all systems in the cluster.

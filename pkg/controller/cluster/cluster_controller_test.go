@@ -271,8 +271,11 @@ func newClusterVer(namespace, name string, uid types.UID) *clusteroperator.Clust
 			},
 			VMImages: clusteroperator.VMImages{
 				AWSImages: &clusteroperator.AWSVMImages{
-					AMIByRegion: map[string]string{
-						"us-east-1": "fakeami",
+					RegionAMIs: []clusteroperator.AWSRegionAMIs{
+						{
+							Region: "us-east-1",
+							AMI:    "computeAMI_ID",
+						},
 					},
 				},
 			},

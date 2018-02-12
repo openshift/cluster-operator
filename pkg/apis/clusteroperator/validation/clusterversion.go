@@ -82,9 +82,7 @@ func ValidateClusterVersionSpec(spec *clusteroperator.ClusterVersionSpec, fldPat
 	}
 
 	vmImagesPath := fldPath.Child("vmImages")
-	if spec.VMImages == (clusteroperator.VMImages{}) {
-		allErrs = append(allErrs, field.Required(vmImagesPath, "must define VM images"))
-	}
+	allErrs = append(allErrs, ValidateVMImages(spec.VMImages, vmImagesPath)...)
 
 	deploymentTypePath := fldPath.Child("deploymentType")
 	if spec.DeploymentType == "" {
@@ -124,5 +122,53 @@ func ValidateYumRepository(repo *clusteroperator.YumRepository, fldPath *field.P
 	if repo.GPGCheck < 0 || repo.GPGCheck > 1 {
 		allErrs = append(allErrs, field.Invalid(fldPath.Child("gpgcheck"), repo.GPGCheck, "must be 0 or 1"))
 	}
+	return allErrs
+}
+
+// ValidateVMImages validates the provided image data for each cloud provider.
+func ValidateVMImages(vmImages clusteroperator.VMImages, fldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+	// This can be dropped when additional providers are supported, but we should then verify
+	// at least one cloud provider has images specified.
+	if vmImages.AWSImages == nil {
+
+		allErrs = append(allErrs, field.Required(fldPath.Child("awsVMImages"), "must define AWS VM images"))
+		return allErrs
+	}
+
+	regionsSeen := map[string]bool{}
+	amisPath := fldPath.Child("awsVMImages").Child("regionAMIs")
+	if len(vmImages.AWSImages.RegionAMIs) == 0 {
+		allErrs = append(allErrs, field.Required(amisPath, "must define AMIs for at least one region"))
+	} else {
+		for i, ami := range vmImages.AWSImages.RegionAMIs {
+			allErrs = append(allErrs, ValidateRegionAMIs(&ami, amisPath.Index(i))...)
+			if _, previouslySeen := regionsSeen[ami.Region]; previouslySeen {
+				allErrs = append(allErrs, field.Duplicate(amisPath.Index(i).Child("region"), ami.Region))
+			} else {
+				regionsSeen[ami.Region] = true
+			}
+		}
+	}
+
+	return allErrs
+}
+
+// ValidateRegionAMIs validates that an AMI is properly defined.
+func ValidateRegionAMIs(regionAMIs *clusteroperator.AWSRegionAMIs, fldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	if regionAMIs.Region == "" {
+		allErrs = append(allErrs, field.Required(fldPath.Child("region"), "must define region"))
+	}
+
+	if regionAMIs.AMI == "" {
+		allErrs = append(allErrs, field.Required(fldPath.Child("ami"), "must define AMI ID"))
+	}
+
+	if regionAMIs.MasterAMI != nil && *regionAMIs.MasterAMI == "" {
+		allErrs = append(allErrs, field.Invalid(fldPath.Child("masterAMI"), regionAMIs.MasterAMI, "cannot define an empty master AMI ID"))
+	}
+
 	return allErrs
 }

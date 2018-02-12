@@ -26,6 +26,7 @@ import (
 
 // getValidClusterVersion gets a cluster version that passes all validity checks.
 func getValidClusterVersion() *clusteroperator.ClusterVersion {
+	masterAMIID := "masterAMI_ID"
 	return &clusteroperator.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test-cluster-version",
@@ -44,8 +45,12 @@ func getValidClusterVersion() *clusteroperator.ClusterVersion {
 			},
 			VMImages: clusteroperator.VMImages{
 				AWSImages: &clusteroperator.AWSVMImages{
-					AMIByRegion: map[string]string{
-						"us-east-1": "fakeami",
+					RegionAMIs: []clusteroperator.AWSRegionAMIs{
+						{
+							Region:    "us-east-1",
+							AMI:       "computeAMI_ID",
+							MasterAMI: &masterAMIID,
+						},
 					},
 				},
 			},
@@ -126,6 +131,64 @@ func TestValidateClusterVersion(t *testing.T) {
 			clusterVersion: func() *clusteroperator.ClusterVersion {
 				c := getValidClusterVersion()
 				c.Spec.VMImages = clusteroperator.VMImages{}
+				return c
+			}(),
+			valid: false,
+		},
+		{
+			// This test is only valid until we start supporting mutliple clusters, in which case
+			// it should instead verify at least one cloud provider has images defined:
+			name: "missing AWS VM images",
+			clusterVersion: func() *clusteroperator.ClusterVersion {
+				c := getValidClusterVersion()
+				c.Spec.VMImages.AWSImages = nil
+				return c
+			}(),
+			valid: false,
+		},
+		{
+			name: "no region AMIs",
+			clusterVersion: func() *clusteroperator.ClusterVersion {
+				c := getValidClusterVersion()
+				c.Spec.VMImages.AWSImages.RegionAMIs = []clusteroperator.AWSRegionAMIs{}
+				return c
+			}(),
+			valid: false,
+		},
+		{
+			name: "missing AMI region",
+			clusterVersion: func() *clusteroperator.ClusterVersion {
+				c := getValidClusterVersion()
+				c.Spec.VMImages.AWSImages.RegionAMIs[0].Region = ""
+				return c
+			}(),
+			valid: false,
+		},
+		{
+			name: "missing AMI ID",
+			clusterVersion: func() *clusteroperator.ClusterVersion {
+				c := getValidClusterVersion()
+				c.Spec.VMImages.AWSImages.RegionAMIs[0].AMI = ""
+				return c
+			}(),
+			valid: false,
+		},
+		{
+			name: "empty master AMI ID",
+			clusterVersion: func() *clusteroperator.ClusterVersion {
+				c := getValidClusterVersion()
+				var emptyStr string
+				c.Spec.VMImages.AWSImages.RegionAMIs[0].MasterAMI = &emptyStr
+				return c
+			}(),
+			valid: false,
+		},
+		{
+			name: "duplicate region AMIs",
+			clusterVersion: func() *clusteroperator.ClusterVersion {
+				c := getValidClusterVersion()
+				c.Spec.VMImages.AWSImages.RegionAMIs = append(c.Spec.VMImages.AWSImages.RegionAMIs,
+					clusteroperator.AWSRegionAMIs{Region: "us-east-1", AMI: "fakecompute"})
 				return c
 			}(),
 			valid: false,
