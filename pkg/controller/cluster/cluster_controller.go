@@ -488,19 +488,21 @@ func (c *Controller) manageMachineSets(machineSets []*clusteroperator.MachineSet
 		}
 		machineSetConfig.Hardware = mergedHardwareSpec
 
-		machineSetToCreate, updateMachineSet, deleteMachineSet, err := c.manageMachineSet(cluster, clusterVersion, clusterMachineSets[i], machineSetConfig, machineSetPrefixes[i])
+		machineSet, updateMachineSet, deleteMachineSet, err := c.manageMachineSet(cluster, clusterVersion, clusterMachineSets[i], machineSetConfig, machineSetPrefixes[i])
 		if err != nil {
 			errCh <- err
 			continue
 		}
 
-		if machineSetToCreate != nil {
-			machineSetsToCreate = append(machineSetsToCreate, machineSetToCreate)
+		if machineSet != nil {
+			if updateMachineSet {
+				machineSetsToUpdate = append(machineSetsToUpdate, machineSet)
+			} else {
+				machineSetsToCreate = append(machineSetsToCreate, machineSet)
+			}
 		}
 		if deleteMachineSet {
 			machineSetsToDelete = append(machineSetsToDelete, clusterMachineSets[i])
-		} else if updateMachineSet {
-			machineSetsToUpdate = append(machineSetsToUpdate, clusterMachineSets[i])
 		}
 	}
 
@@ -594,8 +596,9 @@ func (c *Controller) manageMachineSets(machineSets []*clusteroperator.MachineSet
 	return nil
 }
 
-// shouldRecreateMachineSet will return true if the machine set config has changed with
-// the exception of size.
+// shouldRecreateMachineSet will return true if the machine set config has changed in a way
+// that requires the current machine set to be deleted and recreated.
+// Currently any change to the spec with the exception of size should result in a recreate.
 func shouldRecreateMachineSet(existingConfig, newConfig clusteroperator.MachineSetConfig) bool {
 	existingConfig.Size = 0
 	newConfig.Size = 0
@@ -605,7 +608,7 @@ func shouldRecreateMachineSet(existingConfig, newConfig clusteroperator.MachineS
 // manageMachineSet determines whether or not a machine set needs to be created because it does not exist,
 // replaced because it is out of date, or updated in case of its size having changed.
 // return values:
-// - machineSet to create (MachineSet)
+// - machineSet to create/update (MachineSet)
 // - should update machineset (bool)
 // - should delete machineset (bool)
 // - error
@@ -634,9 +637,10 @@ func (c *Controller) manageMachineSet(cluster *clusteroperator.Cluster, clusterV
 	}
 
 	if machineSet.Spec.Size != clusterMachineSetConfig.Size {
-		machineSet.Spec.Size = clusterMachineSetConfig.Size
-		msLog.Infof("machine set size has changed from %d to %d", clusterMachineSetConfig.Size, machineSet.Spec.Size)
-		return nil, true, false, nil
+		updatedMachineSet := machineSet.DeepCopy()
+		updatedMachineSet.Spec.Size = clusterMachineSetConfig.Size
+		msLog.Infof("machine set size has changed from %d to %d", machineSet.Spec.Size, clusterMachineSetConfig.Size)
+		return updatedMachineSet, true, false, nil
 	}
 
 	return nil, false, false, nil
