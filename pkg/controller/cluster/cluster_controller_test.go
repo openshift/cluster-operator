@@ -117,6 +117,54 @@ func newCluster(cv *clusteroperator.ClusterVersion, computeNames ...string) *clu
 	return newClusterWithSizes(cv, 1, computes...)
 }
 
+// newClusterWithMasterInstanceType creates a new cluster with the specified instance type for the
+// master machine set and the specified cluster compute machine sets. If a clusterversion is
+// provided we set the spec version ref, as well as the status version ref. This implies
+// that the caller has added the provided version to the store.
+func newClusterWithMasterInstanceType(cv *clusteroperator.ClusterVersion, instanceType string, computes ...clusteroperator.ClusterMachineSet) *clusteroperator.Cluster {
+	cluster := &clusteroperator.Cluster{
+		ObjectMeta: metav1.ObjectMeta{
+			UID:       testClusterUUID,
+			Name:      testClusterName,
+			Namespace: testNamespace,
+		},
+		Spec: clusteroperator.ClusterSpec{
+			MachineSets: append(computes, clusteroperator.ClusterMachineSet{
+				Name: "master",
+				MachineSetConfig: clusteroperator.MachineSetConfig{
+					Size:     1,
+					Infra:    true,
+					NodeType: clusteroperator.NodeTypeMaster,
+					Hardware: &clusteroperator.MachineSetHardwareSpec{
+						AWS: &clusteroperator.MachineSetAWSHardwareSpec{
+							InstanceType: instanceType,
+						},
+					},
+				},
+			}),
+		},
+		Status: clusteroperator.ClusterStatus{
+			MasterMachineSetName: testClusterName + "-master-random",
+			InfraMachineSetName:  testClusterName + "-master-random",
+		},
+	}
+
+	// If clusterversion was provided we assume it exists in the store and set both
+	// the spec and the status:
+	if cv != nil {
+		cluster.Spec.ClusterVersionRef = clusteroperator.ClusterVersionReference{
+			Name:      cv.Name,
+			Namespace: cv.Namespace,
+		}
+		cluster.Status.ClusterVersionRef = &corev1.ObjectReference{
+			Name:      cv.Name,
+			Namespace: cv.Namespace,
+			UID:       cv.UID,
+		}
+	}
+	return cluster
+}
+
 // newClusterWithSizes creates a new cluster with the specified size for the
 // master machine set and the specified cluster compute machine sets. If a clusterversion is
 // provided we set the spec version ref, as well as the status version ref. This implies
@@ -212,6 +260,47 @@ func newMachineSetsWithSizes(store cache.Store, cluster *clusteroperator.Cluster
 		machineSet := newMachineSet(name, cluster, true)
 		machineSet.Spec.NodeType = clusteroperator.NodeTypeMaster
 		machineSet.Spec.Size = masterSize
+		machineSet.Spec.Infra = true
+		machineSet.Spec.ClusterVersionRef = corev1.ObjectReference{
+			Name:      clusterVersion.Name,
+			Namespace: clusterVersion.Namespace,
+			UID:       clusterVersion.UID,
+		}
+		machineSets = append(machineSets, machineSet)
+	}
+	for _, compute := range computes {
+		name := fmt.Sprintf("%s-%s-random", cluster.Name, compute.Name)
+		machineSet := newMachineSet(name, cluster, true)
+		machineSet.Spec.MachineSetConfig = compute.MachineSetConfig
+		machineSet.Spec.ClusterVersionRef = corev1.ObjectReference{
+			Name:      clusterVersion.Name,
+			Namespace: clusterVersion.Namespace,
+			UID:       clusterVersion.UID,
+		}
+		machineSets = append(machineSets, machineSet)
+	}
+	if store != nil {
+		for _, machineSet := range machineSets {
+			store.Add(machineSet)
+		}
+	}
+	return machineSets
+}
+
+// newMachineSetsWithMasterInstanceType creates new machine sets, with the specific instance type for the master and
+// stores them in the specified store.
+func newMachineSetsWithMasterInstanceType(store cache.Store, cluster *clusteroperator.Cluster, clusterVersion *clusteroperator.ClusterVersion, masterInstanceType string, computes ...clusteroperator.ClusterMachineSet) []*clusteroperator.MachineSet {
+	machineSets := []*clusteroperator.MachineSet{}
+	if len(masterInstanceType) > 0 {
+		name := fmt.Sprintf("%s-master-random", cluster.Name)
+		machineSet := newMachineSet(name, cluster, true)
+		machineSet.Spec.NodeType = clusteroperator.NodeTypeMaster
+		machineSet.Spec.Size = 1
+		machineSet.Spec.Hardware = &clusteroperator.MachineSetHardwareSpec{
+			AWS: &clusteroperator.MachineSetAWSHardwareSpec{
+				InstanceType: masterInstanceType,
+			},
+		}
 		machineSet.Spec.Infra = true
 		machineSet.Spec.ClusterVersionRef = corev1.ObjectReference{
 			Name:      clusterVersion.Name,
@@ -388,6 +477,49 @@ func (ea expectedMachineSetCreateAction) validate(t *testing.T, action clientgot
 // action for creating a machine set.
 func newExpectedMachineSetCreateAction(cluster *clusteroperator.Cluster, name string) expectedMachineSetCreateAction {
 	return newExpectedMachineSetCreateActionWithHardwareSpec(cluster, name, nil)
+}
+
+// expectedMachineSetUpdateAction is an expected client action to update a
+// machine set.
+type expectedMachineSetUpdateAction struct {
+	namePrefix string
+	size       int
+}
+
+func (ea expectedMachineSetUpdateAction) resource() schema.GroupVersionResource {
+	return clusteroperator.SchemeGroupVersion.WithResource("machinesets")
+}
+
+func (ea expectedMachineSetUpdateAction) verb() string {
+	return "update"
+}
+
+func (ea expectedMachineSetUpdateAction) validate(t *testing.T, action clientgotesting.Action) bool {
+	updateAction, ok := action.(clientgotesting.UpdateAction)
+	if !ok {
+		t.Errorf("update action is not a UpdateAction: %t", updateAction)
+		return false
+	}
+	updatedObject := updateAction.GetObject()
+	machineSet, ok := updatedObject.(*clusteroperator.MachineSet)
+	if !ok {
+		t.Errorf("machine set update action object is not a MachineSet: %t", updatedObject)
+		return false
+	}
+	if !strings.HasPrefix(machineSet.Name, ea.namePrefix) {
+		return false
+	}
+	if e, a := ea.size, machineSet.Spec.Size; e != a {
+		t.Errorf("unexpected size: expected %d, got %d", e, a)
+		return false
+	}
+	return true
+}
+
+// newExpectedMachineSetUpdateAction creates a new expected client
+// action for updating a machine set.
+func newExpectedMachineSetUpdateAction(cluster *clusteroperator.Cluster, name string, size int) expectedMachineSetUpdateAction {
+	return expectedMachineSetUpdateAction{namePrefix: cluster.Name + "-" + name, size: size}
 }
 
 // newExpectedMachineSetCreateActionWithHardwareSpec creates a new expected
@@ -1060,6 +1192,120 @@ func TestSyncClusterMachineSetsRemoved(t *testing.T) {
 // specifications in the cluster spec have been mutated.
 func TestSyncClusterMachineSetSpecMutated(t *testing.T) {
 	cases := []struct {
+		name                         string
+		clusterMasterInstanceType    string
+		realizedMasterInstanceType   string
+		clusterComputeInstanceTypes  []string
+		realizedComputeInstanceTypes []string
+	}{
+		{
+			name: "master only",
+			clusterMasterInstanceType:  "a",
+			realizedMasterInstanceType: "b",
+		},
+		{
+			name: "single compute",
+			clusterMasterInstanceType:    "a",
+			realizedMasterInstanceType:   "a",
+			clusterComputeInstanceTypes:  []string{"b"},
+			realizedComputeInstanceTypes: []string{"c"},
+		},
+		{
+			name: "multiple computes",
+			clusterMasterInstanceType:    "a",
+			realizedMasterInstanceType:   "a",
+			clusterComputeInstanceTypes:  []string{"b", "c"},
+			realizedComputeInstanceTypes: []string{"d", "e"},
+		},
+		{
+			name: "master and computes",
+			clusterMasterInstanceType:    "a",
+			realizedMasterInstanceType:   "b",
+			clusterComputeInstanceTypes:  []string{"c", "d"},
+			realizedComputeInstanceTypes: []string{"e", "f"},
+		},
+		{
+			name: "subset of computes",
+			clusterMasterInstanceType:    "a",
+			realizedMasterInstanceType:   "b",
+			clusterComputeInstanceTypes:  []string{"c", "d", "e"},
+			realizedComputeInstanceTypes: []string{"g", "h", "e"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if a, b := len(tc.clusterComputeInstanceTypes), len(tc.realizedComputeInstanceTypes); a != b {
+				t.Skipf("clusterComputeInstanceTypes length must be equal to realizedComputeInstanceTypes length: %v, %v", a, b)
+			}
+
+			controller, clusterStore, machineSetStore, clusterVerStore, _, clusterOperatorClient := newTestController()
+
+			clusterComputes := make([]clusteroperator.ClusterMachineSet, len(tc.clusterComputeInstanceTypes))
+			realizedComputes := make([]clusteroperator.ClusterMachineSet, len(tc.realizedComputeInstanceTypes))
+			for i := range tc.clusterComputeInstanceTypes {
+				name := fmt.Sprintf("compute%v", i)
+				clusterComputes[i] = clusteroperator.ClusterMachineSet{
+					MachineSetConfig: clusteroperator.MachineSetConfig{
+						NodeType: clusteroperator.NodeTypeCompute,
+						Size:     1,
+						Hardware: &clusteroperator.MachineSetHardwareSpec{
+							AWS: &clusteroperator.MachineSetAWSHardwareSpec{
+								InstanceType: tc.clusterComputeInstanceTypes[i],
+							},
+						},
+					},
+					Name: name,
+				}
+				realizedComputes[i] = clusteroperator.ClusterMachineSet{
+					MachineSetConfig: clusteroperator.MachineSetConfig{
+						NodeType: clusteroperator.NodeTypeCompute,
+						Size:     1,
+						Hardware: &clusteroperator.MachineSetHardwareSpec{
+							AWS: &clusteroperator.MachineSetAWSHardwareSpec{
+								InstanceType: tc.realizedComputeInstanceTypes[i],
+							},
+						},
+					},
+					Name: name,
+				}
+			}
+			cv := newClusterVer(testClusterVerNS, testClusterVerName, testClusterVerUID)
+			cluster := newClusterWithMasterInstanceType(cv, tc.clusterMasterInstanceType, clusterComputes...)
+			cluster.Status.MachineSetCount = len(clusterComputes) + 1
+			clusterVerStore.Add(cv)
+			clusterStore.Add(cluster)
+			newMachineSetsWithMasterInstanceType(machineSetStore, cluster, cv, tc.realizedMasterInstanceType, realizedComputes...)
+
+			controller.syncCluster(getKey(cluster, t))
+
+			expectedActions := []expectedClientAction{}
+			if tc.clusterMasterInstanceType != tc.realizedMasterInstanceType {
+				expectedActions = append(expectedActions,
+					newExpectedMachineSetDeleteAction(cluster, "master"),
+					newExpectedMachineSetCreateAction(cluster, "master"),
+				)
+			}
+			for i, clusterCompute := range clusterComputes {
+				if clusterCompute.Hardware.AWS.InstanceType == tc.realizedComputeInstanceTypes[i] {
+					continue
+				}
+				expectedActions = append(expectedActions,
+					newExpectedMachineSetDeleteAction(cluster, clusterCompute.Name),
+					newExpectedMachineSetCreateAction(cluster, clusterCompute.Name),
+				)
+			}
+
+			validateClientActions(t, "TestSyncClusterMachineSetSpecMutated."+tc.name, clusterOperatorClient, expectedActions...)
+
+			validateControllerExpectations(t, "TestSyncClusterMachineSetSpecMutated."+tc.name, controller, cluster, len(expectedActions)/2, len(expectedActions)/2)
+		})
+	}
+}
+
+// TestSyncClusterMachineSetSpecScaled tests syncing a cluster when machine set
+// sizes in the cluster spec have been mutated.
+func TestSyncClusterMachineSetSpecScaled(t *testing.T) {
+	cases := []struct {
 		name                 string
 		clusterMasterSize    int
 		realizedMasterSize   int
@@ -1139,8 +1385,7 @@ func TestSyncClusterMachineSetSpecMutated(t *testing.T) {
 			expectedActions := []expectedClientAction{}
 			if tc.clusterMasterSize != tc.realizedMasterSize {
 				expectedActions = append(expectedActions,
-					newExpectedMachineSetDeleteAction(cluster, "master"),
-					newExpectedMachineSetCreateAction(cluster, "master"),
+					newExpectedMachineSetUpdateAction(cluster, "master", tc.clusterMasterSize),
 				)
 			}
 			for i, clusterCompute := range clusterComputes {
@@ -1148,14 +1393,11 @@ func TestSyncClusterMachineSetSpecMutated(t *testing.T) {
 					continue
 				}
 				expectedActions = append(expectedActions,
-					newExpectedMachineSetDeleteAction(cluster, clusterCompute.Name),
-					newExpectedMachineSetCreateAction(cluster, clusterCompute.Name),
+					newExpectedMachineSetUpdateAction(cluster, clusterCompute.Name, clusterCompute.Size),
 				)
 			}
 
-			validateClientActions(t, "TestSyncClusterMachineSetsMutated."+tc.name, clusterOperatorClient, expectedActions...)
-
-			validateControllerExpectations(t, "TestSyncClusterMachineSetsMutated."+tc.name, controller, cluster, len(expectedActions)/2, len(expectedActions)/2)
+			validateClientActions(t, "TestSyncClusterMachineSetSpecScaled."+tc.name, clusterOperatorClient, expectedActions...)
 		})
 	}
 }
@@ -1300,11 +1542,16 @@ func TestSyncClusterComplex(t *testing.T) {
 
 	cv := newClusterVer(testClusterVerNS, testClusterVerName, testClusterVerUID)
 	clusterVerStore.Add(cv)
-	cluster := newClusterWithSizes(cv, 1,
+	cluster := newClusterWithMasterInstanceType(cv, "a",
 		clusteroperator.ClusterMachineSet{
 			MachineSetConfig: clusteroperator.MachineSetConfig{
 				Size:     1,
 				NodeType: clusteroperator.NodeTypeCompute,
+				Hardware: &clusteroperator.MachineSetHardwareSpec{
+					AWS: &clusteroperator.MachineSetAWSHardwareSpec{
+						InstanceType: "a",
+					},
+				},
 			},
 			Name: "realized and un-mutated",
 		},
@@ -1312,6 +1559,11 @@ func TestSyncClusterComplex(t *testing.T) {
 			MachineSetConfig: clusteroperator.MachineSetConfig{
 				Size:     1,
 				NodeType: clusteroperator.NodeTypeCompute,
+				Hardware: &clusteroperator.MachineSetHardwareSpec{
+					AWS: &clusteroperator.MachineSetAWSHardwareSpec{
+						InstanceType: "a",
+					},
+				},
 			},
 			Name: "realized but mutated",
 		},
@@ -1325,11 +1577,16 @@ func TestSyncClusterComplex(t *testing.T) {
 	)
 	clusterStore.Add(cluster)
 
-	newMachineSetsWithSizes(machineSetStore, cluster, cv, 2,
+	newMachineSetsWithMasterInstanceType(machineSetStore, cluster, cv, "b",
 		clusteroperator.ClusterMachineSet{
 			MachineSetConfig: clusteroperator.MachineSetConfig{
 				Size:     1,
 				NodeType: clusteroperator.NodeTypeCompute,
+				Hardware: &clusteroperator.MachineSetHardwareSpec{
+					AWS: &clusteroperator.MachineSetAWSHardwareSpec{
+						InstanceType: "a",
+					},
+				},
 			},
 			Name: "realized and un-mutated",
 		},
@@ -1337,6 +1594,11 @@ func TestSyncClusterComplex(t *testing.T) {
 			MachineSetConfig: clusteroperator.MachineSetConfig{
 				Size:     2,
 				NodeType: clusteroperator.NodeTypeCompute,
+				Hardware: &clusteroperator.MachineSetHardwareSpec{
+					AWS: &clusteroperator.MachineSetAWSHardwareSpec{
+						InstanceType: "b",
+					},
+				},
 			},
 			Name: "realized but mutated",
 		},

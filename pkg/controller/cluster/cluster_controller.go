@@ -455,6 +455,7 @@ func (c *Controller) manageMachineSets(machineSets []*clusteroperator.MachineSet
 	clusterMachineSets := make([]*clusteroperator.MachineSet, len(cluster.Spec.MachineSets))
 	machineSetsToCreate := []*clusteroperator.MachineSet{}
 	machineSetsToDelete := []*clusteroperator.MachineSet{}
+	machineSetsToUpdate := []*clusteroperator.MachineSet{}
 
 	// Organize machine sets
 	for _, machineSet := range machineSets {
@@ -487,14 +488,18 @@ func (c *Controller) manageMachineSets(machineSets []*clusteroperator.MachineSet
 		}
 		machineSetConfig.Hardware = mergedHardwareSpec
 
-		machineSetToCreate, deleteMachineSet, err := c.manageMachineSet(cluster, clusterVersion, clusterMachineSets[i], machineSetConfig, machineSetPrefixes[i])
+		machineSet, updateMachineSet, deleteMachineSet, err := c.manageMachineSet(cluster, clusterVersion, clusterMachineSets[i], machineSetConfig, machineSetPrefixes[i])
 		if err != nil {
 			errCh <- err
 			continue
 		}
 
-		if machineSetToCreate != nil {
-			machineSetsToCreate = append(machineSetsToCreate, machineSetToCreate)
+		if machineSet != nil {
+			if updateMachineSet {
+				machineSetsToUpdate = append(machineSetsToUpdate, machineSet)
+			} else {
+				machineSetsToCreate = append(machineSetsToCreate, machineSet)
+			}
 		}
 		if deleteMachineSet {
 			machineSetsToDelete = append(machineSetsToDelete, clusterMachineSets[i])
@@ -543,10 +548,26 @@ func (c *Controller) manageMachineSets(machineSets []*clusteroperator.MachineSet
 		wg.Wait()
 	}
 
+	if len(machineSetsToUpdate) > 0 {
+		var wg sync.WaitGroup
+		wg.Add(len(machineSetsToUpdate))
+		for i, ms := range machineSetsToUpdate {
+			go func(ix int, machineSet *clusteroperator.MachineSet) {
+				defer wg.Done()
+				if _, err := c.client.ClusteroperatorV1alpha1().MachineSets(cluster.Namespace).Update(machineSet); err != nil {
+					errCh <- err
+				} else {
+					colog.WithMachineSet(clusterLog, machineSet).Info("updated machine set")
+				}
+			}(i, ms)
+		}
+		wg.Wait()
+	}
+
 	if len(machineSetsToDelete) > 0 {
 		var wg sync.WaitGroup
 		wg.Add(len(machineSetsToDelete))
-		for i, ng := range machineSetsToDelete {
+		for i, ms := range machineSetsToDelete {
 			go func(ix int, machineSet *clusteroperator.MachineSet) {
 				defer wg.Done()
 				if err := c.client.ClusteroperatorV1alpha1().MachineSets(cluster.Namespace).Delete(machineSet.Name, &metav1.DeleteOptions{}); err != nil {
@@ -559,7 +580,7 @@ func (c *Controller) manageMachineSets(machineSets []*clusteroperator.MachineSet
 					colog.WithMachineSet(clusterLog, machineSet).Info("deleted machine set")
 				}
 
-			}(i, ng)
+			}(i, ms)
 		}
 		wg.Wait()
 	}
@@ -575,32 +596,54 @@ func (c *Controller) manageMachineSets(machineSets []*clusteroperator.MachineSet
 	return nil
 }
 
-// manageMachineSet determines whether or not a machine set needs to be created because it does not exist, or replaced because it is out of date.
-func (c *Controller) manageMachineSet(cluster *clusteroperator.Cluster, clusterVersion *clusteroperator.ClusterVersion, machineSet *clusteroperator.MachineSet, clusterMachineSetConfig clusteroperator.MachineSetConfig, machineSetNamePrefix string) (*clusteroperator.MachineSet, bool, error) {
+// shouldRecreateMachineSet will return true if the machine set config has changed in a way
+// that requires the current machine set to be deleted and recreated.
+// Currently any change to the spec with the exception of size should result in a recreate.
+func shouldRecreateMachineSet(existingConfig, newConfig clusteroperator.MachineSetConfig) bool {
+	existingConfig.Size = 0
+	newConfig.Size = 0
+	return !apiequality.Semantic.DeepEqual(existingConfig, newConfig)
+}
+
+// manageMachineSet determines whether or not a machine set needs to be created because it does not exist,
+// replaced because it is out of date, or updated in case of its size having changed.
+// return values:
+// - machineSet to create/update (MachineSet)
+// - should update machineset (bool)
+// - should delete machineset (bool)
+// - error
+func (c *Controller) manageMachineSet(cluster *clusteroperator.Cluster, clusterVersion *clusteroperator.ClusterVersion, machineSet *clusteroperator.MachineSet, clusterMachineSetConfig clusteroperator.MachineSetConfig, machineSetNamePrefix string) (*clusteroperator.MachineSet, bool, bool, error) {
 	clusterLog := colog.WithCluster(c.logger, cluster)
 	if machineSet == nil {
 		clusterLog.Debugf("building new machine set")
 		machineSet, err := buildNewMachineSet(cluster, clusterVersion, clusterMachineSetConfig, machineSetNamePrefix)
-		return machineSet, false, err
+		return machineSet, false, false, err
 	}
 
 	msLog := colog.WithMachineSet(clusterLog, machineSet)
 
-	if !apiequality.Semantic.DeepEqual(machineSet.Spec.MachineSetConfig, clusterMachineSetConfig) {
+	if shouldRecreateMachineSet(machineSet.Spec.MachineSetConfig, clusterMachineSetConfig) {
 		msLog.Infof("machine set configuration has changed from %v to %v",
 			machineSet.Spec.MachineSetConfig, clusterMachineSetConfig)
 		machineSet, err := buildNewMachineSet(cluster, clusterVersion, clusterMachineSetConfig, machineSetNamePrefix)
-		return machineSet, true, err
+		return machineSet, false, true, err
 	}
 
 	if machineSet.Spec.ClusterVersionRef.UID != clusterVersion.UID {
 		msLog.Infof("machine set cluster version has changed from %v to %s/%s",
 			machineSet.Spec.ClusterVersionRef, clusterVersion.Namespace, clusterVersion.Name)
 		machineSet, err := buildNewMachineSet(cluster, clusterVersion, clusterMachineSetConfig, machineSetNamePrefix)
-		return machineSet, true, err
+		return machineSet, false, true, err
 	}
 
-	return nil, false, nil
+	if machineSet.Spec.Size != clusterMachineSetConfig.Size {
+		updatedMachineSet := machineSet.DeepCopy()
+		updatedMachineSet.Spec.Size = clusterMachineSetConfig.Size
+		msLog.Infof("machine set size has changed from %d to %d", machineSet.Spec.Size, clusterMachineSetConfig.Size)
+		return updatedMachineSet, true, false, nil
+	}
+
+	return nil, false, false, nil
 }
 
 func (c *Controller) calculateStatus(clusterLog log.FieldLogger, cluster *clusteroperator.Cluster, resolvedClusterVersion *clusteroperator.ClusterVersion, machineSets []*clusteroperator.MachineSet) (clusteroperator.ClusterStatus, error) {
