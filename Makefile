@@ -47,12 +47,6 @@ else
 STAT           = stat -c '%Y %n'
 endif
 
-NEWEST_GO_FILE = $(shell find $(SRC_DIRS) -name \*.go -exec $(STAT) {} \; \
-                   | sort -r | head -n 1 | sed "s/.* //")
-
-NEWEST_E2ETEST_SOURCE = $(shell find test/e2e -name \*.go -exec $(STAT) {} \; \
-                   | sort -r | head -n 1 | sed "s/.* //")
-
 TYPES_FILES    = $(shell find pkg/apis -name types.go)
 GO_VERSION     = 1.9
 
@@ -108,17 +102,18 @@ build: .init .generate_files \
 	$(BINDIR)/fake-openshift-ansible \
 	$(BINDIR)/playbook-mock
 
-# We'll rebuild cluster-operator if any go file has changed (ie. NEWEST_GO_FILE)
+.PHONY: $(BINDIR)/cluster-operator
 cluster-operator: $(BINDIR)/cluster-operator
-$(BINDIR)/cluster-operator: .init .generate_files cmd/cluster-operator $(NEWEST_GO_FILE)
+$(BINDIR)/cluster-operator: .init .generate_files
 	$(DOCKER_CMD) $(GO_BUILD) -o $@ $(CLUSTER_OPERATOR_PKG)/cmd/cluster-operator
 
 fake-openshift-ansible: $(BINDIR)/fake-openshift-ansible
-$(BINDIR)/fake-openshift-ansible: $(wildcard contrib/fake-openshift-ansible/*)
+$(BINDIR)/fake-openshift-ansible: contrib/fake-openshift-ansible/fake-openshift-ansible
 	$(DOCKER_CMD) cp contrib/fake-openshift-ansible/fake-openshift-ansible $(BINDIR)
 
+.PHONY: $(BINDIR)/playbook-mock
 playbook-mock: $(BINDIR)/playbook-mock
-$(BINDIR)/playbook-mock: $(wildcard contrib/cmd/playbook-mock/*.go) $(wildcard contrib/pkg/playbookmock/*.go)
+$(BINDIR)/playbook-mock:
 	$(DOCKER_CMD) $(GO_BUILD) -o $@ $(CLUSTER_OPERATOR_PKG)/contrib/cmd/playbook-mock
 
 
@@ -154,7 +149,8 @@ $(BINDIR)/informer-gen: .init
 $(BINDIR)/openapi-gen: vendor/k8s.io/code-generator/cmd/openapi-gen
 	$(DOCKER_CMD) go build -o $@ $(CLUSTER_OPERATOR_PKG)/$^
 
-$(BINDIR)/e2e.test: .init $(NEWEST_E2ETEST_SOURCE) $(NEWEST_GO_FILE)
+.PHONY: $(BINDIR)/e2e.test
+$(BINDIR)/e2e.test: .init
 	$(DOCKER_CMD) go test -c -o $@ $(CLUSTER_OPERATOR_PKG)/test/e2e
 
 # Regenerate all files if the gen exes changed or any "types.go" files changed
@@ -263,10 +259,13 @@ check-go:
 test-unit-native: check-go
 	go test $(addprefix ${CLUSTER_OPERATOR_PKG}/,${UNIT_TEST_DIRS})
 
-test-unit: .init build
+test-unit: .init build .generate_mocks
 	@echo Running unit tests:
 	$(DOCKER_CMD) go test -race $(TEST_FLAGS) \
 	  $(addprefix $(CLUSTER_OPERATOR_PKG)/,$(UNIT_TEST_DIRS)) $(TEST_LOG_FLAGS)
+
+.generate_mocks:
+	$(DOCKER_CMD) go generate ./pkg/controller
 
 test-integration: .init build
 	@echo Running integration tests:
@@ -320,7 +319,6 @@ images: cluster-operator-image fake-openshift-ansible-image playbook-mock-image
 
 images-all: $(addprefix arch-image-,$(ALL_ARCH))
 arch-image-%:
-	$(MAKE) clean-bin
 	$(MAKE) ARCH=$* build
 	$(MAKE) ARCH=$* images
 
@@ -372,6 +370,5 @@ endif
 
 release-push: $(addprefix release-push-,$(ALL_ARCH))
 release-push-%:
-	$(MAKE) clean-bin
 	$(MAKE) ARCH=$* build
 	$(MAKE) ARCH=$* push

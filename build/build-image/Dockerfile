@@ -30,6 +30,10 @@ RUN curl -sSL https://github.com/coreos/etcd/releases/download/v3.1.10/etcd-v3.1
 # Install the golint, use this to check our source for niceness
 RUN go get -u github.com/golang/lint/golint
 
+# Install gomock and mockgen for the mocks used in unit tests
+RUN go get -u github.com/golang/mock/gomock
+RUN go get -u github.com/golang/mock/mockgen
+
 # Create the full dir tree that we'll mount our src into when we run the image
 RUN mkdir -p /go/src/github.com/openshift/cluster-operator
 
