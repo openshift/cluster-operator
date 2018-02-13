@@ -479,7 +479,6 @@ func startMachineSetController(ctx ControllerContext) (bool, error) {
 		return false, nil
 	}
 	go machineset.NewController(
-		ctx.InformerFactory.Clusteroperator().V1alpha1().Clusters(),
 		ctx.InformerFactory.Clusteroperator().V1alpha1().MachineSets(),
 		ctx.KubeInformerFactory.Batch().V1().Jobs(),
 		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-machine-set-controller"),
@@ -507,7 +506,6 @@ func startMasterController(ctx ControllerContext) (bool, error) {
 		return false, nil
 	}
 	go master.NewController(
-		ctx.InformerFactory.Clusteroperator().V1alpha1().Clusters(),
 		ctx.InformerFactory.Clusteroperator().V1alpha1().MachineSets(),
 		ctx.KubeInformerFactory.Batch().V1().Jobs(),
 		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-master-controller"),
@@ -523,7 +521,6 @@ func startAcceptController(ctx ControllerContext) (bool, error) {
 		return false, nil
 	}
 	go accept.NewController(
-		ctx.InformerFactory.Clusteroperator().V1alpha1().Clusters(),
 		ctx.InformerFactory.Clusteroperator().V1alpha1().MachineSets(),
 		ctx.KubeInformerFactory.Batch().V1().Jobs(),
 		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-accept-controller"),

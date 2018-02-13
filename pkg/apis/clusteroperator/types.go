@@ -394,6 +394,9 @@ type MachineSetSpec struct {
 	// MachineSetConfig is the configuration for the MachineSet
 	MachineSetConfig
 
+	// ClusterHardware specifies the hardware that the cluster will run on
+	ClusterHardware ClusterHardwareSpec
+
 	// ClusterVersionRef references the clusterversion the machine set is running.
 	ClusterVersionRef corev1.ObjectReference
 }

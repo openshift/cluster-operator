@@ -50,11 +50,24 @@ import (
 	colog "github.com/openshift/cluster-operator/pkg/logging"
 )
 
+// machineSetChange is the type of change made to a machine set.
+type machineSetChange string
+
 // controllerKind contains the schema.GroupVersionKind for this controller type.
 var controllerKind = clusteroperator.SchemeGroupVersion.WithKind("Cluster")
 
 const (
 	controllerLogName = "cluster"
+
+	// machineSetNoChange indicates that there is no change to the machine set.
+	machineSetNoChange machineSetChange = "NoChange"
+	// machineSetRecreateChange indiciates that there is a change to the machine
+	// set that requires the machine set to be recreated.
+	machineSetRecreateChange machineSetChange = "Recreate"
+	// machineSetUpdateChange indicates that there is a change to the machine
+	// set that can be adapted by updating the machine set without recreating
+	// it.
+	machineSetUpdateChange machineSetChange = "Update"
 )
 
 // NewController returns a new controller.
@@ -488,21 +501,24 @@ func (c *Controller) manageMachineSets(machineSets []*clusteroperator.MachineSet
 		}
 		machineSetConfig.Hardware = mergedHardwareSpec
 
-		machineSet, updateMachineSet, deleteMachineSet, err := c.manageMachineSet(cluster, clusterVersion, clusterMachineSets[i], machineSetConfig, machineSetPrefixes[i])
-		if err != nil {
-			errCh <- err
-			continue
-		}
+		existingMachineSet := clusterMachineSets[i]
+		machineSet, updateMachineSet := c.manageMachineSet(cluster, clusterVersion, existingMachineSet, machineSetConfig, machineSetPrefixes[i])
 
+		// If machineSet is nil, then there are no changes to be enacted to
+		// the existing machine set.
 		if machineSet != nil {
 			if updateMachineSet {
+				// Updating an existing machine set
 				machineSetsToUpdate = append(machineSetsToUpdate, machineSet)
 			} else {
+				// Creating a machine set
 				machineSetsToCreate = append(machineSetsToCreate, machineSet)
+				if existingMachineSet != nil {
+					// Deleting existing machine set that is being replaced
+					// by the new machine set being created
+					machineSetsToDelete = append(machineSetsToDelete, existingMachineSet)
+				}
 			}
-		}
-		if deleteMachineSet {
-			machineSetsToDelete = append(machineSetsToDelete, clusterMachineSets[i])
 		}
 	}
 
@@ -596,13 +612,23 @@ func (c *Controller) manageMachineSets(machineSets []*clusteroperator.MachineSet
 	return nil
 }
 
-// shouldRecreateMachineSet will return true if the machine set config has changed in a way
-// that requires the current machine set to be deleted and recreated.
-// Currently any change to the spec with the exception of size should result in a recreate.
-func shouldRecreateMachineSet(existingConfig, newConfig clusteroperator.MachineSetConfig) bool {
-	existingConfig.Size = 0
-	newConfig.Size = 0
-	return !apiequality.Semantic.DeepEqual(existingConfig, newConfig)
+// determineTypeOfMachineSetChange determines the type of change that is being
+// made to the spec of the machine set.
+// NoChange if there is no change to the spec.
+// Recreate if the spec change requires the machine set to be created.
+// Update if the spec change can be adapted by updating the existing machine
+// set. An update is only possible if the only change to the spec is to the
+// size of the machine set.
+func determineTypeOfMachineSetChange(existingSpec, newSpec clusteroperator.MachineSetSpec) machineSetChange {
+	if apiequality.Semantic.DeepEqual(existingSpec, newSpec) {
+		return machineSetNoChange
+	}
+	existingSpec.Size = 0
+	newSpec.Size = 0
+	if apiequality.Semantic.DeepEqual(existingSpec, newSpec) {
+		return machineSetUpdateChange
+	}
+	return machineSetRecreateChange
 }
 
 // manageMachineSet determines whether or not a machine set needs to be created because it does not exist,
@@ -610,40 +636,35 @@ func shouldRecreateMachineSet(existingConfig, newConfig clusteroperator.MachineS
 // return values:
 // - machineSet to create/update (MachineSet)
 // - should update machineset (bool)
-// - should delete machineset (bool)
-// - error
-func (c *Controller) manageMachineSet(cluster *clusteroperator.Cluster, clusterVersion *clusteroperator.ClusterVersion, machineSet *clusteroperator.MachineSet, clusterMachineSetConfig clusteroperator.MachineSetConfig, machineSetNamePrefix string) (*clusteroperator.MachineSet, bool, bool, error) {
+func (c *Controller) manageMachineSet(cluster *clusteroperator.Cluster, clusterVersion *clusteroperator.ClusterVersion, machineSet *clusteroperator.MachineSet, clusterMachineSetConfig clusteroperator.MachineSetConfig, machineSetNamePrefix string) (*clusteroperator.MachineSet, bool) {
 	clusterLog := colog.WithCluster(c.logger, cluster)
+
+	desiredMachineSetSpec := buildNewMachineSetSpec(cluster, clusterVersion, clusterMachineSetConfig)
+
 	if machineSet == nil {
-		clusterLog.Debugf("building new machine set")
-		machineSet, err := buildNewMachineSet(cluster, clusterVersion, clusterMachineSetConfig, machineSetNamePrefix)
-		return machineSet, false, false, err
+		clusterLog.Infof("building new machine set")
+		newMachineSet := buildNewMachineSet(cluster, &desiredMachineSetSpec, machineSetNamePrefix)
+		return newMachineSet, false
 	}
 
 	msLog := colog.WithMachineSet(clusterLog, machineSet)
 
-	if shouldRecreateMachineSet(machineSet.Spec.MachineSetConfig, clusterMachineSetConfig) {
-		msLog.Infof("machine set configuration has changed from %v to %v",
-			machineSet.Spec.MachineSetConfig, clusterMachineSetConfig)
-		machineSet, err := buildNewMachineSet(cluster, clusterVersion, clusterMachineSetConfig, machineSetNamePrefix)
-		return machineSet, false, true, err
-	}
-
-	if machineSet.Spec.ClusterVersionRef.UID != clusterVersion.UID {
-		msLog.Infof("machine set cluster version has changed from %v to %s/%s",
-			machineSet.Spec.ClusterVersionRef, clusterVersion.Namespace, clusterVersion.Name)
-		machineSet, err := buildNewMachineSet(cluster, clusterVersion, clusterMachineSetConfig, machineSetNamePrefix)
-		return machineSet, false, true, err
-	}
-
-	if machineSet.Spec.Size != clusterMachineSetConfig.Size {
+	switch changeType := determineTypeOfMachineSetChange(machineSet.Spec, desiredMachineSetSpec); changeType {
+	case machineSetNoChange:
+		return nil, false
+	case machineSetUpdateChange:
+		msLog.Infof("machine set updated")
 		updatedMachineSet := machineSet.DeepCopy()
-		updatedMachineSet.Spec.Size = clusterMachineSetConfig.Size
-		msLog.Infof("machine set size has changed from %d to %d", machineSet.Spec.Size, clusterMachineSetConfig.Size)
-		return updatedMachineSet, true, false, nil
+		updatedMachineSet.Spec = desiredMachineSetSpec
+		return updatedMachineSet, true
+	case machineSetRecreateChange:
+		msLog.Infof("machine set recreated")
+		newMachineSet := buildNewMachineSet(cluster, &desiredMachineSetSpec, machineSetNamePrefix)
+		return newMachineSet, false
+	default:
+		msLog.Warn("unknown machine set change: %q", changeType)
+		return nil, false
 	}
-
-	return nil, false, false, nil
 }
 
 func (c *Controller) calculateStatus(clusterLog log.FieldLogger, cluster *clusteroperator.Cluster, resolvedClusterVersion *clusteroperator.ClusterVersion, machineSets []*clusteroperator.MachineSet) (clusteroperator.ClusterStatus, error) {
@@ -718,21 +739,26 @@ func applyDefaultMachineSetHardwareSpec(machineSetHardwareSpec, defaultHardwareS
 	return mergedSpec, nil
 }
 
-func buildNewMachineSet(cluster *clusteroperator.Cluster, clusterVersion *clusteroperator.ClusterVersion, machineSetConfig clusteroperator.MachineSetConfig, machineSetNamePrefix string) (*clusteroperator.MachineSet, error) {
+func buildNewMachineSetSpec(cluster *clusteroperator.Cluster, clusterVersion *clusteroperator.ClusterVersion, machineSetConfig clusteroperator.MachineSetConfig) clusteroperator.MachineSetSpec {
+	return clusteroperator.MachineSetSpec{
+		MachineSetConfig: machineSetConfig,
+		ClusterHardware:  cluster.Spec.Hardware,
+		ClusterVersionRef: corev1.ObjectReference{
+			Name:      clusterVersion.Name,
+			Namespace: clusterVersion.Namespace,
+			UID:       clusterVersion.UID,
+		},
+	}
+}
+
+func buildNewMachineSet(cluster *clusteroperator.Cluster, machineSetSpec *clusteroperator.MachineSetSpec, machineSetNamePrefix string) *clusteroperator.MachineSet {
 	return &clusteroperator.MachineSet{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName:    machineSetNamePrefix,
 			OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(cluster, controllerKind)},
 		},
-		Spec: clusteroperator.MachineSetSpec{
-			MachineSetConfig: machineSetConfig,
-			ClusterVersionRef: corev1.ObjectReference{
-				Name:      clusterVersion.Name,
-				Namespace: clusterVersion.Namespace,
-				UID:       clusterVersion.UID,
-			},
-		},
-	}, nil
+		Spec: *machineSetSpec,
+	}
 }
 
 func getNamePrefixForMachineSet(cluster *clusteroperator.Cluster, name string) string {

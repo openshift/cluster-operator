@@ -654,6 +654,7 @@ func (in *MachineSetList) DeepCopyObject() runtime.Object {
 func (in *MachineSetSpec) DeepCopyInto(out *MachineSetSpec) {
 	*out = *in
 	in.MachineSetConfig.DeepCopyInto(&out.MachineSetConfig)
+	in.ClusterHardware.DeepCopyInto(&out.ClusterHardware)
 	out.ClusterVersionRef = in.ClusterVersionRef
 	return
 }

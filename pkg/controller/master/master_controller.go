@@ -64,7 +64,6 @@ var machineSetKind = clusteroperator.SchemeGroupVersion.WithKind("MachineSet")
 
 // NewController returns a new *Controller.
 func NewController(
-	clusterInformer informers.ClusterInformer,
 	machineSetInformer informers.MachineSetInformer,
 	jobInformer batchinformers.JobInformer,
 	kubeClient kubeclientset.Interface,
@@ -97,9 +96,6 @@ func NewController(
 	})
 	c.machineSetsLister = machineSetInformer.Lister()
 	c.machineSetsSynced = machineSetInformer.Informer().HasSynced
-
-	c.clustersLister = clusterInformer.Lister()
-	c.clustersSynced = clusterInformer.Informer().HasSynced
 
 	jobOwnerControl := &jobOwnerControl{controller: c}
 	c.jobControl = controller.NewJobControl(jobPrefix, machineSetKind, kubeClient, jobInformer.Lister(), jobOwnerControl, logger)
@@ -140,13 +136,6 @@ type Controller struct {
 	// machineSetsSynced returns true if the machine set shared informer has been synced at least once.
 	// Added as a member to the struct to allow injection for testing.
 	machineSetsSynced cache.InformerSynced
-
-	// clustersLister is able to list/get clusters and is populated by the shared informer passed to
-	// NewController.
-	clustersLister lister.ClusterLister
-	// clustersSynced returns true if the cluster shared informer has been synced at least once.
-	// Added as a member to the struct to allow injection for testing.
-	clustersSynced cache.InformerSynced
 
 	// jobsSynced returns true if the job shared informer has been synced at least once.
 	jobsSynced cache.InformerSynced
@@ -208,7 +197,7 @@ func (c *Controller) Run(workers int, stopCh <-chan struct{}) {
 	c.logger.Infof("Starting master controller")
 	defer c.logger.Infof("Shutting down master controller")
 
-	if !controller.WaitForCacheSync("master", stopCh, c.machineSetsSynced, c.clustersSynced, c.jobsSynced) {
+	if !controller.WaitForCacheSync("master", stopCh, c.machineSetsSynced, c.jobsSynced) {
 		c.logger.Errorf("Could not sync caches for master controller")
 		return
 	}
@@ -322,13 +311,7 @@ func (s *jobSyncStrategy) DoesOwnerNeedProcessing(owner metav1.Object) bool {
 		s.controller.logger.Warn("could not convert owner from JobSync into a machineset: %#v", owner)
 		return false
 	}
-	if machineSet.Status.InstalledJobGeneration == machineSet.Generation {
-		return false
-	}
-	if !machineSet.Status.Provisioned || machineSet.Status.ProvisionedJobGeneration != machineSet.Generation {
-		return false
-	}
-	return true
+	return machineSet.Status.InstalledJobGeneration != machineSet.Generation
 }
 
 func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object) (controller.JobFactory, error) {
@@ -336,18 +319,14 @@ func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object) (controller.JobFact
 	if !ok {
 		return nil, fmt.Errorf("could not convert owner from JobSync into a machineset")
 	}
-	cluster, err := controller.ClusterForMachineSet(machineSet, s.controller.clustersLister)
-	if err != nil {
-		return nil, err
-	}
 	return jobFactory(func(name string) (*v1batch.Job, *kapi.ConfigMap, error) {
-		vars, err := ansible.GenerateClusterVars(cluster)
+		vars, err := ansible.GenerateClusterWideVarsForMachineSet(machineSet)
 		if err != nil {
 			return nil, nil, err
 		}
 		job, configMap := s.controller.ansibleGenerator.GeneratePlaybookJob(
 			name,
-			&cluster.Spec.Hardware,
+			&machineSet.Spec.ClusterHardware,
 			masterPlaybook,
 			ansible.DefaultInventory,
 			vars,

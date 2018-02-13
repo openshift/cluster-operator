@@ -341,7 +341,6 @@ func startServerAndControllers(t *testing.T) (
 		}(),
 		func() func() {
 			controller := machinesetcontroller.NewController(
-				coSharedInformers.Clusters(),
 				coSharedInformers.MachineSets(),
 				batchSharedInformers.Jobs(),
 				fakeKubeClient,
@@ -353,7 +352,6 @@ func startServerAndControllers(t *testing.T) (
 		}(),
 		func() func() {
 			controller := mastercontroller.NewController(
-				coSharedInformers.Clusters(),
 				coSharedInformers.MachineSets(),
 				batchSharedInformers.Jobs(),
 				fakeKubeClient,
@@ -365,7 +363,6 @@ func startServerAndControllers(t *testing.T) (
 		}(),
 		func() func() {
 			controller := acceptcontroller.NewController(
-				coSharedInformers.Clusters(),
 				coSharedInformers.MachineSets(),
 				batchSharedInformers.Jobs(),
 				fakeKubeClient,

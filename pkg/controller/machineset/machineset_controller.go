@@ -66,12 +66,10 @@ const (
 
 var (
 	machineSetKind = clusteroperator.SchemeGroupVersion.WithKind("MachineSet")
-	clusterKind    = clusteroperator.SchemeGroupVersion.WithKind("Cluster")
 )
 
 // NewController returns a new *Controller.
 func NewController(
-	clusterInformer informers.ClusterInformer,
 	machineSetInformer informers.MachineSetInformer,
 	jobInformer batchinformers.JobInformer,
 	kubeClient kubeclientset.Interface,
@@ -104,13 +102,6 @@ func NewController(
 	})
 	c.machineSetsLister = machineSetInformer.Lister()
 	c.machineSetsSynced = machineSetInformer.Informer().HasSynced
-
-	clusterInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    c.addCluster,
-		UpdateFunc: c.updateCluster,
-	})
-	c.clustersLister = clusterInformer.Lister()
-	c.clustersSynced = clusterInformer.Informer().HasSynced
 
 	jobOwnerControl := &jobOwnerControl{controller: c}
 	c.jobControl = controller.NewJobControl(jobPrefix, machineSetKind, kubeClient, jobInformer.Lister(), jobOwnerControl, logger)
@@ -151,13 +142,6 @@ type Controller struct {
 	// Added as a member to the struct to allow injection for testing.
 	machineSetsSynced cache.InformerSynced
 
-	// clustersLister is able to list/get clusters and is populated by the shared informer passed to
-	// NewMachineSetController.
-	clustersLister lister.ClusterLister
-	// clustersSynced returns true if the cluster shared informer has been synced at least once.
-	// Added as a member to the struct to allow injection for testing.
-	clustersSynced cache.InformerSynced
-
 	// jobsSynced returns true if the job shared informer has been synced at least once.
 	jobsSynced cache.InformerSynced
 
@@ -177,25 +161,6 @@ func (c *Controller) updateMachineSet(old, cur interface{}) {
 	ms := cur.(*clusteroperator.MachineSet)
 	colog.WithMachineSet(c.logger, ms).Debugf("enqueueing updated machine set")
 	c.enqueueMachineSet(ms)
-	if ms.Spec.NodeType == clusteroperator.NodeTypeMaster && ms.Status.Installed {
-		cluster, err := controller.ClusterForMachineSet(ms, c.clustersLister)
-		if err != nil {
-			utilruntime.HandleError(fmt.Errorf("cannot retrieve cluster for machineset %s/%s: %v", ms.Namespace, ms.Name, err))
-			return
-		}
-		machineSets, err := controller.MachineSetsForCluster(cluster, c.machineSetsLister)
-		if err != nil {
-			c.logger.Errorf("cannot retrieve machine sets for cluster: %v", err)
-			utilruntime.HandleError(err)
-			return
-		}
-		for _, machineSet := range machineSets {
-			if machineSet.Name != ms.Name {
-				colog.WithMachineSet(c.logger, machineSet).Debugf("enqueueing machine set for installed master")
-				c.enqueueMachineSet(machineSet)
-			}
-		}
-	}
 }
 
 func (c *Controller) deleteMachineSet(obj interface{}) {
@@ -216,37 +181,6 @@ func (c *Controller) deleteMachineSet(obj interface{}) {
 	c.enqueueMachineSet(ms)
 }
 
-func (c *Controller) addCluster(obj interface{}) {
-	cluster := obj.(*clusteroperator.Cluster)
-	logger := colog.WithCluster(c.logger, cluster)
-	machineSets, err := controller.MachineSetsForCluster(cluster, c.machineSetsLister)
-	if err != nil {
-		logger.Errorf("Cannot retrieve machine sets for cluster: %v", err)
-		utilruntime.HandleError(err)
-		return
-	}
-
-	for _, machineSet := range machineSets {
-		colog.WithMachineSet(logger, machineSet).Debugf("enqueueing machine set for created cluster")
-		c.enqueueMachineSet(machineSet)
-	}
-}
-
-func (c *Controller) updateCluster(old, obj interface{}) {
-	cluster := obj.(*clusteroperator.Cluster)
-	logger := colog.WithCluster(c.logger, cluster)
-	machineSets, err := controller.MachineSetsForCluster(cluster, c.machineSetsLister)
-	if err != nil {
-		logger.Errorf("Cannot retrieve machine sets for cluster: %v", err)
-		utilruntime.HandleError(err)
-		return
-	}
-	for _, machineSet := range machineSets {
-		colog.WithMachineSet(logger, machineSet).Debugf("enqueueing machine set for update cluster")
-		c.enqueueMachineSet(machineSet)
-	}
-}
-
 // Run runs c; will not return until stopCh is closed. workers determines how
 // many machine sets will be handled in parallel.
 func (c *Controller) Run(workers int, stopCh <-chan struct{}) {
@@ -256,7 +190,7 @@ func (c *Controller) Run(workers int, stopCh <-chan struct{}) {
 	c.logger.Infof("Starting machine set controller")
 	defer c.logger.Infof("Shutting down machine set controller")
 
-	if !controller.WaitForCacheSync("machineset", stopCh, c.machineSetsSynced, c.clustersSynced, c.jobsSynced) {
+	if !controller.WaitForCacheSync("machineset", stopCh, c.machineSetsSynced, c.jobsSynced) {
 		c.logger.Errorf("Could not sync caches for machineset controller")
 		return
 	}
@@ -367,43 +301,7 @@ func (s *jobSyncStrategy) DoesOwnerNeedProcessing(owner metav1.Object) bool {
 		s.controller.logger.Warn("could not convert owner from JobSync into a machineset: %#v", owner)
 		return false
 	}
-	if machineSet.Status.ProvisionedJobGeneration == machineSet.Generation {
-		return false
-	}
-	cluster, err := controller.ClusterForMachineSet(machineSet, s.controller.clustersLister)
-	if err != nil {
-		colog.WithMachineSet(s.controller.logger, machineSet).
-			Warn("could not get cluster for machine set")
-		return false
-	}
-	if !cluster.Status.Provisioned || cluster.Status.ProvisionedJobGeneration != cluster.Generation {
-		return false
-	}
-	switch machineSet.Spec.NodeType {
-	case clusteroperator.NodeTypeMaster:
-		return true
-	case clusteroperator.NodeTypeCompute:
-		masterMachineSet, err := s.controller.machineSetsLister.MachineSets(machineSet.Namespace).Get(cluster.Status.MasterMachineSetName)
-		if err != nil {
-			colog.WithCluster(colog.WithMachineSet(s.controller.logger, machineSet), cluster).
-				WithField("master", cluster.Status.MasterMachineSetName).
-				Warn("could not get master machine set")
-			return false
-		}
-		// Only provision compute nodes if openshift has been installed on
-		// master nodes.
-		// We need to verify that the generation of the master machine set
-		// has not been changed since the installation. If the generation
-		// has changed, then the installation is no longer valid. The master
-		// controller needs to re-work the installation first.
-		masterInstalled := masterMachineSet.Status.Installed &&
-			masterMachineSet.Status.InstalledJobGeneration == masterMachineSet.Generation
-		return masterInstalled
-	default:
-		colog.WithMachineSet(s.controller.logger, machineSet).
-			Warnf("unknown node type %q", machineSet.Spec.NodeType)
-		return false
-	}
+	return machineSet.Status.ProvisionedJobGeneration != machineSet.Generation
 }
 
 func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object) (controller.JobFactory, error) {
@@ -411,12 +309,8 @@ func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object) (controller.JobFact
 	if !ok {
 		return nil, fmt.Errorf("could not convert owner from JobSync into a machineset")
 	}
-	cluster, err := controller.ClusterForMachineSet(machineSet, s.controller.clustersLister)
-	if err != nil {
-		return nil, err
-	}
 	return jobFactory(func(name string) (*v1batch.Job, *kapi.ConfigMap, error) {
-		vars, err := ansible.GenerateMachineSetVars(cluster, machineSet)
+		vars, err := ansible.GenerateMachineSetVars(machineSet)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -428,7 +322,7 @@ func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object) (controller.JobFact
 		}
 		job, configMap := s.controller.ansibleGenerator.GeneratePlaybookJob(
 			name,
-			&cluster.Spec.Hardware,
+			&machineSet.Spec.ClusterHardware,
 			playbook,
 			ansible.DefaultInventory,
 			vars,
