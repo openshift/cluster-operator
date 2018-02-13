@@ -20,12 +20,16 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
+const defaultSSHUser = "clusteroperator"
+
 func addDefaultingFuncs(scheme *runtime.Scheme) error {
 	return RegisterDefaults(scheme)
 }
 
 func SetDefaults_ClusterSpec(spec *ClusterSpec) {
-	// No defaults
+	if spec.Hardware.AWS != nil && spec.Hardware.AWS.SSHUser == "" {
+		spec.Hardware.AWS.SSHUser = defaultSSHUser
+	}
 }
 
 func SetDefaults_MachineSetSpec(spec *MachineSetSpec) {

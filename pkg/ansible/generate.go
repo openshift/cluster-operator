@@ -42,8 +42,7 @@ const (
 # Common/Cluster Variables #
 # ------------------------ #
 # Variables in this section affect all areas of the cluster
-# TODO:
-ansible_ssh_user: centos
+ansible_ssh_user: [[ .SSHUser ]]
 
 ################################################################################
 # Ensure these variables are set for bootstrap
@@ -287,6 +286,7 @@ type clusterParams struct {
 	Name       string
 	Region     string
 	SSHKeyName string
+	SSHUser    string
 }
 
 type machineSetParams struct {
@@ -321,6 +321,7 @@ func GenerateClusterWideVars(name string, hardwareSpec *coapi.ClusterHardwareSpe
 		Name:       name,
 		Region:     hardwareSpec.AWS.Region,
 		SSHKeyName: hardwareSpec.AWS.KeyPairName,
+		SSHUser:    hardwareSpec.AWS.SSHUser,
 	}
 
 	var buf bytes.Buffer

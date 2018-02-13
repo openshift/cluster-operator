@@ -60,6 +60,7 @@ objects:
           name: aws-credentials
         sshSecret:
           name: ssh-private-key
+        sshUser: centos
         sslSecret:
           name: ssl-cert
         region: "us-east-1"

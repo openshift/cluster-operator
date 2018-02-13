@@ -32,6 +32,7 @@ func testCluster() *coapi.Cluster {
 	cluster.Spec.Hardware.AWS = &coapi.AWSClusterSpec{
 		Region:      "east-99",
 		KeyPairName: "mykey",
+		SSHUser:     "centos",
 	}
 	return cluster
 }
@@ -78,6 +79,7 @@ func TestGenerateClusterVars(t *testing.T) {
 				"openshift_aws_elb_basename: testcluster",
 				"openshift_aws_ssh_key_name: mykey",
 				"openshift_aws_region: east-99",
+				"ansible_ssh_user: centos",
 			},
 		},
 	}
