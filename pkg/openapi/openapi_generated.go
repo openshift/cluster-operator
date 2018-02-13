@@ -45,6 +45,13 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Ref:         ref("k8s.io/api/core/v1.LocalObjectReference"),
 							},
 						},
+						"sshUser": {
+							SchemaProps: spec.SchemaProps{
+								Description: "SSHUser refers to the username that should be used for Ansible to SSH to the system. (default: clusteroperator)",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
 						"sslSecret": {
 							SchemaProps: spec.SchemaProps{
 								Description: "SSLSecret refers to a secret that contains the SSL certificate to use for this cluster. The secret is expected to contain the following keys: - ca.crt - the certificate authority certificate - server.crt - the server certificate - server.key - the server key",

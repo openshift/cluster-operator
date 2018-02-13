@@ -196,6 +196,10 @@ type AWSClusterSpec struct {
 	// EC2 instances in this cluster
 	SSHSecret corev1.LocalObjectReference
 
+	// SSHUser refers to the username that should be used for Ansible to SSH to the system. (default: clusteroperator)
+	// +optional
+	SSHUser string
+
 	// SSLSecret refers to a secret that contains the SSL certificate to use
 	// for this cluster. The secret is expected to contain the following keys:
 	// - ca.crt - the certificate authority certificate

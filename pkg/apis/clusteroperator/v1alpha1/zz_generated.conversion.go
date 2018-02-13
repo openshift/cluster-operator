@@ -102,6 +102,7 @@ func RegisterConversions(scheme *runtime.Scheme) error {
 func autoConvert_v1alpha1_AWSClusterSpec_To_clusteroperator_AWSClusterSpec(in *AWSClusterSpec, out *clusteroperator.AWSClusterSpec, s conversion.Scope) error {
 	out.AccountSecret = in.AccountSecret
 	out.SSHSecret = in.SSHSecret
+	out.SSHUser = in.SSHUser
 	out.SSLSecret = in.SSLSecret
 	out.KeyPairName = in.KeyPairName
 	out.Region = in.Region
@@ -118,6 +119,7 @@ func Convert_v1alpha1_AWSClusterSpec_To_clusteroperator_AWSClusterSpec(in *AWSCl
 func autoConvert_clusteroperator_AWSClusterSpec_To_v1alpha1_AWSClusterSpec(in *clusteroperator.AWSClusterSpec, out *AWSClusterSpec, s conversion.Scope) error {
 	out.AccountSecret = in.AccountSecret
 	out.SSHSecret = in.SSHSecret
+	out.SSHUser = in.SSHUser
 	out.SSLSecret = in.SSLSecret
 	out.KeyPairName = in.KeyPairName
 	out.Region = in.Region
