@@ -81,14 +81,15 @@ ifdef TEST_LOG_LEVEL
 	TEST_LOG_FLAGS=-args --alsologtostderr --v=$(TEST_LOG_LEVEL)
 endif
 
-ifndef NO_DOCKER
+NO_DOCKER ?= 0
+ifeq ($(NO_DOCKER), 1)
+	DOCKER_CMD =
+	clusterOperatorBuildImageTarget =
+else
 	# Mount .pkg as pkg so that we save our cached "go build" output files
 	DOCKER_CMD = docker run --security-opt label:disable --rm -v $(PWD):/go/src/$(CLUSTER_OPERATOR_PKG) \
 	  -v $(PWD)/.pkg:/go/pkg clusteroperatorbuildimage
 	clusterOperatorBuildImageTarget = .clusterOperatorBuildImage
-else
-	DOCKER_CMD =
-	clusterOperatorBuildImageTarget =
 endif
 
 NON_VENDOR_DIRS = $(shell $(DOCKER_CMD) glide nv)
@@ -155,39 +156,10 @@ $(BINDIR)/e2e.test: .init
 
 # Regenerate all files if the gen exes changed or any "types.go" files changed
 .generate_files: .init .generate_exes $(TYPES_FILES)
-	# Generate defaults
-	$(DOCKER_CMD) $(BINDIR)/defaulter-gen \
-		--v 1 --logtostderr \
-		--go-header-file "vendor/github.com/kubernetes/repo-infra/verify/boilerplate/boilerplate.go.txt" \
-		--input-dirs "$(CLUSTER_OPERATOR_PKG)/pkg/apis/clusteroperator" \
-		--input-dirs "$(CLUSTER_OPERATOR_PKG)/pkg/apis/clusteroperator/v1alpha1" \
-	  	--extra-peer-dirs "$(CLUSTER_OPERATOR_PKG)/pkg/apis/clusteroperator" \
-		--extra-peer-dirs "$(CLUSTER_OPERATOR_PKG)/pkg/apis/clusteroperator/v1alpha1" \
-		--output-file-base "zz_generated.defaults"
-	# Generate deep copies
-	$(DOCKER_CMD) $(BINDIR)/deepcopy-gen \
-		--v 1 --logtostderr \
-		--go-header-file "vendor/github.com/kubernetes/repo-infra/verify/boilerplate/boilerplate.go.txt" \
-		--input-dirs "$(CLUSTER_OPERATOR_PKG)/pkg/apis/clusteroperator" \
-		--input-dirs "$(CLUSTER_OPERATOR_PKG)/pkg/apis/clusteroperator/v1alpha1" \
-		--bounding-dirs "github.com/openshift/cluster-operator" \
-		--output-file-base zz_generated.deepcopy
-	# Generate conversions
-	$(DOCKER_CMD) $(BINDIR)/conversion-gen \
-		--v 1 --logtostderr \
-		--extra-peer-dirs k8s.io/api/core/v1,k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/apimachinery/pkg/conversion,k8s.io/apimachinery/pkg/runtime \
-		--go-header-file "vendor/github.com/kubernetes/repo-infra/verify/boilerplate/boilerplate.go.txt" \
-		--input-dirs "$(CLUSTER_OPERATOR_PKG)/pkg/apis/clusteroperator" \
-		--input-dirs "$(CLUSTER_OPERATOR_PKG)/pkg/apis/clusteroperator/v1alpha1" \
-		--output-file-base zz_generated.conversion
+	# generate apiserver deps
+	$(DOCKER_CMD) $(BUILD_DIR)/update-apiserver-gen.sh
 	# generate all pkg/client contents
 	$(DOCKER_CMD) $(BUILD_DIR)/update-client-gen.sh
-	# generate openapi
-	$(DOCKER_CMD) $(BINDIR)/openapi-gen \
-		--v 1 --logtostderr \
-		--go-header-file "vendor/github.com/kubernetes/repo-infra/verify/boilerplate/boilerplate.go.txt" \
-		--input-dirs "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1,k8s.io/api/core/v1,k8s.io/apimachinery/pkg/apis/meta/v1" \
-		--output-package "github.com/openshift/cluster-operator/pkg/openapi"
 	touch $@
 
 # Some prereq stuff
@@ -203,8 +175,8 @@ $(BINDIR)/e2e.test: .init
 
 # Util targets
 ##############
-.PHONY: verify verify-client-gen
-verify: .init .generate_files verify-client-gen
+.PHONY: verify verify-generated verify-client-gen
+verify: .init .generate_exes verify-generated verify-client-gen
 	@echo Running gofmt:
 	@$(DOCKER_CMD) gofmt -l -s $(TOP_SRC_DIRS)>.out 2>&1||true
 	@[ ! -s .out ] || \
@@ -234,7 +206,10 @@ verify: .init .generate_files verify-client-gen
 	@echo Running errexit checker:
 	@$(DOCKER_CMD) build/verify-errexit.sh
 
-verify-client-gen: .init .generate_files
+verify-generated: .init .generate_exes
+	$(DOCKER_CMD) $(BUILD_DIR)/update-apiserver-gen.sh --verify-only
+
+verify-client-gen: .init .generate_exes
 	$(DOCKER_CMD) $(BUILD_DIR)/verify-client-gen.sh
 
 format: .init
