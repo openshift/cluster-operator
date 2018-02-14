@@ -679,6 +679,15 @@ func (in *MachineSetStatus) DeepCopyInto(out *MachineSetStatus) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
+	if in.ComponentInstallationJob != nil {
+		in, out := &in.ComponentInstallationJob, &out.ComponentInstallationJob
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(v1.LocalObjectReference)
+			**out = **in
+		}
+	}
 	if in.InstallationJob != nil {
 		in, out := &in.InstallationJob, &out.InstallationJob
 		if *in == nil {

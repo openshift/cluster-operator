@@ -779,6 +779,9 @@ func autoConvert_v1alpha1_MachineSetStatus_To_clusteroperator_MachineSetStatus(i
 	out.MachinesProvisioned = in.MachinesProvisioned
 	out.MachinesReady = in.MachinesReady
 	out.Conditions = *(*[]clusteroperator.MachineSetCondition)(unsafe.Pointer(&in.Conditions))
+	out.ComponentsInstalled = in.ComponentsInstalled
+	out.ComponentsInstalledJobGeneration = in.ComponentsInstalledJobGeneration
+	out.ComponentInstallationJob = (*v1.LocalObjectReference)(unsafe.Pointer(in.ComponentInstallationJob))
 	out.Installed = in.Installed
 	out.InstalledJobGeneration = in.InstalledJobGeneration
 	out.InstallationJob = (*v1.LocalObjectReference)(unsafe.Pointer(in.InstallationJob))
@@ -800,6 +803,9 @@ func autoConvert_clusteroperator_MachineSetStatus_To_v1alpha1_MachineSetStatus(i
 	out.MachinesProvisioned = in.MachinesProvisioned
 	out.MachinesReady = in.MachinesReady
 	out.Conditions = *(*[]MachineSetCondition)(unsafe.Pointer(&in.Conditions))
+	out.ComponentsInstalled = in.ComponentsInstalled
+	out.ComponentsInstalledJobGeneration = in.ComponentsInstalledJobGeneration
+	out.ComponentInstallationJob = (*v1.LocalObjectReference)(unsafe.Pointer(in.ComponentInstallationJob))
 	out.Installed = in.Installed
 	out.InstalledJobGeneration = in.InstalledJobGeneration
 	out.InstallationJob = (*v1.LocalObjectReference)(unsafe.Pointer(in.InstallationJob))

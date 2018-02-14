@@ -80,6 +80,7 @@ openshift_repos_enable_testing: true
 # Multi-region deployments are not supported using these plays at this time.
 openshift_aws_region: [[ .Region ]]
 
+openshift_hosted_infra_selector: type=infra
 
 #openshift_aws_create_launch_config: true
 #openshift_aws_create_scale_group: true
