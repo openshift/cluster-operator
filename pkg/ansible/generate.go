@@ -84,6 +84,11 @@ openshift_aws_region: [[ .Region ]]
 #openshift_aws_create_launch_config: true
 #openshift_aws_create_scale_group: true
 
+# AWS_ACCESS_KEY_ID & AWS_SECRET_ACCESS_KEY are added to job environment
+openshift_cloudprovider_kind: aws
+openshift_cloudprovider_aws_access_key: "{{ lookup('env','AWS_ACCESS_KEY_ID') }}"
+openshift_cloudprovider_aws_secret_key: "{{ lookup('env','AWS_SECRET_ACCESS_KEY') }}"
+
 # --- #
 # VPC #
 # --- #
@@ -170,6 +175,7 @@ openshift_aws_create_iam_role: True
 openshift_node_use_instance_profiles: True
 
 openshift_aws_clusterid: [[ .Name ]]
+openshift_clusterid: [[ .Name ]]
 openshift_aws_elb_basename: [[ .Name ]]
 openshift_aws_vpc_name: [[ .Name ]]
 `
