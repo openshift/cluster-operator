@@ -78,9 +78,6 @@ type ClusterVersion struct {
 
 // ClusterVersionSpec is a specification of a cluster version that can be installed.
 type ClusterVersionSpec struct {
-	// +optional
-	YumRepositories []YumRepository
-
 	// ImageFormat defines a format string for the container registry and images to use for
 	// various OpenShift components. Valid expansions are component (required, expands to
 	// pod/deployer/haproxy-router/etc), and version (v3.9.0).
@@ -132,19 +129,6 @@ type AWSRegionAMIs struct {
 	// MasterAMI is the ID of the AMI to use for the master nodes in the cluster. If unset, the default AMI will be used instead.
 	// +optional
 	MasterAMI *string
-}
-
-// YumRepository represents optional yum repositories to deploy onto all systems in the cluster.
-type YumRepository struct {
-	ID      string
-	Name    string
-	BaseURL string
-	// GPGCheck controls whether or not the packages in the repository should have their GPG signatures validated. Must be 0 or 1 to match yum.
-	Enabled int
-	// GPGCheck controls whether or not the packages in the repository should have their GPG signatures validated. Must be 0 or 1 to match yum.
-	GPGCheck int
-	// +optional
-	GPGKey string
 }
 
 // ClusterSpec is the specification of a cluster's hardware and configuration
@@ -326,6 +310,8 @@ const (
 	ClusterInfraDeprovisioning ClusterConditionType = "InfraDeprovisioning"
 	// ClusterInfraDeprovisioningFailed is true when the job to deprovision cluster infrastructure has failed.
 	ClusterInfraDeprovisioningFailed ClusterConditionType = "InfraDeprovisioningFailed"
+	// ClusterVersionIncompatible is true when the cluster version does not have an AMI defined for the cluster's region.
+	ClusterVersionIncompatible ClusterConditionType = "VersionIncompatible"
 	// ClusterReady means the cluster is able to service requests
 	ClusterReady ClusterConditionType = "Ready"
 )
@@ -415,10 +401,6 @@ type MachineSetAWSHardwareSpec struct {
 	// InstanceType is the type of instance to use for machines in this MachineSet
 	// +optional
 	InstanceType string
-
-	// AMIName is the name of the AMI to use for machines in this MachineSet
-	// +optional
-	AMIName string
 }
 
 // MachineSetStatus is the status of a MachineSet

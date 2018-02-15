@@ -17,7 +17,10 @@ limitations under the License.
 package validation
 
 import (
+	"regexp"
+
 	apivalidation "k8s.io/apimachinery/pkg/api/validation"
+	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
@@ -39,6 +42,9 @@ var validDeploymentTypeValues = func() []string {
 	}
 	return validValues
 }()
+
+var versionFmt = "^v?\\d+\\.\\d+(\\..+)?$"
+var versionRegex = regexp.MustCompile(versionFmt)
 
 // ValidateClusterVersion validates a cluster version being created.
 func ValidateClusterVersion(cv *clusteroperator.ClusterVersion) field.ErrorList {
@@ -76,11 +82,6 @@ func ValidateClusterVersionSpec(spec *clusteroperator.ClusterVersionSpec, fldPat
 		allErrs = append(allErrs, field.Required(field.NewPath("imageFormat"), "must define image format"))
 	}
 
-	reposPath := fldPath.Child("yumRepositories")
-	for i, r := range spec.YumRepositories {
-		allErrs = append(allErrs, ValidateYumRepository(&r, reposPath.Index(i))...)
-	}
-
 	vmImagesPath := fldPath.Child("vmImages")
 	allErrs = append(allErrs, ValidateVMImages(spec.VMImages, vmImagesPath)...)
 
@@ -94,34 +95,13 @@ func ValidateClusterVersionSpec(spec *clusteroperator.ClusterVersionSpec, fldPat
 	versionPath := fldPath.Child("version")
 	if spec.Version == "" {
 		allErrs = append(allErrs, field.Required(versionPath, "must define version"))
+	} else {
+		matched := versionRegex.MatchString(spec.Version)
+		if !matched {
+			allErrs = append(allErrs, field.Invalid(versionPath, spec.Version, validation.RegexError("must begin with a valid major release version", versionFmt, "v3.9.0", "v3.9.0-alpha.4+e7d9503-189")))
+		}
 	}
 
-	return allErrs
-}
-
-// ValidateYumRepository validates a yum repository.
-func ValidateYumRepository(repo *clusteroperator.YumRepository, fldPath *field.Path) field.ErrorList {
-	allErrs := field.ErrorList{}
-
-	if repo.ID == "" {
-		allErrs = append(allErrs, field.Required(fldPath.Child("id"), "must define id"))
-	}
-
-	if repo.Name == "" {
-		allErrs = append(allErrs, field.Required(fldPath.Child("name"), "must define name"))
-	}
-
-	if repo.BaseURL == "" {
-		allErrs = append(allErrs, field.Required(fldPath.Child("baseurl"), "must define baseurl"))
-	}
-
-	// We use an int for these settings to match yum, make sure the user doesn't specify an invalid one:
-	if repo.Enabled < 0 || repo.Enabled > 1 {
-		allErrs = append(allErrs, field.Invalid(fldPath.Child("enabled"), repo.Enabled, "must be 0 or 1"))
-	}
-	if repo.GPGCheck < 0 || repo.GPGCheck > 1 {
-		allErrs = append(allErrs, field.Invalid(fldPath.Child("gpgcheck"), repo.GPGCheck, "must be 0 or 1"))
-	}
 	return allErrs
 }
 

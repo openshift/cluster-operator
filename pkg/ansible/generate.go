@@ -19,6 +19,7 @@ package ansible
 import (
 	"bytes"
 	"fmt"
+	"strings"
 	"text/template"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -98,18 +99,8 @@ openshift_hosted_registry_wait: False
 # Use containerized installation of master
 containerized: True
 
-# openshift_release must be specified.  Use whatever version of openshift
-# that is supported by openshift-ansible that you wish.
-# TODO: Parameterize
-openshift_release: "3.7" # v3.7
-
-# This will be dependent on the version provided by the yum repository
-# TODO: Parameterize
-openshift_pkg_version: -3.7.0 # -3.7.0
-
 # TODO: development specific
 openshift_disable_check: disk_availability,memory_availability,docker_storage,package_version,docker_image_availability
-openshift_repos_enable_testing: true
 
 # AWS region
 # This value will instruct the plays where all items should be created.
@@ -149,7 +140,6 @@ openshift_aws_create_security_groups: true
 # openshift_aws_build_ami_group is the name of the security group to build the
 # ami in.  This defaults to the value of openshift_aws_clusterid.
 #openshift_aws_build_ami_group: cluster-engine
-openshift_aws_base_ami: ami-ae7bfdb8
 
 # openshift_aws_launch_config_security_groups specifies the security groups to
 # apply to the launch config.  The launch config security groups will be what
@@ -220,7 +210,7 @@ openshift_aws_vpc: [[ .VPCDefaults ]]
 `
 	masterVarsTemplate = `
 openshift_aws_ami_map:
-  master: [[ .AMIName ]]
+  master: [[ .AMI ]]
 
 openshift_aws_master_group_config:
   # The 'master' key is always required here.
@@ -252,7 +242,7 @@ openshift_aws_master_group:
 `
 	infraVarsTemplate = `
 openshift_aws_ami_map:
-  infra: [[ .AMIName ]]
+  infra: [[ .AMI ]]
 
 openshift_aws_node_group_config:
   infra:
@@ -283,7 +273,7 @@ openshift_aws_node_groups:
 
 	computeVarsTemplate = `
 openshift_aws_ami_map:
-  compute: [[ .AMIName ]]
+  compute: [[ .AMI ]]
 
 openshift_aws_node_groups:
 - name: "{{ openshift_aws_clusterid }} compute group"
@@ -309,6 +299,16 @@ openshift_aws_node_group_config:
     iam_role: "{{ openshift_aws_iam_role_name }}"
     policy_name: "{{ openshift_aws_iam_role_policy_name }}"
     policy_json: "{{ openshift_aws_iam_role_policy_json }}"
+`
+	clusterVersionVarsTemplate = `
+
+# ------- #
+# Version #
+# ------- #
+
+openshift_release: "[[ .Release ]]"
+oreg_url: [[ .ImageFormat ]]
+openshift_aws_ami: [[ .AMI ]]
 `
 	DefaultInventory = `
 [OSEv3:children]
@@ -338,8 +338,14 @@ type clusterParams struct {
 type machineSetParams struct {
 	Name         string
 	Size         int
-	AMIName      string
+	AMI          string
 	InstanceType string
+}
+
+type clusterVersionParams struct {
+	Release     string
+	AMI         string
+	ImageFormat string
 }
 
 // GenerateClusterVars generates the vars to pass to the ansible playbook
@@ -379,21 +385,77 @@ func GenerateClusterWideVars(name string, hardwareSpec *coapi.ClusterHardwareSpe
 	return buf.String(), nil
 }
 
+func lookupAMIForMachineSet(machineSet *coapi.MachineSet, clusterVersion *coapi.ClusterVersion) (string, error) {
+	for _, regionAMI := range clusterVersion.Spec.VMImages.AWSImages.RegionAMIs {
+		if regionAMI.Region == machineSet.Spec.ClusterHardware.AWS.Region {
+			if machineSet.Spec.MachineSetConfig.NodeType == coapi.NodeTypeMaster && regionAMI.MasterAMI != nil {
+				return *regionAMI.MasterAMI, nil
+			}
+			return regionAMI.AMI, nil
+		}
+	}
+	return "", fmt.Errorf("no AMI defined for cluster version %s/%s in region %v", clusterVersion.Namespace, clusterVersion.Name, machineSet.Spec.ClusterHardware.AWS.Region)
+}
+
+// convertVersionToRelease converts an OpenShift version string to it's major release. (i.e. 3.9.0 -> 3.9)
+func convertVersionToRelease(version string) (string, error) {
+	tokens := strings.Split(version, ".")
+	if len(tokens) > 1 {
+		release := tokens[0] + "." + tokens[1]
+		if release[0] == 'v' {
+			release = release[1:]
+		}
+		return release, nil
+	}
+	return "", fmt.Errorf("unable to parse release from version %v", version)
+}
+
 // GenerateClusterWideVarsForMachineSet generates the vars to pass to the
 // ansible playbook that are set at the cluster level for a machine set in
 // that cluster.
-func GenerateClusterWideVarsForMachineSet(machineSet *coapi.MachineSet) (string, error) {
+func GenerateClusterWideVarsForMachineSet(machineSet *coapi.MachineSet, clusterVersion *coapi.ClusterVersion) (string, error) {
 	controllerRef := metav1.GetControllerOf(machineSet)
 	if controllerRef == nil {
 		return "", fmt.Errorf("machineset does not have a controller")
 	}
-	return GenerateClusterWideVars(controllerRef.Name, &machineSet.Spec.ClusterHardware)
+	commonVars, err := GenerateClusterWideVars(controllerRef.Name, &machineSet.Spec.ClusterHardware)
+
+	// Layer in the vars that depend on the ClusterVersion:
+	var buf bytes.Buffer
+	buf.WriteString(commonVars)
+
+	t, err := template.New("clusterversionvars").Delims("[[", "]]").Parse(clusterVersionVarsTemplate)
+	if err != nil {
+		return "", err
+	}
+
+	release, err := convertVersionToRelease(clusterVersion.Spec.Version)
+	if err != nil {
+		return "", err
+	}
+
+	amiID, err := lookupAMIForMachineSet(machineSet, clusterVersion)
+	if err != nil {
+		return "", err
+	}
+
+	params := &clusterVersionParams{
+		Release:     release,
+		AMI:         amiID,
+		ImageFormat: clusterVersion.Spec.ImageFormat,
+	}
+
+	err = t.Execute(&buf, params)
+	if err != nil {
+		return "", err
+	}
+	return buf.String(), nil
 }
 
 // GenerateMachineSetVars generates the vars to pass to the ansible playbook
 // for the machine set. The machine set must belong to the cluster.
-func GenerateMachineSetVars(machineSet *coapi.MachineSet) (string, error) {
-	commonVars, err := GenerateClusterWideVarsForMachineSet(machineSet)
+func GenerateMachineSetVars(machineSet *coapi.MachineSet, clusterVersion *coapi.ClusterVersion) (string, error) {
+	commonVars, err := GenerateClusterWideVarsForMachineSet(machineSet, clusterVersion)
 	if err != nil {
 		return "", err
 	}
@@ -423,11 +485,16 @@ func GenerateMachineSetVars(machineSet *coapi.MachineSet) (string, error) {
 		return "", err
 	}
 
+	amiID, err := lookupAMIForMachineSet(machineSet, clusterVersion)
+	if err != nil {
+		return "", err
+	}
+
 	params := &machineSetParams{
 		Name:         machineSet.Name,
 		Size:         machineSet.Spec.Size,
 		InstanceType: machineSet.Spec.Hardware.AWS.InstanceType,
-		AMIName:      machineSet.Spec.Hardware.AWS.AMIName,
+		AMI:          amiID,
 	}
 
 	err = t.Execute(&buf, params)

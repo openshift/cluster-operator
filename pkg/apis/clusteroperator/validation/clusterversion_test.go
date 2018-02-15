@@ -33,16 +33,6 @@ func getValidClusterVersion() *clusteroperator.ClusterVersion {
 		},
 		Spec: clusteroperator.ClusterVersionSpec{
 			ImageFormat: "openshift/origin-${component}:${version}",
-			YumRepositories: []clusteroperator.YumRepository{
-				{
-					ID:       "testrepo",
-					Name:     "a testing repo",
-					BaseURL:  "http://example.com/nobodycares/",
-					Enabled:  1,
-					GPGCheck: 1,
-					GPGKey:   "http://example.com/notreal.gpg",
-				},
-			},
 			VMImages: clusteroperator.VMImages{
 				AWSImages: &clusteroperator.AWSVMImages{
 					RegionAMIs: []clusteroperator.AWSRegionAMIs{
@@ -77,51 +67,6 @@ func TestValidateClusterVersion(t *testing.T) {
 			clusterVersion: func() *clusteroperator.ClusterVersion {
 				c := getValidClusterVersion()
 				c.Spec.ImageFormat = ""
-				return c
-			}(),
-			valid: false,
-		},
-		{
-			name: "invalid yum repo missing id",
-			clusterVersion: func() *clusteroperator.ClusterVersion {
-				c := getValidClusterVersion()
-				c.Spec.YumRepositories[0].ID = ""
-				return c
-			}(),
-			valid: false,
-		},
-		{
-			name: "invalid yum repo missing name",
-			clusterVersion: func() *clusteroperator.ClusterVersion {
-				c := getValidClusterVersion()
-				c.Spec.YumRepositories[0].Name = ""
-				return c
-			}(),
-			valid: false,
-		},
-		{
-			name: "invalid yum repo missing baseurl",
-			clusterVersion: func() *clusteroperator.ClusterVersion {
-				c := getValidClusterVersion()
-				c.Spec.YumRepositories[0].BaseURL = ""
-				return c
-			}(),
-			valid: false,
-		},
-		{
-			name: "invalid yum repo enabled int",
-			clusterVersion: func() *clusteroperator.ClusterVersion {
-				c := getValidClusterVersion()
-				c.Spec.YumRepositories[0].Enabled = 2
-				return c
-			}(),
-			valid: false,
-		},
-		{
-			name: "invalid yum repo gpgcheck int",
-			clusterVersion: func() *clusteroperator.ClusterVersion {
-				c := getValidClusterVersion()
-				c.Spec.YumRepositories[0].GPGCheck = -1
 				return c
 			}(),
 			valid: false,
@@ -220,6 +165,87 @@ func TestValidateClusterVersion(t *testing.T) {
 			}(),
 			valid: false,
 		},
+		{
+			name: "valid version without leading v",
+			clusterVersion: func() *clusteroperator.ClusterVersion {
+				c := getValidClusterVersion()
+				c.Spec.Version = "3.10.0.whatever"
+				return c
+			}(),
+			valid: true,
+		},
+		{
+			name: "valid version 2",
+			clusterVersion: func() *clusteroperator.ClusterVersion {
+				c := getValidClusterVersion()
+				c.Spec.Version = "3.10"
+				return c
+			}(),
+			valid: true,
+		},
+		{
+			name: "valid version 3",
+			clusterVersion: func() *clusteroperator.ClusterVersion {
+				c := getValidClusterVersion()
+				c.Spec.Version = "3.9"
+				return c
+			}(),
+			valid: true,
+		},
+		{
+			name: "invalid version 1",
+			clusterVersion: func() *clusteroperator.ClusterVersion {
+				c := getValidClusterVersion()
+				c.Spec.Version = "x3.10.0.whatever"
+				return c
+			}(),
+			valid: false,
+		},
+		{
+			name: "invalid version 2",
+			clusterVersion: func() *clusteroperator.ClusterVersion {
+				c := getValidClusterVersion()
+				c.Spec.Version = "v3"
+				return c
+			}(),
+			valid: false,
+		},
+		{
+			name: "invalid version 3",
+			clusterVersion: func() *clusteroperator.ClusterVersion {
+				c := getValidClusterVersion()
+				c.Spec.Version = "va3.10.0"
+				return c
+			}(),
+			valid: false,
+		},
+		{
+			name: "invalid version 4",
+			clusterVersion: func() *clusteroperator.ClusterVersion {
+				c := getValidClusterVersion()
+				c.Spec.Version = "verybadversion"
+				return c
+			}(),
+			valid: false,
+		},
+		{
+			name: "invalid version 5",
+			clusterVersion: func() *clusteroperator.ClusterVersion {
+				c := getValidClusterVersion()
+				c.Spec.Version = "v30"
+				return c
+			}(),
+			valid: false,
+		},
+		{
+			name: "invalid version 6",
+			clusterVersion: func() *clusteroperator.ClusterVersion {
+				c := getValidClusterVersion()
+				c.Spec.Version = "30"
+				return c
+			}(),
+			valid: false,
+		},
 	}
 
 	for _, tc := range cases {
@@ -254,16 +280,6 @@ func TestValidateClusterVersionUpdate(t *testing.T) {
 			new: func() *clusteroperator.ClusterVersion {
 				c := getValidClusterVersion()
 				c.Spec.ImageFormat = "abc"
-				return c
-			}(),
-			valid: false,
-		},
-		{
-			name: "modified yum repo",
-			old:  getValidClusterVersion(),
-			new: func() *clusteroperator.ClusterVersion {
-				c := getValidClusterVersion()
-				c.Spec.YumRepositories[0].BaseURL = "http://new.com"
 				return c
 			}(),
 			valid: false,

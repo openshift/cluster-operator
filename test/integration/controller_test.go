@@ -149,16 +149,6 @@ func TestClusterCreate(t *testing.T) {
 				},
 				Spec: v1alpha1.ClusterVersionSpec{
 					ImageFormat: "openshift/origin-${component}:${version}",
-					YumRepositories: []v1alpha1.YumRepository{
-						{
-							ID:       "testrepo",
-							Name:     "a testing repo",
-							BaseURL:  "http://example.com/nobodycares/",
-							Enabled:  1,
-							GPGCheck: 1,
-							GPGKey:   "http://example.com/notreal.gpg",
-						},
-					},
 					VMImages: v1alpha1.VMImages{
 						AWSImages: &v1alpha1.AWSVMImages{
 							RegionAMIs: []v1alpha1.AWSRegionAMIs{
@@ -186,12 +176,13 @@ func TestClusterCreate(t *testing.T) {
 						Name:      clusterVersion.Name,
 					},
 					Hardware: v1alpha1.ClusterHardwareSpec{
-						AWS: &v1alpha1.AWSClusterSpec{},
+						AWS: &v1alpha1.AWSClusterSpec{
+							Region: "us-east-1",
+						},
 					},
 					DefaultHardwareSpec: &v1alpha1.MachineSetHardwareSpec{
 						AWS: &v1alpha1.MachineSetAWSHardwareSpec{
 							InstanceType: "instance-type",
-							AMIName:      "ami-name",
 						},
 					},
 					MachineSets: tc.machineSets,

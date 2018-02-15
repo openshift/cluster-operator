@@ -323,7 +323,13 @@ func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object, deleting bool) (con
 		return nil, fmt.Errorf("could not convert owner from JobSync into a machineset")
 	}
 	return jobFactory(func(name string) (*v1batch.Job, *kapi.ConfigMap, error) {
-		vars, err := ansible.GenerateClusterWideVarsForMachineSet(machineSet)
+		cvRef := machineSet.Spec.ClusterVersionRef
+		cv, err := s.controller.client.Clusteroperator().ClusterVersions(cvRef.Namespace).Get(cvRef.Name, metav1.GetOptions{})
+		if err != nil {
+			return nil, nil, err
+		}
+
+		vars, err := ansible.GenerateClusterWideVarsForMachineSet(machineSet, cv)
 		if err != nil {
 			return nil, nil, err
 		}

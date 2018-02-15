@@ -299,10 +299,16 @@ func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object, deleting bool) (con
 		return nil, fmt.Errorf("could not convert owner from JobSync into a machine set")
 	}
 	return jobFactory(func(name string) (*v1batch.Job, *kapi.ConfigMap, error) {
+		cvRef := machineSet.Spec.ClusterVersionRef
+		cv, err := s.controller.client.Clusteroperator().ClusterVersions(cvRef.Namespace).Get(cvRef.Name, metav1.GetOptions{})
+		if err != nil {
+			return nil, nil, err
+		}
+
 		// TODO: use machine set vars once we remove structs from machine set
 		// vars and playbooks support simple values for things like instance type
 		// and size.
-		vars, err := ansible.GenerateClusterWideVarsForMachineSet(machineSet)
+		vars, err := ansible.GenerateClusterWideVarsForMachineSet(machineSet, cv)
 		if err != nil {
 			return nil, nil, err
 		}

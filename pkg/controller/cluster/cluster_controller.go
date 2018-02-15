@@ -69,6 +69,12 @@ const (
 	// set that can be adapted by updating the machine set without recreating
 	// it.
 	machineSetUpdateChange machineSetChange = "Update"
+
+	// versionMissingRegion indicates the cluster's desired version does not have an AMI defined for it's region.
+	versionMissingRegion = "VersionMissingRegion"
+
+	// versionHasRegion indicates that the cluster's desired version now has an AMI defined for it's region.
+	versionHasRegion = "VersionHasRegion"
 )
 
 // NewController returns a new controller.
@@ -434,7 +440,10 @@ func (c *Controller) syncCluster(key string) error {
 			cluster.Spec.ClusterVersionRef, resolveCVErr)
 		clusterVersion = nil
 	} else if clusterNeedsSync && cluster.DeletionTimestamp == nil {
-		manageMachineSetsErr = c.manageMachineSets(filteredMachineSets, cluster, clusterVersion)
+		ok := validateAWSRegion(cluster, clusterVersion, clusterLog)
+		if ok {
+			manageMachineSetsErr = c.manageMachineSets(filteredMachineSets, cluster, clusterVersion)
+		}
 	}
 
 	original := cluster
@@ -465,6 +474,48 @@ func (c *Controller) syncCluster(key string) error {
 	}
 
 	return nil
+}
+
+// validateAWSRegion will ensure the cluster's version has an AMI defined for it's region. If not a condition will
+// be added indicating the problem. Similarly if the problem clears up, the condition will be updated.
+func validateAWSRegion(cluster *clusteroperator.Cluster, clusterVersion *clusteroperator.ClusterVersion, clusterLog log.FieldLogger) bool {
+	if cluster.Spec.Hardware.AWS == nil {
+		return false
+	}
+
+	if clusterVersion.Spec.VMImages.AWSImages == nil {
+		return false
+	}
+
+	// Make sure the cluster version supports the region for the cluster, if not set a condition and
+	// requeue cluster.
+	var foundRegion bool
+	for _, regionAMI := range clusterVersion.Spec.VMImages.AWSImages.RegionAMIs {
+		if regionAMI.Region == cluster.Spec.Hardware.AWS.Region {
+			foundRegion = true
+		}
+	}
+
+	if !foundRegion {
+		clusterLog.Warnf("no AMI defined for cluster version %s/%s in region %v", clusterVersion.Namespace, clusterVersion.Name, cluster.Spec.Hardware.AWS.Region)
+
+		controller.SetClusterCondition(cluster, clusteroperator.ClusterVersionIncompatible,
+			corev1.ConditionTrue,
+			versionMissingRegion,
+			fmt.Sprintf("no AMI defined for cluster version %s/%s in region %v", clusterVersion.Namespace, clusterVersion.Name, cluster.Spec.Hardware.AWS.Region),
+			controller.UpdateConditionIfReasonOrMessageChange)
+		return false
+	}
+
+	// If this cluster previously had a version incompatible condition, clear it:
+	clusterLog.Debugf("AMI defined for cluster version %s/%s in region %v", clusterVersion.Namespace, clusterVersion.Name, cluster.Spec.Hardware.AWS.Region)
+	controller.SetClusterCondition(cluster, clusteroperator.ClusterVersionIncompatible,
+		corev1.ConditionFalse,
+		versionHasRegion,
+		fmt.Sprintf("AMI now defined for cluster version %s/%s in region %v", clusterVersion.Namespace, clusterVersion.Name, cluster.Spec.Hardware.AWS.Region),
+		controller.UpdateConditionNever)
+
+	return true
 }
 
 // manageMachineSets checks and updates machine sets for the given cluster.
