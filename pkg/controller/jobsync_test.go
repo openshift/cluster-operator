@@ -367,7 +367,7 @@ func TestJobSyncForCompletedJob(t *testing.T) {
 			mockJobSyncStrategy.EXPECT().GetJobFactory(owner, tc.deleting).
 				Return(mockJobFactory, nil)
 			mockJobControl.EXPECT().ControlJobs(testKey, owner, testJobName, true, mockJobFactory).
-				Return(JobControlJobWorking, job, nil)
+				Return(JobControlJobSucceeded, job, nil)
 
 			// Update owner status to reflect completed job
 			mockJobSyncStrategy.EXPECT().DeepCopyOwner(owner).
@@ -439,15 +439,12 @@ func TestJobSyncForFailedJob(t *testing.T) {
 	mockJobSyncStrategy.EXPECT().GetJobFactory(owner, false).
 		Return(mockJobFactory, nil)
 	mockJobControl.EXPECT().ControlJobs(testKey, owner, testJobName, needsProcessing, mockJobFactory).
-		Return(JobControlJobWorking, job, nil)
+		Return(JobControlJobFailed, job, nil)
 
 	// Update owner status to reflect failed job
 	mockJobSyncStrategy.EXPECT().DeepCopyOwner(owner).
 		Return(ownerCopy)
-	mockJobSyncStrategy.EXPECT().SetOwnerJobSyncCondition(ownerCopy, JobSyncProcessing, kapi.ConditionFalse, ReasonJobFailed, gomock.Any(), gomock.Any())
-	mockJobSyncStrategy.EXPECT().SetOwnerJobSyncCondition(ownerCopy, JobSyncProcessingFailed, kapi.ConditionTrue, ReasonJobFailed, gomock.Any(), gomock.Any())
 	mockJobSyncStrategy.EXPECT().SetOwnerCurrentJob(ownerCopy, "")
-	mockJobSyncStrategy.EXPECT().OnJobFailure(ownerCopy)
 	mockJobSyncStrategy.EXPECT().UpdateOwnerStatus(owner, ownerCopy)
 
 	jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, false, logger)

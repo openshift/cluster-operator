@@ -54,6 +54,12 @@ const (
 	// JobControlJobWorking indicates that there is an outstanding job
 	// processing the current generation of the owner.
 	JobControlJobWorking JobControlResult = "JobWorking"
+	// JobControlJobSucceeded indicates that the job for current
+	// generation of the owner has completed successfully.
+	JobControlJobSucceeded JobControlResult = "JobSucceeded"
+	// JobControlJobFailed indicates that the job for current
+	// generation of the owner has failed.
+	JobControlJobFailed JobControlResult = "JobFailed"
 	// JobControlCreatingJob indicates that a job is being created to process
 	// the current generation of the owner.
 	JobControlCreatingJob JobControlResult = "CreatingJob"
@@ -210,6 +216,13 @@ func (c *jobControl) ControlJobs(
 	// Job exists for the current generation of the owner.
 	if generationJob != nil {
 		loggerForJob(logger, generationJob).Debug("job working")
+		if getJobConditionStatus(generationJob, kbatch.JobComplete) == kapi.ConditionTrue {
+			return JobControlJobSucceeded, generationJob, nil
+		}
+		if getJobConditionStatus(generationJob, kbatch.JobFailed) == kapi.ConditionTrue {
+			err := c.deleteOldJobs(ownerKey, []*kbatch.Job{generationJob}, logger)
+			return JobControlJobFailed, generationJob, err
+		}
 		return JobControlJobWorking, generationJob, nil
 	}
 
@@ -516,4 +529,15 @@ func loggerForOwner(logger log.FieldLogger, owner metav1.Object) log.FieldLogger
 func handleError(err error, logger log.FieldLogger) {
 	log.Error(err)
 	utilruntime.HandleError(err)
+}
+
+// getJobConditionStatus gets the status of the condition in the job. If the
+// condition is not found in the job, then returns False.
+func getJobConditionStatus(job *kbatch.Job, conditionType kbatch.JobConditionType) kapi.ConditionStatus {
+	for _, condition := range job.Status.Conditions {
+		if condition.Type == conditionType {
+			return condition.Status
+		}
+	}
+	return kapi.ConditionFalse
 }

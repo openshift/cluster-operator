@@ -210,7 +210,10 @@ func (r *jobGenerator) GeneratePlaybookJob(name string, hardware *clusteroperato
 
 	completions := int32(1)
 	deadline := int64((24 * time.Hour).Seconds())
-	backoffLimit := int32(123456) // effectively limitless
+	// Only run pod three times. Otherwise, it can take the job controller too
+	// long to notice when the pod has completed. If all three pod runs fail,
+	// jobSync will create a new job.
+	backoffLimit := int32(3)
 
 	job := &kbatch.Job{
 		ObjectMeta: metav1.ObjectMeta{

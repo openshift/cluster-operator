@@ -135,8 +135,12 @@ func (s *jobSync) Sync(key string) error {
 	}
 
 	switch jobControlResult {
+	case JobControlJobSucceeded:
+		return s.setOwnerStatusForCompletedJob(owner, deleting)
 	case JobControlJobWorking:
-		return s.syncOwnerStatusWithJob(owner, job, deleting)
+		return s.setOwnerStatusForInProgressJob(owner, job, deleting)
+	case JobControlJobFailed:
+		return s.setOwnerStatusForFailedJob(owner)
 	case JobControlDeletingJobs:
 		if currentJobName == "" {
 			return nil
@@ -175,54 +179,29 @@ func (s *jobSync) setOwnerStatusForOutdatedJob(original metav1.Object) error {
 	return s.strategy.UpdateOwnerStatus(original, owner)
 }
 
-// syncOwnerStatusWithJob update the status of the owner to
-// reflect the current status of the job that is processing the owner.
-// If the job completed successfully, the owner will be marked as
-// processed.
-// If the job completed with a failure, the owner will be marked as
-// not processed.
-// If the job is still in progress, the owner will be marked as
-// processing.
-func (s *jobSync) syncOwnerStatusWithJob(owner metav1.Object, job *v1batch.Job, deleting bool) error {
-	if job == nil {
-		return fmt.Errorf("job control result was that a job was working, but no job was returned")
-	}
-
-	jobCompleted := findJobCondition(job, v1batch.JobComplete)
-	if jobCompleted != nil && jobCompleted.Status == kapi.ConditionTrue {
-		return s.setOwnerStatusForCompletedJob(
-			owner,
-			deleting,
-			ReasonJobCompleted,
-			fmt.Sprintf("Job %s/%s completed at %v", job.Namespace, job.Name, jobCompleted.LastTransitionTime),
-		)
-	}
-
-	jobFailed := findJobCondition(job, v1batch.JobFailed)
-	if jobFailed != nil && jobFailed.Status == kapi.ConditionTrue {
-		return s.setOwnerStatusForFailedJob(
-			owner,
-			deleting,
-			ReasonJobFailed,
-			fmt.Sprintf("Job %s/%s failed at %v, reason: %s", job.Namespace, job.Name, jobFailed.LastTransitionTime, jobFailed.Reason),
-		)
-	}
-
-	return s.setOwnerStatusForInProgressJob(
-		owner,
-		job,
-		deleting,
-		ReasonJobRunning,
-		fmt.Sprintf("Job %s/%s is running since %v. Pod completions: %d, failures: %d", job.Namespace, job.Name, job.Status.StartTime, job.Status.Succeeded, job.Status.Failed),
-	)
-}
-
-func (s *jobSync) setOwnerStatusForLostJob(owner metav1.Object, deleting bool) error {
-	return s.setOwnerStatusForFailedJob(owner, deleting, ReasonJobMissing, "Job not found.")
-}
-
-func (s *jobSync) setOwnerStatusForCompletedJob(original metav1.Object, deleting bool, reason, message string) error {
+func (s *jobSync) setOwnerStatusForLostJob(original metav1.Object, deleting bool) error {
 	owner := s.strategy.DeepCopyOwner(original)
+	workingCondtion := JobSyncProcessing
+	workingFailedCondtion := JobSyncProcessingFailed
+	if deleting {
+		workingCondtion = JobSyncUndoing
+		workingFailedCondtion = JobSyncUndoFailed
+	}
+	reason := ReasonJobMissing
+	message := "Job not found."
+	s.strategy.SetOwnerJobSyncCondition(owner, workingCondtion, kapi.ConditionFalse, reason, message, UpdateConditionNever)
+	s.strategy.SetOwnerJobSyncCondition(owner, workingFailedCondtion, kapi.ConditionTrue, reason, message, UpdateConditionAlways)
+	s.strategy.SetOwnerCurrentJob(owner, "")
+	if !deleting {
+		s.strategy.OnJobFailure(owner)
+	}
+	return s.strategy.UpdateOwnerStatus(original, owner)
+}
+
+func (s *jobSync) setOwnerStatusForCompletedJob(original metav1.Object, deleting bool) error {
+	owner := s.strategy.DeepCopyOwner(original)
+	reason := ReasonJobCompleted
+	message := "Job completed"
 	if deleting {
 		s.strategy.SetOwnerJobSyncCondition(owner, JobSyncUndoing, kapi.ConditionFalse, reason, message, UpdateConditionNever)
 		s.strategy.SetOwnerJobSyncCondition(owner, JobSyncProcessed, kapi.ConditionFalse, reason, message, UpdateConditionNever)
@@ -244,29 +223,24 @@ func (s *jobSync) setOwnerStatusForCompletedJob(original metav1.Object, deleting
 	return s.strategy.UpdateOwnerStatus(original, owner)
 }
 
-func (s *jobSync) setOwnerStatusForFailedJob(original metav1.Object, deleting bool, reason, message string) error {
+func (s *jobSync) setOwnerStatusForFailedJob(original metav1.Object) error {
 	owner := s.strategy.DeepCopyOwner(original)
-	workingCondtion := JobSyncProcessing
-	workingFailedCondtion := JobSyncProcessingFailed
-	if deleting {
-		workingCondtion = JobSyncUndoing
-		workingFailedCondtion = JobSyncUndoFailed
-	}
-	s.strategy.SetOwnerJobSyncCondition(owner, workingCondtion, kapi.ConditionFalse, reason, message, UpdateConditionNever)
-	s.strategy.SetOwnerJobSyncCondition(owner, workingFailedCondtion, kapi.ConditionTrue, reason, message, UpdateConditionAlways)
+	// Clear the current job so that a new job is created.
 	s.strategy.SetOwnerCurrentJob(owner, "")
-	if !deleting {
-		s.strategy.OnJobFailure(owner)
-	}
 	return s.strategy.UpdateOwnerStatus(original, owner)
 }
 
-func (s *jobSync) setOwnerStatusForInProgressJob(original metav1.Object, job *v1batch.Job, deleting bool, reason, message string) error {
+func (s *jobSync) setOwnerStatusForInProgressJob(original metav1.Object, job *v1batch.Job, deleting bool) error {
+	if job == nil {
+		return fmt.Errorf("job control result was that a job was working, but no job was returned")
+	}
 	owner := s.strategy.DeepCopyOwner(original)
 	workingCondtion := JobSyncProcessing
 	if deleting {
 		workingCondtion = JobSyncUndoing
 	}
+	reason := ReasonJobRunning
+	message := "Job running"
 	s.strategy.SetOwnerJobSyncCondition(
 		owner,
 		workingCondtion,
@@ -304,15 +278,4 @@ func (s *jobSync) getFinalizerName() string {
 	// Add a valid alphanumeric character to the end of the finalizer since the job
 	// prefix is likely to end in an invalid hyphen character.
 	return fmt.Sprintf("openshift/cluster-operator-%s1", s.jobControl.GetJobPrefix())
-}
-
-// findJobCondition finds in the job the condition that has the
-// specified condition type. If none exists, then returns nil.
-func findJobCondition(job *v1batch.Job, conditionType v1batch.JobConditionType) *v1batch.JobCondition {
-	for i, condition := range job.Status.Conditions {
-		if condition.Type == conditionType {
-			return &job.Status.Conditions[i]
-		}
-	}
-	return nil
 }
