@@ -433,7 +433,11 @@ func (c *jobControl) deleteOldJobs(ownerKey string, oldJobs []*kbatch.Job, logge
 	for i, ng := range oldJobs {
 		go func(ix int, job *kbatch.Job) {
 			defer wg.Done()
-			if err := c.kubeClient.BatchV1().Jobs(job.Namespace).Delete(job.Name, &metav1.DeleteOptions{}); err != nil {
+			propPolicy := metav1.DeletePropagationBackground
+			if err := c.kubeClient.BatchV1().Jobs(job.Namespace).Delete(
+				job.Name,
+				&metav1.DeleteOptions{PropagationPolicy: &propPolicy},
+			); err != nil {
 				// Decrement the expected number of deletes because the informer won't observe this deletion
 				jobKey := keysToDelete[ix]
 				logger.Infof("Failed to delete %v, decrementing expectations", jobKey)
@@ -443,8 +447,6 @@ func (c *jobControl) deleteOldJobs(ownerKey string, oldJobs []*kbatch.Job, logge
 		}(i, ng)
 	}
 	wg.Wait()
-
-	c.deleteConfigMapsForJobs(oldJobs, logger)
 
 	select {
 	case err := <-errCh:
@@ -456,28 +458,6 @@ func (c *jobControl) deleteOldJobs(ownerKey string, oldJobs []*kbatch.Job, logge
 	}
 
 	return nil
-}
-
-func (c *jobControl) deleteConfigMapsForJobs(oldJobs []*kbatch.Job, logger log.FieldLogger) {
-	var wg sync.WaitGroup
-	wg.Add(len(oldJobs))
-	for i, j := range oldJobs {
-		go func(ix int, job *kbatch.Job) {
-			defer wg.Done()
-			for _, volume := range job.Spec.Template.Spec.Volumes {
-				if volume.ConfigMap == nil {
-					continue
-				}
-				if err := c.kubeClient.CoreV1().ConfigMaps(job.Namespace).Delete(volume.ConfigMap.Name, &metav1.DeleteOptions{}); err != nil {
-					logger.WithFields(log.Fields{
-						"job":       fmt.Sprintf("%s/%s", job.Namespace, job.Name),
-						"configmap": fmt.Sprintf("%s/%s", job.Namespace, volume.ConfigMap.Name),
-					}).Infof("could not delete configmap for job: %v", err)
-				}
-			}
-		}(i, j)
-	}
-	wg.Wait()
 }
 
 func jobOwnerGeneration(job *kbatch.Job) int64 {
