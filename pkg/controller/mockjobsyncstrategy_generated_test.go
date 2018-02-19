@@ -126,16 +126,6 @@ func (mr *MockJobSyncStrategyMockRecorder) OnJobCompletion(owner interface{}) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnJobCompletion", reflect.TypeOf((*MockJobSyncStrategy)(nil).OnJobCompletion), owner)
 }
 
-// OnJobFailure mocks base method
-func (m *MockJobSyncStrategy) OnJobFailure(owner v10.Object) {
-	m.ctrl.Call(m, "OnJobFailure", owner)
-}
-
-// OnJobFailure indicates an expected call of OnJobFailure
-func (mr *MockJobSyncStrategyMockRecorder) OnJobFailure(owner interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnJobFailure", reflect.TypeOf((*MockJobSyncStrategy)(nil).OnJobFailure), owner)
-}
-
 // UpdateOwnerStatus mocks base method
 func (m *MockJobSyncStrategy) UpdateOwnerStatus(original, owner v10.Object) error {
 	ret := m.ctrl.Call(m, "UpdateOwnerStatus", original, owner)

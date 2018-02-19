@@ -279,8 +279,7 @@ type ClusterStatus struct {
 	Provisioned bool `json:"provisioned"`
 
 	// ProvisionedJobGeneration is the generation of the cluster resource used to
-	// to generate the latest completed infra provisioning job. The value will be set
-	// regardless of the job having succeeded or failed.
+	// generate the latest successful infra provisioning job.
 	ProvisionedJobGeneration int64 `json:"provisionedJobGeneration"`
 
 	// ProvisionJob is the job that is actively performing provisioning
@@ -446,8 +445,7 @@ type MachineSetStatus struct {
 	ComponentsInstalled bool `json:"componentsInstalled"`
 
 	// ComponentsInstalledJobGeneration is the generation of the machine set resource used to
-	// to generate the latest completed component installation job. The value will be set
-	// regardless of the job having succeeded or failed.
+	// generate the latest successful component installation job.
 	ComponentsInstalledJobGeneration int64 `json:"componentsInstalledJobGeneration"`
 
 	// ComponentInstallationJob is the job that is actively performing installation
@@ -460,8 +458,7 @@ type MachineSetStatus struct {
 	Installed bool `json:"installed"`
 
 	// InstalledJobGeneration is the generation of the machine set resource used to
-	// to generate the latest completed installation job. The value will be set
-	// regardless of the job having succeeded or failed.
+	// generate the latest successful installation job.
 	InstalledJobGeneration int64 `json:"installedJobGeneration"`
 
 	// InstallationJob is the job that is actively performing installation
@@ -474,8 +471,7 @@ type MachineSetStatus struct {
 	Provisioned bool `json:"provisioned"`
 
 	// ProvisionedJobGeneration is the generation of the machine set resource used to
-	// to generate the latest completed hardware provisioning job. The value will be set
-	// regardless of the job having succeeded or failed.
+	// generate the latest successful hardware provisioning job.
 	ProvisionedJobGeneration int64 `json:"provisionedJobGeneration"`
 
 	// ProvisionJob is the job that is actively performing provisioning
@@ -487,8 +483,7 @@ type MachineSetStatus struct {
 	Accepted bool `json:"accepted"`
 
 	// AcceptedJobGeneration is the generation of the machine set resource used to
-	// run the latest completed accept job. The value will be set regardless of
-	// the job having succceeded or failed.
+	// run the latest successful accept job.
 	AcceptedJobGeneration int64 `json:"acceptedJobGeneration"`
 
 	// AcceptJob is the job that is actively running to accept nodes from this machine

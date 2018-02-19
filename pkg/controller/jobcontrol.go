@@ -190,8 +190,8 @@ func (c *jobControl) ControlJobs(
 	// If the job does not correspond to the owner's current generation,
 	// delete the job.
 	jobsToDelete := []*kbatch.Job{}
-	var currentJob *kbatch.Job
-	var generationJob *kbatch.Job
+	var currentJob, activeJob, successfulJob *kbatch.Job
+
 	jobs, err := c.jobsLister.Jobs(owner.GetNamespace()).List(labels.Everything())
 	if err != nil {
 		return JobControlResult(""), nil, err
@@ -207,32 +207,14 @@ func (c *jobControl) ControlJobs(
 			currentJob = job
 		}
 		if jobOwnerGeneration(job) == owner.GetGeneration() {
-			generationJob = job
+			if isActive(job) {
+				activeJob = job
+			} else if isSuccessful(job) {
+				successfulJob = job
+			}
 		} else {
 			jobsToDelete = append(jobsToDelete, job)
 		}
-	}
-
-	// Job exists for the current generation of the owner.
-	if generationJob != nil {
-		loggerForJob(logger, generationJob).Debug("job working")
-		if getJobConditionStatus(generationJob, kbatch.JobComplete) == kapi.ConditionTrue {
-			return JobControlJobSucceeded, generationJob, nil
-		}
-		if getJobConditionStatus(generationJob, kbatch.JobFailed) == kapi.ConditionTrue {
-			err := c.deleteOldJobs(ownerKey, []*kbatch.Job{generationJob}, logger)
-			return JobControlJobFailed, generationJob, err
-		}
-		return JobControlJobWorking, generationJob, nil
-	}
-
-	// There is a current job associated with the owner, but it was not found.
-	// The current job has been lost. Do not do anything more until the
-	// association with the lost job is cleaned up.
-	if currentJobName != "" && currentJob == nil {
-		logger.WithField("job", fmt.Sprintf("%s/%s", owner.GetNamespace(), currentJobName)).
-			Debug("lost current job")
-		return JobControlLostCurrentJob, nil, nil
 	}
 
 	// There are existing jobs for previous generations of the owner. All the
@@ -242,6 +224,37 @@ func (c *jobControl) ControlJobs(
 		logger.Debugf("deleting %d old jobs", len(jobsToDelete))
 		err := c.deleteOldJobs(ownerKey, jobsToDelete, logger)
 		return JobControlDeletingJobs, nil, err
+	}
+
+	if currentJobName != "" {
+		if currentJob == nil {
+			// There is a current job associated with the owner, but it was not found.
+			// The current job has been lost. Do not do anything more until the
+			// association with the lost job is cleaned up.
+			logger.WithField("job", fmt.Sprintf("%s/%s", owner.GetNamespace(), currentJobName)).
+				Debug("lost current job")
+			return JobControlLostCurrentJob, nil, nil
+		}
+		if isSuccessful(currentJob) {
+			return JobControlJobSucceeded, currentJob, nil
+		}
+		if isFailed(currentJob) {
+			return JobControlJobFailed, currentJob, nil
+		}
+		return JobControlJobWorking, currentJob, nil
+	}
+
+	// A successful Job exists for the current generation of the owner.
+	// The owner's status needs to be updated accordingly.
+	if successfulJob != nil {
+		loggerForJob(logger, successfulJob).Debug("successful job found")
+		return JobControlJobSucceeded, successfulJob, nil
+	}
+
+	// Found an active job. Set it as the current job of the owner.
+	if activeJob != nil {
+		loggerForJob(logger, activeJob).Debug("active job found")
+		return JobControlJobWorking, activeJob, nil
 	}
 
 	// The owner needs a job to process its current generaton. A job needs to
@@ -512,6 +525,18 @@ func jobOwnerGeneration(job *kbatch.Job) int64 {
 		return 0
 	}
 	return generation
+}
+
+func isActive(job *kbatch.Job) bool {
+	return !isSuccessful(job) && !isFailed(job)
+}
+
+func isSuccessful(job *kbatch.Job) bool {
+	return getJobConditionStatus(job, kbatch.JobComplete) == kapi.ConditionTrue
+}
+
+func isFailed(job *kbatch.Job) bool {
+	return getJobConditionStatus(job, kbatch.JobFailed) == kapi.ConditionTrue
 }
 
 func jobKey(job *kbatch.Job) string {

@@ -192,9 +192,6 @@ func (s *jobSync) setOwnerStatusForLostJob(original metav1.Object, deleting bool
 	s.strategy.SetOwnerJobSyncCondition(owner, workingCondtion, kapi.ConditionFalse, reason, message, UpdateConditionNever)
 	s.strategy.SetOwnerJobSyncCondition(owner, workingFailedCondtion, kapi.ConditionTrue, reason, message, UpdateConditionAlways)
 	s.strategy.SetOwnerCurrentJob(owner, "")
-	if !deleting {
-		s.strategy.OnJobFailure(owner)
-	}
 	return s.strategy.UpdateOwnerStatus(original, owner)
 }
 

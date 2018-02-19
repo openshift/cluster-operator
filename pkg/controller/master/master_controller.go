@@ -405,18 +405,6 @@ func (s *jobSyncStrategy) OnJobCompletion(owner metav1.Object) {
 	machineSet.Status.InstalledJobGeneration = machineSet.Generation
 }
 
-func (s *jobSyncStrategy) OnJobFailure(owner metav1.Object) {
-	machineSet, ok := owner.(*clusteroperator.MachineSet)
-	if !ok {
-		s.controller.logger.Warn("could not convert owner from JobSync into a machineset: %#v", owner)
-		return
-	}
-	// InstalledJobGeneration is set even when the job failed because we
-	// do not want to run the installation job again until there have been
-	// changes in the spec of the machine set.
-	machineSet.Status.InstalledJobGeneration = machineSet.Generation
-}
-
 func (s *jobSyncStrategy) UpdateOwnerStatus(original, owner metav1.Object) error {
 	originalMachineSet, ok := original.(*clusteroperator.MachineSet)
 	if !ok {

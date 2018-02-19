@@ -681,7 +681,6 @@ func TestJobSyncWithLostCurrentJobResult(t *testing.T) {
 	mockJobSyncStrategy.EXPECT().SetOwnerJobSyncCondition(ownerCopy, JobSyncProcessing, kapi.ConditionFalse, ReasonJobMissing, gomock.Any(), gomock.Any())
 	mockJobSyncStrategy.EXPECT().SetOwnerJobSyncCondition(ownerCopy, JobSyncProcessingFailed, kapi.ConditionTrue, ReasonJobMissing, gomock.Any(), gomock.Any())
 	mockJobSyncStrategy.EXPECT().SetOwnerCurrentJob(ownerCopy, "")
-	mockJobSyncStrategy.EXPECT().OnJobFailure(ownerCopy)
 	mockJobSyncStrategy.EXPECT().UpdateOwnerStatus(owner, ownerCopy)
 
 	jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, false, logger)

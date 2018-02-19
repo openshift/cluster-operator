@@ -389,18 +389,6 @@ func (s *jobSyncStrategy) OnJobCompletion(owner metav1.Object) {
 	cluster.Status.ProvisionedJobGeneration = cluster.Generation
 }
 
-func (s *jobSyncStrategy) OnJobFailure(owner metav1.Object) {
-	cluster, ok := owner.(*clusteroperator.Cluster)
-	if !ok {
-		s.controller.logger.Warn("could not convert owner from JobSync into a cluster: %#v", owner)
-		return
-	}
-	// ProvisionedJobGeneration is set even when the job failed because we
-	// do not want to run the provision job again until there have been
-	// changes in the spec of the cluster.
-	cluster.Status.ProvisionedJobGeneration = cluster.Generation
-}
-
 func (s *jobSyncStrategy) UpdateOwnerStatus(original, owner metav1.Object) error {
 	originalCluster, ok := original.(*clusteroperator.Cluster)
 	if !ok {

@@ -61,9 +61,6 @@ type JobSyncStrategy interface {
 	// completes successfully.
 	OnJobCompletion(owner metav1.Object)
 
-	// OnJobFailure is called when the processing job for the owner fails.
-	OnJobFailure(owner metav1.Object)
-
 	// UpdateOwnerStatus updates the status of the owner from the original
 	// copy to the owner copy.
 	UpdateOwnerStatus(original, owner metav1.Object) error
