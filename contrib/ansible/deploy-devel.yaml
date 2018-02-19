@@ -5,6 +5,7 @@
   gather_facts: no
   vars:
     aws_section: default
+    ssh_priv_key: '~/.ssh/libra.pem'
     use_real_aws: false
     ansible_image: "fake-openshift-ansible:canary"
     ansible_image_pull_policy: "Never"
@@ -24,6 +25,10 @@
       creates: "{{ playbook_dir }}/../../apiserver.pem"
 
   - set_fact:
+      ssh_priv_key: "{{ cli_ssh_priv_key }}"
+    when: cli_ssh_priv_key is defined
+
+  - set_fact:
       aws_section: "{{ cli_aws_section }}"
     when: cli_aws_section is defined
 
@@ -38,7 +43,7 @@
       l_serving_key: "{{ lookup('file', playbook_dir + '/../../apiserver-key.pem') | b64encode }}"
       l_aws_access_key_id: "{{ lookup('ini', 'aws_access_key_id section=' + aws_section + ' file=~/.aws/credentials') | b64encode }}"
       l_aws_secret_access_key: "{{ lookup('ini', 'aws_secret_access_key section=' + aws_section + ' file=~/.aws/credentials') | b64encode }}"
-      l_aws_ssh_private_key: "{{ lookup('file', '~/.ssh/libra.pem') | b64encode }}"
+      l_aws_ssh_private_key: "{{ lookup('file', ssh_priv_key) | b64encode }}"
 
   # TODO: not accurately reflecting 'changed' status as apply doesn't report until upstream PRs merge.
   - name: deploy application template
