@@ -1105,6 +1105,26 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								},
 							},
 						},
+						"componentsInstalled": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ComponentsInstalled is true if the additional components needed for the cluster have been installed",
+								Type:        []string{"boolean"},
+								Format:      "",
+							},
+						},
+						"componentsInstalledJobGeneration": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ComponentsInstalledJobGeneration is the generation of the machine set resource used to to generate the latest completed component installation job. The value will be set regardless of the job having succeeded or failed.",
+								Type:        []string{"integer"},
+								Format:      "int64",
+							},
+						},
+						"componentInstallationJob": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ComponentInstallationJob is the job that is actively performing installation of components on the machine set.",
+								Ref:         ref("k8s.io/api/core/v1.LocalObjectReference"),
+							},
+						},
 						"installed": {
 							SchemaProps: spec.SchemaProps{
 								Description: "Installed is true if the software required for this machine set is installed and running.",
@@ -1166,7 +1186,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 							},
 						},
 					},
-					Required: []string{"machineCount", "machinesReady", "conditions", "installed", "installedJobGeneration", "provisioned", "provisionedJobGeneration", "accepted", "acceptedJobGeneration"},
+					Required: []string{"machineCount", "machinesReady", "conditions", "componentsInstalled", "componentsInstalledJobGeneration", "installed", "installedJobGeneration", "provisioned", "provisionedJobGeneration", "accepted", "acceptedJobGeneration"},
 				},
 			},
 			Dependencies: []string{

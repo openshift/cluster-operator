@@ -64,6 +64,7 @@ import (
 	"github.com/openshift/cluster-operator/pkg/controller"
 	"github.com/openshift/cluster-operator/pkg/controller/accept"
 	"github.com/openshift/cluster-operator/pkg/controller/cluster"
+	"github.com/openshift/cluster-operator/pkg/controller/components"
 	"github.com/openshift/cluster-operator/pkg/controller/infra"
 	"github.com/openshift/cluster-operator/pkg/controller/machine"
 	"github.com/openshift/cluster-operator/pkg/controller/machineset"
@@ -323,6 +324,7 @@ func NewControllerInitializers() map[string]InitFunc {
 	controllers["machine"] = startMachineController
 	controllers["master"] = startMasterController
 	controllers["accept"] = startAcceptController
+	controllers["components"] = startComponentsController
 	return controllers
 }
 
@@ -528,6 +530,21 @@ func startAcceptController(ctx ControllerContext) (bool, error) {
 		ctx.Options.AnsibleImage,
 		v1.PullPolicy(ctx.Options.AnsibleImagePullPolicy),
 	).Run(int(ctx.Options.ConcurrentAcceptSyncs), ctx.Stop)
+	return true, nil
+}
+
+func startComponentsController(ctx ControllerContext) (bool, error) {
+	if !resourcesAvailable(ctx) {
+		return false, nil
+	}
+	go components.NewController(
+		ctx.InformerFactory.Clusteroperator().V1alpha1().MachineSets(),
+		ctx.KubeInformerFactory.Batch().V1().Jobs(),
+		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-components-controller"),
+		ctx.ClientBuilder.ClientOrDie("clusteroperator-components-controller"),
+		ctx.Options.AnsibleImage,
+		v1.PullPolicy(ctx.Options.AnsibleImagePullPolicy),
+	).Run(int(ctx.Options.ConcurrentComponentSyncs), ctx.Stop)
 	return true, nil
 }
 

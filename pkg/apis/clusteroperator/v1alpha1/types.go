@@ -437,6 +437,20 @@ type MachineSetStatus struct {
 	// Conditions includes more detailed status of the MachineSet
 	Conditions []MachineSetCondition `json:"conditions"`
 
+	// ComponentsInstalled is true if the additional components needed for the cluster
+	// have been installed
+	ComponentsInstalled bool `json:"componentsInstalled"`
+
+	// ComponentsInstalledJobGeneration is the generation of the machine set resource used to
+	// to generate the latest completed component installation job. The value will be set
+	// regardless of the job having succeeded or failed.
+	ComponentsInstalledJobGeneration int64 `json:"componentsInstalledJobGeneration"`
+
+	// ComponentInstallationJob is the job that is actively performing installation
+	// of components on the machine set.
+	// +optional
+	ComponentInstallationJob *corev1.LocalObjectReference `json:"componentInstallationJob,omitempty"`
+
 	// Installed is true if the software required for this machine set is installed
 	// and running.
 	Installed bool `json:"installed"`
@@ -527,6 +541,18 @@ const (
 	// MachineSetInstalled is true if OpenShift has been installed
 	// on this machine set.
 	MachineSetInstalled MachineSetConditionType = "Installed"
+
+	// MachineSetComponentsInstalling is true if OpenShift components are being installed on
+	// this machine set.
+	MachineSetComponentsInstalling MachineSetConditionType = "ComponentsInstalling"
+
+	// MachineSetComponentsInstallationFailed is true if the installation of
+	// OpenShift components on this machine set failed.
+	MachineSetComponentsInstallationFailed MachineSetConditionType = "ComponentsInstallationFailed"
+
+	// MachineSetComponentsInstalled is true if OpenShift has been installed
+	// on this machine set.
+	MachineSetComponentsInstalled MachineSetConditionType = "ComponentsInstalled"
 
 	// MachineSetHardwareReady is true if the hardware for the nodegroup is in ready
 	// state (is started and healthy)

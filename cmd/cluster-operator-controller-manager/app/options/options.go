@@ -73,6 +73,7 @@ func NewCMServer() *CMServer {
 			ConcurrentMachineSyncs:        defaultConcurrentSyncs,
 			ConcurrentMasterSyncs:         defaultConcurrentSyncs,
 			ConcurrentAcceptSyncs:         defaultConcurrentSyncs,
+			ConcurrentComponentSyncs:      defaultConcurrentSyncs,
 			LeaderElection:                leaderelectionconfig.DefaultLeaderElectionConfiguration(),
 			LeaderElectionNamespace:       defaultLeaderElectionNamespace,
 			ControllerStartInterval:       metav1.Duration{Duration: 0 * time.Second},
@@ -107,6 +108,7 @@ func (s *CMServer) AddFlags(fs *pflag.FlagSet, allControllers []string, disabled
 	fs.Int32Var(&s.ConcurrentMachineSyncs, "concurrent-machine-syncs", s.ConcurrentMachineSyncs, "The number of machine objects that are allowed to sync concurrently. Larger number = more responsive machines, but more CPU (and network) load")
 	fs.Int32Var(&s.ConcurrentMasterSyncs, "concurrent-master-syncs", s.ConcurrentMasterSyncs, "The number of master machine objects that are allowed to sync concurrently. Larger number = more responsive master machines, but more CPU (and network) load")
 	fs.Int32Var(&s.ConcurrentAcceptSyncs, "concurrent-accept-syncs", s.ConcurrentAcceptSyncs, "The number of machine set objects that are allowed to accept concurrently. Larger number = more responsive accept jobs, but more CPU (and network) load")
+	fs.Int32Var(&s.ConcurrentComponentSyncs, "concurrent-component-syncs", s.ConcurrentComponentSyncs, "The number of master machine set objects that are allowed to install components concurrently. Larger number = more responsive accept jobs, but more CPU (and network) load")
 	fs.BoolVar(&s.EnableProfiling, "profiling", s.EnableProfiling, "Enable profiling via web interface host:port/debug/pprof/")
 	fs.BoolVar(&s.EnableContentionProfiling, "contention-profiling", s.EnableContentionProfiling, "Enable lock contention profiling, if profiling is enabled")
 	leaderelectionconfig.BindFlags(&s.LeaderElection, fs)

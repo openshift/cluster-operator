@@ -99,6 +99,11 @@ type ControllerManagerConfiguration struct {
 	// but more CPU (and network) load.
 	ConcurrentAcceptSyncs int32
 
+	// concurrentComponentSyncs is the number of master machine set objects that are
+	// allowed to install components concurrently. Larger number = more responsive processing
+	// but more CPU (and network) load.
+	ConcurrentComponentSyncs int32
+
 	// leaderElection defines the configuration of leader election client.
 	LeaderElection componentconfig.LeaderElectionConfiguration
 
