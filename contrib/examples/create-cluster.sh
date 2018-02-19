@@ -21,4 +21,11 @@ oc get secret ssh-private-key -n cluster-operator -o yaml | sed -E '/(namespace:
 oc get secret ssl-cert -n cluster-operator -o yaml | sed -E '/(namespace:|annotations|last-applied-configuration:|selfLink|uid:|resourceVersion:)/d' | oc apply -f -
 
 
-oc process -f contrib/examples/cluster.yaml -p CLUSTER_NAME=$(whoami)-cluster | oc apply -f -
+if [ -e contrib/examples/$(whoami)-cluster.yaml ]
+then
+	CLUSTER_YAML="$(whoami)-cluster.yaml"
+else
+	CLUSTER_YAML="cluster.yaml"
+fi
+
+oc process -f contrib/examples/${CLUSTER_YAML} -p CLUSTER_NAME=$(whoami)-cluster | oc apply -f -
