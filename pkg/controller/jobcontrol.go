@@ -220,8 +220,7 @@ func (c *jobControl) ControlJobs(
 			return JobControlJobSucceeded, generationJob, nil
 		}
 		if getJobConditionStatus(generationJob, kbatch.JobFailed) == kapi.ConditionTrue {
-			err := c.deleteOldJobs(ownerKey, []*kbatch.Job{generationJob}, logger)
-			return JobControlJobFailed, generationJob, err
+			return JobControlJobFailed, generationJob, nil
 		}
 		return JobControlJobWorking, generationJob, nil
 	}
