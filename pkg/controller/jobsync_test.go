@@ -37,7 +37,8 @@ const (
 	testNamespace = "test-namespace"
 	testName      = "test-name"
 	testKey       = "test-namespace/test-name"
-	testJobName   = "test-job"
+	testJobName   = "test-job-abc"
+	testFinalizer = "openshift/cluster-operator-test-job-1"
 )
 
 var (
@@ -62,7 +63,7 @@ func TestJobSyncForRemovedOwner(t *testing.T) {
 		Return(nil, errors.NewNotFound(testGroupResource, testName))
 	mockJobControl.EXPECT().ObserveOwnerDeletion(testKey)
 
-	jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, logger)
+	jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, false, logger)
 	err := jobSync.Sync(testKey)
 
 	assert.NoError(t, err, "unexpected error from Sync")
@@ -84,7 +85,7 @@ func TestJobSyncWithErrorGettingOwner(t *testing.T) {
 	mockJobSyncStrategy.EXPECT().GetOwner(testKey).
 		Return(nil, fmt.Errorf("error getting owner"))
 
-	jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, logger)
+	jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, false, logger)
 	err := jobSync.Sync(testKey)
 
 	assert.Error(t, err, "expected error from Sync")
@@ -95,30 +96,74 @@ func TestJobSyncWithErrorGettingOwner(t *testing.T) {
 // TestJobSyncForDeletedOwner tests jobSync.Sync when the owner has been
 // marked for deletion.
 func TestJobSyncForDeletedOwner(t *testing.T) {
-	mockCtrl := gomock.NewController(t)
-	defer mockCtrl.Finish()
-
-	logger, loggerHook := test.Logger()
-
-	mockJobSyncStrategy := NewMockJobSyncStrategy(mockCtrl)
-	mockJobControl := NewMockJobControl(mockCtrl)
-
-	now := metav1.Now()
-	owner := &metav1.ObjectMeta{
-		DeletionTimestamp: &now,
+	cases := []struct {
+		name          string
+		undoOnDelete  bool
+		hasFinalizer  bool
+		expectControl bool
+	}{
+		{
+			name:          "no undo",
+			undoOnDelete:  false,
+			expectControl: false,
+		},
+		{
+			name:          "no finalizer",
+			undoOnDelete:  true,
+			hasFinalizer:  false,
+			expectControl: false,
+		},
+		{
+			name:          "with finalizer",
+			undoOnDelete:  true,
+			hasFinalizer:  true,
+			expectControl: true,
+		},
 	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mockCtrl := gomock.NewController(t)
+			defer mockCtrl.Finish()
 
-	mockJobSyncStrategy.EXPECT().GetOwner(testKey).
-		Return(owner, nil)
-	mockJobSyncStrategy.EXPECT().ProcessDeletedOwner(owner).
-		Return(nil)
+			logger, loggerHook := test.Logger()
 
-	jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, logger)
-	err := jobSync.Sync(testKey)
+			mockJobSyncStrategy := NewMockJobSyncStrategy(mockCtrl)
+			mockJobControl := NewMockJobControl(mockCtrl)
+			mockJobFactory := NewMockJobFactory(mockCtrl)
 
-	assert.NoError(t, err, "unexpected error from Sync")
+			now := metav1.Now()
+			owner := &metav1.ObjectMeta{
+				DeletionTimestamp: &now,
+			}
+			if tc.hasFinalizer {
+				owner.Finalizers = []string{testFinalizer}
+			}
 
-	assert.Empty(t, test.GetDireLogEntries(loggerHook), "unexpected dire log entries")
+			mockJobSyncStrategy.EXPECT().GetOwner(testKey).
+				Return(owner, nil)
+
+			if tc.undoOnDelete {
+				mockJobControl.EXPECT().GetJobPrefix().
+					Return(testJobPrefix)
+			}
+
+			if tc.expectControl {
+				mockJobSyncStrategy.EXPECT().GetOwnerCurrentJob(owner).
+					Return(testJobName)
+				mockJobSyncStrategy.EXPECT().GetJobFactory(owner, true).
+					Return(mockJobFactory, nil)
+				mockJobControl.EXPECT().ControlJobs(testKey, owner, testJobName, true, mockJobFactory).
+					Return(JobControlNoWork, nil, nil)
+			}
+
+			jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, tc.undoOnDelete, logger)
+			err := jobSync.Sync(testKey)
+
+			assert.NoError(t, err, "unexpected error from Sync")
+
+			assert.Empty(t, test.GetDireLogEntries(loggerHook), "unexpected dire log entries")
+		})
+	}
 }
 
 // TestJobSyncWithErrorGettingJobFactory tests jobSync.Sync when there is an
@@ -142,10 +187,10 @@ func TestJobSyncWithErrorGettingJobFactory(t *testing.T) {
 	mockJobSyncStrategy.EXPECT().DoesOwnerNeedProcessing(owner).
 		Return(true).
 		AnyTimes()
-	mockJobSyncStrategy.EXPECT().GetJobFactory(owner).
+	mockJobSyncStrategy.EXPECT().GetJobFactory(owner, false).
 		Return(nil, fmt.Errorf("error getting job factory"))
 
-	jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, logger)
+	jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, false, logger)
 	err := jobSync.Sync(testKey)
 
 	assert.Error(t, err, "expected error from Sync")
@@ -174,12 +219,12 @@ func TestJobSyncWithErrorControllingJobs(t *testing.T) {
 		Return(testJobName)
 	mockJobSyncStrategy.EXPECT().DoesOwnerNeedProcessing(owner).
 		Return(needsProcessing)
-	mockJobSyncStrategy.EXPECT().GetJobFactory(owner).
+	mockJobSyncStrategy.EXPECT().GetJobFactory(owner, false).
 		Return(mockJobFactory, nil)
 	mockJobControl.EXPECT().ControlJobs(testKey, owner, testJobName, needsProcessing, mockJobFactory).
 		Return(JobControlResult(""), nil, fmt.Errorf("error controlling jobs"))
 
-	jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, logger)
+	jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, false, logger)
 	err := jobSync.Sync(testKey)
 
 	assert.Error(t, err, "expected error from Sync")
@@ -208,12 +253,12 @@ func TestJobSyncWithPendingExpectationsResult(t *testing.T) {
 		Return(testJobName)
 	mockJobSyncStrategy.EXPECT().DoesOwnerNeedProcessing(owner).
 		Return(needsProcessing)
-	mockJobSyncStrategy.EXPECT().GetJobFactory(owner).
+	mockJobSyncStrategy.EXPECT().GetJobFactory(owner, false).
 		Return(mockJobFactory, nil)
 	mockJobControl.EXPECT().ControlJobs(testKey, owner, testJobName, needsProcessing, mockJobFactory).
 		Return(JobControlPendingExpectations, nil, nil)
 
-	jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, logger)
+	jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, false, logger)
 	err := jobSync.Sync(testKey)
 
 	assert.NoError(t, err, "unexpected error from Sync")
@@ -242,12 +287,12 @@ func TestJobSyncWithNoWorkResult(t *testing.T) {
 		Return(testJobName)
 	mockJobSyncStrategy.EXPECT().DoesOwnerNeedProcessing(owner).
 		Return(needsProcessing)
-	mockJobSyncStrategy.EXPECT().GetJobFactory(owner).
+	mockJobSyncStrategy.EXPECT().GetJobFactory(owner, false).
 		Return(mockJobFactory, nil)
 	mockJobControl.EXPECT().ControlJobs(testKey, owner, testJobName, needsProcessing, mockJobFactory).
 		Return(JobControlNoWork, nil, nil)
 
-	jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, logger)
+	jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, false, logger)
 	err := jobSync.Sync(testKey)
 
 	assert.NoError(t, err, "unexpected error from Sync")
@@ -258,62 +303,99 @@ func TestJobSyncWithNoWorkResult(t *testing.T) {
 // TestJobSyncForCompletedJob tests jobSync.Sync when ControlJobs returns that
 // there is a job working and the job is completed.
 func TestJobSyncForCompletedJob(t *testing.T) {
-	mockCtrl := gomock.NewController(t)
-	defer mockCtrl.Finish()
-
-	logger, loggerHook := test.Logger()
-
-	mockJobSyncStrategy := NewMockJobSyncStrategy(mockCtrl)
-	mockJobControl := NewMockJobControl(mockCtrl)
-	mockJobFactory := NewMockJobFactory(mockCtrl)
-
-	owner := &metav1.ObjectMeta{}
-	ownerCopy := &metav1.ObjectMeta{}
-	needsProcessing := true
-
-	jobTransitionTime := metav1.Date(2018, time.February, 1, 2, 3, 4, 5, time.UTC)
-	job := &kbatch.Job{
-		Status: kbatch.JobStatus{
-			Conditions: []kbatch.JobCondition{
-				{
-					Type:               kbatch.JobComplete,
-					Status:             kapi.ConditionTrue,
-					Reason:             "Completed",
-					Message:            "Done",
-					LastTransitionTime: jobTransitionTime,
-					LastProbeTime:      jobTransitionTime,
-				},
-			},
+	cases := []struct {
+		name     string
+		deleting bool
+	}{
+		{
+			name:     "processing",
+			deleting: false,
+		},
+		{
+			name:     "undoing",
+			deleting: true,
 		},
 	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mockCtrl := gomock.NewController(t)
+			defer mockCtrl.Finish()
 
-	mockJobSyncStrategy.EXPECT().GetOwner(testKey).
-		Return(owner, nil)
-	mockJobSyncStrategy.EXPECT().GetOwnerCurrentJob(owner).
-		Return(testJobName)
-	mockJobSyncStrategy.EXPECT().DoesOwnerNeedProcessing(owner).
-		Return(needsProcessing)
-	mockJobSyncStrategy.EXPECT().GetJobFactory(owner).
-		Return(mockJobFactory, nil)
-	mockJobControl.EXPECT().ControlJobs(testKey, owner, testJobName, needsProcessing, mockJobFactory).
-		Return(JobControlJobWorking, job, nil)
+			logger, loggerHook := test.Logger()
 
-	// Update owner status to reflect completed job
-	mockJobSyncStrategy.EXPECT().DeepCopyOwner(owner).
-		Return(ownerCopy)
-	mockJobSyncStrategy.EXPECT().SetOwnerJobSyncCondition(ownerCopy, JobSyncProcessing, kapi.ConditionFalse, ReasonJobCompleted, gomock.Any(), gomock.Any())
-	mockJobSyncStrategy.EXPECT().SetOwnerJobSyncCondition(ownerCopy, JobSyncProcessed, kapi.ConditionTrue, ReasonJobCompleted, gomock.Any(), gomock.Any())
-	mockJobSyncStrategy.EXPECT().SetOwnerJobSyncCondition(ownerCopy, JobSyncProcessingFailed, kapi.ConditionFalse, ReasonJobCompleted, gomock.Any(), gomock.Any())
-	mockJobSyncStrategy.EXPECT().SetOwnerCurrentJob(ownerCopy, "")
-	mockJobSyncStrategy.EXPECT().OnJobCompletion(ownerCopy)
-	mockJobSyncStrategy.EXPECT().UpdateOwnerStatus(owner, ownerCopy)
+			mockJobSyncStrategy := NewMockJobSyncStrategy(mockCtrl)
+			mockJobControl := NewMockJobControl(mockCtrl)
+			mockJobFactory := NewMockJobFactory(mockCtrl)
 
-	jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, logger)
-	err := jobSync.Sync(testKey)
+			owner := &metav1.ObjectMeta{}
+			ownerCopy := &metav1.ObjectMeta{}
+			if tc.deleting {
+				now := metav1.Now()
+				owner.DeletionTimestamp = &now
+				owner.Finalizers = []string{testFinalizer}
+				ownerCopy.DeletionTimestamp = &now
+			}
 
-	assert.NoError(t, err, "unexpected error from Sync")
+			jobTransitionTime := metav1.Date(2018, time.February, 1, 2, 3, 4, 5, time.UTC)
+			job := &kbatch.Job{
+				Status: kbatch.JobStatus{
+					Conditions: []kbatch.JobCondition{
+						{
+							Type:               kbatch.JobComplete,
+							Status:             kapi.ConditionTrue,
+							Reason:             "Completed",
+							Message:            "Done",
+							LastTransitionTime: jobTransitionTime,
+							LastProbeTime:      jobTransitionTime,
+						},
+					},
+				},
+			}
 
-	assert.Empty(t, test.GetDireLogEntries(loggerHook), "unexpected dire log entries")
+			mockJobSyncStrategy.EXPECT().GetOwner(testKey).
+				Return(owner, nil)
+			mockJobSyncStrategy.EXPECT().GetOwnerCurrentJob(owner).
+				Return(testJobName)
+			if !tc.deleting {
+				mockJobSyncStrategy.EXPECT().DoesOwnerNeedProcessing(owner).
+					Return(true)
+			} else {
+				mockJobControl.EXPECT().GetJobPrefix().
+					AnyTimes().
+					Return(testJobPrefix)
+			}
+			mockJobSyncStrategy.EXPECT().GetJobFactory(owner, tc.deleting).
+				Return(mockJobFactory, nil)
+			mockJobControl.EXPECT().ControlJobs(testKey, owner, testJobName, true, mockJobFactory).
+				Return(JobControlJobWorking, job, nil)
+
+			// Update owner status to reflect completed job
+			mockJobSyncStrategy.EXPECT().DeepCopyOwner(owner).
+				Return(ownerCopy)
+			if tc.deleting {
+				mockJobSyncStrategy.EXPECT().SetOwnerJobSyncCondition(ownerCopy, JobSyncUndoing, kapi.ConditionFalse, ReasonJobCompleted, gomock.Any(), gomock.Any())
+				mockJobSyncStrategy.EXPECT().SetOwnerJobSyncCondition(ownerCopy, JobSyncProcessed, kapi.ConditionFalse, ReasonJobCompleted, gomock.Any(), gomock.Any())
+				mockJobSyncStrategy.EXPECT().SetOwnerJobSyncCondition(ownerCopy, JobSyncUndoFailed, kapi.ConditionFalse, ReasonJobCompleted, gomock.Any(), gomock.Any())
+			} else {
+				mockJobSyncStrategy.EXPECT().SetOwnerJobSyncCondition(ownerCopy, JobSyncProcessing, kapi.ConditionFalse, ReasonJobCompleted, gomock.Any(), gomock.Any())
+				mockJobSyncStrategy.EXPECT().SetOwnerJobSyncCondition(ownerCopy, JobSyncProcessed, kapi.ConditionTrue, ReasonJobCompleted, gomock.Any(), gomock.Any())
+				mockJobSyncStrategy.EXPECT().SetOwnerJobSyncCondition(ownerCopy, JobSyncProcessingFailed, kapi.ConditionFalse, ReasonJobCompleted, gomock.Any(), gomock.Any())
+			}
+			mockJobSyncStrategy.EXPECT().SetOwnerCurrentJob(ownerCopy, "")
+			if !tc.deleting {
+				mockJobSyncStrategy.EXPECT().OnJobCompletion(ownerCopy)
+			}
+			mockJobSyncStrategy.EXPECT().UpdateOwnerStatus(owner, ownerCopy)
+
+			jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, true, logger)
+			err := jobSync.Sync(testKey)
+
+			assert.NoError(t, err, "unexpected error from Sync")
+
+			assert.Empty(t, test.GetDireLogEntries(loggerHook), "unexpected dire log entries")
+
+		})
+	}
 }
 
 // TestJobSyncForFailedJob tests jobSync.Sync when ControlJobs returns that
@@ -354,7 +436,7 @@ func TestJobSyncForFailedJob(t *testing.T) {
 		Return(testJobName)
 	mockJobSyncStrategy.EXPECT().DoesOwnerNeedProcessing(owner).
 		Return(needsProcessing)
-	mockJobSyncStrategy.EXPECT().GetJobFactory(owner).
+	mockJobSyncStrategy.EXPECT().GetJobFactory(owner, false).
 		Return(mockJobFactory, nil)
 	mockJobControl.EXPECT().ControlJobs(testKey, owner, testJobName, needsProcessing, mockJobFactory).
 		Return(JobControlJobWorking, job, nil)
@@ -368,7 +450,7 @@ func TestJobSyncForFailedJob(t *testing.T) {
 	mockJobSyncStrategy.EXPECT().OnJobFailure(ownerCopy)
 	mockJobSyncStrategy.EXPECT().UpdateOwnerStatus(owner, ownerCopy)
 
-	jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, logger)
+	jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, false, logger)
 	err := jobSync.Sync(testKey)
 
 	assert.NoError(t, err, "unexpected error from Sync")
@@ -404,7 +486,7 @@ func TestJobSyncForInProgressJob(t *testing.T) {
 		Return(testJobName)
 	mockJobSyncStrategy.EXPECT().DoesOwnerNeedProcessing(owner).
 		Return(needsProcessing)
-	mockJobSyncStrategy.EXPECT().GetJobFactory(owner).
+	mockJobSyncStrategy.EXPECT().GetJobFactory(owner, false).
 		Return(mockJobFactory, nil)
 	mockJobControl.EXPECT().ControlJobs(testKey, owner, testJobName, needsProcessing, mockJobFactory).
 		Return(JobControlJobWorking, job, nil)
@@ -416,7 +498,7 @@ func TestJobSyncForInProgressJob(t *testing.T) {
 	mockJobSyncStrategy.EXPECT().SetOwnerCurrentJob(ownerCopy, "in-progress-job")
 	mockJobSyncStrategy.EXPECT().UpdateOwnerStatus(owner, ownerCopy)
 
-	jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, logger)
+	jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, false, logger)
 	err := jobSync.Sync(testKey)
 
 	assert.NoError(t, err, "unexpected error from Sync")
@@ -445,12 +527,12 @@ func TestJobSyncWithJobWorkingResultButNoJobReturned(t *testing.T) {
 		Return(testJobName)
 	mockJobSyncStrategy.EXPECT().DoesOwnerNeedProcessing(owner).
 		Return(needsProcessing)
-	mockJobSyncStrategy.EXPECT().GetJobFactory(owner).
+	mockJobSyncStrategy.EXPECT().GetJobFactory(owner, false).
 		Return(mockJobFactory, nil)
 	mockJobControl.EXPECT().ControlJobs(testKey, owner, testJobName, needsProcessing, mockJobFactory).
 		Return(JobControlJobWorking, nil, nil)
 
-	jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, logger)
+	jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, false, logger)
 	err := jobSync.Sync(testKey)
 
 	assert.Error(t, err, "expected error from Sync")
@@ -479,12 +561,12 @@ func TestJobSyncWithCreatingJobResult(t *testing.T) {
 		Return(testJobName)
 	mockJobSyncStrategy.EXPECT().DoesOwnerNeedProcessing(owner).
 		Return(needsProcessing)
-	mockJobSyncStrategy.EXPECT().GetJobFactory(owner).
+	mockJobSyncStrategy.EXPECT().GetJobFactory(owner, false).
 		Return(mockJobFactory, nil)
 	mockJobControl.EXPECT().ControlJobs(testKey, owner, testJobName, needsProcessing, mockJobFactory).
 		Return(JobControlCreatingJob, nil, nil)
 
-	jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, logger)
+	jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, false, logger)
 	err := jobSync.Sync(testKey)
 
 	assert.NoError(t, err, "unexpected error from Sync")
@@ -514,7 +596,7 @@ func TestJobSyncWithDeletingJobsResultWithCurrentJob(t *testing.T) {
 		Return(testJobName)
 	mockJobSyncStrategy.EXPECT().DoesOwnerNeedProcessing(owner).
 		Return(needsProcessing)
-	mockJobSyncStrategy.EXPECT().GetJobFactory(owner).
+	mockJobSyncStrategy.EXPECT().GetJobFactory(owner, false).
 		Return(mockJobFactory, nil)
 	mockJobControl.EXPECT().ControlJobs(testKey, owner, testJobName, needsProcessing, mockJobFactory).
 		Return(JobControlDeletingJobs, nil, nil)
@@ -526,7 +608,7 @@ func TestJobSyncWithDeletingJobsResultWithCurrentJob(t *testing.T) {
 	mockJobSyncStrategy.EXPECT().SetOwnerCurrentJob(ownerCopy, "")
 	mockJobSyncStrategy.EXPECT().UpdateOwnerStatus(owner, ownerCopy)
 
-	jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, logger)
+	jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, false, logger)
 	err := jobSync.Sync(testKey)
 
 	assert.NoError(t, err, "unexpected error from Sync")
@@ -556,12 +638,12 @@ func TestJobSyncWithDeletingJobsResultWithoutCurrentJob(t *testing.T) {
 		Return("")
 	mockJobSyncStrategy.EXPECT().DoesOwnerNeedProcessing(owner).
 		Return(needsProcessing)
-	mockJobSyncStrategy.EXPECT().GetJobFactory(owner).
+	mockJobSyncStrategy.EXPECT().GetJobFactory(owner, false).
 		Return(mockJobFactory, nil)
 	mockJobControl.EXPECT().ControlJobs(testKey, owner, "", needsProcessing, mockJobFactory).
 		Return(JobControlDeletingJobs, nil, nil)
 
-	jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, logger)
+	jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, false, logger)
 	err := jobSync.Sync(testKey)
 
 	assert.NoError(t, err, "unexpected error from Sync")
@@ -591,7 +673,7 @@ func TestJobSyncWithLostCurrentJobResult(t *testing.T) {
 		Return(testJobName)
 	mockJobSyncStrategy.EXPECT().DoesOwnerNeedProcessing(owner).
 		Return(needsProcessing)
-	mockJobSyncStrategy.EXPECT().GetJobFactory(owner).
+	mockJobSyncStrategy.EXPECT().GetJobFactory(owner, false).
 		Return(mockJobFactory, nil)
 	mockJobControl.EXPECT().ControlJobs(testKey, owner, testJobName, needsProcessing, mockJobFactory).
 		Return(JobControlLostCurrentJob, nil, nil)
@@ -605,7 +687,7 @@ func TestJobSyncWithLostCurrentJobResult(t *testing.T) {
 	mockJobSyncStrategy.EXPECT().OnJobFailure(ownerCopy)
 	mockJobSyncStrategy.EXPECT().UpdateOwnerStatus(owner, ownerCopy)
 
-	jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, logger)
+	jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, false, logger)
 	err := jobSync.Sync(testKey)
 
 	assert.NoError(t, err, "unexpected error from Sync")
@@ -634,12 +716,12 @@ func TestJobSyncWithUnkownJobsResult(t *testing.T) {
 		Return("")
 	mockJobSyncStrategy.EXPECT().DoesOwnerNeedProcessing(owner).
 		Return(needsProcessing)
-	mockJobSyncStrategy.EXPECT().GetJobFactory(owner).
+	mockJobSyncStrategy.EXPECT().GetJobFactory(owner, false).
 		Return(mockJobFactory, nil)
 	mockJobControl.EXPECT().ControlJobs(testKey, owner, "", needsProcessing, mockJobFactory).
 		Return(JobControlResult("other-result"), nil, nil)
 
-	jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, logger)
+	jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, false, logger)
 	err := jobSync.Sync(testKey)
 
 	assert.Error(t, err, "expected error from Sync")

@@ -62,6 +62,8 @@ const (
 	masterProvisioningPlaybook = "playbooks/aws/openshift-cluster/provision.yml"
 
 	computeProvisioningPlaybook = "playbooks/aws/openshift-cluster/provision_nodes.yml"
+
+	deprovisioningPlaybook = "playbooks/aws/openshift-cluster/deprovision.yml"
 )
 
 var (
@@ -108,7 +110,7 @@ func NewController(
 	jobInformer.Informer().AddEventHandler(c.jobControl)
 	c.jobsSynced = jobInformer.Informer().HasSynced
 
-	c.jobSync = controller.NewJobSync(c.jobControl, &jobSyncStrategy{controller: c}, logger)
+	c.jobSync = controller.NewJobSync(c.jobControl, &jobSyncStrategy{controller: c}, true, logger)
 
 	c.syncHandler = c.jobSync.Sync
 	c.enqueueMachineSet = c.enqueue
@@ -304,7 +306,7 @@ func (s *jobSyncStrategy) DoesOwnerNeedProcessing(owner metav1.Object) bool {
 	return machineSet.Status.ProvisionedJobGeneration != machineSet.Generation
 }
 
-func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object) (controller.JobFactory, error) {
+func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object, deleting bool) (controller.JobFactory, error) {
 	machineSet, ok := owner.(*clusteroperator.MachineSet)
 	if !ok {
 		return nil, fmt.Errorf("could not convert owner from JobSync into a machineset")
@@ -315,9 +317,12 @@ func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object) (controller.JobFact
 			return nil, nil, err
 		}
 		var playbook string
-		if machineSet.Spec.NodeType == clusteroperator.NodeTypeMaster {
+		switch {
+		case deleting:
+			playbook = deprovisioningPlaybook
+		case machineSet.Spec.NodeType == clusteroperator.NodeTypeMaster:
 			playbook = masterProvisioningPlaybook
-		} else {
+		default:
 			playbook = computeProvisioningPlaybook
 		}
 		job, configMap := s.controller.ansibleGenerator.GeneratePlaybookJob(
@@ -422,10 +427,6 @@ func (s *jobSyncStrategy) UpdateOwnerStatus(original, owner metav1.Object) error
 	return controller.PatchMachineSetStatus(s.controller.client, originalMachineSet, machineSet)
 }
 
-func (s *jobSyncStrategy) ProcessDeletedOwner(owner metav1.Object) error {
-	return nil
-}
-
 func convertJobSyncConditionType(conditionType controller.JobSyncConditionType) clusteroperator.MachineSetConditionType {
 	switch conditionType {
 	case controller.JobSyncProcessing:
@@ -434,6 +435,10 @@ func convertJobSyncConditionType(conditionType controller.JobSyncConditionType) 
 		return clusteroperator.MachineSetHardwareProvisioned
 	case controller.JobSyncProcessingFailed:
 		return clusteroperator.MachineSetHardwareProvisioningFailed
+	case controller.JobSyncUndoing:
+		return clusteroperator.MachineSetHardwareDeprovisioning
+	case controller.JobSyncUndoFailed:
+		return clusteroperator.MachineSetHardwareDeprovisioningFailed
 	default:
 		return clusteroperator.MachineSetConditionType("")
 	}

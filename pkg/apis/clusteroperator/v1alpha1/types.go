@@ -331,6 +331,10 @@ const (
 	ClusterInfraProvisioningFailed ClusterConditionType = "InfraProvisioningFailed"
 	// ClusterInfraProvisioned represents success of the infra provisioning for this cluster.
 	ClusterInfraProvisioned ClusterConditionType = "InfraProvisioned"
+	// ClusterInfraDeprovisioning is true when cluster infrastructure is in the process of deprovisioning
+	ClusterInfraDeprovisioning ClusterConditionType = "InfraDeprovisioning"
+	// ClusterInfraDeprovisioningFailed is true when the job to deprovision cluster infrastructure has failed.
+	ClusterInfraDeprovisioningFailed ClusterConditionType = "InfraDeprovisioningFailed"
 	// ClusterReady means the cluster is able to service requests
 	ClusterReady ClusterConditionType = "Ready"
 )
@@ -529,6 +533,14 @@ const (
 	// MachineSetHardwareProvisioned is true if the corresponding cloud resource(s) for
 	// this machine set have been provisioned (ie. AWS autoscaling group)
 	MachineSetHardwareProvisioned MachineSetConditionType = "HardwareProvisioned"
+
+	// MachineSetHardwareDeprovisioning is true if the cloud resources for this
+	// machine set are in the process of deprovisioning.
+	MachineSetHardwareDeprovisioning MachineSetConditionType = "HardwareDeprovisioning"
+
+	// MachineSetHardwareDeprovisioningFailed is true if the last deprovisioning attempt
+	// for this machine set failed.
+	MachineSetHardwareDeprovisioningFailed MachineSetConditionType = "HardwareDeprovisioningFailed"
 
 	// MachineSetInstalling is true if OpenShift is being installed on
 	// this machine set.

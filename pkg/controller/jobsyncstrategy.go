@@ -34,7 +34,7 @@ type JobSyncStrategy interface {
 	DoesOwnerNeedProcessing(owner metav1.Object) bool
 
 	// GetJobFactory gets a factory for building a job to do the processing.
-	GetJobFactory(owner metav1.Object) (JobFactory, error)
+	GetJobFactory(owner metav1.Object, deleting bool) (JobFactory, error)
 
 	// GetOwnerCurrentJob gets the name of the current job for the owner. If
 	// there is not a current job, then returns an empty string.
@@ -67,8 +67,4 @@ type JobSyncStrategy interface {
 	// UpdateOwnerStatus updates the status of the owner from the original
 	// copy to the owner copy.
 	UpdateOwnerStatus(original, owner metav1.Object) error
-
-	// ProcessDeletedOwner processes an owner that has been marked for
-	// deletion.
-	ProcessDeletedOwner(owner metav1.Object) error
 }

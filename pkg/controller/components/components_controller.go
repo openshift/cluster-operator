@@ -102,7 +102,7 @@ func NewController(
 	jobInformer.Informer().AddEventHandler(c.jobControl)
 	c.jobsSynced = jobInformer.Informer().HasSynced
 
-	c.jobSync = controller.NewJobSync(c.jobControl, &jobSyncStrategy{controller: c}, logger)
+	c.jobSync = controller.NewJobSync(c.jobControl, &jobSyncStrategy{controller: c}, false, logger)
 
 	c.syncHandler = c.jobSync.Sync
 	c.enqueueMachineSet = c.enqueue
@@ -293,7 +293,10 @@ func (s *jobSyncStrategy) DoesOwnerNeedProcessing(owner metav1.Object) bool {
 	return machineSet.Status.ComponentsInstalledJobGeneration != machineSet.Generation
 }
 
-func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object) (controller.JobFactory, error) {
+func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object, deleting bool) (controller.JobFactory, error) {
+	if deleting {
+		return nil, fmt.Errorf("should not be undoing on deletes")
+	}
 	machineSet, ok := owner.(*clusteroperator.MachineSet)
 	if !ok {
 		return nil, fmt.Errorf("could not convert owner from JobSync into a machineset")
@@ -403,10 +406,6 @@ func (s *jobSyncStrategy) UpdateOwnerStatus(original, owner metav1.Object) error
 		return fmt.Errorf("could not convert owner from JobSync into a machineset")
 	}
 	return controller.PatchMachineSetStatus(s.controller.client, originalMachineSet, machineSet)
-}
-
-func (s *jobSyncStrategy) ProcessDeletedOwner(owner metav1.Object) error {
-	return nil
 }
 
 func convertJobSyncConditionType(conditionType controller.JobSyncConditionType) clusteroperator.MachineSetConditionType {
