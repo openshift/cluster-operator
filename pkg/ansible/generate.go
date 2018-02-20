@@ -30,6 +30,42 @@ import (
 // as well as the go template annotations to substitute in values we do need to change.
 // Today this is AWS specific but will need to be broken down for multi-provider.
 const (
+	vpcDefaults = `
+  name: "{{ openshift_aws_vpc_name }}"
+  cidr: 172.31.0.0/16
+  subnets:
+    us-east-1:
+    - cidr: 172.31.48.0/20
+      az: "us-east-1c"
+      default_az: true
+    - cidr: 172.31.32.0/20
+      az: "us-east-1e"
+    - cidr: 172.31.16.0/20
+      az: "us-east-1a"
+    us-east-2:
+    - cidr: 172.31.48.0/20
+      az: "us-east-2a"
+      default_az: True
+    - cidr: 172.31.32.0/20
+      az: "us-east-2b"
+      default_az: false
+    - cidr: 172.31.16.0/20
+      az: "us-east-2c"
+    us-west-1:
+    - cidr: 172.31.16.0/20
+      az: "us-west-1c"
+      default_az: True
+    - cidr: 172.31.0.0/20
+      az: "us-west-1b"
+    us-west-2:
+    - cidr: 172.31.48.0/20
+      az: "us-west-2c"
+      default_az: True
+    - cidr: 172.31.32.0/20
+      az: "us-west-2b"
+    - cidr: 172.31.16.0/20
+      az: "us-west-2a"
+`
 	clusterVarsTemplate = `---
 # Variables that are commented in this file are optional; uncommented variables
 # are mandatory.
@@ -179,6 +215,8 @@ openshift_aws_clusterid: [[ .Name ]]
 openshift_clusterid: [[ .Name ]]
 openshift_aws_elb_basename: [[ .Name ]]
 openshift_aws_vpc_name: [[ .Name ]]
+
+openshift_aws_vpc: [[ .VPCDefaults ]]
 `
 	masterVarsTemplate = `
 openshift_aws_ami_map:
@@ -290,10 +328,11 @@ ansible_become=true
 )
 
 type clusterParams struct {
-	Name       string
-	Region     string
-	SSHKeyName string
-	SSHUser    string
+	Name        string
+	Region      string
+	SSHKeyName  string
+	SSHUser     string
+	VPCDefaults string
 }
 
 type machineSetParams struct {
@@ -325,10 +364,11 @@ func GenerateClusterWideVars(name string, hardwareSpec *coapi.ClusterHardwareSpe
 	}
 
 	params := clusterParams{
-		Name:       name,
-		Region:     hardwareSpec.AWS.Region,
-		SSHKeyName: hardwareSpec.AWS.KeyPairName,
-		SSHUser:    hardwareSpec.AWS.SSHUser,
+		Name:        name,
+		Region:      hardwareSpec.AWS.Region,
+		SSHKeyName:  hardwareSpec.AWS.KeyPairName,
+		SSHUser:     hardwareSpec.AWS.SSHUser,
+		VPCDefaults: vpcDefaults,
 	}
 
 	var buf bytes.Buffer
