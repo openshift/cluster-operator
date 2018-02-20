@@ -282,11 +282,6 @@ type ClusterStatus struct {
 	// generate the latest successful infra provisioning job.
 	ProvisionedJobGeneration int64 `json:"provisionedJobGeneration"`
 
-	// ProvisionJob is the job that is actively performing provisioning
-	// on the cluster.
-	// +optional
-	ProvisionJob *corev1.LocalObjectReference `json:"provisionJob,omitempty"`
-
 	// Running is true if the master of the cluster is running and can be accessed using
 	// the KubeconfigSecret
 	Running bool `json:"running"`
@@ -448,11 +443,6 @@ type MachineSetStatus struct {
 	// generate the latest successful component installation job.
 	ComponentsInstalledJobGeneration int64 `json:"componentsInstalledJobGeneration"`
 
-	// ComponentInstallationJob is the job that is actively performing installation
-	// of components on the machine set.
-	// +optional
-	ComponentInstallationJob *corev1.LocalObjectReference `json:"componentInstallationJob,omitempty"`
-
 	// Installed is true if the software required for this machine set is installed
 	// and running.
 	Installed bool `json:"installed"`
@@ -460,11 +450,6 @@ type MachineSetStatus struct {
 	// InstalledJobGeneration is the generation of the machine set resource used to
 	// generate the latest successful installation job.
 	InstalledJobGeneration int64 `json:"installedJobGeneration"`
-
-	// InstallationJob is the job that is actively performing installation
-	// on the machine set.
-	// +optional
-	InstallationJob *corev1.LocalObjectReference `json:"installationJob,omitempty"`
 
 	// Provisioned is true if the hardware that corresponds to this MachineSet has
 	// been provisioned
@@ -474,22 +459,12 @@ type MachineSetStatus struct {
 	// generate the latest successful hardware provisioning job.
 	ProvisionedJobGeneration int64 `json:"provisionedJobGeneration"`
 
-	// ProvisionJob is the job that is actively performing provisioning
-	// on the machine set.
-	// +optional
-	ProvisionJob *corev1.LocalObjectReference `json:"provisionJob,omitempty"`
-
 	// Accepted is true if machine set nodes have been accepted on the master
 	Accepted bool `json:"accepted"`
 
 	// AcceptedJobGeneration is the generation of the machine set resource used to
 	// run the latest successful accept job.
 	AcceptedJobGeneration int64 `json:"acceptedJobGeneration"`
-
-	// AcceptJob is the job that is actively running to accept nodes from this machine
-	// set on the master.
-	// +optional
-	AcceptJob *corev1.LocalObjectReference `json:"acceptJob,omitempty"`
 }
 
 // MachineSetCondition contains details for the current condition of a MachineSet

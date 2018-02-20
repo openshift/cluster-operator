@@ -36,13 +36,6 @@ type JobSyncStrategy interface {
 	// GetJobFactory gets a factory for building a job to do the processing.
 	GetJobFactory(owner metav1.Object, deleting bool) (JobFactory, error)
 
-	// GetOwnerCurrentJob gets the name of the current job for the owner. If
-	// there is not a current job, then returns an empty string.
-	GetOwnerCurrentJob(owner metav1.Object) string
-
-	// SetOwnerCurrentJob sets the name of the current job for the owner.
-	SetOwnerCurrentJob(owner metav1.Object, jobName string)
-
 	// DeepCopyOwner returns a deep copy of the owner object.
 	DeepCopyOwner(owner metav1.Object) metav1.Object
 

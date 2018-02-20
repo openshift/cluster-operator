@@ -57,17 +57,11 @@ const (
 	// JobControlJobSucceeded indicates that the job for current
 	// generation of the owner has completed successfully.
 	JobControlJobSucceeded JobControlResult = "JobSucceeded"
-	// JobControlJobFailed indicates that the job for current
-	// generation of the owner has failed.
-	JobControlJobFailed JobControlResult = "JobFailed"
 	// JobControlCreatingJob indicates that a job is being created to process
 	// the current generation of the owner.
 	JobControlCreatingJob JobControlResult = "CreatingJob"
 	// JobControlDeletingJobs indicates that outdated jobs are being deleted.
 	JobControlDeletingJobs JobControlResult = "DeletingJobs"
-	// JobControlLostCurrentJob indicates that there was an outstanding job
-	// that can no longer be found.
-	JobControlLostCurrentJob JobControlResult = "LostCurrentJob"
 )
 
 // JobControl is used to control jobs that are needed by a controller.
@@ -96,7 +90,6 @@ type JobControl interface {
 	ControlJobs(
 		ownerKey string,
 		owner metav1.Object,
-		currentJobName string,
 		buildNewJob bool,
 		jobFactory JobFactory,
 	) (JobControlResult, *kbatch.Job, error)
@@ -168,7 +161,6 @@ func NewJobControl(
 func (c *jobControl) ControlJobs(
 	ownerKey string,
 	owner metav1.Object,
-	currentJobName string,
 	buildNewJob bool,
 	jobFactory JobFactory,
 ) (JobControlResult, *kbatch.Job, error) {
@@ -190,7 +182,7 @@ func (c *jobControl) ControlJobs(
 	// If the job does not correspond to the owner's current generation,
 	// delete the job.
 	jobsToDelete := []*kbatch.Job{}
-	var currentJob, activeJob, successfulJob *kbatch.Job
+	var activeJob, successfulJob *kbatch.Job
 
 	jobs, err := c.jobsLister.Jobs(owner.GetNamespace()).List(labels.Everything())
 	if err != nil {
@@ -202,9 +194,6 @@ func (c *jobControl) ControlJobs(
 		}
 		if !c.isControlledJob(job) {
 			continue
-		}
-		if job.Name == currentJobName {
-			currentJob = job
 		}
 		if jobOwnerGeneration(job) == owner.GetGeneration() {
 			if isActive(job) {
@@ -226,32 +215,14 @@ func (c *jobControl) ControlJobs(
 		return JobControlDeletingJobs, nil, err
 	}
 
-	if currentJobName != "" {
-		if currentJob == nil {
-			// There is a current job associated with the owner, but it was not found.
-			// The current job has been lost. Do not do anything more until the
-			// association with the lost job is cleaned up.
-			logger.WithField("job", fmt.Sprintf("%s/%s", owner.GetNamespace(), currentJobName)).
-				Debug("lost current job")
-			return JobControlLostCurrentJob, nil, nil
-		}
-		if isSuccessful(currentJob) {
-			return JobControlJobSucceeded, currentJob, nil
-		}
-		if isFailed(currentJob) {
-			return JobControlJobFailed, currentJob, nil
-		}
-		return JobControlJobWorking, currentJob, nil
-	}
-
-	// A successful Job exists for the current generation of the owner.
+	// A successful job exists for the current generation of the owner.
 	// The owner's status needs to be updated accordingly.
 	if successfulJob != nil {
 		loggerForJob(logger, successfulJob).Debug("successful job found")
 		return JobControlJobSucceeded, successfulJob, nil
 	}
 
-	// Found an active job. Set it as the current job of the owner.
+	// Found an active job. Update owner status with it.
 	if activeJob != nil {
 		loggerForJob(logger, activeJob).Debug("active job found")
 		return JobControlJobWorking, activeJob, nil

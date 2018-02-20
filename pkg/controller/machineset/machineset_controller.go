@@ -336,31 +336,6 @@ func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object, deleting bool) (con
 	}), nil
 }
 
-func (s *jobSyncStrategy) GetOwnerCurrentJob(owner metav1.Object) string {
-	machineSet, ok := owner.(*clusteroperator.MachineSet)
-	if !ok {
-		s.controller.logger.Warn("could not convert owner from JobSync into a machineset: %#v", owner)
-		return ""
-	}
-	if machineSet.Status.ProvisionJob == nil {
-		return ""
-	}
-	return machineSet.Status.ProvisionJob.Name
-}
-
-func (s *jobSyncStrategy) SetOwnerCurrentJob(owner metav1.Object, jobName string) {
-	machineSet, ok := owner.(*clusteroperator.MachineSet)
-	if !ok {
-		s.controller.logger.Warn("could not convert owner from JobSync into a machineset: %#v", owner)
-		return
-	}
-	if jobName == "" {
-		machineSet.Status.ProvisionJob = nil
-	} else {
-		machineSet.Status.ProvisionJob = &kapi.LocalObjectReference{Name: jobName}
-	}
-}
-
 func (s *jobSyncStrategy) DeepCopyOwner(owner metav1.Object) metav1.Object {
 	machineSet, ok := owner.(*clusteroperator.MachineSet)
 	if !ok {

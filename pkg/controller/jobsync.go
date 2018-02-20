@@ -120,8 +120,6 @@ func (s *jobSync) Sync(key string) error {
 		deleting = true
 	}
 
-	currentJobName := s.strategy.GetOwnerCurrentJob(owner)
-
 	needsProcessing := deleting || s.strategy.DoesOwnerNeedProcessing(owner)
 
 	jobFactory, err := s.strategy.GetJobFactory(owner, deleting)
@@ -129,7 +127,7 @@ func (s *jobSync) Sync(key string) error {
 		return err
 	}
 
-	jobControlResult, job, err := s.jobControl.ControlJobs(key, owner, currentJobName, needsProcessing, jobFactory)
+	jobControlResult, job, err := s.jobControl.ControlJobs(key, owner, needsProcessing, jobFactory)
 	if err != nil {
 		return err
 	}
@@ -139,15 +137,8 @@ func (s *jobSync) Sync(key string) error {
 		return s.setOwnerStatusForCompletedJob(owner, deleting)
 	case JobControlJobWorking:
 		return s.setOwnerStatusForInProgressJob(owner, job, deleting)
-	case JobControlJobFailed:
-		return s.setOwnerStatusForFailedJob(owner)
 	case JobControlDeletingJobs:
-		if currentJobName == "" {
-			return nil
-		}
 		return s.setOwnerStatusForOutdatedJob(owner)
-	case JobControlLostCurrentJob:
-		return s.setOwnerStatusForLostJob(owner, deleting)
 	case JobControlCreatingJob:
 		logger.Debugf("creating job")
 		if s.undoOnDelete {
@@ -175,23 +166,6 @@ func (s *jobSync) setOwnerStatusForOutdatedJob(original metav1.Object) error {
 		"Spec changed. New job needed",
 		UpdateConditionNever,
 	)
-	s.strategy.SetOwnerCurrentJob(owner, "")
-	return s.strategy.UpdateOwnerStatus(original, owner)
-}
-
-func (s *jobSync) setOwnerStatusForLostJob(original metav1.Object, deleting bool) error {
-	owner := s.strategy.DeepCopyOwner(original)
-	workingCondtion := JobSyncProcessing
-	workingFailedCondtion := JobSyncProcessingFailed
-	if deleting {
-		workingCondtion = JobSyncUndoing
-		workingFailedCondtion = JobSyncUndoFailed
-	}
-	reason := ReasonJobMissing
-	message := "Job not found."
-	s.strategy.SetOwnerJobSyncCondition(owner, workingCondtion, kapi.ConditionFalse, reason, message, UpdateConditionNever)
-	s.strategy.SetOwnerJobSyncCondition(owner, workingFailedCondtion, kapi.ConditionTrue, reason, message, UpdateConditionAlways)
-	s.strategy.SetOwnerCurrentJob(owner, "")
 	return s.strategy.UpdateOwnerStatus(original, owner)
 }
 
@@ -208,7 +182,6 @@ func (s *jobSync) setOwnerStatusForCompletedJob(original metav1.Object, deleting
 		s.strategy.SetOwnerJobSyncCondition(owner, JobSyncProcessed, kapi.ConditionTrue, reason, message, UpdateConditionAlways)
 		s.strategy.SetOwnerJobSyncCondition(owner, JobSyncProcessingFailed, kapi.ConditionFalse, reason, message, UpdateConditionNever)
 	}
-	s.strategy.SetOwnerCurrentJob(owner, "")
 	if deleting {
 		finalizerName := s.getFinalizerName()
 		finalizers := sets.NewString(owner.GetFinalizers()...)
@@ -217,13 +190,6 @@ func (s *jobSync) setOwnerStatusForCompletedJob(original metav1.Object, deleting
 	} else {
 		s.strategy.OnJobCompletion(owner)
 	}
-	return s.strategy.UpdateOwnerStatus(original, owner)
-}
-
-func (s *jobSync) setOwnerStatusForFailedJob(original metav1.Object) error {
-	owner := s.strategy.DeepCopyOwner(original)
-	// Clear the current job so that a new job is created.
-	s.strategy.SetOwnerCurrentJob(owner, "")
 	return s.strategy.UpdateOwnerStatus(original, owner)
 }
 
@@ -246,7 +212,6 @@ func (s *jobSync) setOwnerStatusForInProgressJob(original metav1.Object, job *v1
 		message,
 		UpdateConditionIfReasonOrMessageChange,
 	)
-	s.strategy.SetOwnerCurrentJob(owner, job.Name)
 	return s.strategy.UpdateOwnerStatus(original, owner)
 }
 

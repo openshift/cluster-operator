@@ -487,12 +487,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Format:      "int64",
 							},
 						},
-						"provisionJob": {
-							SchemaProps: spec.SchemaProps{
-								Description: "ProvisionJob is the job that is actively performing provisioning on the cluster.",
-								Ref:         ref("k8s.io/api/core/v1.LocalObjectReference"),
-							},
-						},
 						"running": {
 							SchemaProps: spec.SchemaProps{
 								Description: "Running is true if the master of the cluster is running and can be accessed using the KubeconfigSecret",
@@ -1119,12 +1113,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Format:      "int64",
 							},
 						},
-						"componentInstallationJob": {
-							SchemaProps: spec.SchemaProps{
-								Description: "ComponentInstallationJob is the job that is actively performing installation of components on the machine set.",
-								Ref:         ref("k8s.io/api/core/v1.LocalObjectReference"),
-							},
-						},
 						"installed": {
 							SchemaProps: spec.SchemaProps{
 								Description: "Installed is true if the software required for this machine set is installed and running.",
@@ -1137,12 +1125,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Description: "InstalledJobGeneration is the generation of the machine set resource used to generate the latest successful installation job.",
 								Type:        []string{"integer"},
 								Format:      "int64",
-							},
-						},
-						"installationJob": {
-							SchemaProps: spec.SchemaProps{
-								Description: "InstallationJob is the job that is actively performing installation on the machine set.",
-								Ref:         ref("k8s.io/api/core/v1.LocalObjectReference"),
 							},
 						},
 						"provisioned": {
@@ -1159,12 +1141,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Format:      "int64",
 							},
 						},
-						"provisionJob": {
-							SchemaProps: spec.SchemaProps{
-								Description: "ProvisionJob is the job that is actively performing provisioning on the machine set.",
-								Ref:         ref("k8s.io/api/core/v1.LocalObjectReference"),
-							},
-						},
 						"accepted": {
 							SchemaProps: spec.SchemaProps{
 								Description: "Accepted is true if machine set nodes have been accepted on the master",
@@ -1179,18 +1155,12 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Format:      "int64",
 							},
 						},
-						"acceptJob": {
-							SchemaProps: spec.SchemaProps{
-								Description: "AcceptJob is the job that is actively running to accept nodes from this machine set on the master.",
-								Ref:         ref("k8s.io/api/core/v1.LocalObjectReference"),
-							},
-						},
 					},
 					Required: []string{"machineCount", "machinesReady", "conditions", "componentsInstalled", "componentsInstalledJobGeneration", "installed", "installedJobGeneration", "provisioned", "provisionedJobGeneration", "accepted", "acceptedJobGeneration"},
 				},
 			},
 			Dependencies: []string{
-				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetCondition", "k8s.io/api/core/v1.LocalObjectReference"},
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetCondition"},
 		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSpec": {
 			Schema: spec.Schema{
