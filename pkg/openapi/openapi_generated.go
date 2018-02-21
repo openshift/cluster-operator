@@ -482,15 +482,9 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 						},
 						"provisionedJobGeneration": {
 							SchemaProps: spec.SchemaProps{
-								Description: "ProvisionedJobGeneration is the generation of the cluster resource used to to generate the latest completed infra provisioning job. The value will be set regardless of the job having succeeded or failed.",
+								Description: "ProvisionedJobGeneration is the generation of the cluster resource used to generate the latest successful infra provisioning job.",
 								Type:        []string{"integer"},
 								Format:      "int64",
-							},
-						},
-						"provisionJob": {
-							SchemaProps: spec.SchemaProps{
-								Description: "ProvisionJob is the job that is actively performing provisioning on the cluster.",
-								Ref:         ref("k8s.io/api/core/v1.LocalObjectReference"),
 							},
 						},
 						"running": {
@@ -1114,15 +1108,9 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 						},
 						"componentsInstalledJobGeneration": {
 							SchemaProps: spec.SchemaProps{
-								Description: "ComponentsInstalledJobGeneration is the generation of the machine set resource used to to generate the latest completed component installation job. The value will be set regardless of the job having succeeded or failed.",
+								Description: "ComponentsInstalledJobGeneration is the generation of the machine set resource used to generate the latest successful component installation job.",
 								Type:        []string{"integer"},
 								Format:      "int64",
-							},
-						},
-						"componentInstallationJob": {
-							SchemaProps: spec.SchemaProps{
-								Description: "ComponentInstallationJob is the job that is actively performing installation of components on the machine set.",
-								Ref:         ref("k8s.io/api/core/v1.LocalObjectReference"),
 							},
 						},
 						"installed": {
@@ -1134,15 +1122,9 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 						},
 						"installedJobGeneration": {
 							SchemaProps: spec.SchemaProps{
-								Description: "InstalledJobGeneration is the generation of the machine set resource used to to generate the latest completed installation job. The value will be set regardless of the job having succeeded or failed.",
+								Description: "InstalledJobGeneration is the generation of the machine set resource used to generate the latest successful installation job.",
 								Type:        []string{"integer"},
 								Format:      "int64",
-							},
-						},
-						"installationJob": {
-							SchemaProps: spec.SchemaProps{
-								Description: "InstallationJob is the job that is actively performing installation on the machine set.",
-								Ref:         ref("k8s.io/api/core/v1.LocalObjectReference"),
 							},
 						},
 						"provisioned": {
@@ -1154,15 +1136,9 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 						},
 						"provisionedJobGeneration": {
 							SchemaProps: spec.SchemaProps{
-								Description: "ProvisionedJobGeneration is the generation of the machine set resource used to to generate the latest completed hardware provisioning job. The value will be set regardless of the job having succeeded or failed.",
+								Description: "ProvisionedJobGeneration is the generation of the machine set resource used to generate the latest successful hardware provisioning job.",
 								Type:        []string{"integer"},
 								Format:      "int64",
-							},
-						},
-						"provisionJob": {
-							SchemaProps: spec.SchemaProps{
-								Description: "ProvisionJob is the job that is actively performing provisioning on the machine set.",
-								Ref:         ref("k8s.io/api/core/v1.LocalObjectReference"),
 							},
 						},
 						"accepted": {
@@ -1174,15 +1150,9 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 						},
 						"acceptedJobGeneration": {
 							SchemaProps: spec.SchemaProps{
-								Description: "AcceptedJobGeneration is the generation of the machine set resource used to run the latest completed accept job. The value will be set regardless of the job having succceeded or failed.",
+								Description: "AcceptedJobGeneration is the generation of the machine set resource used to run the latest successful accept job.",
 								Type:        []string{"integer"},
 								Format:      "int64",
-							},
-						},
-						"acceptJob": {
-							SchemaProps: spec.SchemaProps{
-								Description: "AcceptJob is the job that is actively running to accept nodes from this machine set on the master.",
-								Ref:         ref("k8s.io/api/core/v1.LocalObjectReference"),
 							},
 						},
 					},
@@ -1190,7 +1160,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 				},
 			},
 			Dependencies: []string{
-				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetCondition", "k8s.io/api/core/v1.LocalObjectReference"},
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetCondition"},
 		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSpec": {
 			Schema: spec.Schema{

@@ -317,31 +317,6 @@ func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object, deleting bool) (con
 	}), nil
 }
 
-func (s *jobSyncStrategy) GetOwnerCurrentJob(owner metav1.Object) string {
-	machineSet, ok := owner.(*clusteroperator.MachineSet)
-	if !ok {
-		s.controller.logger.Warn("could not convert owner from JobSync into a machine set: %#v", owner)
-		return ""
-	}
-	if machineSet.Status.AcceptJob == nil {
-		return ""
-	}
-	return machineSet.Status.AcceptJob.Name
-}
-
-func (s *jobSyncStrategy) SetOwnerCurrentJob(owner metav1.Object, jobName string) {
-	machineSet, ok := owner.(*clusteroperator.MachineSet)
-	if !ok {
-		s.controller.logger.Warn("could not convert owner from JobSync into a machine set: %#v", owner)
-		return
-	}
-	if jobName == "" {
-		machineSet.Status.AcceptJob = nil
-	} else {
-		machineSet.Status.AcceptJob = &kapi.LocalObjectReference{Name: jobName}
-	}
-}
-
 func (s *jobSyncStrategy) DeepCopyOwner(owner metav1.Object) metav1.Object {
 	machineSet, ok := owner.(*clusteroperator.MachineSet)
 	if !ok {
@@ -381,18 +356,6 @@ func (s *jobSyncStrategy) OnJobCompletion(owner metav1.Object) {
 		return
 	}
 	machineSet.Status.Accepted = true
-	machineSet.Status.AcceptedJobGeneration = machineSet.Generation
-}
-
-func (s *jobSyncStrategy) OnJobFailure(owner metav1.Object) {
-	machineSet, ok := owner.(*clusteroperator.MachineSet)
-	if !ok {
-		s.controller.logger.Warn("could not convert owner from JobSync into a machine set: %#v", owner)
-		return
-	}
-	// AcceptedJobGeneration is set even when the job failed because we
-	// do not want to run the accept job again until there have been
-	// changes in the spec of the machine set.
 	machineSet.Status.AcceptedJobGeneration = machineSet.Generation
 }
 

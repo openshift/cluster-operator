@@ -72,28 +72,6 @@ func (mr *MockJobSyncStrategyMockRecorder) GetJobFactory(owner, deleting interfa
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetJobFactory", reflect.TypeOf((*MockJobSyncStrategy)(nil).GetJobFactory), owner, deleting)
 }
 
-// GetOwnerCurrentJob mocks base method
-func (m *MockJobSyncStrategy) GetOwnerCurrentJob(owner v10.Object) string {
-	ret := m.ctrl.Call(m, "GetOwnerCurrentJob", owner)
-	ret0, _ := ret[0].(string)
-	return ret0
-}
-
-// GetOwnerCurrentJob indicates an expected call of GetOwnerCurrentJob
-func (mr *MockJobSyncStrategyMockRecorder) GetOwnerCurrentJob(owner interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOwnerCurrentJob", reflect.TypeOf((*MockJobSyncStrategy)(nil).GetOwnerCurrentJob), owner)
-}
-
-// SetOwnerCurrentJob mocks base method
-func (m *MockJobSyncStrategy) SetOwnerCurrentJob(owner v10.Object, jobName string) {
-	m.ctrl.Call(m, "SetOwnerCurrentJob", owner, jobName)
-}
-
-// SetOwnerCurrentJob indicates an expected call of SetOwnerCurrentJob
-func (mr *MockJobSyncStrategyMockRecorder) SetOwnerCurrentJob(owner, jobName interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetOwnerCurrentJob", reflect.TypeOf((*MockJobSyncStrategy)(nil).SetOwnerCurrentJob), owner, jobName)
-}
-
 // DeepCopyOwner mocks base method
 func (m *MockJobSyncStrategy) DeepCopyOwner(owner v10.Object) v10.Object {
 	ret := m.ctrl.Call(m, "DeepCopyOwner", owner)
@@ -124,16 +102,6 @@ func (m *MockJobSyncStrategy) OnJobCompletion(owner v10.Object) {
 // OnJobCompletion indicates an expected call of OnJobCompletion
 func (mr *MockJobSyncStrategyMockRecorder) OnJobCompletion(owner interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnJobCompletion", reflect.TypeOf((*MockJobSyncStrategy)(nil).OnJobCompletion), owner)
-}
-
-// OnJobFailure mocks base method
-func (m *MockJobSyncStrategy) OnJobFailure(owner v10.Object) {
-	m.ctrl.Call(m, "OnJobFailure", owner)
-}
-
-// OnJobFailure indicates an expected call of OnJobFailure
-func (mr *MockJobSyncStrategyMockRecorder) OnJobFailure(owner interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnJobFailure", reflect.TypeOf((*MockJobSyncStrategy)(nil).OnJobFailure), owner)
 }
 
 // UpdateOwnerStatus mocks base method

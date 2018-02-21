@@ -66,8 +66,8 @@ func (mr *MockJobControlMockRecorder) OnDelete(obj interface{}) *gomock.Call {
 }
 
 // ControlJobs mocks base method
-func (m *MockJobControl) ControlJobs(ownerKey string, owner v11.Object, currentJobName string, buildNewJob bool, jobFactory JobFactory) (JobControlResult, *v1.Job, error) {
-	ret := m.ctrl.Call(m, "ControlJobs", ownerKey, owner, currentJobName, buildNewJob, jobFactory)
+func (m *MockJobControl) ControlJobs(ownerKey string, owner v11.Object, buildNewJob bool, jobFactory JobFactory) (JobControlResult, *v1.Job, error) {
+	ret := m.ctrl.Call(m, "ControlJobs", ownerKey, owner, buildNewJob, jobFactory)
 	ret0, _ := ret[0].(JobControlResult)
 	ret1, _ := ret[1].(*v1.Job)
 	ret2, _ := ret[2].(error)
@@ -75,8 +75,8 @@ func (m *MockJobControl) ControlJobs(ownerKey string, owner v11.Object, currentJ
 }
 
 // ControlJobs indicates an expected call of ControlJobs
-func (mr *MockJobControlMockRecorder) ControlJobs(ownerKey, owner, currentJobName, buildNewJob, jobFactory interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ControlJobs", reflect.TypeOf((*MockJobControl)(nil).ControlJobs), ownerKey, owner, currentJobName, buildNewJob, jobFactory)
+func (mr *MockJobControlMockRecorder) ControlJobs(ownerKey, owner, buildNewJob, jobFactory interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ControlJobs", reflect.TypeOf((*MockJobControl)(nil).ControlJobs), ownerKey, owner, buildNewJob, jobFactory)
 }
 
 // ObserveOwnerDeletion mocks base method

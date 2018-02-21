@@ -19,6 +19,7 @@ package integration
 import (
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -26,6 +27,7 @@ import (
 
 	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	"github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
+	"github.com/openshift/cluster-operator/pkg/controller"
 )
 
 func waitForObjectStatus(namespace, name string, getFromStore func(namespace, name string) (metav1.Object, error), checkStatus func(metav1.Object) bool) error {
@@ -153,7 +155,8 @@ func waitForClusterProvisioning(client clientset.Interface, namespace, name stri
 		client,
 		namespace, name,
 		func(cluster *v1alpha1.Cluster) bool {
-			return cluster.Status.ProvisionJob != nil
+			condition := controller.FindClusterCondition(cluster, v1alpha1.ClusterInfraProvisioning)
+			return condition != nil && condition.Status == corev1.ConditionTrue
 		},
 	)
 }

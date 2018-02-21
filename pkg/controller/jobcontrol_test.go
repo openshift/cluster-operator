@@ -181,7 +181,7 @@ func newTestConfigMap(name string) *kapi.ConfigMap {
 func TestJobControlWithoutNeedForNewJob(t *testing.T) {
 	jobControl, _, _, _, _, _, loggerHook := newTestJobControl(testJobPrefix, testOwnerKind)
 	testOwner := newTestOwner(1)
-	result, job, err := jobControl.ControlJobs(testOwnerKey, testOwner, "", false, nil)
+	result, job, err := jobControl.ControlJobs(testOwnerKey, testOwner, false, nil)
 	if err != nil {
 		t.Fatalf("no error expected: %v", err)
 	}
@@ -201,7 +201,7 @@ func TestJobControlWithPendingExpectations(t *testing.T) {
 	testOwner := newTestOwner(1)
 	jobControl.expectations.ExpectCreations(testOwnerKey, 1)
 	jobFactory := newTestJobFactory(nil, nil, nil)
-	result, job, err := jobControl.ControlJobs(testOwnerKey, testOwner, "", true, jobFactory)
+	result, job, err := jobControl.ControlJobs(testOwnerKey, testOwner, true, jobFactory)
 	if err != nil {
 		t.Fatalf("no error expected: %v", err)
 	}
@@ -225,7 +225,7 @@ func TestJobControlForNewJob(t *testing.T) {
 	newJob := newTestJob("new-job")
 	newConfigMap := newTestConfigMap("new-configmap")
 	jobFactory := newTestJobFactory(newJob, newConfigMap, nil)
-	result, job, err := jobControl.ControlJobs(testOwnerKey, testOwner, "", true, jobFactory)
+	result, job, err := jobControl.ControlJobs(testOwnerKey, testOwner, true, jobFactory)
 	if err != nil {
 		t.Fatalf("no error expected: %v", err)
 	}
@@ -273,79 +273,6 @@ func TestJobControlForNewJob(t *testing.T) {
 	assert.Empty(t, test.GetDireLogEntries(loggerHook), "unexpected dire log entries")
 }
 
-// TestJobControlForExistingJob tests controlling jobs when there is an
-// existing job for the current generation of the owner.
-func TestJobControlForExistingJob(t *testing.T) {
-	jobControl, jobStore, kubeClient, _, _, _, loggerHook := newTestJobControl(testJobPrefix, testOwnerKind)
-	testOwner := newTestOwner(1)
-	existingJob := newTestControlledJob(testJobPrefix, "existing-job", testOwner, testOwnerKind, 1)
-	jobStore.Add(existingJob)
-	newJob := newTestJob("new-job")
-	newConfigMap := newTestConfigMap("new-configmap")
-	jobFactory := newTestJobFactory(newJob, newConfigMap, nil)
-	result, job, err := jobControl.ControlJobs(testOwnerKey, testOwner, existingJob.Name, true, jobFactory)
-	if err != nil {
-		t.Fatalf("no error expected: %v", err)
-	}
-	if e, a := JobControlJobWorking, result; e != a {
-		t.Fatalf("unexpected job control result: expected %v, got %v", e, a)
-	}
-	if job == nil {
-		t.Fatalf("job expected")
-	}
-	if e, a := 0, len(jobFactory.calls); e != a {
-		t.Fatalf("unexpected number of calls to build jobs: expected %v, got %v", e, a)
-	}
-	if e, a := existingJob.Name, job.Name; e != a {
-		t.Fatalf("unexpected job returned: expected %v, got %v", e, a)
-	}
-	actions := kubeClient.Actions()
-	if e, a := 0, len(actions); e != a {
-		t.Fatalf("unexpected number of kube client actions: expected %v, got %v", e, a)
-	}
-	assert.Empty(t, test.GetDireLogEntries(loggerHook), "unexpected dire log entries")
-}
-
-// TestJobControlForExistingOldJob tests controlling jobs when there is an
-// existing job for an older generation of the owner.
-func TestJobControlForExistingOldJob(t *testing.T) {
-	jobControl, jobStore, kubeClient, _, _, _, loggerHook := newTestJobControl(testJobPrefix, testOwnerKind)
-	testOwner := newTestOwner(2)
-	existingJob := newTestControlledJob(testJobPrefix, "existing-job", testOwner, testOwnerKind, 1)
-	jobStore.Add(existingJob)
-	newJob := newTestJob("new-job")
-	newConfigMap := newTestConfigMap("new-configmap")
-	jobFactory := newTestJobFactory(newJob, newConfigMap, nil)
-	result, job, err := jobControl.ControlJobs(testOwnerKey, testOwner, existingJob.Name, true, jobFactory)
-	if err != nil {
-		t.Fatalf("no error expected: %v", err)
-	}
-	if e, a := JobControlDeletingJobs, result; e != a {
-		t.Fatalf("unexpected job control result: expected %v, got %v", e, a)
-	}
-	if job != nil {
-		t.Fatalf("unexpected job: %v", job)
-	}
-	if e, a := 0, len(jobFactory.calls); e != a {
-		t.Fatalf("unexpected number of calls to build jobs: expected %v, got %v", e, a)
-	}
-	actions := kubeClient.Actions()
-	if e, a := 1, len(actions); e != a {
-		t.Fatalf("unexpected number of kube client actions: expected %v, got %v", e, a)
-	}
-	{
-		deleteAction, ok := actions[0].(clientgotesting.DeleteAction)
-		if !ok {
-			t.Fatalf("first action was not a delete: %v", actions[0])
-		}
-		deletedObjectName := deleteAction.GetName()
-		if e, a := existingJob.Name, deletedObjectName; e != a {
-			t.Fatalf("deleted job does not match expected: expected %v, got %v", e, a)
-		}
-	}
-	assert.Empty(t, test.GetDireLogEntries(loggerHook), "unexpected dire log entries")
-}
-
 // TestJobControlWhenJobDeleteFails tests controlling jobs when the delete
 // of an old existing job fails.
 func TestJobControlWhenJobDeleteFails(t *testing.T) {
@@ -359,7 +286,7 @@ func TestJobControlWhenJobDeleteFails(t *testing.T) {
 	newJob := newTestJob("new-job")
 	newConfigMap := newTestConfigMap("new-configmap")
 	jobFactory := newTestJobFactory(newJob, newConfigMap, nil)
-	result, _, err := jobControl.ControlJobs(testOwnerKey, testOwner, existingJob.Name, true, jobFactory)
+	result, _, err := jobControl.ControlJobs(testOwnerKey, testOwner, true, jobFactory)
 	if err == nil {
 		t.Fatalf("error expected")
 	}
