@@ -18,6 +18,7 @@ package integration
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 
@@ -192,7 +193,7 @@ func completeInfraProvision(t *testing.T, kubeClient *kubefake.Clientset, cluste
 		kubeClient,
 		clusterOperatorClient,
 		cluster.Namespace, cluster.Name,
-		func(cluster *v1alpha1.Cluster) *corev1.LocalObjectReference { return cluster.Status.ProvisionJob },
+		clusterJobRef(t, kubeClient, "job-infra-"),
 		waitForClusterProvisioned,
 	) {
 		return false
@@ -209,6 +210,48 @@ func completeInfraProvision(t *testing.T, kubeClient *kubefake.Clientset, cluste
 	return true
 }
 
+func clusterJobRef(t *testing.T, kubeClient *kubefake.Clientset, jobPrefix string) func(*v1alpha1.Cluster) *corev1.LocalObjectReference {
+	return func(cluster *v1alpha1.Cluster) *corev1.LocalObjectReference {
+		list, err := kubeClient.BatchV1().Jobs(cluster.Namespace).List(metav1.ListOptions{})
+		if err != nil {
+			t.Errorf("error retrieving jobs")
+			return nil
+		}
+		for _, job := range list.Items {
+			if !metav1.IsControlledBy(&job, cluster) {
+				continue
+			}
+			if strings.HasPrefix(job.Name, jobPrefix) {
+				return &corev1.LocalObjectReference{
+					Name: job.Name,
+				}
+			}
+		}
+		return nil
+	}
+}
+
+func machineSetJobRef(t *testing.T, kubeClient *kubefake.Clientset, jobPrefix string) func(*v1alpha1.MachineSet) *corev1.LocalObjectReference {
+	return func(machineSet *v1alpha1.MachineSet) *corev1.LocalObjectReference {
+		list, err := kubeClient.BatchV1().Jobs(machineSet.Namespace).List(metav1.ListOptions{})
+		if err != nil {
+			t.Errorf("error retrieving jobs")
+			return nil
+		}
+		for _, job := range list.Items {
+			if !metav1.IsControlledBy(&job, machineSet) {
+				continue
+			}
+			if strings.HasPrefix(job.Name, jobPrefix) {
+				return &corev1.LocalObjectReference{
+					Name: job.Name,
+				}
+			}
+		}
+		return nil
+	}
+}
+
 // completeInfraDeprovision waits for the cluster to be deprovisioning,
 // completes the deprovision job, and waits for the cluster to have its
 // provision finalizer removed.
@@ -219,7 +262,7 @@ func completeInfraDeprovision(t *testing.T, kubeClient *kubefake.Clientset, clus
 		kubeClient,
 		clusterOperatorClient,
 		cluster.Namespace, cluster.Name,
-		func(cluster *v1alpha1.Cluster) *corev1.LocalObjectReference { return cluster.Status.ProvisionJob },
+		clusterJobRef(t, kubeClient, "job-infra-"),
 		func(client clientset.Interface, namespace, name string) error {
 			return waitForObjectToNotExistOrNotHaveFinalizer(
 				namespace, name,
@@ -242,9 +285,7 @@ func completeMachineSetProvision(t *testing.T, kubeClient *kubefake.Clientset, c
 		kubeClient,
 		clusterOperatorClient,
 		machineSet.Namespace, machineSet.Name,
-		func(machineSet *v1alpha1.MachineSet) *corev1.LocalObjectReference {
-			return machineSet.Status.ProvisionJob
-		},
+		machineSetJobRef(t, kubeClient, "provision-machineset-"),
 		func(client clientset.Interface, namespace, name string) error {
 			return waitForMachineSetStatus(
 				client,
@@ -295,9 +336,7 @@ func completeMachineSetDeprovision(t *testing.T, kubeClient *kubefake.Clientset,
 		kubeClient,
 		clusterOperatorClient,
 		machineSet.Namespace, machineSet.Name,
-		func(machineSet *v1alpha1.MachineSet) *corev1.LocalObjectReference {
-			return machineSet.Status.ProvisionJob
-		},
+		machineSetJobRef(t, kubeClient, "provision-machineset-"),
 		func(client clientset.Interface, namespace, name string) error {
 			return waitForObjectToNotExistOrNotHaveFinalizer(
 				namespace, name,
@@ -336,9 +375,7 @@ func completeMachineSetInstall(t *testing.T, kubeClient *kubefake.Clientset, clu
 		kubeClient,
 		clusterOperatorClient,
 		machineSet.Namespace, machineSet.Name,
-		func(machineSet *v1alpha1.MachineSet) *corev1.LocalObjectReference {
-			return machineSet.Status.InstallationJob
-		},
+		machineSetJobRef(t, kubeClient, "job-master-"),
 		func(client clientset.Interface, namespace, name string) error {
 			return waitForMachineSetStatus(
 				client,
@@ -361,9 +398,7 @@ func completeMachineSetAccept(t *testing.T, kubeClient *kubefake.Clientset, clus
 		kubeClient,
 		clusterOperatorClient,
 		machineSet.Namespace, machineSet.Name,
-		func(machineSet *v1alpha1.MachineSet) *corev1.LocalObjectReference {
-			return machineSet.Status.AcceptJob
-		},
+		machineSetJobRef(t, kubeClient, "job-accept-"),
 		func(client clientset.Interface, namespace, name string) error {
 			return waitForMachineSetStatus(
 				client,
