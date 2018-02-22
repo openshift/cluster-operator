@@ -15,7 +15,7 @@ objects:
       awsVMImages:
         regionAMIs:
         - region: us-east-1
-          ami: ami-10aed306
+          ami: ami-833d37f9
     deploymentType: origin
     version: "v3.7.0"
 - apiVersion: clusteroperator.openshift.io/v1alpha1
@@ -29,7 +29,7 @@ objects:
       awsVMImages:
         regionAMIs:
         - region: us-east-1
-          ami: ami-10aed306
+          ami: ami-833d37f9
     deploymentType: openshift-enterprise
     version: "v3.9.0"
 - apiVersion: clusteroperator.openshift.io/v1alpha1
@@ -43,7 +43,7 @@ objects:
       awsVMImages:
         regionAMIs:
         - region: us-east-1
-          ami: ami-10aed306
+          ami: ami-833d37f9
     deploymentType: openshift-enterprise
     version: "v3.10.0"
 - apiVersion: clusteroperator.openshift.io/v1alpha1
@@ -67,7 +67,7 @@ objects:
         keyPairName: "libra"
     defaultHardwareSpec:
       aws:
-        amiName: "ami-2ed6f454"
+        amiName: "ami-833d37f9"
         instanceType: "m4.xlarge"
     machineSets:
     - name: master
