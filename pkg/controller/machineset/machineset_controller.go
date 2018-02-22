@@ -63,7 +63,9 @@ const (
 
 	computeProvisioningPlaybook = "playbooks/aws/openshift-cluster/provision_nodes.yml"
 
-	deprovisioningPlaybook = "playbooks/aws/openshift-cluster/deprovision.yml"
+	deprovisioningPlaybook = "playbooks/aws/openshift-cluster/uninstall_nodes.yml"
+
+	masterDeprovisioningPlaybook = "playbooks/aws/openshift-cluster/uninstall_masters.yml"
 )
 
 var (
@@ -319,7 +321,12 @@ func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object, deleting bool) (con
 		var playbook string
 		switch {
 		case deleting:
-			playbook = deprovisioningPlaybook
+			switch machineSet.Spec.NodeType {
+			case clusteroperator.NodeTypeMaster:
+				playbook = masterDeprovisioningPlaybook
+			default:
+				playbook = deprovisioningPlaybook
+			}
 		case machineSet.Spec.NodeType == clusteroperator.NodeTypeMaster:
 			playbook = masterProvisioningPlaybook
 		default:
