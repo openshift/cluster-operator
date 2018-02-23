@@ -286,7 +286,7 @@ func startServerAndControllers(t *testing.T) (
 	metav1.AddToGroupVersion(scheme, schema.GroupVersion{Version: "v1"})
 	kubefake.AddToScheme(scheme)
 	objectTracker := clientgotesting.NewObjectTracker(scheme, codecs.UniversalDecoder())
-	kubeWatch := watch.NewFake()
+	kubeWatch := watch.NewRaceFreeFake()
 	// Add a reactor for sending watch events when a job is modified
 	objectReaction := clientgotesting.ObjectReaction(objectTracker)
 	fakePtr.AddReactor("*", "jobs", func(action clientgotesting.Action) (bool, runtime.Object, error) {
