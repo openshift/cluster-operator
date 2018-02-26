@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -346,6 +347,26 @@ func (c *Controller) processNextWorkItem() bool {
 	return true
 }
 
+func (c *Controller) ensureMachineSetsAreDeleted(cluster *clusteroperator.Cluster) error {
+	machineSets, err := controller.MachineSetsForCluster(cluster, c.machineSetsLister)
+	if err != nil {
+		return err
+	}
+	errs := []error{}
+	for _, machineSet := range machineSets {
+		if machineSet.DeletionTimestamp == nil {
+			err = c.client.ClusteroperatorV1alpha1().MachineSets(machineSet.Namespace).Delete(machineSet.Name, &metav1.DeleteOptions{})
+			if err != nil && !errors.IsNotFound(err) {
+				errs = append(errs, err)
+			}
+		}
+	}
+	if len(errs) > 0 {
+		return utilerrors.NewAggregate(errs)
+	}
+	return nil
+}
+
 // syncCluster will sync the cluster with the given key.
 // This function is not meant to be invoked concurrently with the same key.
 func (c *Controller) syncCluster(key string) error {
@@ -374,8 +395,8 @@ func (c *Controller) syncCluster(key string) error {
 	clusterLog := colog.WithCluster(c.logger, cluster)
 
 	if cluster.DeletionTimestamp != nil {
-		clusterLog.Debug("skipping sync since cluster is being deleted")
-		return nil
+		clusterLog.Debug("cluster has been deleted. Ensuring that its machinesets are also deleted.")
+		return c.ensureMachineSetsAreDeleted(cluster)
 	}
 
 	clusterNeedsSync := c.expectations.SatisfiedExpectations(key)
