@@ -48,6 +48,7 @@
   - name: check for password-protected ssh key
     command: "grep ENCRYPTED {{ ssh_priv_key }}"
     ignore_errors: yes
+    failed_when: false
     changed_when: no
     register: pass_protect_ssh
 
