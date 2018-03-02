@@ -20,12 +20,14 @@ oc get secret aws-credentials -n cluster-operator -o yaml | sed -E '/(namespace:
 oc get secret ssh-private-key -n cluster-operator -o yaml | sed -E '/(namespace:|annotations|last-applied-configuration:|selfLink|uid:|resourceVersion:)/d' | oc apply -f -
 oc get secret ssl-cert -n cluster-operator -o yaml | sed -E '/(namespace:|annotations|last-applied-configuration:|selfLink|uid:|resourceVersion:)/d' | oc apply -f -
 
+default_name="$(whoami)-cluster"
+name="${1:-$default_name}"
 
-if [ -e contrib/examples/$(whoami)-cluster.yaml ]
+if [ -e contrib/examples/${name}.yaml ]
 then
-	CLUSTER_YAML="$(whoami)-cluster.yaml"
+	CLUSTER_YAML="${name}.yaml"
 else
 	CLUSTER_YAML="cluster.yaml"
 fi
 
-oc process -f contrib/examples/${CLUSTER_YAML} -p CLUSTER_NAME=$(whoami)-cluster | oc apply -f -
+oc process -f contrib/examples/${CLUSTER_YAML} -p CLUSTER_NAME=${name} | oc apply -f -
