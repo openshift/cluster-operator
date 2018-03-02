@@ -7,45 +7,17 @@ objects:
 - apiVersion: clusteroperator.openshift.io/v1alpha1
   kind: ClusterVersion
   metadata:
-    name: origin-v3-7
+    name: origin-v3-9
     namespace: ${CLUSTER_VERSION_NS}
   spec:
-    imageFormat: "openshift/origin-${component}:v3.7.0"
+    imageFormat: "openshift/origin-${component}:v3.9.0"
     vmImages:
       awsVMImages:
         regionAMIs:
         - region: us-east-1
           ami: ami-833d37f9
     deploymentType: origin
-    version: "v3.7.0"
-- apiVersion: clusteroperator.openshift.io/v1alpha1
-  kind: ClusterVersion
-  metadata:
-    name: ocp-v3-9
-    namespace: ${CLUSTER_VERSION_NS}
-  spec:
-    imageFormat: "openshift/origin-${component}:v3.9.0-alpha.1"
-    vmImages:
-      awsVMImages:
-        regionAMIs:
-        - region: us-east-1
-          ami: ami-833d37f9
-    deploymentType: openshift-enterprise
     version: "v3.9.0"
-- apiVersion: clusteroperator.openshift.io/v1alpha1
-  kind: ClusterVersion
-  metadata:
-    name: ocp-v3-10
-    namespace: ${CLUSTER_VERSION_NS}
-  spec:
-    imageFormat: "openshift/origin-${component}:v3.10.notrealyet"
-    vmImages:
-      awsVMImages:
-        regionAMIs:
-        - region: us-east-1
-          ami: ami-833d37f9
-    deploymentType: openshift-enterprise
-    version: "v3.10.0"
 - apiVersion: clusteroperator.openshift.io/v1alpha1
   kind: Cluster
   metadata:
@@ -53,7 +25,7 @@ objects:
   spec:
     clusterVersionRef:
       namespace: cluster-operator
-      name: origin-v3-7
+      name: origin-v3-9
     hardware:
       aws:
         accountSecret:
@@ -67,7 +39,6 @@ objects:
         keyPairName: "libra"
     defaultHardwareSpec:
       aws:
-        amiName: "ami-833d37f9"
         instanceType: "m4.xlarge"
     machineSets:
     - name: master

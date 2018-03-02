@@ -47,6 +47,7 @@ const (
 	testClusterVerName = "v3-9"
 	testClusterVerNS   = "cluster-operator"
 	testClusterVerUID  = types.UID("test-cluster-version")
+	testRegion         = "us-east-1"
 )
 
 func init() {
@@ -142,6 +143,11 @@ func newClusterWithMasterInstanceType(cv *clusteroperator.ClusterVersion, instan
 					},
 				},
 			}),
+			Hardware: clusteroperator.ClusterHardwareSpec{
+				AWS: &clusteroperator.AWSClusterSpec{
+					Region: testRegion,
+				},
+			},
 		},
 		Status: clusteroperator.ClusterStatus{
 			MasterMachineSetName: testClusterName + "-master-random",
@@ -185,6 +191,11 @@ func newClusterWithSizes(cv *clusteroperator.ClusterVersion, masterSize int, com
 					NodeType: clusteroperator.NodeTypeMaster,
 				},
 			}),
+			Hardware: clusteroperator.ClusterHardwareSpec{
+				AWS: &clusteroperator.AWSClusterSpec{
+					Region: testRegion,
+				},
+			},
 		},
 		Status: clusteroperator.ClusterStatus{
 			MasterMachineSetName: testClusterName + "-master-random",
@@ -244,6 +255,7 @@ func newMachineSets(store cache.Store, cluster *clusteroperator.Cluster, cluster
 				NodeType: clusteroperator.NodeTypeCompute,
 				Size:     1,
 			},
+
 			Name: computeName,
 		}
 	}
@@ -266,6 +278,7 @@ func newMachineSetsWithSizes(store cache.Store, cluster *clusteroperator.Cluster
 			Namespace: clusterVersion.Namespace,
 			UID:       clusterVersion.UID,
 		}
+		machineSet.Spec.ClusterHardware.AWS = cluster.Spec.Hardware.AWS
 		machineSets = append(machineSets, machineSet)
 	}
 	for _, compute := range computes {
@@ -277,6 +290,7 @@ func newMachineSetsWithSizes(store cache.Store, cluster *clusteroperator.Cluster
 			Namespace: clusterVersion.Namespace,
 			UID:       clusterVersion.UID,
 		}
+		machineSet.Spec.ClusterHardware.AWS = cluster.Spec.Hardware.AWS
 		machineSets = append(machineSets, machineSet)
 	}
 	if store != nil {
@@ -307,6 +321,7 @@ func newMachineSetsWithMasterInstanceType(store cache.Store, cluster *clusterope
 			Namespace: clusterVersion.Namespace,
 			UID:       clusterVersion.UID,
 		}
+		machineSet.Spec.ClusterHardware.AWS = cluster.Spec.Hardware.AWS
 		machineSets = append(machineSets, machineSet)
 	}
 	for _, compute := range computes {
@@ -318,6 +333,7 @@ func newMachineSetsWithMasterInstanceType(store cache.Store, cluster *clusterope
 			Namespace: clusterVersion.Namespace,
 			UID:       clusterVersion.UID,
 		}
+		machineSet.Spec.ClusterHardware.AWS = cluster.Spec.Hardware.AWS
 		machineSets = append(machineSets, machineSet)
 	}
 	if store != nil {
@@ -328,11 +344,10 @@ func newMachineSetsWithMasterInstanceType(store cache.Store, cluster *clusterope
 	return machineSets
 }
 
-func newHardwareSpec(instanceType, amiName string) *clusteroperator.MachineSetHardwareSpec {
+func newHardwareSpec(instanceType string) *clusteroperator.MachineSetHardwareSpec {
 	return &clusteroperator.MachineSetHardwareSpec{
 		AWS: &clusteroperator.MachineSetAWSHardwareSpec{
 			InstanceType: instanceType,
-			AMIName:      amiName,
 		},
 	}
 }
@@ -348,21 +363,11 @@ func newClusterVer(namespace, name string, uid types.UID) *clusteroperator.Clust
 		},
 		Spec: clusteroperator.ClusterVersionSpec{
 			ImageFormat: "openshift/origin-${component}:${version}",
-			YumRepositories: []clusteroperator.YumRepository{
-				{
-					ID:       "testrepo",
-					Name:     "a testing repo",
-					BaseURL:  "http://example.com/nobodycares/",
-					Enabled:  1,
-					GPGCheck: 1,
-					GPGKey:   "http://example.com/notreal.gpg",
-				},
-			},
 			VMImages: clusteroperator.VMImages{
 				AWSImages: &clusteroperator.AWSVMImages{
 					RegionAMIs: []clusteroperator.AWSRegionAMIs{
 						{
-							Region: "us-east-1",
+							Region: testRegion,
 							AMI:    "computeAMI_ID",
 						},
 					},
@@ -697,7 +702,6 @@ func TestApplyDefaultMachineSetHardwareSpec(t *testing.T) {
 	awsSpec := func(amiName, instanceType string) *clusteroperator.MachineSetHardwareSpec {
 		return &clusteroperator.MachineSetHardwareSpec{
 			AWS: &clusteroperator.MachineSetAWSHardwareSpec{
-				AMIName:      amiName,
 				InstanceType: instanceType,
 			},
 		}
@@ -797,6 +801,7 @@ func TestSyncClusterWithVersion(t *testing.T) {
 		expectedMachineSetsDeleted bool
 		expectedStatusUpdate       bool
 		expectedStatusClusterRef   *corev1.ObjectReference
+		expectedCondition          *clusteroperator.ClusterCondition
 	}{
 		{
 			name: "NoCurrentVersionNewDoesNotExist",
@@ -820,6 +825,30 @@ func TestSyncClusterWithVersion(t *testing.T) {
 				Name:      testClusterVerName,
 				Namespace: testClusterVerNS,
 				UID:       testClusterVerUID,
+			},
+		},
+		{
+			name: "NoCurrentVersionMissingRegion",
+			currentClusterVersion: nil,
+			newClusterVersion: func() *clusteroperator.ClusterVersion {
+				cv := newClusterVer(testClusterVerNS, testClusterVerName, testClusterVerUID)
+				// Modify the default cluster version so it will not have a matching region:
+				cv.Spec.VMImages.AWSImages.RegionAMIs[0].Region = "different-region"
+				return cv
+			}(),
+			newClusterVersionExists:    true,
+			expectedMachineSetsCreated: false,
+			expectedMachineSetsDeleted: false,
+			expectedStatusUpdate:       true,
+			expectedStatusClusterRef: &corev1.ObjectReference{
+				Name:      testClusterVerName,
+				Namespace: testClusterVerNS,
+				UID:       testClusterVerUID,
+			},
+			expectedCondition: &clusteroperator.ClusterCondition{
+				Type:   clusteroperator.ClusterVersionIncompatible,
+				Reason: versionMissingRegion,
+				Status: corev1.ConditionTrue,
 			},
 		},
 		{
@@ -919,6 +948,19 @@ func TestSyncClusterWithVersion(t *testing.T) {
 
 			validateClientActions(t, "TestSyncClusterWithVersion/"+tc.name, clusterOperatorClient, expectedActions...)
 			validateControllerExpectations(t, "TestSyncClusterWithVersion/"+tc.name, controller, cluster, expectedAdds, expectedDeletes)
+
+			if tc.expectedCondition != nil {
+				foundCondition := false
+				// NOTE: Only checking some fields on the condition for brevity in test data:
+				for _, cond := range cluster.Status.Conditions {
+					if cond.Type == tc.expectedCondition.Type && cond.Reason == tc.expectedCondition.Reason &&
+						cond.Status == tc.expectedCondition.Status {
+						foundCondition = true
+						break
+					}
+				}
+				assert.True(t, foundCondition, "missing expected condition")
+			}
 		})
 	}
 }
@@ -1451,6 +1493,7 @@ func TestSyncClusterMachineSetOwnerReference(t *testing.T) {
 			machineSet.Spec.Size = 1
 			machineSet.Spec.Infra = true
 			machineSet.Spec.ClusterVersionRef = *cluster.Status.ClusterVersionRef
+			machineSet.Spec.ClusterHardware = cluster.Spec.Hardware
 			if tc.ownerRef != nil {
 				machineSet.OwnerReferences = []metav1.OwnerReference{*tc.ownerRef}
 			}
@@ -1511,6 +1554,7 @@ func TestSyncClusterMachineSetDeletionTimestamp(t *testing.T) {
 			machineSet.Spec.Size = 1
 			machineSet.Spec.Infra = true
 			machineSet.Spec.ClusterVersionRef = *cluster.Status.ClusterVersionRef
+			machineSet.Spec.ClusterHardware = cluster.Spec.Hardware
 			machineSet.DeletionTimestamp = tc.deletionTimestamp
 			machineSetStore.Add(machineSet)
 
@@ -1639,62 +1683,48 @@ func TestSyncClusterMachineSetsHardwareChange(t *testing.T) {
 	}{
 		{
 			name:             "hardware from defaults",
-			old:              newHardwareSpec("instance-type", "ami-name"),
-			newDefault:       newHardwareSpec("instance-type", "ami-name"),
-			newForMachineSet: newHardwareSpec("", ""),
+			old:              newHardwareSpec("instance-type"),
+			newDefault:       newHardwareSpec("instance-type"),
+			newForMachineSet: newHardwareSpec(""),
 		},
 		{
 			name:             "hardware from machine set",
-			old:              newHardwareSpec("instance-type", "ami-name"),
-			newDefault:       newHardwareSpec("", ""),
-			newForMachineSet: newHardwareSpec("instance-type", "ami-name"),
+			old:              newHardwareSpec("instance-type"),
+			newDefault:       newHardwareSpec(""),
+			newForMachineSet: newHardwareSpec("instance-type"),
 		},
 		{
 			name:             "hardware mixed from default and machine set",
-			old:              newHardwareSpec("instance-type", "ami-name"),
-			newDefault:       newHardwareSpec("instance-type", ""),
-			newForMachineSet: newHardwareSpec("", "ami-name"),
+			old:              newHardwareSpec("instance-type"),
+			newDefault:       newHardwareSpec("instance-type"),
+			newForMachineSet: newHardwareSpec(""),
 		},
 		{
 			name:             "hardware from machine set overriding default",
-			old:              newHardwareSpec("instance-type", "ami-name"),
-			newDefault:       newHardwareSpec("overriden-instance-type", "overriden-ami-name"),
-			newForMachineSet: newHardwareSpec("instance-type", "ami-name"),
+			old:              newHardwareSpec("instance-type"),
+			newDefault:       newHardwareSpec("overriden-instance-type"),
+			newForMachineSet: newHardwareSpec("instance-type"),
 		},
 		{
 			name:             "instance type changed for machine set",
-			old:              newHardwareSpec("instance-type", "ami-name"),
-			newDefault:       newHardwareSpec("", ""),
-			newForMachineSet: newHardwareSpec("new-instance-type", "ami-name"),
-			expected:         newHardwareSpec("new-instance-type", "ami-name"),
-		},
-		{
-			name:             "ami name type changed for machine set",
-			old:              newHardwareSpec("instance-type", "ami-name"),
-			newDefault:       newHardwareSpec("", ""),
-			newForMachineSet: newHardwareSpec("instance-type", "new-ami-name"),
-			expected:         newHardwareSpec("instance-type", "new-ami-name"),
+			old:              newHardwareSpec("instance-type"),
+			newDefault:       newHardwareSpec(""),
+			newForMachineSet: newHardwareSpec("new-instance-type"),
+			expected:         newHardwareSpec("new-instance-type"),
 		},
 		{
 			name:             "instance type changed for default",
-			old:              newHardwareSpec("instance-type", "ami-name"),
-			newDefault:       newHardwareSpec("new-instance-type", "ami-name"),
-			newForMachineSet: newHardwareSpec("", ""),
-			expected:         newHardwareSpec("new-instance-type", "ami-name"),
-		},
-		{
-			name:             "ami name type changed for default",
-			old:              newHardwareSpec("instance-type", "ami-name"),
-			newDefault:       newHardwareSpec("instance-type", "new-ami-name"),
-			newForMachineSet: newHardwareSpec("", ""),
-			expected:         newHardwareSpec("instance-type", "new-ami-name"),
+			old:              newHardwareSpec("instance-type"),
+			newDefault:       newHardwareSpec("new-instance-type"),
+			newForMachineSet: newHardwareSpec(""),
+			expected:         newHardwareSpec("new-instance-type"),
 		},
 		{
 			name:             "changed by overriding for machine set",
-			old:              newHardwareSpec("instance-type", "ami-name"),
-			newDefault:       newHardwareSpec("instance-type", "ami-name"),
-			newForMachineSet: newHardwareSpec("new-instance-type", "new-ami-name"),
-			expected:         newHardwareSpec("new-instance-type", "new-ami-name"),
+			old:              newHardwareSpec("instance-type"),
+			newDefault:       newHardwareSpec("instance-type"),
+			newForMachineSet: newHardwareSpec("new-instance-type"),
+			expected:         newHardwareSpec("new-instance-type"),
 		},
 	}
 	for _, tc := range cases {

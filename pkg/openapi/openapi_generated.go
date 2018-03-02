@@ -633,19 +633,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 				SchemaProps: spec.SchemaProps{
 					Description: "ClusterVersionSpec is a specification of a cluster version that can be installed.",
 					Properties: map[string]spec.Schema{
-						"yumRepositories": {
-							SchemaProps: spec.SchemaProps{
-								Description: "YumRepositories is an optional list of yum repositories that should be configured on each host in the cluster.",
-								Type:        []string{"array"},
-								Items: &spec.SchemaOrArray{
-									Schema: &spec.Schema{
-										SchemaProps: spec.SchemaProps{
-											Ref: ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.YumRepository"),
-										},
-									},
-								},
-							},
-						},
 						"imageFormat": {
 							SchemaProps: spec.SchemaProps{
 								Description: "ImageFormat defines a format string for the container registry and images to use for various OpenShift components. Valid expansions are component (required, expands to pod/deployer/haproxy-router/etc), and version (v3.9.0). (i.e. example.com/openshift3/ose-${component}:${version}\")",
@@ -677,7 +664,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 				},
 			},
 			Dependencies: []string{
-				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.VMImages", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.YumRepository"},
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.VMImages"},
 		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterVersionStatus": {
 			Schema: spec.Schema{
@@ -821,13 +808,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 						"instanceType": {
 							SchemaProps: spec.SchemaProps{
 								Description: "InstanceType is the type of instance to use for machines in this MachineSet",
-								Type:        []string{"string"},
-								Format:      "",
-							},
-						},
-						"amiName": {
-							SchemaProps: spec.SchemaProps{
-								Description: "AMIName is the name of the AMI to use for machines in this MachineSet",
 								Type:        []string{"string"},
 								Format:      "",
 							},
@@ -1204,55 +1184,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 			},
 			Dependencies: []string{
 				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.AWSVMImages"},
-		},
-		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.YumRepository": {
-			Schema: spec.Schema{
-				SchemaProps: spec.SchemaProps{
-					Description: "YumRepository represents optional yum repositories to deploy onto all systems in the cluster.",
-					Properties: map[string]spec.Schema{
-						"id": {
-							SchemaProps: spec.SchemaProps{
-								Type:   []string{"string"},
-								Format: "",
-							},
-						},
-						"name": {
-							SchemaProps: spec.SchemaProps{
-								Type:   []string{"string"},
-								Format: "",
-							},
-						},
-						"baseurl": {
-							SchemaProps: spec.SchemaProps{
-								Type:   []string{"string"},
-								Format: "",
-							},
-						},
-						"enabled": {
-							SchemaProps: spec.SchemaProps{
-								Description: "Enabled controls whether or not the repository should be enabled on the end system. Must be 0 or 1 to match yum.",
-								Type:        []string{"integer"},
-								Format:      "int32",
-							},
-						},
-						"gpgcheck": {
-							SchemaProps: spec.SchemaProps{
-								Description: "GPGCheck controls whether or not the packages in the repository should have their GPG signatures validated. Must be 0 or 1 to match yum.",
-								Type:        []string{"integer"},
-								Format:      "int32",
-							},
-						},
-						"gpgkey": {
-							SchemaProps: spec.SchemaProps{
-								Type:   []string{"string"},
-								Format: "",
-							},
-						},
-					},
-					Required: []string{"id", "name", "baseurl", "enabled", "gpgcheck"},
-				},
-			},
-			Dependencies: []string{},
 		},
 		"k8s.io/api/core/v1.AWSElasticBlockStoreVolumeSource": {
 			Schema: spec.Schema{
