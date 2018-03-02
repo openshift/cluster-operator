@@ -260,7 +260,7 @@ type ClusterStatus struct {
 	Provisioned bool
 
 	// ProvisionedJobGeneration is the generation of the cluster resource used to
-	// generate the latest successful infra provisioning job.
+	// generate the latest completed infra provisioning job.
 	ProvisionedJobGeneration int64
 
 	// Running is true if the master of the cluster is running and can be accessed using
@@ -419,7 +419,7 @@ type MachineSetStatus struct {
 	ComponentsInstalled bool
 
 	// ComponentsInstalledJobGeneration is the generation of the machine set resource used to
-	// generate the latest successful component installation job.
+	// generate the latest completed component installation job.
 	ComponentsInstalledJobGeneration int64
 
 	// Installed is true if the software required for this machine set is installed
@@ -427,7 +427,7 @@ type MachineSetStatus struct {
 	Installed bool
 
 	// InstalledJobGeneration is the generation of the machine set resource used to
-	// generate the latest successful installation job.
+	// generate the latest completed installation job.
 	InstalledJobGeneration int64
 
 	// Provisioned is true if the hardware that corresponds to this MachineSet has
@@ -435,14 +435,14 @@ type MachineSetStatus struct {
 	Provisioned bool
 
 	// ProvisionedJobGeneration is the generation of the machine set resource used to
-	// to generate the latest successful hardware provisioning job.
+	// to generate the latest completed hardware provisioning job.
 	ProvisionedJobGeneration int64
 
 	// Accepted is true if machine set nodes have been accepted on the master
 	Accepted bool
 
 	// AcceptedJobGeneration is the generation of the machine set resource used to
-	// run the latest successful accept job.
+	// run the latest completed accept job.
 	AcceptedJobGeneration int64
 }
 

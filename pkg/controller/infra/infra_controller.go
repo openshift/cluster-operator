@@ -354,13 +354,13 @@ func (s *jobSyncStrategy) SetOwnerJobSyncCondition(
 	)
 }
 
-func (s *jobSyncStrategy) OnJobCompletion(owner metav1.Object) {
+func (s *jobSyncStrategy) OnJobCompletion(owner metav1.Object, succeeded bool) {
 	cluster, ok := owner.(*clusteroperator.Cluster)
 	if !ok {
 		s.controller.logger.Warn("could not convert owner from JobSync into a cluster: %#v", owner)
 		return
 	}
-	cluster.Status.Provisioned = true
+	cluster.Status.Provisioned = succeeded
 	cluster.Status.ProvisionedJobGeneration = cluster.Generation
 }
 

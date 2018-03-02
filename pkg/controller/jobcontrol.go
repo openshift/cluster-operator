@@ -57,6 +57,9 @@ const (
 	// JobControlJobSucceeded indicates that the job for current
 	// generation of the owner has completed successfully.
 	JobControlJobSucceeded JobControlResult = "JobSucceeded"
+	// JobControlJobFailed indicates that the job for current
+	// generation of the owner has failed.
+	JobControlJobFailed JobControlResult = "JobFailed"
 	// JobControlCreatingJob indicates that a job is being created to process
 	// the current generation of the owner.
 	JobControlCreatingJob JobControlResult = "CreatingJob"
@@ -182,7 +185,7 @@ func (c *jobControl) ControlJobs(
 	// If the job does not correspond to the owner's current generation,
 	// delete the job.
 	jobsToDelete := []*kbatch.Job{}
-	var activeJob, successfulJob *kbatch.Job
+	var generationJob *kbatch.Job
 
 	jobs, err := c.jobsLister.Jobs(owner.GetNamespace()).List(labels.Everything())
 	if err != nil {
@@ -196,11 +199,7 @@ func (c *jobControl) ControlJobs(
 			continue
 		}
 		if jobOwnerGeneration(job) == owner.GetGeneration() {
-			if isActive(job) {
-				activeJob = job
-			} else if isSuccessful(job) {
-				successfulJob = job
-			}
+			generationJob = job
 		} else {
 			jobsToDelete = append(jobsToDelete, job)
 		}
@@ -215,17 +214,23 @@ func (c *jobControl) ControlJobs(
 		return JobControlDeletingJobs, nil, err
 	}
 
-	// A successful job exists for the current generation of the owner.
-	// The owner's status needs to be updated accordingly.
-	if successfulJob != nil {
-		loggerForJob(logger, successfulJob).Debug("successful job found")
-		return JobControlJobSucceeded, successfulJob, nil
-	}
-
-	// Found an active job. Update owner status with it.
-	if activeJob != nil {
-		loggerForJob(logger, activeJob).Debug("active job found")
-		return JobControlJobWorking, activeJob, nil
+	if generationJob != nil {
+		switch {
+		// A successful job exists for the current generation of the owner.
+		// The owner's status needs to be updated accordingly.
+		case isSuccessful(generationJob):
+			loggerForJob(logger, generationJob).Debug("successful job found")
+			return JobControlJobSucceeded, generationJob, nil
+		// A failed job exists for the current generation of the owner.
+		// The owner's status needs to be updated accordingly.
+		case isFailed(generationJob):
+			loggerForJob(logger, generationJob).Debug("failed job found")
+			return JobControlJobFailed, generationJob, nil
+		// Found an active job. Update owner status with it.
+		default:
+			loggerForJob(logger, generationJob).Debug("active job found")
+			return JobControlJobWorking, generationJob, nil
+		}
 	}
 
 	// The owner needs a job to process its current generaton. A job needs to
@@ -496,10 +501,6 @@ func jobOwnerGeneration(job *kbatch.Job) int64 {
 		return 0
 	}
 	return generation
-}
-
-func isActive(job *kbatch.Job) bool {
-	return !isSuccessful(job) && !isFailed(job)
 }
 
 func isSuccessful(job *kbatch.Job) bool {
