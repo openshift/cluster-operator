@@ -18,11 +18,14 @@ package machineset
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	v1batch "k8s.io/api/batch/v1"
 	kapi "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/labels"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	batchinformers "k8s.io/client-go/informers/batch/v1"
@@ -44,6 +47,8 @@ import (
 	"github.com/openshift/cluster-operator/pkg/kubernetes/pkg/util/metrics"
 	colog "github.com/openshift/cluster-operator/pkg/logging"
 )
+
+var controllerKind = clusteroperator.SchemeGroupVersion.WithKind("MachineSet")
 
 const (
 	// maxRetries is the number of times a service will be retried before it is dropped out of the queue.
@@ -75,6 +80,7 @@ var (
 // NewController returns a new *Controller.
 func NewController(
 	machineSetInformer informers.MachineSetInformer,
+	machineInformer informers.MachineInformer,
 	jobInformer batchinformers.JobInformer,
 	kubeClient kubeclientset.Interface,
 	clusteroperatorClient clusteroperatorclientset.Interface,
@@ -99,6 +105,8 @@ func NewController(
 		logger:     logger,
 	}
 
+	c.machineLister = machineInformer.Lister()
+
 	machineSetInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.addMachineSet,
 		UpdateFunc: c.updateMachineSet,
@@ -115,6 +123,7 @@ func NewController(
 	c.jobSync = controller.NewJobSync(c.jobControl, &jobSyncStrategy{controller: c}, true, logger)
 
 	c.syncHandler = c.jobSync.Sync
+	c.syncHandler2 = c.syncMachineSet
 	c.enqueueMachineSet = c.enqueue
 	c.ansibleGenerator = ansible.NewJobGenerator(ansibleImage, ansibleImagePullPolicy)
 
@@ -129,6 +138,9 @@ type Controller struct {
 	// To allow injection of syncMachineSet for testing.
 	syncHandler func(hKey string) error
 
+	// Handle machineset->machine object lifecycle
+	syncHandler2 func(hKey string) error
+
 	// To allow injection of mock ansible generator for testing
 	ansibleGenerator ansible.JobGenerator
 
@@ -138,6 +150,9 @@ type Controller struct {
 
 	// used for unit testing
 	enqueueMachineSet func(machineSet *clusteroperator.MachineSet)
+
+	// fetch machine objects
+	machineLister lister.MachineLister
 
 	// machineSetsLister is able to list/get machine sets and is populated by the shared informer passed to
 	// NewController.
@@ -230,12 +245,188 @@ func (c *Controller) processNextWorkItem() bool {
 	}
 	defer c.queue.Done(key)
 
+	// create/delete ansible jobs
 	err := c.syncHandler(key.(string))
 	c.handleErr(err, key)
+
+	// create/delete Machine objects
+	err = c.syncHandler2(key.(string))
+	if err != nil {
+		c.logger.Errorf("JDIAZ error handing machine objects")
+	}
 
 	return true
 }
 
+func (c *Controller) syncMachineSet(key string) error {
+	c.logger.WithField("key", key).Debugf("JDIAZ synching machineset %v", key)
+
+	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+	if err != nil {
+		c.logger.Errorf("JDIAZ error parsing namespace out of machineset name %v", key)
+		return err
+	}
+
+	ms, err := c.machineSetsLister.MachineSets(namespace).Get(name)
+	if errors.IsNotFound(err) {
+		c.logger.WithField("key", key).Errorf("JDIAZ couldn't find machineset %v", key)
+		return err
+	}
+	if err != nil {
+		c.logger.Errorf("JDIAZ problem fetching machineset %v", key)
+		return err
+	}
+	if ms.Spec.NodeType == "Master" {
+		// masters aren't cattle, they need ansible depoyment
+		c.logger.WithField("machineset", ms).Debugf("JDIAZ ignoring master machineset: %v", ms)
+		return nil
+	}
+	//c.logger.WithField("machineset", ms).Debugf("JDIAZ full machineset: %+v", ms)
+
+	// check DeletionTimestamp???
+
+	// get all the machines in our current namespace
+	allMachines, err := c.machineLister.Machines(namespace).List(labels.Everything())
+	if err != nil {
+		c.logger.WithField("machineset", ms).Errorf("JDIAZ error while trying to get list of all machines")
+		return err
+	}
+	c.logger.WithField("machineset", name).Debugf("JDIAZ machinelist: %v", allMachines)
+
+	// get all machines which are children of this machineset
+	var filteredMachines []*clusteroperator.Machine
+	for _, machine := range allMachines {
+		if machine.DeletionTimestamp != nil {
+			continue
+		}
+		controllerRef := metav1.GetControllerOf(machine)
+		if controllerRef == nil {
+			c.logger.WithField("machineset", name).Debugf("JDIAZ no controller ref for machine %v", machine)
+			continue
+		}
+		if ms.UID != controllerRef.UID {
+			//c.logger.WithField("machineset", name).Debug("JDIAZ the kid is not my son %v", machine)
+			continue
+		}
+		filteredMachines = append(filteredMachines, machine)
+	}
+	//c.logger.WithField("machineset", name).Debugf("JDIAZ children machines: %v", filteredMachines)
+
+	var manageMachinesErr error
+
+	//if machineSetNeedsSync && ms.DeletionTimestamp == nil {
+	if true && ms.DeletionTimestamp == nil {
+		manageMachinesErr = c.manageMachines(filteredMachines, ms)
+	}
+
+	if manageMachinesErr != nil {
+		return manageMachinesErr
+	}
+
+	return nil
+}
+
+func (c *Controller) manageMachines(machines []*clusteroperator.Machine, ms *clusteroperator.MachineSet) error {
+	/*machineSetKey, err := controller.KeyFunc(ms)
+	if err != nil {
+		// FIXME
+		return nil
+	}*/
+
+	machinePrefix := ms.ObjectMeta.Name + "-"
+	//c.logger.WithField("machineset", ms.ObjectMeta.Name).Debugf("JDIAZ machine prefix: %v", machinePrefix)
+
+	machineSetMachines := []*clusteroperator.Machine{}
+	//machinesToCreate := []*clusteroperator.Machine{}
+	machinesToDelete := []*clusteroperator.Machine{}
+	//machinesToUpdate := []*clusteroperator.Machine{}
+
+	deleteCount := int(0)
+	createCount := int(0)
+
+
+	// caculate how many to create/delete
+	if len(machines) > ms.Spec.Size {
+		deleteCount = len(machines) - ms.Spec.Size
+	}
+	if len(machines) < ms.Spec.Size {
+		createCount = ms.Spec.Size - len(machines)
+	}
+
+	for _, machine := range machines {
+		if ! strings.HasPrefix(machine.ObjectMeta.Name, machinePrefix) {
+			// poorly-named
+			c.logger.WithField("machineset", ms.ObjectMeta.Name).Infof("JDIAZ child machine without expected prefix %v", machine.ObjectMeta.Name)
+			machinesToDelete = append(machinesToDelete, machine)
+			createCount++
+			deleteCount++
+			continue
+		}
+
+		if currentMachineNeedsUpdate(machine, ms) {
+			c.logger.WithField("machineset", ms.ObjectMeta.Name).Errorf("JDIAZ child machine needs update %v", machine.ObjectMeta.Name)
+			machinesToDelete = append(machinesToDelete, machine)
+			createCount++
+			deleteCount++
+			continue
+		}
+
+		machineSetMachines = append(machineSetMachines, machine)
+
+	}
+
+	// Sync machines
+	machineConfig := buildNewMachine(ms, machinePrefix)
+	c.logger.WithField("machineset", ms.ObjectMeta.Name).Debugf("JDIAZ machine template: %+v", machineConfig)
+
+	for i := 0 ; i < createCount ; i++ {
+		_, err := c.client.ClusteroperatorV1alpha1().Machines(ms.ObjectMeta.Namespace).Create(machineConfig)
+		if err != nil {
+			// FIXME add to error list?
+			c.logger.WithField("machineset", ms.ObjectMeta.Name).Error("JDIAZ error creating machine...")
+			// update expectations?
+		}
+	}
+
+	c.logger.WithField("machineset", ms.ObjectMeta.Name).Debug("JDIAZ delete count :v", deleteCount)
+	for _, m := range machinesToDelete {
+		c.logger.WithField("machineset", ms.ObjectMeta.Name).Debugf("JDIAZ deleting machine %v", m.Name)
+		c.client.ClusteroperatorV1alpha1().Machines(ms.ObjectMeta.Namespace).Delete(m.Name, &metav1.DeleteOptions{})
+		// catch error ^^^
+		deleteCount--
+	}
+
+	var machineToDelete *clusteroperator.Machine
+	c.logger.WithField("machineset", ms.ObjectMeta.Name).Debugf("JDIAZ deleting %v more machines", deleteCount)
+	for i := 0 ; i < deleteCount ; i++ {
+		machineToDelete, machineSetMachines = machineSetMachines[0], machineSetMachines[1:]
+		c.client.ClusteroperatorV1alpha1().Machines(ms.ObjectMeta.Namespace).Delete(machineToDelete.Name, &metav1.DeleteOptions{})
+		// catch error ^^^
+	}
+
+	return nil
+}
+
+func currentMachineNeedsUpdate(machine *clusteroperator.Machine, ms *clusteroperator.MachineSet) bool {
+	// compare machine settings with machineset settings to see if we have an out-of-date machine
+	if machine.Spec.NodeType != ms.Spec.NodeType {
+		return true
+	}
+	return false
+}
+func buildNewMachine(machineSet *clusteroperator.MachineSet, machineNamePrefix string) *clusteroperator.Machine {
+	machineConfig := &clusteroperator.Machine{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName:	machineNamePrefix,
+			OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(machineSet, controllerKind)},
+		},
+		Spec: clusteroperator.MachineSpec{
+			NodeType: "Compute",
+		},
+	}
+
+	return machineConfig
+}
 func (c *Controller) handleErr(err error, key interface{}) {
 	if err == nil {
 		c.queue.Forget(key)
