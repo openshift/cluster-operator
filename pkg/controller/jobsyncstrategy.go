@@ -51,8 +51,8 @@ type JobSyncStrategy interface {
 	)
 
 	// OnJobCompletion is called when the processing job for the owner
-	// completes successfully.
-	OnJobCompletion(owner metav1.Object)
+	// completes.
+	OnJobCompletion(owner metav1.Object, succeeded bool)
 
 	// UpdateOwnerStatus updates the status of the owner from the original
 	// copy to the owner copy.

@@ -261,7 +261,7 @@ type ClusterStatus struct {
 	Provisioned bool `json:"provisioned"`
 
 	// ProvisionedJobGeneration is the generation of the cluster resource used to
-	// generate the latest successful infra provisioning job.
+	// generate the latest completed infra provisioning job.
 	ProvisionedJobGeneration int64 `json:"provisionedJobGeneration"`
 
 	// Running is true if the master of the cluster is running and can be accessed using
@@ -420,7 +420,7 @@ type MachineSetStatus struct {
 	ComponentsInstalled bool `json:"componentsInstalled"`
 
 	// ComponentsInstalledJobGeneration is the generation of the machine set resource used to
-	// generate the latest successful component installation job.
+	// generate the latest completed component installation job.
 	ComponentsInstalledJobGeneration int64 `json:"componentsInstalledJobGeneration"`
 
 	// Installed is true if the software required for this machine set is installed
@@ -428,7 +428,7 @@ type MachineSetStatus struct {
 	Installed bool `json:"installed"`
 
 	// InstalledJobGeneration is the generation of the machine set resource used to
-	// generate the latest successful installation job.
+	// generate the latest completed installation job.
 	InstalledJobGeneration int64 `json:"installedJobGeneration"`
 
 	// Provisioned is true if the hardware that corresponds to this MachineSet has
@@ -436,14 +436,14 @@ type MachineSetStatus struct {
 	Provisioned bool `json:"provisioned"`
 
 	// ProvisionedJobGeneration is the generation of the machine set resource used to
-	// generate the latest successful hardware provisioning job.
+	// generate the latest completed hardware provisioning job.
 	ProvisionedJobGeneration int64 `json:"provisionedJobGeneration"`
 
 	// Accepted is true if machine set nodes have been accepted on the master
 	Accepted bool `json:"accepted"`
 
 	// AcceptedJobGeneration is the generation of the machine set resource used to
-	// run the latest successful accept job.
+	// run the latest completed accept job.
 	AcceptedJobGeneration int64 `json:"acceptedJobGeneration"`
 }
 

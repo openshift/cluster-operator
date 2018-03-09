@@ -381,13 +381,13 @@ func (s *jobSyncStrategy) SetOwnerJobSyncCondition(
 	)
 }
 
-func (s *jobSyncStrategy) OnJobCompletion(owner metav1.Object) {
+func (s *jobSyncStrategy) OnJobCompletion(owner metav1.Object, succeeded bool) {
 	machineSet, ok := owner.(*clusteroperator.MachineSet)
 	if !ok {
 		s.controller.logger.Warn("could not convert owner from JobSync into a machineset: %#v", owner)
 		return
 	}
-	machineSet.Status.Provisioned = true
+	machineSet.Status.Provisioned = succeeded
 	machineSet.Status.ProvisionedJobGeneration = machineSet.Generation
 }
 

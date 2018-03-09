@@ -369,7 +369,7 @@ func TestJobSyncForCompletedJob(t *testing.T) {
 				mockJobSyncStrategy.EXPECT().SetOwnerJobSyncCondition(ownerCopy, JobSyncProcessingFailed, kapi.ConditionFalse, ReasonJobCompleted, gomock.Any(), gomock.Any())
 			}
 			if !tc.deleting {
-				mockJobSyncStrategy.EXPECT().OnJobCompletion(ownerCopy)
+				mockJobSyncStrategy.EXPECT().OnJobCompletion(ownerCopy, true)
 			}
 			mockJobSyncStrategy.EXPECT().UpdateOwnerStatus(owner, ownerCopy)
 
@@ -380,6 +380,98 @@ func TestJobSyncForCompletedJob(t *testing.T) {
 
 			assert.Empty(t, test.GetDireLogEntries(loggerHook), "unexpected dire log entries")
 
+		})
+	}
+}
+
+// TestJobSyncForFailedJob tests jobSync.Sync when ControlJobs returns that
+// there is a job working and the job has failed.
+func TestJobSyncForFailedJob(t *testing.T) {
+	cases := []struct {
+		name     string
+		deleting bool
+	}{
+		{
+			name:     "processing",
+			deleting: false,
+		},
+		{
+			name:     "undoing",
+			deleting: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mockCtrl := gomock.NewController(t)
+			defer mockCtrl.Finish()
+
+			logger, loggerHook := test.Logger()
+
+			mockJobSyncStrategy := NewMockJobSyncStrategy(mockCtrl)
+			mockJobControl := NewMockJobControl(mockCtrl)
+			mockJobFactory := NewMockJobFactory(mockCtrl)
+
+			owner := &metav1.ObjectMeta{}
+			ownerCopy := &metav1.ObjectMeta{}
+			if tc.deleting {
+				now := metav1.Now()
+				owner.DeletionTimestamp = &now
+				owner.Finalizers = []string{testFinalizer}
+				ownerCopy.DeletionTimestamp = &now
+			}
+
+			jobTransitionTime := metav1.Date(2018, time.February, 1, 2, 3, 4, 5, time.UTC)
+			job := &kbatch.Job{
+				Status: kbatch.JobStatus{
+					Conditions: []kbatch.JobCondition{
+						{
+							Type:               kbatch.JobFailed,
+							Status:             kapi.ConditionTrue,
+							Reason:             "Failed",
+							Message:            "Done",
+							LastTransitionTime: jobTransitionTime,
+							LastProbeTime:      jobTransitionTime,
+						},
+					},
+				},
+			}
+
+			mockJobSyncStrategy.EXPECT().GetOwner(testKey).
+				Return(owner, nil)
+			if !tc.deleting {
+				mockJobSyncStrategy.EXPECT().DoesOwnerNeedProcessing(owner).
+					Return(true)
+			} else {
+				mockJobControl.EXPECT().GetJobPrefix().
+					AnyTimes().
+					Return(testJobPrefix)
+			}
+			mockJobSyncStrategy.EXPECT().GetJobFactory(owner, tc.deleting).
+				Return(mockJobFactory, nil)
+			mockJobControl.EXPECT().ControlJobs(testKey, owner, true, mockJobFactory).
+				Return(JobControlJobFailed, job, nil)
+
+			// Update owner status to reflect failed job
+			mockJobSyncStrategy.EXPECT().DeepCopyOwner(owner).
+				Return(ownerCopy)
+			if tc.deleting {
+				mockJobSyncStrategy.EXPECT().SetOwnerJobSyncCondition(ownerCopy, JobSyncUndoing, kapi.ConditionFalse, ReasonJobFailed, gomock.Any(), gomock.Any())
+				mockJobSyncStrategy.EXPECT().SetOwnerJobSyncCondition(ownerCopy, JobSyncUndoFailed, kapi.ConditionTrue, ReasonJobFailed, gomock.Any(), gomock.Any())
+			} else {
+				mockJobSyncStrategy.EXPECT().SetOwnerJobSyncCondition(ownerCopy, JobSyncProcessing, kapi.ConditionFalse, ReasonJobFailed, gomock.Any(), gomock.Any())
+				mockJobSyncStrategy.EXPECT().SetOwnerJobSyncCondition(ownerCopy, JobSyncProcessingFailed, kapi.ConditionTrue, ReasonJobFailed, gomock.Any(), gomock.Any())
+			}
+			if !tc.deleting {
+				mockJobSyncStrategy.EXPECT().OnJobCompletion(ownerCopy, false)
+			}
+			mockJobSyncStrategy.EXPECT().UpdateOwnerStatus(owner, ownerCopy)
+
+			jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, true, logger)
+			err := jobSync.Sync(testKey)
+
+			assert.NoError(t, err, "unexpected error from Sync")
+
+			assert.Empty(t, test.GetDireLogEntries(loggerHook), "unexpected dire log entries")
 		})
 	}
 }

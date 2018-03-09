@@ -139,7 +139,7 @@ func (r *jobGenerator) GeneratePlaybookJob(name string, hardware *clusteroperato
 
 	podSpec := kapi.PodSpec{
 		DNSPolicy:     kapi.DNSClusterFirst,
-		RestartPolicy: kapi.RestartPolicyNever,
+		RestartPolicy: kapi.RestartPolicyOnFailure,
 
 		Containers: []kapi.Container{
 			{
@@ -210,10 +210,7 @@ func (r *jobGenerator) GeneratePlaybookJob(name string, hardware *clusteroperato
 
 	completions := int32(1)
 	deadline := int64((24 * time.Hour).Seconds())
-	// Only run pod three times. Otherwise, it can take the job controller too
-	// long to notice when the pod has completed. If all three pod runs fail,
-	// jobSync will create a new job.
-	backoffLimit := int32(3)
+	backoffLimit := int32(123456) // effectively limitless
 
 	job := &kbatch.Job{
 		ObjectMeta: metav1.ObjectMeta{
