@@ -18,6 +18,7 @@ package ansible
 
 import (
 	"path"
+	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -46,6 +47,18 @@ type JobGenerator interface {
 	// inventory - inventory to pass to the playbook
 	// vars - Ansible variables to the pass to the playbook
 	GeneratePlaybookJob(name string, hardware *clusteroperator.ClusterHardwareSpec, playbook, inventory, vars string) (*kbatch.Job, *kapi.ConfigMap)
+
+	// GeneratePlaybooksJob generates a job to run the specified playbooks.
+	// Note that neither the job nor the configmap will be created in the API
+	// server. It is the responsibility of the caller to create the objects
+	// in the API server.
+	//
+	// name - name to give the job and the configmap
+	// hardware - details of the hardware of the target cluster
+	// playbooks - names of the playbooks to run
+	// inventory - inventory to pass to the playbook
+	// vars - Ansible variables to the pass to the playbook
+	GeneratePlaybooksJob(name string, hardware *clusteroperator.ClusterHardwareSpec, playbooks []string, inventory, vars string) (*kbatch.Job, *kapi.ConfigMap)
 }
 
 type jobGenerator struct {
@@ -84,22 +97,21 @@ func (r *jobGenerator) generateInventoryConfigMap(name, inventory, vars string, 
 }
 
 func (r *jobGenerator) GeneratePlaybookJob(name string, hardware *clusteroperator.ClusterHardwareSpec, playbook, inventory, vars string) (*kbatch.Job, *kapi.ConfigMap) {
+	return r.GeneratePlaybooksJob(name, hardware, []string{playbook}, inventory, vars)
+}
 
-	logger := log.WithField("playbook", playbook)
+func (r *jobGenerator) GeneratePlaybooksJob(name string, hardware *clusteroperator.ClusterHardwareSpec, playbooks []string, inventory, vars string) (*kbatch.Job, *kapi.ConfigMap) {
 
-	logger.Infoln("generating ansible playbook job")
+	logger := log.WithField("playbooks", playbooks)
+
+	logger.Infoln("generating ansible playbooks job")
 
 	cfgMap := r.generateInventoryConfigMap(name, inventory, vars, logger)
 
-	playbookPath := path.Join(openshiftAnsibleContainerDir, playbook)
 	env := []kapi.EnvVar{
 		{
 			Name:  "INVENTORY_FILE",
 			Value: "/ansible/inventory/hosts",
-		},
-		{
-			Name:  "PLAYBOOK_FILE",
-			Value: playbookPath,
 		},
 		{
 			Name:  "ANSIBLE_HOST_KEY_CHECKING",
@@ -134,49 +146,34 @@ func (r *jobGenerator) GeneratePlaybookJob(name string, hardware *clusteroperato
 		}...)
 	}
 
-	// sshKeyFileMode is used to set the file permissions for the private SSH key
-	sshKeyFileMode := int32(0600)
+	volumes := make([]kapi.Volume, 0, 3)
+	volumeMounts := make([]kapi.VolumeMount, 0, 3)
 
-	podSpec := kapi.PodSpec{
-		DNSPolicy:     kapi.DNSClusterFirst,
-		RestartPolicy: kapi.RestartPolicyOnFailure,
-
-		Containers: []kapi.Container{
-			{
-				Name:            "ansible",
-				Image:           r.image,
-				ImagePullPolicy: r.imagePullPolicy,
-				Env:             env,
-				VolumeMounts: []kapi.VolumeMount{
-					{
-						Name:      "inventory",
-						MountPath: "/ansible/inventory/",
-					},
+	// Mounts for inventory and vars files
+	volumeMounts = append(volumeMounts, kapi.VolumeMount{
+		Name:      "inventory",
+		MountPath: "/ansible/inventory/",
+	})
+	volumes = append(volumes, kapi.Volume{
+		Name: "inventory",
+		VolumeSource: kapi.VolumeSource{
+			ConfigMap: &kapi.ConfigMapVolumeSource{
+				LocalObjectReference: kapi.LocalObjectReference{
+					Name: cfgMap.Name,
 				},
 			},
 		},
-		Volumes: []kapi.Volume{
-			{
-				// Mounts both our inventory and vars file.
-				Name: "inventory",
-				VolumeSource: kapi.VolumeSource{
-					ConfigMap: &kapi.ConfigMapVolumeSource{
-						LocalObjectReference: kapi.LocalObjectReference{
-							Name: cfgMap.Name,
-						},
-					},
-				},
-			},
-		},
-	}
+	})
 
 	if hardware.AWS != nil {
 		if len(hardware.AWS.SSHSecret.Name) > 0 {
-			podSpec.Containers[0].VolumeMounts = append(podSpec.Containers[0].VolumeMounts, kapi.VolumeMount{
+			volumeMounts = append(volumeMounts, kapi.VolumeMount{
 				Name:      "sshkey",
 				MountPath: "/ansible/ssh/",
 			})
-			podSpec.Volumes = append(podSpec.Volumes, kapi.Volume{
+			// sshKeyFileMode is used to set the file permissions for the private SSH key
+			sshKeyFileMode := int32(0600)
+			volumes = append(volumes, kapi.Volume{
 				Name: "sshkey",
 				VolumeSource: kapi.VolumeSource{
 					Secret: &kapi.SecretVolumeSource{
@@ -193,11 +190,11 @@ func (r *jobGenerator) GeneratePlaybookJob(name string, hardware *clusteroperato
 			})
 		}
 		if len(hardware.AWS.SSLSecret.Name) > 0 {
-			podSpec.Containers[0].VolumeMounts = append(podSpec.Containers[0].VolumeMounts, kapi.VolumeMount{
+			volumeMounts = append(volumeMounts, kapi.VolumeMount{
 				Name:      "sslkey",
 				MountPath: "/ansible/ssl/",
 			})
-			podSpec.Volumes = append(podSpec.Volumes, kapi.Volume{
+			volumes = append(volumes, kapi.Volume{
 				Name: "sslkey",
 				VolumeSource: kapi.VolumeSource{
 					Secret: &kapi.SecretVolumeSource{
@@ -206,6 +203,31 @@ func (r *jobGenerator) GeneratePlaybookJob(name string, hardware *clusteroperato
 				},
 			})
 		}
+	}
+
+	containers := make([]kapi.Container, len(playbooks))
+	for i, playbook := range playbooks {
+		playbookPath := path.Join(openshiftAnsibleContainerDir, playbook)
+		envForPlaybook := make([]kapi.EnvVar, len(env)+1)
+		copy(envForPlaybook, env)
+		envForPlaybook[len(env)] = kapi.EnvVar{
+			Name:  "PLAYBOOK_FILE",
+			Value: playbookPath,
+		}
+		containers[i] = kapi.Container{
+			Name:            containerNameForPlaybook(playbook),
+			Image:           r.image,
+			ImagePullPolicy: r.imagePullPolicy,
+			Env:             envForPlaybook,
+			VolumeMounts:    volumeMounts,
+		}
+	}
+
+	podSpec := kapi.PodSpec{
+		DNSPolicy:     kapi.DNSClusterFirst,
+		RestartPolicy: kapi.RestartPolicyOnFailure,
+		Containers:    containers,
+		Volumes:       volumes,
 	}
 
 	completions := int32(1)
@@ -227,4 +249,28 @@ func (r *jobGenerator) GeneratePlaybookJob(name string, hardware *clusteroperato
 	}
 
 	return job, cfgMap
+}
+
+func containerNameForPlaybook(playbook string) string {
+	_, filename := path.Split(playbook)
+	extensionStart := strings.LastIndexByte(filename, '.')
+	containerName := filename
+	if extensionStart >= 0 {
+		containerName = filename[0:extensionStart]
+	}
+	replaceInvalidRunes := func(r rune) rune {
+		switch {
+		case 'A' <= r && r <= 'Z':
+			return r
+		case 'a' <= r && r <= 'z':
+			return r
+		case '0' <= r && r <= '9':
+			return r
+		case r == '-':
+			return r
+		default:
+			return '-'
+		}
+	}
+	return strings.Map(replaceInvalidRunes, containerName)
 }
