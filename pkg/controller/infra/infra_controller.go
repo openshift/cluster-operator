@@ -322,6 +322,14 @@ func (s *jobSyncStrategy) DoesOwnerNeedProcessing(owner metav1.Object) bool {
 	return cluster.Status.ProvisionedJobGeneration != cluster.Generation
 }
 
+func (s *jobSyncStrategy) GetReprocessInterval() *time.Duration {
+	return nil
+}
+
+func (s *jobSyncStrategy) GetLastJobSuccess(owner metav1.Object) *time.Time {
+	return nil
+}
+
 func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object, deleting bool) (controller.JobFactory, error) {
 	cluster, ok := owner.(*clusteroperator.Cluster)
 	if !ok {
@@ -366,7 +374,7 @@ func (s *jobSyncStrategy) SetOwnerJobSyncCondition(
 	)
 }
 
-func (s *jobSyncStrategy) OnJobCompletion(owner metav1.Object, succeeded bool) {
+func (s *jobSyncStrategy) OnJobCompletion(owner metav1.Object, job *v1batch.Job, succeeded bool) {
 	cluster, ok := owner.(*clusteroperator.Cluster)
 	if !ok {
 		s.controller.logger.Warn("could not convert owner from JobSync into a cluster: %#v", owner)

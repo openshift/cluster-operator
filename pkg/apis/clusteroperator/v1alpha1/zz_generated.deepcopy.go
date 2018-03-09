@@ -22,6 +22,7 @@ package v1alpha1
 
 import (
 	v1 "k8s.io/api/core/v1"
+	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -681,6 +682,15 @@ func (in *MachineSetStatus) DeepCopyInto(out *MachineSetStatus) {
 		*out = make([]MachineSetCondition, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
+	if in.NodeConfigInstalledTime != nil {
+		in, out := &in.NodeConfigInstalledTime, &out.NodeConfigInstalledTime
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(meta_v1.Time)
+			(*in).DeepCopyInto(*out)
 		}
 	}
 	return

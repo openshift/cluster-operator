@@ -127,16 +127,26 @@ func (s *jobSync) Sync(key string) error {
 		return err
 	}
 
-	jobControlResult, job, err := s.jobControl.ControlJobs(key, owner, needsProcessing, jobFactory)
+	jobControlResult, job, err := s.jobControl.ControlJobs(key, owner, needsProcessing,
+		s.strategy.GetReprocessInterval(), s.strategy.GetLastJobSuccess(owner), jobFactory)
 	if err != nil {
 		return err
 	}
 
+	logger.WithFields(log.Fields{
+		"jobControlResult": jobControlResult,
+	}).Debugln("ControlJobs")
+	if job != nil {
+		logger.WithFields(log.Fields{
+			"job": job.Name,
+		}).Debugln("got job")
+	}
+
 	switch jobControlResult {
 	case JobControlJobSucceeded:
-		return s.setOwnerStatusForSuccessfulJob(owner, deleting)
+		return s.setOwnerStatusForSuccessfulJob(owner, job, deleting)
 	case JobControlJobFailed:
-		return s.setOwnerStatusForFailedJob(owner, deleting)
+		return s.setOwnerStatusForFailedJob(owner, job, deleting)
 	case JobControlJobWorking:
 		return s.setOwnerStatusForInProgressJob(owner, job, deleting)
 	case JobControlDeletingJobs:
@@ -171,7 +181,7 @@ func (s *jobSync) setOwnerStatusForOutdatedJob(original metav1.Object) error {
 	return s.strategy.UpdateOwnerStatus(original, owner)
 }
 
-func (s *jobSync) setOwnerStatusForSuccessfulJob(original metav1.Object, deleting bool) error {
+func (s *jobSync) setOwnerStatusForSuccessfulJob(original metav1.Object, job *v1batch.Job, deleting bool) error {
 	owner := s.strategy.DeepCopyOwner(original)
 	reason := ReasonJobCompleted
 	message := "Job completed successful"
@@ -190,12 +200,12 @@ func (s *jobSync) setOwnerStatusForSuccessfulJob(original metav1.Object, deletin
 		finalizers.Delete(finalizerName)
 		owner.SetFinalizers(finalizers.List())
 	} else {
-		s.strategy.OnJobCompletion(owner, true)
+		s.strategy.OnJobCompletion(owner, job, true)
 	}
 	return s.strategy.UpdateOwnerStatus(original, owner)
 }
 
-func (s *jobSync) setOwnerStatusForFailedJob(original metav1.Object, deleting bool) error {
+func (s *jobSync) setOwnerStatusForFailedJob(original metav1.Object, job *v1batch.Job, deleting bool) error {
 	owner := s.strategy.DeepCopyOwner(original)
 	reason := ReasonJobFailed
 	message := "Job failed"
@@ -212,7 +222,7 @@ func (s *jobSync) setOwnerStatusForFailedJob(original metav1.Object, deleting bo
 		finalizers.Delete(finalizerName)
 		owner.SetFinalizers(finalizers.List())
 	} else {
-		s.strategy.OnJobCompletion(owner, false)
+		s.strategy.OnJobCompletion(owner, job, false)
 	}
 	return s.strategy.UpdateOwnerStatus(original, owner)
 }

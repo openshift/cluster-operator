@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"strconv"
 	"testing"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	testlog "github.com/sirupsen/logrus/hooks/test"
@@ -168,6 +169,26 @@ func newTestControlledJob(namePrefix, nameEnding string, owner metav1.Object, ow
 	}
 }
 
+func newTestControlledSuccessfulJob(namePrefix, nameEnding string, owner metav1.Object, ownerKind schema.GroupVersionKind, generation int64, completionTime time.Time) *kbatch.Job {
+	tempTime := metav1.Time{completionTime}
+	return &kbatch.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            namePrefix + nameEnding,
+			OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(owner, ownerKind)},
+			Annotations:     map[string]string{clusteroperator.OwnerGenerationAnnotation: strconv.FormatInt(generation, 10)},
+		},
+		Status: kbatch.JobStatus{
+			CompletionTime: &tempTime,
+			Conditions: []kbatch.JobCondition{
+				{
+					Type:   kbatch.JobComplete,
+					Status: kapi.ConditionTrue,
+				},
+			},
+		},
+	}
+}
+
 func newTestConfigMap(name string) *kapi.ConfigMap {
 	return &kapi.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -181,7 +202,7 @@ func newTestConfigMap(name string) *kapi.ConfigMap {
 func TestJobControlWithoutNeedForNewJob(t *testing.T) {
 	jobControl, _, _, _, _, _, loggerHook := newTestJobControl(testJobPrefix, testOwnerKind)
 	testOwner := newTestOwner(1)
-	result, job, err := jobControl.ControlJobs(testOwnerKey, testOwner, false, nil)
+	result, job, err := jobControl.ControlJobs(testOwnerKey, testOwner, false, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("no error expected: %v", err)
 	}
@@ -194,6 +215,68 @@ func TestJobControlWithoutNeedForNewJob(t *testing.T) {
 	assert.Empty(t, test.GetDireLogEntries(loggerHook), "unexpected dire log entries")
 }
 
+// TestJobControlSuccessButOwnerNeedsReprocessing tests controlling jobs when a new job
+// was successful, but the job sync strategy has requested the owner be reprocessed:
+func TestJobControlSuccessButOwnerNeedsReprocessing(t *testing.T) {
+	cases := []struct {
+		name              string
+		lastSuccess       time.Time
+		reprocessInterval time.Duration
+		result            JobControlResult
+		jobExpected       bool
+	}{
+		{
+			name:              "no last success time",
+			lastSuccess:       time.Now().Add(-10 * time.Minute),
+			reprocessInterval: 2 * time.Minute,
+			result:            JobControlCreatingJob,
+			jobExpected:       false,
+		},
+		{
+			name:              "no reprocess required",
+			lastSuccess:       time.Now().Add(-10 * time.Minute),
+			reprocessInterval: 2 * time.Hour,
+			result:            JobControlJobSucceeded,
+			jobExpected:       true,
+		},
+		{
+			name:              "reprocess required",
+			lastSuccess:       time.Now().Add(-10 * time.Hour),
+			reprocessInterval: 2 * time.Hour,
+			result:            JobControlCreatingJob,
+			jobExpected:       false,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			jobControl, jobStore, _, _, _, _, loggerHook := newTestJobControl(testJobPrefix, testOwnerKind)
+
+			testOwner := newTestOwner(1)
+			existingJob := newTestControlledSuccessfulJob(testJobPrefix, "existing-job", testOwner,
+				testOwnerKind, 1, tc.lastSuccess)
+			jobStore.Add(existingJob)
+			newJob := newTestJob("new-job")
+			newConfigMap := newTestConfigMap("new-configmap")
+			jobFactory := newTestJobFactory(newJob, newConfigMap, nil)
+
+			result, job, err := jobControl.ControlJobs(testOwnerKey, testOwner, false,
+				&tc.reprocessInterval, &tc.lastSuccess, jobFactory)
+			if err != nil {
+				t.Fatalf("no error expected: %v", err)
+			}
+			if e, a := tc.result, result; e != a {
+				t.Fatalf("unexpected job control result: expected %v, got %v", e, a)
+			}
+			if tc.jobExpected && job == nil {
+				t.Fatalf("job expected: %v", job)
+			} else if !tc.jobExpected && job != nil {
+				t.Fatalf("no job expected: %v", job)
+			}
+			assert.Empty(t, test.GetDireLogEntries(loggerHook), "unexpected dire log entries")
+		})
+	}
+}
+
 // TestJobControlWithPendingExpectations tests controlling jobs when there
 // are pending expectations that have not yet been met.
 func TestJobControlWithPendingExpectations(t *testing.T) {
@@ -201,7 +284,7 @@ func TestJobControlWithPendingExpectations(t *testing.T) {
 	testOwner := newTestOwner(1)
 	jobControl.expectations.ExpectCreations(testOwnerKey, 1)
 	jobFactory := newTestJobFactory(nil, nil, nil)
-	result, job, err := jobControl.ControlJobs(testOwnerKey, testOwner, true, jobFactory)
+	result, job, err := jobControl.ControlJobs(testOwnerKey, testOwner, true, nil, nil, jobFactory)
 	if err != nil {
 		t.Fatalf("no error expected: %v", err)
 	}
@@ -225,7 +308,7 @@ func TestJobControlForNewJob(t *testing.T) {
 	newJob := newTestJob("new-job")
 	newConfigMap := newTestConfigMap("new-configmap")
 	jobFactory := newTestJobFactory(newJob, newConfigMap, nil)
-	result, job, err := jobControl.ControlJobs(testOwnerKey, testOwner, true, jobFactory)
+	result, job, err := jobControl.ControlJobs(testOwnerKey, testOwner, true, nil, nil, jobFactory)
 	if err != nil {
 		t.Fatalf("no error expected: %v", err)
 	}
@@ -286,7 +369,7 @@ func TestJobControlWhenJobDeleteFails(t *testing.T) {
 	newJob := newTestJob("new-job")
 	newConfigMap := newTestConfigMap("new-configmap")
 	jobFactory := newTestJobFactory(newJob, newConfigMap, nil)
-	result, _, err := jobControl.ControlJobs(testOwnerKey, testOwner, true, jobFactory)
+	result, _, err := jobControl.ControlJobs(testOwnerKey, testOwner, true, nil, nil, jobFactory)
 	if err == nil {
 		t.Fatalf("error expected")
 	}

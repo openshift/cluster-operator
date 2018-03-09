@@ -69,6 +69,7 @@ import (
 	"github.com/openshift/cluster-operator/pkg/controller/machine"
 	"github.com/openshift/cluster-operator/pkg/controller/machineset"
 	"github.com/openshift/cluster-operator/pkg/controller/master"
+	"github.com/openshift/cluster-operator/pkg/controller/nodeconfig"
 	"github.com/openshift/cluster-operator/pkg/version"
 )
 
@@ -325,6 +326,7 @@ func NewControllerInitializers() map[string]InitFunc {
 	controllers["master"] = startMasterController
 	controllers["accept"] = startAcceptController
 	controllers["components"] = startComponentsController
+	controllers["nodeconfig"] = startNodeConfigController
 	return controllers
 }
 
@@ -535,6 +537,19 @@ func startComponentsController(ctx ControllerContext) (bool, error) {
 		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-components-controller"),
 		ctx.ClientBuilder.ClientOrDie("clusteroperator-components-controller"),
 	).Run(int(ctx.Options.ConcurrentComponentSyncs), ctx.Stop)
+	return true, nil
+}
+
+func startNodeConfigController(ctx ControllerContext) (bool, error) {
+	if !resourcesAvailable(ctx) {
+		return false, nil
+	}
+	go nodeconfig.NewController(
+		ctx.InformerFactory.Clusteroperator().V1alpha1().MachineSets(),
+		ctx.KubeInformerFactory.Batch().V1().Jobs(),
+		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-nodeconfig-controller"),
+		ctx.ClientBuilder.ClientOrDie("clusteroperator-nodeconfig-controller"),
+	).Run(int(ctx.Options.ConcurrentNodeConfigSyncs), ctx.Stop)
 	return true, nil
 }
 

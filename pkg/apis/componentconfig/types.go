@@ -104,6 +104,11 @@ type ControllerManagerConfiguration struct {
 	// but more CPU (and network) load.
 	ConcurrentComponentSyncs int32
 
+	// ConcurrentNodeConfigSyncs is the number of clusters that are allowed to be configuring
+	// the node config daemonset concurrently. Larger number = more responsive processing
+	// but more CPU (and network) load.
+	ConcurrentNodeConfigSyncs int32
+
 	// leaderElection defines the configuration of leader election client.
 	LeaderElection componentconfig.LeaderElectionConfiguration
 

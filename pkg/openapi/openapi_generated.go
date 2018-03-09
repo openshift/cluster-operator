@@ -1107,6 +1107,26 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Format:      "int64",
 							},
 						},
+						"nodeConfigInstalled": {
+							SchemaProps: spec.SchemaProps{
+								Description: "NodeConfigInstalled is true if the node config daemonset has been created in the cluster.",
+								Type:        []string{"boolean"},
+								Format:      "",
+							},
+						},
+						"nodeConfigInstalledJobGeneration": {
+							SchemaProps: spec.SchemaProps{
+								Description: "NodeConfigInstalledJobGeneration is the generation of the machine set resource used to generate the latest successful node config installation job.",
+								Type:        []string{"integer"},
+								Format:      "int64",
+							},
+						},
+						"nodeConfigLastInstalled": {
+							SchemaProps: spec.SchemaProps{
+								Description: "NodeConfigInstalledTime is the time we last successfully installed the node config daemonset on the cluster.",
+								Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+							},
+						},
 						"installed": {
 							SchemaProps: spec.SchemaProps{
 								Description: "Installed is true if the software required for this machine set is installed and running.",
@@ -1150,11 +1170,11 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 							},
 						},
 					},
-					Required: []string{"machineCount", "machinesReady", "conditions", "componentsInstalled", "componentsInstalledJobGeneration", "installed", "installedJobGeneration", "provisioned", "provisionedJobGeneration", "accepted", "acceptedJobGeneration"},
+					Required: []string{"machineCount", "machinesReady", "conditions", "componentsInstalled", "componentsInstalledJobGeneration", "nodeConfigInstalled", "nodeConfigInstalledJobGeneration", "nodeConfigLastInstalled", "installed", "installedJobGeneration", "provisioned", "provisionedJobGeneration", "accepted", "acceptedJobGeneration"},
 				},
 			},
 			Dependencies: []string{
-				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetCondition"},
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetCondition", "k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
 		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSpec": {
 			Schema: spec.Schema{

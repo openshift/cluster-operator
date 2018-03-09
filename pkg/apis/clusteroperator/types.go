@@ -428,12 +428,22 @@ type MachineSetStatus struct {
 	Conditions []MachineSetCondition
 
 	// ComponentsInstalled is true if the additional components needed for the cluster
-	// have been installed
+	// have been installed.
 	ComponentsInstalled bool
 
 	// ComponentsInstalledJobGeneration is the generation of the machine set resource used to
 	// generate the latest completed component installation job.
 	ComponentsInstalledJobGeneration int64
+
+	// NodeConfigInstalled is true if the node config daemonset has been created in the cluster.
+	NodeConfigInstalled bool
+
+	// NodeConfigInstalledJobGeneration is the generation of the machine set resource used to generate
+	// the latest successful node config installation job.
+	NodeConfigInstalledJobGeneration int64
+
+	// NodeConfigInstalledTime is the time we last successfully installed the node config daemonset on the cluster.
+	NodeConfigInstalledTime *metav1.Time
 
 	// Installed is true if the software required for this machine set is installed
 	// and running.
@@ -527,6 +537,15 @@ const (
 	// MachineSetComponentsInstalled is true if OpenShift has been installed
 	// on this machine set.
 	MachineSetComponentsInstalled MachineSetConditionType = "ComponentsInstalled"
+
+	// MachineSetNodeConfigInstalling is true if node config daemonset is being installed.
+	MachineSetNodeConfigInstalling MachineSetConditionType = "NodeConfigInstalling"
+
+	// MachineSetNodeConfigInstallationFailed is true if the node config daemonset failed to be installed.
+	MachineSetNodeConfigInstallationFailed MachineSetConditionType = "NodeConfigInstallationFailed"
+
+	// MachineSetNodeConfigInstalled is true if the node config daemonset has been installed.
+	MachineSetNodeConfigInstalled MachineSetConditionType = "NodeConfigInstalled"
 
 	// MachineSetHardwareReady is true if the hardware for the nodegroup is in ready
 	// state (is started and healthy)
