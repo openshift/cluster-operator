@@ -55,10 +55,22 @@ const (
 
 	controllerLogName = "components"
 
-	componentsPlaybook = "playbooks/cluster-operator/aws/components.yml"
 	// jobPrefix is used when generating a name for the configmap and job used for each
 	// Ansible execution.
 	jobPrefix = "job-components-"
+)
+
+var (
+	componentsPlaybooks = []string{
+		"playbooks/cluster-operator/aws/components/openshift-glusterfs.yml",
+		"playbooks/cluster-operator/aws/components/openshift-hosted.yml",
+		"playbooks/cluster-operator/aws/components/openshift-logging.yml",
+		"playbooks/cluster-operator/aws/components/openshift-management.yml",
+		"playbooks/cluster-operator/aws/components/openshift-metrics.yml",
+		"playbooks/cluster-operator/aws/components/openshift-prometheus.yml",
+		"playbooks/cluster-operator/aws/components/openshift-service-catalog.yml",
+		"playbooks/cluster-operator/aws/components/openshift-web-console.yml",
+	}
 )
 
 var machineSetKind = clusteroperator.SchemeGroupVersion.WithKind("MachineSet")
@@ -311,10 +323,10 @@ func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object, deleting bool) (con
 		if err != nil {
 			return nil, nil, err
 		}
-		job, configMap := s.controller.ansibleGenerator.GeneratePlaybookJob(
+		job, configMap := s.controller.ansibleGenerator.GeneratePlaybooksJob(
 			name,
 			&machineSet.Spec.ClusterHardware,
-			componentsPlaybook,
+			componentsPlaybooks,
 			ansible.DefaultInventory,
 			vars,
 		)
