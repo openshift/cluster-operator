@@ -5,9 +5,9 @@ package controller
 
 import (
 	gomock "github.com/golang/mock/gomock"
-	v1 "k8s.io/api/batch/v1"
-	v10 "k8s.io/api/core/v1"
-	v11 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	v10 "k8s.io/api/batch/v1"
+	v11 "k8s.io/api/core/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // Mock of JobControl interface
@@ -55,10 +55,10 @@ func (_mr *_MockJobControlRecorder) OnDelete(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "OnDelete", arg0)
 }
 
-func (_m *MockJobControl) ControlJobs(ownerKey string, owner v11.Object, buildNewJob bool, jobFactory JobFactory) (JobControlResult, *v1.Job, error) {
+func (_m *MockJobControl) ControlJobs(ownerKey string, owner v1.Object, buildNewJob bool, jobFactory JobFactory) (JobControlResult, *v10.Job, error) {
 	ret := _m.ctrl.Call(_m, "ControlJobs", ownerKey, owner, buildNewJob, jobFactory)
 	ret0, _ := ret[0].(JobControlResult)
-	ret1, _ := ret[1].(*v1.Job)
+	ret1, _ := ret[1].(*v10.Job)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
 }
@@ -106,7 +106,7 @@ func (_m *MockJobOwnerControl) EXPECT() *_MockJobOwnerControlRecorder {
 	return _m.recorder
 }
 
-func (_m *MockJobOwnerControl) GetOwnerKey(owner v11.Object) (string, error) {
+func (_m *MockJobOwnerControl) GetOwnerKey(owner v1.Object) (string, error) {
 	ret := _m.ctrl.Call(_m, "GetOwnerKey", owner)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
@@ -117,9 +117,9 @@ func (_mr *_MockJobOwnerControlRecorder) GetOwnerKey(arg0 interface{}) *gomock.C
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetOwnerKey", arg0)
 }
 
-func (_m *MockJobOwnerControl) GetOwner(namespace string, name string) (v11.Object, error) {
+func (_m *MockJobOwnerControl) GetOwner(namespace string, name string) (v1.Object, error) {
 	ret := _m.ctrl.Call(_m, "GetOwner", namespace, name)
-	ret0, _ := ret[0].(v11.Object)
+	ret0, _ := ret[0].(v1.Object)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -128,7 +128,7 @@ func (_mr *_MockJobOwnerControlRecorder) GetOwner(arg0, arg1 interface{}) *gomoc
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetOwner", arg0, arg1)
 }
 
-func (_m *MockJobOwnerControl) OnOwnedJobEvent(owner v11.Object) {
+func (_m *MockJobOwnerControl) OnOwnedJobEvent(owner v1.Object) {
 	_m.ctrl.Call(_m, "OnOwnedJobEvent", owner)
 }
 
@@ -157,10 +157,10 @@ func (_m *MockJobFactory) EXPECT() *_MockJobFactoryRecorder {
 	return _m.recorder
 }
 
-func (_m *MockJobFactory) BuildJob(name string) (*v1.Job, *v10.ConfigMap, error) {
+func (_m *MockJobFactory) BuildJob(name string) (*v10.Job, *v11.ConfigMap, error) {
 	ret := _m.ctrl.Call(_m, "BuildJob", name)
-	ret0, _ := ret[0].(*v1.Job)
-	ret1, _ := ret[1].(*v10.ConfigMap)
+	ret0, _ := ret[0].(*v10.Job)
+	ret1, _ := ret[1].(*v11.ConfigMap)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
 }

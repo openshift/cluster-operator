@@ -488,6 +488,8 @@ func autoConvert_v1alpha1_ClusterVersionSpec_To_clusteroperator_ClusterVersionSp
 	}
 	out.DeploymentType = clusteroperator.ClusterDeploymentType(in.DeploymentType)
 	out.Version = in.Version
+	out.OpenshiftAnsibleImage = (*string)(unsafe.Pointer(in.OpenshiftAnsibleImage))
+	out.OpenshiftAnsibleImagePullPolicy = (*v1.PullPolicy)(unsafe.Pointer(in.OpenshiftAnsibleImagePullPolicy))
 	return nil
 }
 
@@ -503,6 +505,8 @@ func autoConvert_clusteroperator_ClusterVersionSpec_To_v1alpha1_ClusterVersionSp
 	}
 	out.DeploymentType = ClusterDeploymentType(in.DeploymentType)
 	out.Version = in.Version
+	out.OpenshiftAnsibleImage = (*string)(unsafe.Pointer(in.OpenshiftAnsibleImage))
+	out.OpenshiftAnsibleImagePullPolicy = (*v1.PullPolicy)(unsafe.Pointer(in.OpenshiftAnsibleImagePullPolicy))
 	return nil
 }
 

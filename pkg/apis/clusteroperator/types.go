@@ -91,6 +91,19 @@ type ClusterVersionSpec struct {
 
 	// Version is the version of OpenShift to install.
 	Version string
+
+	// OpenshiftAnsibleImage is the name of the image to use to run
+	// openshift-ansible playbooks.
+	// Defaults to openshift/origin-ansbile:{TAG}, where {TAG} is
+	// the value from the Version field of this ClusterVersion.
+	// +optional
+	OpenshiftAnsibleImage *string
+
+	// OpenshiftAnsibleImagePullPolicy is the pull policy to use for
+	// OpenshiftAnsibleImage.
+	// Defaults to IfNotPreset.
+	// +optional
+	OpenshiftAnsibleImagePullPolicy *corev1.PullPolicy
 }
 
 // ClusterVersionStatus is the status of a ClusterVersion. It may be used to indicate if the

@@ -70,8 +70,6 @@ func NewController(
 	jobInformer batchinformers.JobInformer,
 	kubeClient kubeclientset.Interface,
 	clusteroperatorClient clusteroperatorclientset.Interface,
-	ansibleImage string,
-	ansibleImagePullPolicy kapi.PullPolicy,
 ) *Controller {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(glog.Infof)
@@ -107,7 +105,7 @@ func NewController(
 
 	c.syncHandler = c.jobSync.Sync
 	c.enqueueCluster = c.enqueue
-	c.ansibleGenerator = ansible.NewJobGenerator(ansibleImage, ansibleImagePullPolicy)
+	c.ansibleGenerator = ansible.NewJobGenerator()
 
 	return c
 }
@@ -277,11 +275,17 @@ func (f jobFactory) BuildJob(name string) (*v1batch.Job, *kapi.ConfigMap, error)
 
 func (c *Controller) getJobFactory(cluster *clusteroperator.Cluster, playbook string) controller.JobFactory {
 	return jobFactory(func(name string) (*v1batch.Job, *kapi.ConfigMap, error) {
+		cvRef := cluster.Spec.ClusterVersionRef
+		cv, err := c.coClient.Clusteroperator().ClusterVersions(cvRef.Namespace).Get(cvRef.Name, metav1.GetOptions{})
+		if err != nil {
+			return nil, nil, err
+		}
 		vars, err := ansible.GenerateClusterVars(cluster)
 		if err != nil {
 			return nil, nil, err
 		}
-		job, configMap := c.ansibleGenerator.GeneratePlaybookJob(name, &cluster.Spec.Hardware, playbook, ansible.DefaultInventory, vars)
+		image, pullPolicy := ansible.GetAnsibleImageForClusterVersion(cv)
+		job, configMap := c.ansibleGenerator.GeneratePlaybookJob(name, &cluster.Spec.Hardware, playbook, ansible.DefaultInventory, vars, image, pullPolicy)
 		return job, configMap, nil
 	})
 }
@@ -307,6 +311,12 @@ func (s *jobSyncStrategy) DoesOwnerNeedProcessing(owner metav1.Object) bool {
 		s.controller.logger.Warn("could not convert owner from JobSync into a cluster: %#v", owner)
 		return false
 	}
+
+	// cannot run ansible jobs until the ClusterVersion has been resolved
+	if cluster.Status.ClusterVersionRef == nil {
+		return false
+	}
+
 	return cluster.Status.ProvisionedJobGeneration != cluster.Generation
 }
 

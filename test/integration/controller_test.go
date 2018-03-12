@@ -159,8 +159,10 @@ func TestClusterCreate(t *testing.T) {
 							},
 						},
 					},
-					DeploymentType: v1alpha1.ClusterDeploymentTypeOrigin,
-					Version:        "v3.7.0",
+					DeploymentType:                  v1alpha1.ClusterDeploymentTypeOrigin,
+					Version:                         "v3.7.0",
+					OpenshiftAnsibleImage:           func(s string) *string { return &s }("test-ansible-image"),
+					OpenshiftAnsibleImagePullPolicy: func(p kapi.PullPolicy) *kapi.PullPolicy { return &p }(kapi.PullNever),
 				},
 			}
 			clusterOperatorClient.ClusteroperatorV1alpha1().ClusterVersions(testNamespace).Create(clusterVersion)
@@ -316,8 +318,6 @@ func startServerAndControllers(t *testing.T) (
 	coSharedInformers := coInformerFactory.Clusteroperator().V1alpha1()
 
 	// create controllers
-	ansibleImage := "test-ansible-image"
-	ansibleImagePullPolicy := kapi.PullNever
 	stopCh := make(chan struct{})
 	t.Log("controller start")
 	// Note that controllers must be created prior to starting the informers.
@@ -340,8 +340,6 @@ func startServerAndControllers(t *testing.T) (
 				batchSharedInformers.Jobs(),
 				fakeKubeClient,
 				clusterOperatorClient,
-				ansibleImage,
-				ansibleImagePullPolicy,
 			)
 			return func() { controller.Run(1, stopCh) }
 		}(),
@@ -351,8 +349,6 @@ func startServerAndControllers(t *testing.T) (
 				batchSharedInformers.Jobs(),
 				fakeKubeClient,
 				clusterOperatorClient,
-				ansibleImage,
-				ansibleImagePullPolicy,
 			)
 			return func() { controller.Run(1, stopCh) }
 		}(),
@@ -362,8 +358,6 @@ func startServerAndControllers(t *testing.T) (
 				batchSharedInformers.Jobs(),
 				fakeKubeClient,
 				clusterOperatorClient,
-				ansibleImage,
-				ansibleImagePullPolicy,
 			)
 			return func() { controller.Run(1, stopCh) }
 		}(),
@@ -373,8 +367,6 @@ func startServerAndControllers(t *testing.T) (
 				batchSharedInformers.Jobs(),
 				fakeKubeClient,
 				clusterOperatorClient,
-				ansibleImage,
-				ansibleImagePullPolicy,
 			)
 			return func() { controller.Run(1, stopCh) }
 		}(),

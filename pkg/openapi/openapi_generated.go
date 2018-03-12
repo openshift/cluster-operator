@@ -659,6 +659,20 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Format:      "",
 							},
 						},
+						"openshiftAnsibleImage": {
+							SchemaProps: spec.SchemaProps{
+								Description: "OpenshiftAnsibleImage is the name of the image to use to run openshift-ansible playbooks. Defaults to openshift/origin-ansbile:{TAG}, where {TAG} is the value from the Version field of this ClusterVersion.",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"openshiftAnsibleImagePullPolicy": {
+							SchemaProps: spec.SchemaProps{
+								Description: "OpenshiftAnsibleImagePullPolicy is the pull policy to use for OpenshiftAnsibleImage. Defaults to IfNotPreset.",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
 					},
 					Required: []string{"imageFormat", "vmImages", "deploymentType", "version"},
 				},

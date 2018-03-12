@@ -470,8 +470,6 @@ func startInfraController(ctx ControllerContext) (bool, error) {
 		ctx.KubeInformerFactory.Batch().V1().Jobs(),
 		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-infra-controller"),
 		ctx.ClientBuilder.ClientOrDie("clusteroperator-infra-controller"),
-		ctx.Options.AnsibleImage,
-		v1.PullPolicy(ctx.Options.AnsibleImagePullPolicy),
 	).Run(int(ctx.Options.ConcurrentClusterSyncs), ctx.Stop)
 	return true, nil
 }
@@ -485,8 +483,6 @@ func startMachineSetController(ctx ControllerContext) (bool, error) {
 		ctx.KubeInformerFactory.Batch().V1().Jobs(),
 		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-machine-set-controller"),
 		ctx.ClientBuilder.ClientOrDie("clusteroperator-machine-set-controller"),
-		ctx.Options.AnsibleImage,
-		v1.PullPolicy(ctx.Options.AnsibleImagePullPolicy),
 	).Run(int(ctx.Options.ConcurrentMachineSetSyncs), ctx.Stop)
 	return true, nil
 }
@@ -512,8 +508,6 @@ func startMasterController(ctx ControllerContext) (bool, error) {
 		ctx.KubeInformerFactory.Batch().V1().Jobs(),
 		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-master-controller"),
 		ctx.ClientBuilder.ClientOrDie("clusteroperator-master-controller"),
-		ctx.Options.AnsibleImage,
-		v1.PullPolicy(ctx.Options.AnsibleImagePullPolicy),
 	).Run(int(ctx.Options.ConcurrentMasterSyncs), ctx.Stop)
 	return true, nil
 }
@@ -527,8 +521,6 @@ func startAcceptController(ctx ControllerContext) (bool, error) {
 		ctx.KubeInformerFactory.Batch().V1().Jobs(),
 		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-accept-controller"),
 		ctx.ClientBuilder.ClientOrDie("clusteroperator-accept-controller"),
-		ctx.Options.AnsibleImage,
-		v1.PullPolicy(ctx.Options.AnsibleImagePullPolicy),
 	).Run(int(ctx.Options.ConcurrentAcceptSyncs), ctx.Stop)
 	return true, nil
 }
@@ -542,8 +534,6 @@ func startComponentsController(ctx ControllerContext) (bool, error) {
 		ctx.KubeInformerFactory.Batch().V1().Jobs(),
 		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-components-controller"),
 		ctx.ClientBuilder.ClientOrDie("clusteroperator-components-controller"),
-		ctx.Options.AnsibleImage,
-		v1.PullPolicy(ctx.Options.AnsibleImagePullPolicy),
 	).Run(int(ctx.Options.ConcurrentComponentSyncs), ctx.Stop)
 	return true, nil
 }

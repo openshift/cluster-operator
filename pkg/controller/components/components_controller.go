@@ -81,8 +81,6 @@ func NewController(
 	jobInformer batchinformers.JobInformer,
 	kubeClient kubeclientset.Interface,
 	clusteroperatorClient clusteroperatorclientset.Interface,
-	ansibleImage string,
-	ansibleImagePullPolicy kapi.PullPolicy,
 ) *Controller {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(glog.Infof)
@@ -118,7 +116,7 @@ func NewController(
 
 	c.syncHandler = c.jobSync.Sync
 	c.enqueueMachineSet = c.enqueue
-	c.ansibleGenerator = ansible.NewJobGenerator(ansibleImage, ansibleImagePullPolicy)
+	c.ansibleGenerator = ansible.NewJobGenerator()
 
 	return c
 }
@@ -323,12 +321,15 @@ func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object, deleting bool) (con
 		if err != nil {
 			return nil, nil, err
 		}
+		image, pullPolicy := ansible.GetAnsibleImageForClusterVersion(cv)
 		job, configMap := s.controller.ansibleGenerator.GeneratePlaybooksJob(
 			name,
 			&machineSet.Spec.ClusterHardware,
 			componentsPlaybooks,
 			ansible.DefaultInventory,
 			vars,
+			image,
+			pullPolicy,
 		)
 		return job, configMap, nil
 	}), nil
