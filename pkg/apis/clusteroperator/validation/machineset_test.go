@@ -265,7 +265,7 @@ func TestValidateMachineSetUpdate(t *testing.T) {
 			new: func() *clusteroperator.MachineSet {
 				ms := getValidMachineSet()
 				ms.Spec.ClusterVersionRef = corev1.ObjectReference{
-					Namespace: "cluster-operator",
+					Namespace: "openshift-cluster-operator",
 					Name:      "newversion",
 					UID:       "somethingnew",
 				}

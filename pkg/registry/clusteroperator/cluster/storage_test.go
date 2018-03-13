@@ -59,7 +59,7 @@ func validNewCluster(name string) *clusteroperatorapi.Cluster {
 				},
 			},
 			ClusterVersionRef: clusteroperatorapi.ClusterVersionReference{
-				Namespace: "cluster-operator",
+				Namespace: "openshift-cluster-operator",
 				Name:      "v3-9",
 			},
 		},

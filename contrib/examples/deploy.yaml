@@ -3,7 +3,7 @@
 # Template for deploying the Cluster Operator.
 #
 # Parameters:
-#   CLUSTER_OPERATOR_NAMESPACE: namespace to which to deploy the cluster operator. Defaults to "cluster-operator".
+#   CLUSTER_OPERATOR_NAMESPACE: namespace to which to deploy the cluster operator. Defaults to "openshift-cluster-operator".
 #   SERVING_CERT: base-64-encoded, pem cert to use for ssl communication with the Cluster Operator API Server. Required.
 #   SERVING_KEY: base-64-encoded, pem private key for the cert to use for ssl communication with the Cluster Operator API Server. Required.
 #   SERVING_CA: base-64-encoded, pem CA cert for the ssl certs. Required.
@@ -389,7 +389,7 @@ objects:
 parameters:
 # Namespace to use for cluster-operator
 - name: CLUSTER_OPERATOR_NAMESPACE
-  value: cluster-operator
+  value: openshift-cluster-operator
 # Namespace of kube-system. Do not change.
 - name: KUBE_SYSTEM_NAMESPACE
   value: kube-system

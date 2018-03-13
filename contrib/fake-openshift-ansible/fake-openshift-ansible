@@ -29,5 +29,5 @@ echo OPTS=${OPTS}
 #
 # TODO: Send the contents of the inventory file and the contents of the variables file instead
 # of just the name of the inventory file and the OPTS.
-CLUSTER_OPERATOR_NAMESPACE=${POD_NAMESPACE:-cluster-operator}
+CLUSTER_OPERATOR_NAMESPACE=${POD_NAMESPACE:-openshift-cluster-operator}
 curl http://playbook-mock.${CLUSTER_OPERATOR_NAMESPACE}.svc.cluster.local -d "{\"playbook\":\"${PLAYBOOK_FILE}\",\"inventory\":\"${INVENTORY_FILE}\",\"variables\":\"${OPTS}\"}"
