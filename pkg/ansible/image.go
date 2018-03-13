@@ -35,7 +35,7 @@ func GetAnsibleImageForClusterVersion(cv *coapi.ClusterVersion) (string, kapi.Pu
 	if cv.Spec.OpenshiftAnsibleImage != nil {
 		image = *cv.Spec.OpenshiftAnsibleImage
 	}
-	pullPolicy := kapi.PullIfNotPresent
+	pullPolicy := kapi.PullAlways
 	if cv.Spec.OpenshiftAnsibleImagePullPolicy != nil {
 		pullPolicy = *cv.Spec.OpenshiftAnsibleImagePullPolicy
 	}

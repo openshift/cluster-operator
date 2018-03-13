@@ -35,19 +35,19 @@ func TestGetAnsibleImageForClusterVersion(t *testing.T) {
 		{
 			name:               "defaults",
 			expectedImage:      "openshift/origin-ansible:latest",
-			expectedPullPolicy: kapi.PullIfNotPresent,
+			expectedPullPolicy: kapi.PullAlways,
 		},
 		{
 			name:               "custom image",
 			image:              func(s string) *string { return &s }("custom/image:tag"),
 			expectedImage:      "custom/image:tag",
-			expectedPullPolicy: kapi.PullIfNotPresent,
+			expectedPullPolicy: kapi.PullAlways,
 		},
 		{
 			name:               "custom pull policy",
-			pullPolicy:         func(p kapi.PullPolicy) *kapi.PullPolicy { return &p }(kapi.PullAlways),
+			pullPolicy:         func(p kapi.PullPolicy) *kapi.PullPolicy { return &p }(kapi.PullNever),
 			expectedImage:      "openshift/origin-ansible:latest",
-			expectedPullPolicy: kapi.PullAlways,
+			expectedPullPolicy: kapi.PullNever,
 		},
 	}
 	for _, tc := range cases {
