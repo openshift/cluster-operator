@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/spf13/pflag"
-	kapi "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -53,8 +52,6 @@ const (
 	defaultConcurrentSyncs               = 5
 	defaultLeaderElectionNamespace       = "kube-system"
 	defaultLogLevel                      = "info"
-	defaultAnsibleImage                  = "openshift/origin-ansible:v3.8"
-	defaultAnsibleImagePullPolicy        = string(kapi.PullAlways)
 )
 
 // NewCMServer creates a new CMServer with a default config.
@@ -79,8 +76,6 @@ func NewCMServer() *CMServer {
 			ControllerStartInterval:       metav1.Duration{Duration: 0 * time.Second},
 			EnableProfiling:               true,
 			EnableContentionProfiling:     false,
-			AnsibleImage:                  defaultAnsibleImage,
-			AnsibleImagePullPolicy:        defaultAnsibleImagePullPolicy,
 		},
 	}
 	s.LeaderElection.LeaderElect = true
@@ -115,8 +110,6 @@ func (s *CMServer) AddFlags(fs *pflag.FlagSet, allControllers []string, disabled
 	fs.StringVar(&s.LeaderElectionNamespace, "leader-election-namespace", s.LeaderElectionNamespace, "Namespace to use for leader election lock")
 	fs.StringVar(&s.LogLevel, "log-level", defaultLogLevel, "Log level (debug,info,warn,error,fatal)")
 	fs.DurationVar(&s.ControllerStartInterval.Duration, "controller-start-interval", s.ControllerStartInterval.Duration, "Interval between starting controller managers.")
-	fs.StringVar(&s.AnsibleImage, "ansible-image", s.AnsibleImage, "Name of the image to use to run ansible playbooks")
-	fs.StringVar(&s.AnsibleImagePullPolicy, "ansible-image-pull-policy", s.AnsibleImagePullPolicy, fmt.Sprintf("Policy to use to pull the ansible image. This can be %s, %s, or %s", kapi.PullAlways, kapi.PullNever, kapi.PullIfNotPresent))
 
 	utilfeature.DefaultFeatureGate.AddFlag(fs)
 }
@@ -124,15 +117,6 @@ func (s *CMServer) AddFlags(fs *pflag.FlagSet, allControllers []string, disabled
 // Validate is used to validate the options and config before launching the controller manager
 func (s *CMServer) Validate(allControllers []string, disabledByDefaultControllers []string) error {
 	var errs []error
-
-	validPullPolicies := map[kapi.PullPolicy]bool{
-		kapi.PullAlways:       true,
-		kapi.PullNever:        true,
-		kapi.PullIfNotPresent: true,
-	}
-	if !validPullPolicies[kapi.PullPolicy(s.AnsibleImagePullPolicy)] {
-		errs = append(errs, fmt.Errorf("%q is not a valid pull policy for the ansible image", s.AnsibleImagePullPolicy))
-	}
 
 	allControllersSet := sets.NewString(allControllers...)
 	for _, controller := range s.Controllers {

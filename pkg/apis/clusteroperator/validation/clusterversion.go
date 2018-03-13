@@ -19,6 +19,7 @@ package validation
 import (
 	"regexp"
 
+	kapi "k8s.io/api/core/v1"
 	apivalidation "k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -45,6 +46,24 @@ var validDeploymentTypeValues = func() []string {
 
 var versionFmt = "^v?\\d+\\.\\d+(\\..+)?$"
 var versionRegex = regexp.MustCompile(versionFmt)
+
+// validPullPolicies is a map containing an entry for every valid pull policy value.
+var validPullPolicies = map[kapi.PullPolicy]bool{
+	kapi.PullAlways:       true,
+	kapi.PullNever:        true,
+	kapi.PullIfNotPresent: true,
+}
+
+// validPullPolicyValues is an array of every valid pull policy value.
+var validPullPolicyValues = func() []string {
+	validValues := make([]string, len(validPullPolicies))
+	i := 0
+	for dt := range validPullPolicies {
+		validValues[i] = string(dt)
+		i++
+	}
+	return validValues
+}()
 
 // ValidateClusterVersion validates a cluster version being created.
 func ValidateClusterVersion(cv *clusteroperator.ClusterVersion) field.ErrorList {
@@ -99,6 +118,12 @@ func ValidateClusterVersionSpec(spec *clusteroperator.ClusterVersionSpec, fldPat
 		matched := versionRegex.MatchString(spec.Version)
 		if !matched {
 			allErrs = append(allErrs, field.Invalid(versionPath, spec.Version, validation.RegexError("must begin with a valid major release version", versionFmt, "v3.9.0", "v3.9.0-alpha.4+e7d9503-189")))
+		}
+	}
+
+	if spec.OpenshiftAnsibleImagePullPolicy != nil {
+		if !validPullPolicies[*spec.OpenshiftAnsibleImagePullPolicy] {
+			allErrs = append(allErrs, field.NotSupported(fldPath.Child("openshiftAnsibleImagePullPolicy"), spec.OpenshiftAnsibleImagePullPolicy, validPullPolicyValues))
 		}
 	}
 

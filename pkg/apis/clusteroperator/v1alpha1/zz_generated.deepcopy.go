@@ -390,6 +390,24 @@ func (in *ClusterVersionReference) DeepCopy() *ClusterVersionReference {
 func (in *ClusterVersionSpec) DeepCopyInto(out *ClusterVersionSpec) {
 	*out = *in
 	in.VMImages.DeepCopyInto(&out.VMImages)
+	if in.OpenshiftAnsibleImage != nil {
+		in, out := &in.OpenshiftAnsibleImage, &out.OpenshiftAnsibleImage
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(string)
+			**out = **in
+		}
+	}
+	if in.OpenshiftAnsibleImagePullPolicy != nil {
+		in, out := &in.OpenshiftAnsibleImagePullPolicy, &out.OpenshiftAnsibleImagePullPolicy
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(v1.PullPolicy)
+			**out = **in
+		}
+	}
 	return
 }
 

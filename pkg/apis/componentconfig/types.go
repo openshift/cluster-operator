@@ -119,10 +119,4 @@ type ControllerManagerConfiguration struct {
 
 	// enableContentionProfiling enables lock contention profiling, if enableProfiling is true.
 	EnableContentionProfiling bool
-
-	// ansibleImage is the name of the image to use to run ansible playbooks
-	AnsibleImage string
-
-	// ansibleImagePullPolicy is the pull policy to use for ansibleImage
-	AnsibleImagePullPolicy string
 }

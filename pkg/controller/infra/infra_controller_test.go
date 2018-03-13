@@ -59,8 +59,6 @@ func newTestController() (
 		kubeInformers.Batch().V1().Jobs(),
 		kubeClient,
 		clusterOperatorClient,
-		"",
-		"",
 	)
 
 	controller.clustersSynced = alwaysReady

@@ -46,7 +46,19 @@ type JobGenerator interface {
 	// playbook - name of the playbook to run
 	// inventory - inventory to pass to the playbook
 	// vars - Ansible variables to the pass to the playbook
-	GeneratePlaybookJob(name string, hardware *clusteroperator.ClusterHardwareSpec, playbook, inventory, vars string) (*kbatch.Job, *kapi.ConfigMap)
+	// openshiftAnsibleImage - name of the openshift-ansible image that the
+	//   jobs created by the job generator will use
+	// openshiftAnsibleImagePullPolicy - policy to use to pull the
+	//   openshift-ansible image
+	GeneratePlaybookJob(
+		name string,
+		hardware *clusteroperator.ClusterHardwareSpec,
+		playbook string,
+		inventory string,
+		vars string,
+		openshiftAnsibleImage string,
+		openshiftAnsibleImagePullPolicy kapi.PullPolicy,
+	) (*kbatch.Job, *kapi.ConfigMap)
 
 	// GeneratePlaybooksJob generates a job to run the specified playbooks.
 	// Note that neither the job nor the configmap will be created in the API
@@ -58,26 +70,29 @@ type JobGenerator interface {
 	// playbooks - names of the playbooks to run
 	// inventory - inventory to pass to the playbook
 	// vars - Ansible variables to the pass to the playbook
-	GeneratePlaybooksJob(name string, hardware *clusteroperator.ClusterHardwareSpec, playbooks []string, inventory, vars string) (*kbatch.Job, *kapi.ConfigMap)
+	// openshiftAnsibleImage - name of the openshift-ansible image that the
+	//   jobs created by the job generator will use
+	// openshiftAnsibleImagePullPolicy - policy to use to pull the
+	//   openshift-ansible image
+	GeneratePlaybooksJob(
+		name string,
+		hardware *clusteroperator.ClusterHardwareSpec,
+		playbooks []string,
+		inventory string,
+		vars string,
+		openshiftAnsibleImage string,
+		openshiftAnsibleImagePullPolicy kapi.PullPolicy,
+	) (*kbatch.Job, *kapi.ConfigMap)
 }
 
 type jobGenerator struct {
-	image           string
-	imagePullPolicy kapi.PullPolicy
 }
 
 // NewJobGenerator creates a new JobGenerator that can be used to create
 // Ansible jobs.
 //
-// openshiftAnsibleImage - name of the openshift-ansible image that the
-//   jobs created by the job generator will use
-// openshiftAnsibleImagePullPolicy - policy to use to pull the
-//   openshift-ansible image
-func NewJobGenerator(openshiftAnsibleImage string, openshiftAnsibleImagePullPolicy kapi.PullPolicy) JobGenerator {
-	return &jobGenerator{
-		image:           openshiftAnsibleImage,
-		imagePullPolicy: openshiftAnsibleImagePullPolicy,
-	}
+func NewJobGenerator() JobGenerator {
+	return &jobGenerator{}
 }
 
 func (r *jobGenerator) generateInventoryConfigMap(name, inventory, vars string, logger *log.Entry) *kapi.ConfigMap {
@@ -96,11 +111,11 @@ func (r *jobGenerator) generateInventoryConfigMap(name, inventory, vars string, 
 	return cfgMap
 }
 
-func (r *jobGenerator) GeneratePlaybookJob(name string, hardware *clusteroperator.ClusterHardwareSpec, playbook, inventory, vars string) (*kbatch.Job, *kapi.ConfigMap) {
-	return r.GeneratePlaybooksJob(name, hardware, []string{playbook}, inventory, vars)
+func (r *jobGenerator) GeneratePlaybookJob(name string, hardware *clusteroperator.ClusterHardwareSpec, playbook, inventory, vars, openshiftAnsibleImage string, openshiftAnsibleImagePullPolicy kapi.PullPolicy) (*kbatch.Job, *kapi.ConfigMap) {
+	return r.GeneratePlaybooksJob(name, hardware, []string{playbook}, inventory, vars, openshiftAnsibleImage, openshiftAnsibleImagePullPolicy)
 }
 
-func (r *jobGenerator) GeneratePlaybooksJob(name string, hardware *clusteroperator.ClusterHardwareSpec, playbooks []string, inventory, vars string) (*kbatch.Job, *kapi.ConfigMap) {
+func (r *jobGenerator) GeneratePlaybooksJob(name string, hardware *clusteroperator.ClusterHardwareSpec, playbooks []string, inventory, vars, openshiftAnsibleImage string, openshiftAnsibleImagePullPolicy kapi.PullPolicy) (*kbatch.Job, *kapi.ConfigMap) {
 
 	logger := log.WithField("playbooks", playbooks)
 
@@ -216,8 +231,8 @@ func (r *jobGenerator) GeneratePlaybooksJob(name string, hardware *clusteroperat
 		}
 		containers[i] = kapi.Container{
 			Name:            containerNameForPlaybook(playbook),
-			Image:           r.image,
-			ImagePullPolicy: r.imagePullPolicy,
+			Image:           openshiftAnsibleImage,
+			ImagePullPolicy: openshiftAnsibleImagePullPolicy,
 			Env:             envForPlaybook,
 			VolumeMounts:    volumeMounts,
 		}

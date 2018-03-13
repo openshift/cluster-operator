@@ -6,9 +6,6 @@
   vars:
     aws_section: default
     ssh_priv_key: '~/.ssh/libra.pem'
-    use_real_aws: false
-    ansible_image: "fake-openshift-ansible:canary"
-    ansible_image_pull_policy: "Never"
   tasks:
   - name: create cluster-operator namespace
     command: oc create namespace cluster-operator
@@ -33,11 +30,6 @@
     when: cli_aws_section is defined
 
   - set_fact:
-      ansible_image: "openshift/origin-ansible:latest"
-      ansible_image_pull_policy: "Always"
-    when: use_real_aws
-
-  - set_fact:
       l_serving_ca: "{{ lookup('file', playbook_dir + '/../../ca.pem') | b64encode }}"
       l_serving_cert: "{{ lookup('file', playbook_dir + '/../../apiserver.pem') | b64encode }}"
       l_serving_key: "{{ lookup('file', playbook_dir + '/../../apiserver-key.pem') | b64encode }}"
@@ -58,10 +50,9 @@
 
   # TODO: not accurately reflecting 'changed' status as apply doesn't report until upstream PRs merge.
   - name: deploy application template
-    shell: "oc process -f {{ playbook_dir }}/../examples/deploy.yaml -o yaml -p SERVING_CA={{ l_serving_ca }} -p SERVING_CERT={{ l_serving_cert }} -p SERVING_KEY={{ l_serving_key }} AWS_ACCESS_KEY_ID={{ l_aws_access_key_id }} AWS_SECRET_ACCESS_KEY={{ l_aws_secret_access_key }} AWS_SSH_PRIVATE_KEY={{ l_aws_ssh_private_key }} ANSIBLE_IMAGE={{ ansible_image }} ANSIBLE_IMAGE_PULL_POLICY={{ ansible_image_pull_policy }} | oc apply -f -"
+    shell: "oc process -f {{ playbook_dir }}/../examples/deploy.yaml -o yaml -p SERVING_CA={{ l_serving_ca }} -p SERVING_CERT={{ l_serving_cert }} -p SERVING_KEY={{ l_serving_key }} AWS_ACCESS_KEY_ID={{ l_aws_access_key_id }} AWS_SECRET_ACCESS_KEY={{ l_aws_secret_access_key }} AWS_SSH_PRIVATE_KEY={{ l_aws_ssh_private_key }} | oc apply -f -"
 
   - name: deploy playbook-mock for testing with fake-openshift-ansible
     shell: "oc apply -n cluster-operator -f {{ playbook_dir }}/../examples/deploy-playbook-mock.yaml"
-    when: not use_real_aws | bool
 
 

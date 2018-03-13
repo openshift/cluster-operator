@@ -19,6 +19,7 @@ package validation
 import (
 	"testing"
 
+	kapi "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
@@ -242,6 +243,60 @@ func TestValidateClusterVersion(t *testing.T) {
 			clusterVersion: func() *clusteroperator.ClusterVersion {
 				c := getValidClusterVersion()
 				c.Spec.Version = "30"
+				return c
+			}(),
+			valid: false,
+		},
+		{
+			name: "ansible pull policy - nil",
+			clusterVersion: func() *clusteroperator.ClusterVersion {
+				c := getValidClusterVersion()
+				c.Spec.OpenshiftAnsibleImagePullPolicy = nil
+				return c
+			}(),
+			valid: true,
+		},
+		{
+			name: "ansible pull policy - always",
+			clusterVersion: func() *clusteroperator.ClusterVersion {
+				c := getValidClusterVersion()
+				c.Spec.OpenshiftAnsibleImagePullPolicy = func(s kapi.PullPolicy) *kapi.PullPolicy { return &s }(kapi.PullAlways)
+				return c
+			}(),
+			valid: true,
+		},
+		{
+			name: "ansible pull policy - if not present",
+			clusterVersion: func() *clusteroperator.ClusterVersion {
+				c := getValidClusterVersion()
+				c.Spec.OpenshiftAnsibleImagePullPolicy = func(s kapi.PullPolicy) *kapi.PullPolicy { return &s }(kapi.PullIfNotPresent)
+				return c
+			}(),
+			valid: true,
+		},
+		{
+			name: "ansible pull policy - never",
+			clusterVersion: func() *clusteroperator.ClusterVersion {
+				c := getValidClusterVersion()
+				c.Spec.OpenshiftAnsibleImagePullPolicy = func(s kapi.PullPolicy) *kapi.PullPolicy { return &s }(kapi.PullNever)
+				return c
+			}(),
+			valid: true,
+		},
+		{
+			name: "ansible pull policy - bad",
+			clusterVersion: func() *clusteroperator.ClusterVersion {
+				c := getValidClusterVersion()
+				c.Spec.OpenshiftAnsibleImagePullPolicy = func(s kapi.PullPolicy) *kapi.PullPolicy { return &s }(kapi.PullPolicy("bad"))
+				return c
+			}(),
+			valid: false,
+		},
+		{
+			name: "ansible pull policy - empty",
+			clusterVersion: func() *clusteroperator.ClusterVersion {
+				c := getValidClusterVersion()
+				c.Spec.OpenshiftAnsibleImagePullPolicy = func(s kapi.PullPolicy) *kapi.PullPolicy { return &s }(kapi.PullPolicy(""))
 				return c
 			}(),
 			valid: false,

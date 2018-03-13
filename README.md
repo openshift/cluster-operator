@@ -43,16 +43,9 @@
 ## Creating a Sample Cluster
   * `contrib/examples/create-cluster.sh`
 
-## Testing Provisioning
-
-Provisioning code is currently disabled to avoid doing anything unintentional
-until we have a better handle on getting it working and cleaning up what it
-creates.
-
-To enable and test:
-
-  1. Enable using real AWS by supplying the use_real_aws parameter to the contrib/ansible/deploy-devel.yaml playbook.
-		* `ansible-playbook contrib/ansible/deploy-devel.yaml -e "use_real_aws=true"`
-  1. Create a Cluster. Prefer a name for the Cluster that is prefaced with your username. This makes it easier to associate to you resources created in the AWS, making them easier to find and clean up. By default, if you are using the contrib/examples/create-cluster.sh script, the cluster will be prefaced with your username.
-  1. You should see some action in the controller manager logs, and a provisioning job and associated pod.
+When using the `create-cluster.sh` script, provisioning on AWS is disabled by default.
+To enable it, you must either set the USE_REAL_AWS variable or specify a
+real openshift-ansible image to use in the ANSIBLE_IMAGE variable.
+	* `USE_REAL_AWS=1 contrib/examples/create-cluster.sh`
+	* `ANSIBLE_IMAGE=openshift/origin-ansible:latest contrib/examples/create-cluster.sh`
 

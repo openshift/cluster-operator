@@ -18,6 +18,8 @@ objects:
           ami: ami-833d37f9
     deploymentType: origin
     version: "v3.9.0"
+    openshiftAnsibleImage: ${ANSIBLE_IMAGE}
+    openshiftAnsibleImagePullPolicy: ${ANSIBLE_IMAGE_PULL_POLICY}
 - apiVersion: clusteroperator.openshift.io/v1alpha1
   kind: Cluster
   metadata:
@@ -62,3 +64,11 @@ parameters:
   displayName: Cluster Version Namespace
   description: Namespace where cluster verions should live
   value: cluster-operator
+- name: ANSIBLE_IMAGE
+  displayName: Openshift Ansible Image
+  description: Name and tag of the Openshift Ansible image to use to run the ansible jobs
+  value: "openshift/origin-ansible:latest"
+- name: ANSIBLE_IMAGE_PULL_POLICY
+  displayName: Openshift Ansible Image Pull Policy
+  description: Policy to use when pulling the Openshift Ansible image
+  value: "Always"

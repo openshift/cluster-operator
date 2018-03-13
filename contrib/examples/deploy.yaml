@@ -330,10 +330,6 @@ objects:
           - "1"
           - --log-level
           - "debug"
-          - --ansible-image
-          - ${ANSIBLE_IMAGE}
-          - --ansible-image-pull-policy
-          - ${ANSIBLE_IMAGE_PULL_POLICY}
           ports:
           - containerPort: 8080
           readinessProbe:
@@ -406,9 +402,3 @@ parameters:
 - name: AWS_ACCESS_KEY_ID
 - name: AWS_SECRET_ACCESS_KEY
 - name: AWS_SSH_PRIVATE_KEY
-# Ansible image to use for running playbooks
-- name: ANSIBLE_IMAGE
-  value: fake-openshift-ansible:canary
-# Policy for pulling the ansible image
-- name: ANSIBLE_IMAGE_PULL_POLICY
-  value: Never

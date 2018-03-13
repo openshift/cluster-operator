@@ -28,4 +28,17 @@ else
 	CLUSTER_YAML="cluster.yaml"
 fi
 
-oc process -f contrib/examples/${CLUSTER_YAML} -p CLUSTER_NAME=$(whoami)-cluster | oc apply -f -
+if [ -z ${USE_REAL_AWS} ]
+then
+	: ${ANSIBLE_IMAGE:="fake-openshift-ansible:canary"}
+	: ${ANSIBLE_IMAGE_PULL_POLICY:="Never"}
+else	
+	: ${ANSIBLE_IMAGE:="openshift/origin-ansible:latest"}
+	: ${ANSIBLE_IMAGE_PULL_POLICY:="Always"}
+fi
+
+oc process -f contrib/examples/${CLUSTER_YAML} \
+	-p CLUSTER_NAME=$(whoami)-cluster \
+	-p ANSIBLE_IMAGE=${ANSIBLE_IMAGE} \
+	-p ANSIBLE_IMAGE_PULL_POLICY=${ANSIBLE_IMAGE_PULL_POLICY} \
+	| oc apply -f -
