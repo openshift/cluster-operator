@@ -16,7 +16,7 @@
 
 set -e
 
-export CLUSTER_OPERATOR_NAMESPACE=${CLUSTER_OPERATOR_NAMESPACE:-cluster-operator}
+export CLUSTER_OPERATOR_NAMESPACE=${CLUSTER_OPERATOR_NAMESPACE:-openshift-cluster-operator}
 CLUSTER_OPERATOR_SERVICE_NAME=cluster-operator-apiserver
 
 CA_NAME=ca

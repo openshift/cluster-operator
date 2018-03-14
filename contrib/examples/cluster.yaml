@@ -26,7 +26,7 @@ objects:
     name: ${CLUSTER_NAME}
   spec:
     clusterVersionRef:
-      namespace: cluster-operator
+      namespace: ${CLUSTER_VERSION_NS}
       name: origin-v3-9
     hardware:
       aws:
@@ -63,7 +63,7 @@ parameters:
 - name: CLUSTER_VERSION_NS
   displayName: Cluster Version Namespace
   description: Namespace where cluster verions should live
-  value: cluster-operator
+  value: openshift-cluster-operator
 - name: ANSIBLE_IMAGE
   displayName: Openshift Ansible Image
   description: Name and tag of the Openshift Ansible image to use to run the ansible jobs

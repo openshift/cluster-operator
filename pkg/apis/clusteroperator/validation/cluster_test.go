@@ -56,7 +56,7 @@ func getValidClusterSpec() clusteroperator.ClusterSpec {
 
 func getClusterVersionReference() corev1.ObjectReference {
 	return corev1.ObjectReference{
-		Namespace: "cluster-operator",
+		Namespace: "openshift-cluster-operator",
 		Name:      "v3-9",
 		UID:       "fakeuid",
 	}

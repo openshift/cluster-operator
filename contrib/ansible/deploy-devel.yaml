@@ -6,9 +6,20 @@
   vars:
     aws_section: default
     ssh_priv_key: '~/.ssh/libra.pem'
+<<<<<<< HEAD
+=======
+    use_real_aws: false
+    ansible_image: "fake-openshift-ansible:canary"
+    ansible_image_pull_policy: "Never"
+    cluster_operator_namespace: "openshift-cluster-operator"
+>>>>>>> Use openshift-cluster-operator as the namespace
   tasks:
+  - set_fact:
+      cluster_operator_namespace: "{{ cli_cluster_operator_namespace }}"
+    when: cli_cluster_operator_namespace is defined
+    
   - name: create cluster-operator namespace
-    command: oc create namespace cluster-operator
+    command: "oc create namespace {{ cluster_operator_namespace }}"
     register: createns_reg
     failed_when: createns_reg.rc > 0 and "AlreadyExists" not in createns_reg.stderr
     changed_when: createns_reg.rc == 0
@@ -50,9 +61,7 @@
 
   # TODO: not accurately reflecting 'changed' status as apply doesn't report until upstream PRs merge.
   - name: deploy application template
-    shell: "oc process -f {{ playbook_dir }}/../examples/deploy.yaml -o yaml -p SERVING_CA={{ l_serving_ca }} -p SERVING_CERT={{ l_serving_cert }} -p SERVING_KEY={{ l_serving_key }} AWS_ACCESS_KEY_ID={{ l_aws_access_key_id }} AWS_SECRET_ACCESS_KEY={{ l_aws_secret_access_key }} AWS_SSH_PRIVATE_KEY={{ l_aws_ssh_private_key }} | oc apply -f -"
+    shell: "oc process -f {{ playbook_dir }}/../examples/deploy.yaml -o yaml -p CLUSTER_OPERATOR_NAMESPACE={{ cluster_operator_namespace }} -p SERVING_CA={{ l_serving_ca }} -p SERVING_CERT={{ l_serving_cert }} -p SERVING_KEY={{ l_serving_key }} AWS_ACCESS_KEY_ID={{ l_aws_access_key_id }} AWS_SECRET_ACCESS_KEY={{ l_aws_secret_access_key }} AWS_SSH_PRIVATE_KEY={{ l_aws_ssh_private_key }} | oc apply -f -"
 
   - name: deploy playbook-mock for testing with fake-openshift-ansible
-    shell: "oc apply -n cluster-operator -f {{ playbook_dir }}/../examples/deploy-playbook-mock.yaml"
-
-
+    shell: "oc apply -n {{ cluster_operator_namespace }} -f {{ playbook_dir }}/../examples/deploy-playbook-mock.yaml"

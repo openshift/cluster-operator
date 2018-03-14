@@ -19,4 +19,6 @@
 
 set -o errexit
 
-curl --silent http://$(oc get service -n cluster-operator playbook-mock -o json | jq -r .spec.clusterIP) | jq '.'
+: CLUSTER_OPERATOR_NAMESPACE:="openshift-cluster-operator"
+
+curl --silent http://$(oc get service -n $CLUSTER_OPERATOR_NAMESPACE playbook-mock -o json | jq -r .spec.clusterIP) | jq '.'

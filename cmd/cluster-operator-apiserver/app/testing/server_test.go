@@ -42,7 +42,7 @@ func TestRun(t *testing.T) {
 		},
 		Spec: clusteroperator.ClusterSpec{
 			ClusterVersionRef: clusteroperator.ClusterVersionReference{
-				Namespace: "cluster-operator",
+				Namespace: "openshift-cluster-operator",
 				Name:      "v3-9",
 			},
 			MachineSets: []clusteroperator.ClusterMachineSet{

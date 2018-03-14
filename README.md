@@ -38,7 +38,7 @@
   * Idempotently deploy cluster operator to the OpenShift cluster.
     * `ansible-playbook contrib/ansible/deploy-devel.yaml`
   * If your image changed, but the kubernetes config did not, it is often required to delete all pods:
-    * `oc delete pod --all -n cluster-operator`
+    * `oc delete pod --all -n openshift-cluster-operator`
 
 ## Creating a Sample Cluster
   * `contrib/examples/create-cluster.sh`

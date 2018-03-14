@@ -16,9 +16,11 @@
 
 set -e
 
-oc get secret aws-credentials -n cluster-operator -o yaml | sed -E '/(namespace:|annotations|last-applied-configuration:|selfLink|uid:|resourceVersion:)/d' | oc apply -f -
-oc get secret ssh-private-key -n cluster-operator -o yaml | sed -E '/(namespace:|annotations|last-applied-configuration:|selfLink|uid:|resourceVersion:)/d' | oc apply -f -
-oc get secret ssl-cert -n cluster-operator -o yaml | sed -E '/(namespace:|annotations|last-applied-configuration:|selfLink|uid:|resourceVersion:)/d' | oc apply -f -
+: ${CLUSTER_OPERATOR_NAMESPACE:="openshift-cluster-operator"}
+
+oc get secret aws-credentials -n "$CLUSTER_OPERATOR_NAMESPACE" -o yaml | sed -E '/(namespace:|annotations|last-applied-configuration:|selfLink|uid:|resourceVersion:)/d' | oc apply -f -
+oc get secret ssh-private-key -n "$CLUSTER_OPERATOR_NAMESPACE" -o yaml | sed -E '/(namespace:|annotations|last-applied-configuration:|selfLink|uid:|resourceVersion:)/d' | oc apply -f -
+oc get secret ssl-cert -n "$CLUSTER_OPERATOR_NAMESPACE" -o yaml | sed -E '/(namespace:|annotations|last-applied-configuration:|selfLink|uid:|resourceVersion:)/d' | oc apply -f -
 
 
 if [ -e contrib/examples/$(whoami)-cluster.yaml ]
