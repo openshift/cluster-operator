@@ -67,7 +67,7 @@ import (
 	"github.com/openshift/cluster-operator/pkg/controller/components"
 	"github.com/openshift/cluster-operator/pkg/controller/infra"
 	"github.com/openshift/cluster-operator/pkg/controller/machine"
-	"github.com/openshift/cluster-operator/pkg/controller/machineset"
+	"github.com/openshift/cluster-operator/pkg/controller/master-machineset"
 	"github.com/openshift/cluster-operator/pkg/controller/master"
 	"github.com/openshift/cluster-operator/pkg/version"
 )
@@ -320,7 +320,7 @@ func NewControllerInitializers() map[string]InitFunc {
 	controllers := map[string]InitFunc{}
 	controllers["cluster"] = startClusterController
 	controllers["infra"] = startInfraController
-	controllers["machineset"] = startMachineSetController
+	controllers["mastermachineset"] = startMasterMachineSetController
 	controllers["machine"] = startMachineController
 	controllers["master"] = startMasterController
 	controllers["accept"] = startAcceptController
@@ -476,11 +476,11 @@ func startInfraController(ctx ControllerContext) (bool, error) {
 	return true, nil
 }
 
-func startMachineSetController(ctx ControllerContext) (bool, error) {
+func startMasterMachineSetController(ctx ControllerContext) (bool, error) {
 	if !resourcesAvailable(ctx) {
 		return false, nil
 	}
-	go machineset.NewController(
+	go mastermachineset.NewController(
 		ctx.InformerFactory.Clusteroperator().V1alpha1().MachineSets(),
 		ctx.KubeInformerFactory.Batch().V1().Jobs(),
 		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-machine-set-controller"),

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package machineset
+package mastermachineset
 
 import (
 	"fmt"
@@ -157,12 +157,20 @@ type Controller struct {
 
 func (c *Controller) addMachineSet(obj interface{}) {
 	ms := obj.(*clusteroperator.MachineSet)
+	if ms.Spec.NodeType != "Master" {
+		return
+	}
+
 	colog.WithMachineSet(c.logger, ms).Debugf("enqueueing added machine set")
 	c.enqueueMachineSet(ms)
 }
 
 func (c *Controller) updateMachineSet(old, cur interface{}) {
 	ms := cur.(*clusteroperator.MachineSet)
+	if ms.Spec.NodeType != "Master" {
+		return
+	}
+
 	colog.WithMachineSet(c.logger, ms).Debugf("enqueueing updated machine set")
 	c.enqueueMachineSet(ms)
 }
@@ -181,6 +189,10 @@ func (c *Controller) deleteMachineSet(obj interface{}) {
 			return
 		}
 	}
+	if ms.Spec.NodeType != "Master" {
+		return
+	}
+
 	colog.WithMachineSet(c.logger, ms).Debugf("enqueueing deleted machine set")
 	c.enqueueMachineSet(ms)
 }
