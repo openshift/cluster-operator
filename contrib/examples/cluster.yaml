@@ -41,7 +41,7 @@ objects:
         keyPairName: "libra"
     defaultHardwareSpec:
       aws:
-        instanceType: "m4.xlarge"
+        instanceType: "t2.medium"
     machineSets:
     - name: master
       nodeType: Master
