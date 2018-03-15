@@ -480,6 +480,7 @@ func startMachineSetController(ctx ControllerContext) (bool, error) {
 	}
 	go machineset.NewController(
 		ctx.InformerFactory.Clusteroperator().V1alpha1().MachineSets(),
+		ctx.InformerFactory.Clusteroperator().V1alpha1().Machines(),
 		ctx.KubeInformerFactory.Batch().V1().Jobs(),
 		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-machine-set-controller"),
 		ctx.ClientBuilder.ClientOrDie("clusteroperator-machine-set-controller"),
