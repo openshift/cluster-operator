@@ -37,6 +37,7 @@ var (
 	KeyFunc = cache.DeletionHandlingMetaNamespaceKeyFunc
 
 	clusterKind = clusteroperator.SchemeGroupVersion.WithKind("Cluster")
+	machineSetKind = clusteroperator.SchemeGroupVersion.WithKind("MachineSet")
 )
 
 // WaitForCacheSync is a wrapper around cache.WaitForCacheSync that generates log messages
@@ -274,4 +275,41 @@ func MachineSetsForCluster(cluster *clusteroperator.Cluster, machineSetsLister l
 		}
 	}
 	return clusterMachineSets, nil
+}
+
+// MachinesForMachineSet returns list of all machines belonging to the given machineSet
+func MachinesForMachineSet(ms *clusteroperator.MachineSet, machineLister lister.MachineLister) ([]*clusteroperator.Machine, error) {
+	machines := []*clusteroperator.Machine{}
+	allMachines, err := machineLister.Machines(ms.Namespace).List(labels.Everything())
+	if err != nil {
+		return nil, err
+	}
+	for _, machine := range allMachines {
+		if metav1.IsControlledBy(machine, ms) {
+			machines = append(machines, machine)
+		}
+	}
+	return machines, nil
+}
+
+// MachineSetForMachine retrieves the machineset to which a machine belongs
+func MachineSetForMachine(machine *clusteroperator.Machine, machineSetsLister lister.MachineSetLister) (*clusteroperator.MachineSet, error) {
+        controller, err := GetObjectController(
+                machine,
+                machineSetKind,
+                func(name string) (metav1.Object, error) {
+                        return machineSetsLister.MachineSets(machine.Namespace).Get(name)
+                },
+        )
+        if err != nil {
+                return nil, err
+        }
+        if controller == nil {
+                return nil, nil
+        }
+        machineSet, ok := controller.(*clusteroperator.MachineSet)
+        if !ok {
+                return nil, fmt.Errorf("Could not convert controller into a MachineSet")
+        }
+        return machineSet, nil
 }

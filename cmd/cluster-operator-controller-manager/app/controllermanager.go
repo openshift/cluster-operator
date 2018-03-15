@@ -68,6 +68,7 @@ import (
 	"github.com/openshift/cluster-operator/pkg/controller/infra"
 	"github.com/openshift/cluster-operator/pkg/controller/machine"
 	"github.com/openshift/cluster-operator/pkg/controller/master-machineset"
+	"github.com/openshift/cluster-operator/pkg/controller/compute-machineset"
 	"github.com/openshift/cluster-operator/pkg/controller/master"
 	"github.com/openshift/cluster-operator/pkg/version"
 )
@@ -321,6 +322,7 @@ func NewControllerInitializers() map[string]InitFunc {
 	controllers["cluster"] = startClusterController
 	controllers["infra"] = startInfraController
 	controllers["mastermachineset"] = startMasterMachineSetController
+	controllers["computemachineset"] = startComputeMachineSetController
 	controllers["machine"] = startMachineController
 	controllers["master"] = startMasterController
 	controllers["accept"] = startAcceptController
@@ -476,6 +478,24 @@ func startInfraController(ctx ControllerContext) (bool, error) {
 	return true, nil
 }
 
+func startComputeMachineSetController(ctx ControllerContext) (bool, error) {
+	if !resourcesAvailable(ctx) {
+		return false, nil
+	}
+	go computemachineset.NewController(
+		ctx.InformerFactory.Clusteroperator().V1alpha1().MachineSets(),
+		ctx.InformerFactory.Clusteroperator().V1alpha1().Machines(),
+		////ctx.KubeInformerFactory.Batch().V1().Jobs(),
+		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-compute-machine-set-controller"),
+		ctx.ClientBuilder.ClientOrDie("clusteroperator-compute-machine-set-controller"),
+		////ctx.Options.AnsibleImage,
+		// ^^ FIXME
+		////v1.PullPolicy(ctx.Options.AnsibleImagePullPolicy),
+		// ^^ FIXME
+	).Run(int(ctx.Options.ConcurrentMachineSetSyncs), ctx.Stop)
+	return true, nil
+}
+
 func startMasterMachineSetController(ctx ControllerContext) (bool, error) {
 	if !resourcesAvailable(ctx) {
 		return false, nil
@@ -483,8 +503,8 @@ func startMasterMachineSetController(ctx ControllerContext) (bool, error) {
 	go mastermachineset.NewController(
 		ctx.InformerFactory.Clusteroperator().V1alpha1().MachineSets(),
 		ctx.KubeInformerFactory.Batch().V1().Jobs(),
-		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-machine-set-controller"),
-		ctx.ClientBuilder.ClientOrDie("clusteroperator-machine-set-controller"),
+		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-master-machine-set-controller"),
+		ctx.ClientBuilder.ClientOrDie("clusteroperator-master-machine-set-controller"),
 		ctx.Options.AnsibleImage,
 		v1.PullPolicy(ctx.Options.AnsibleImagePullPolicy),
 	).Run(int(ctx.Options.ConcurrentMachineSetSyncs), ctx.Stop)
