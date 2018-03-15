@@ -50,7 +50,7 @@ func validNewCluster(name string) *clusteroperatorapi.Cluster {
 		Spec: clusteroperatorapi.ClusterSpec{
 			MachineSets: []clusteroperatorapi.ClusterMachineSet{
 				{
-					Name: "master",
+					ShortName: "master",
 					MachineSetConfig: clusteroperatorapi.MachineSetConfig{
 						NodeType: clusteroperatorapi.NodeTypeMaster,
 						Infra:    true,

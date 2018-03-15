@@ -38,7 +38,7 @@ const (
 	testName      = "test-name"
 	testKey       = "test-namespace/test-name"
 	testJobName   = "test-job-abc"
-	testFinalizer = "openshift/cluster-operator-test-job-1"
+	testFinalizer = "openshift/cluster-operator-test-job"
 )
 
 var (

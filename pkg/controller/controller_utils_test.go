@@ -884,3 +884,182 @@ func TestClusterForMachineSet(t *testing.T) {
 		})
 	}
 }
+
+func TestMachineSetLabels(t *testing.T) {
+	cluster := &clusteroperator.Cluster{
+		ObjectMeta: metav1.ObjectMeta{
+			UID:  "test-uid",
+			Name: "test-name",
+		},
+	}
+	expected := map[string]string{
+		"cluster-uid":            "test-uid",
+		"cluster":                "test-name",
+		"machine-set-short-name": "test-short-name",
+	}
+	actual := MachineSetLabels(cluster, "test-short-name")
+	assert.Equal(t, expected, actual)
+}
+
+func TestJobLabelsForClusterController(t *testing.T) {
+	cluster := &clusteroperator.Cluster{
+		ObjectMeta: metav1.ObjectMeta{
+			UID:  "test-uid",
+			Name: "test-name",
+		},
+	}
+	expected := map[string]string{
+		"cluster-uid": "test-uid",
+		"cluster":     "test-name",
+		"job-type":    "test-job-type",
+	}
+	actual := JobLabelsForClusterController(cluster, "test-job-type")
+	assert.Equal(t, expected, actual)
+}
+
+func TestJobLabelsForMachineSetController(t *testing.T) {
+	cases := []struct {
+		name             string
+		machineSetLabels map[string]string
+		expected         map[string]string
+	}{
+		{
+			name: "nil labels",
+			expected: map[string]string{
+				"machine-set-uid": "test-uid",
+				"machine-set":     "test-name",
+				"job-type":        "test-job-type",
+			},
+		},
+		{
+			name:             "empty labels",
+			machineSetLabels: map[string]string{},
+			expected: map[string]string{
+				"machine-set-uid": "test-uid",
+				"machine-set":     "test-name",
+				"job-type":        "test-job-type",
+			},
+		},
+		{
+			name: "single label",
+			machineSetLabels: map[string]string{
+				"label1": "value1",
+			},
+			expected: map[string]string{
+				"machine-set-uid": "test-uid",
+				"machine-set":     "test-name",
+				"job-type":        "test-job-type",
+				"label1":          "value1",
+			},
+		},
+		{
+			name: "multiple labels",
+			machineSetLabels: map[string]string{
+				"label1": "value1",
+				"label2": "value2",
+			},
+			expected: map[string]string{
+				"machine-set-uid": "test-uid",
+				"machine-set":     "test-name",
+				"job-type":        "test-job-type",
+				"label1":          "value1",
+				"label2":          "value2",
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			machineSet := &clusteroperator.MachineSet{
+				ObjectMeta: metav1.ObjectMeta{
+					UID:    "test-uid",
+					Name:   "test-name",
+					Labels: tc.machineSetLabels,
+				},
+			}
+			actual := JobLabelsForMachineSetController(machineSet, "test-job-type")
+			assert.Equal(t, tc.expected, actual)
+		})
+	}
+}
+
+func TestAddLabels(t *testing.T) {
+	cases := []struct {
+		name       string
+		existing   map[string]string
+		additional map[string]string
+		expected   map[string]string
+	}{
+		{
+			name:     "none",
+			expected: map[string]string{},
+		},
+		{
+			name: "no existing",
+			additional: map[string]string{
+				"additional1": "value1",
+				"additional2": "value2",
+			},
+			expected: map[string]string{
+				"additional1": "value1",
+				"additional2": "value2",
+			},
+		},
+		{
+			name: "no additional",
+			existing: map[string]string{
+				"existing1": "value1",
+				"existing2": "value2",
+			},
+			expected: map[string]string{
+				"existing1": "value1",
+				"existing2": "value2",
+			},
+		},
+		{
+			name: "both",
+			existing: map[string]string{
+				"existing1": "value1",
+				"existing2": "value2",
+			},
+			additional: map[string]string{
+				"additional1": "value1",
+				"additional2": "value2",
+			},
+			expected: map[string]string{
+				"existing1":   "value1",
+				"existing2":   "value2",
+				"additional1": "value1",
+				"additional2": "value2",
+			},
+		},
+		{
+			name: "overlapping",
+			existing: map[string]string{
+				"existing1": "value1",
+				"existing2": "value2",
+				"shared":    "existingValue",
+			},
+			additional: map[string]string{
+				"additional1": "value1",
+				"additional2": "value2",
+				"shared":      "additionalValue",
+			},
+			expected: map[string]string{
+				"existing1":   "value1",
+				"existing2":   "value2",
+				"additional1": "value1",
+				"additional2": "value2",
+				"shared":      "additionalValue",
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			obj := &metav1.ObjectMeta{
+				Labels: tc.existing,
+			}
+			AddLabels(obj, tc.additional)
+			assert.Equal(t, tc.expected, obj.Labels)
+		})
+	}
+}

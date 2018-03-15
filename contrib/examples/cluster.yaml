@@ -43,14 +43,14 @@ objects:
       aws:
         instanceType: "m4.xlarge"
     machineSets:
-    - name: master
+    - shortName: master
       nodeType: Master
       size: 1
-    - name: infra
+    - shortName: infra
       nodeType: Compute
       infra: true
       size: 1
-    - name: compute
+    - shortName: compute
       nodeType: Compute
       size: 1
 

@@ -56,9 +56,8 @@ const (
 	controllerLogName = "accept"
 
 	acceptPlaybook = "playbooks/aws/openshift-cluster/accept.yml"
-	// jobPrefix is used when generating a name for the configmap and job used for each
-	// Ansible execution.
-	jobPrefix = "job-accept-"
+	// jobType is the type of job run by this controller.
+	jobType = "accept"
 )
 
 var machineSetKind = clusteroperator.SchemeGroupVersion.WithKind("MachineSet")
@@ -97,7 +96,7 @@ func NewController(
 	c.machineSetsSynced = machineSetInformer.Informer().HasSynced
 
 	jobOwnerControl := &jobOwnerControl{controller: c}
-	c.jobControl = controller.NewJobControl(jobPrefix, machineSetKind, kubeClient, jobInformer.Lister(), jobOwnerControl, logger)
+	c.jobControl = controller.NewJobControl(jobType, machineSetKind, kubeClient, jobInformer.Lister(), jobOwnerControl, logger)
 	jobInformer.Informer().AddEventHandler(c.jobControl)
 	c.jobsSynced = jobInformer.Informer().HasSynced
 
@@ -320,6 +319,9 @@ func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object, deleting bool) (con
 			image,
 			pullPolicy,
 		)
+		labels := controller.JobLabelsForMachineSetController(machineSet, jobType)
+		controller.AddLabels(job, labels)
+		controller.AddLabels(configMap, labels)
 		return job, configMap, nil
 	}), nil
 }

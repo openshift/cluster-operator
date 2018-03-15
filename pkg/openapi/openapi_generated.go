@@ -337,9 +337,9 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 				SchemaProps: spec.SchemaProps{
 					Description: "ClusterMachineSet is the specification of a machine set in a cluster",
 					Properties: map[string]spec.Schema{
-						"name": {
+						"shortName": {
 							SchemaProps: spec.SchemaProps{
-								Description: "Name is a unique name for the machine set within the cluster",
+								Description: "ShortName is a unique name for the machine set within the cluster",
 								Type:        []string{"string"},
 								Format:      "",
 							},
@@ -386,7 +386,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 							},
 						},
 					},
-					Required: []string{"name", "nodeType", "infra", "size", "nodeLabels"},
+					Required: []string{"shortName", "nodeType", "infra", "size", "nodeLabels"},
 				},
 			},
 			Dependencies: []string{

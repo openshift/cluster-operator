@@ -261,7 +261,5 @@ func (s *jobSync) addFinalizer(original metav1.Object) error {
 }
 
 func (s *jobSync) getFinalizerName() string {
-	// Add a valid alphanumeric character to the end of the finalizer since the job
-	// prefix is likely to end in an invalid hyphen character.
-	return fmt.Sprintf("openshift/cluster-operator-%s1", s.jobControl.GetJobPrefix())
+	return fmt.Sprintf("openshift/cluster-operator-%s", s.jobControl.GetJobPrefix())
 }

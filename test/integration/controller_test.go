@@ -17,9 +17,7 @@ limitations under the License.
 package integration
 
 import (
-	"fmt"
 	"sort"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -69,7 +67,7 @@ func TestClusterCreate(t *testing.T) {
 			name: "no compute machine sets",
 			machineSets: []v1alpha1.ClusterMachineSet{
 				{
-					Name: "master",
+					ShortName: "master",
 					MachineSetConfig: v1alpha1.MachineSetConfig{
 						NodeType: v1alpha1.NodeTypeMaster,
 						Infra:    true,
@@ -82,7 +80,7 @@ func TestClusterCreate(t *testing.T) {
 			name: "single compute machine sets",
 			machineSets: []v1alpha1.ClusterMachineSet{
 				{
-					Name: "master",
+					ShortName: "master",
 					MachineSetConfig: v1alpha1.MachineSetConfig{
 						NodeType: v1alpha1.NodeTypeMaster,
 						Infra:    true,
@@ -90,7 +88,7 @@ func TestClusterCreate(t *testing.T) {
 					},
 				},
 				{
-					Name: "first",
+					ShortName: "first",
 					MachineSetConfig: v1alpha1.MachineSetConfig{
 						NodeType: v1alpha1.NodeTypeCompute,
 						Infra:    false,
@@ -103,7 +101,7 @@ func TestClusterCreate(t *testing.T) {
 			name: "multiple compute machine sets",
 			machineSets: []v1alpha1.ClusterMachineSet{
 				{
-					Name: "master",
+					ShortName: "master",
 					MachineSetConfig: v1alpha1.MachineSetConfig{
 						NodeType: v1alpha1.NodeTypeMaster,
 						Infra:    true,
@@ -111,7 +109,7 @@ func TestClusterCreate(t *testing.T) {
 					},
 				},
 				{
-					Name: "first",
+					ShortName: "first",
 					MachineSetConfig: v1alpha1.MachineSetConfig{
 						NodeType: v1alpha1.NodeTypeCompute,
 						Infra:    false,
@@ -119,7 +117,7 @@ func TestClusterCreate(t *testing.T) {
 					},
 				},
 				{
-					Name: "second",
+					ShortName: "second",
 					MachineSetConfig: v1alpha1.MachineSetConfig{
 						NodeType: v1alpha1.NodeTypeCompute,
 						Infra:    false,
@@ -127,7 +125,7 @@ func TestClusterCreate(t *testing.T) {
 					},
 				},
 				{
-					Name: "3rd",
+					ShortName: "3rd",
 					MachineSetConfig: v1alpha1.MachineSetConfig{
 						NodeType: v1alpha1.NodeTypeCompute,
 						Infra:    false,
@@ -467,36 +465,45 @@ func verifyMachineSetsCreated(t *testing.T, kubeClient *kubefake.Clientset, clus
 	}
 
 	type details struct {
-		namePrefix string
-		nodeType   v1alpha1.NodeType
-		size       int
+		clusterName string
+		shortName   string
+		nodeType    v1alpha1.NodeType
+		size        int
 	}
 
 	expectedDetails := make([]details, len(cluster.Spec.MachineSets))
 	for i, ms := range cluster.Spec.MachineSets {
 		expectedDetails[i] = details{
-			namePrefix: fmt.Sprintf("%s-%s", cluster.Name, ms.Name),
-			nodeType:   ms.NodeType,
-			size:       ms.Size,
+			clusterName: cluster.Name,
+			shortName:   ms.ShortName,
+			nodeType:    ms.NodeType,
+			size:        ms.Size,
 		}
 	}
 
 	actualDetails := make([]details, len(machineSets.Items))
-	for i, ng := range machineSets.Items {
-		lastDashInName := strings.LastIndexByte(ng.Name, '-')
-		if lastDashInName < 0 {
-			t.Fatalf("MachineSet name does not contain any dashes")
+	for i, ms := range machineSets.Items {
+		if ms.Labels == nil {
+			t.Fatalf("machine set does not have any labels")
 		}
 		actualDetails[i] = details{
-			namePrefix: ng.Name[:lastDashInName],
-			nodeType:   ng.Spec.NodeType,
-			size:       ng.Spec.Size,
+			clusterName: ms.Labels["cluster"],
+			shortName:   ms.Labels["machine-set-short-name"],
+			nodeType:    ms.Spec.NodeType,
+			size:        ms.Spec.Size,
 		}
 	}
 
 	sortDetails := func(detailsSlice []details) {
 		sort.Slice(detailsSlice, func(i, j int) bool {
-			return detailsSlice[i].namePrefix < detailsSlice[j].namePrefix
+			switch {
+			case detailsSlice[i].clusterName < detailsSlice[j].clusterName:
+				return true
+			case detailsSlice[i].clusterName > detailsSlice[j].clusterName:
+				return false
+			default:
+				return detailsSlice[i].shortName < detailsSlice[j].shortName
+			}
 		})
 	}
 	sortDetails(expectedDetails)

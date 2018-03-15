@@ -40,7 +40,7 @@ func getValidClusterSpec() clusteroperator.ClusterSpec {
 	return clusteroperator.ClusterSpec{
 		MachineSets: []clusteroperator.ClusterMachineSet{
 			{
-				Name: "master",
+				ShortName: "master",
 				MachineSetConfig: clusteroperator.MachineSetConfig{
 					NodeType: clusteroperator.NodeTypeMaster,
 					Infra:    true,
@@ -63,13 +63,13 @@ func getClusterVersionReference() corev1.ObjectReference {
 }
 
 // getTestMachineSet gets a ClusterMachineSet initialized with either compute or master node type
-func getTestMachineSet(size int, name string, master bool, infra bool) clusteroperator.ClusterMachineSet {
+func getTestMachineSet(size int, shortName string, master bool, infra bool) clusteroperator.ClusterMachineSet {
 	nodeType := clusteroperator.NodeTypeCompute
 	if master {
 		nodeType = clusteroperator.NodeTypeMaster
 	}
 	return clusteroperator.ClusterMachineSet{
-		Name: name,
+		ShortName: shortName,
 		MachineSetConfig: clusteroperator.MachineSetConfig{
 			NodeType: nodeType,
 			Size:     size,
