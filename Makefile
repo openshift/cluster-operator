@@ -27,6 +27,7 @@ ROOT           = $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 BINDIR        ?= bin
 BUILD_DIR     ?= build
 COVERAGE      ?= $(CURDIR)/coverage.html
+CLUSTERAPI_BIN = $(BINDIR)/cluster-api
 CLUSTER_OPERATOR_PKG = github.com/openshift/cluster-operator
 TOP_SRC_DIRS   = cmd pkg
 SRC_DIRS       = $(shell sh -c "find $(TOP_SRC_DIRS) -name \\*.go \
@@ -171,7 +172,9 @@ $(BINDIR)/e2e.test: .init
 .clusterOperatorBuildImage: build/build-image/Dockerfile
 	sed "s/GO_VERSION/$(GO_VERSION)/g" < build/build-image/Dockerfile | \
 	  docker build -t clusteroperatorbuildimage -
-	touch $@
+
+.apiServerBuilderImage: .clusterOperatorBuildImage build/apiserver-builder/Dockerfile
+	docker build -t apiserverbuilderimage ./build/apiserver-builder
 
 # Util targets
 ##############
@@ -329,6 +332,14 @@ playbook-mock-image: build/playbook-mock/Dockerfile $(BINDIR)/playbook-mock
 	docker tag $(PLAYBOOK_MOCK_IMAGE) $(REGISTRY)playbook-mock:$(VERSION)
 	docker tag $(PLAYBOOK_MOCK_MUTABLE_IMAGE) $(REGISTRY)playbook-mock:$(MUTABLE_TAG)
 
+.PHONY: $(CLUSTERAPI_BIN)/apiserver
+$(CLUSTERAPI_BIN)/apiserver: .apiServerBuilderImage
+	mkdir -p $(PWD)/$(CLUSTERAPI_BIN) && docker run --security-opt label:disable -v $(PWD)/$(CLUSTERAPI_BIN):/output --entrypoint=/bin/bash apiserverbuilderimage -c "export GOPATH=/go && mkdir -p /go/src/k8s.io/kube-deploy && cd /go/src/k8s.io/kube-deploy && git clone https://github.com/kubernetes/kube-deploy.git . && cd cluster-api && apiserver-boot build executables --generate=false && cp bin/* /output"
+
+.PHONY: kubernetes-cluster-api
+kubernetes-cluster-api: $(CLUSTERAPI_BIN)/apiserver build/clusterapi-image/Dockerfile
+	cp build/clusterapi-image/Dockerfile $(CLUSTERAPI_BIN) 
+	docker build -t clusterapi ./$(CLUSTERAPI_BIN)
 
 # Push our Docker Images to a registry
 ######################################
