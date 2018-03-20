@@ -41,11 +41,50 @@
     * `oc delete pod --all -n openshift-cluster-operator`
 
 ## Creating a Sample Cluster
+
   * `contrib/examples/create-cluster.sh`
 
 When using the `create-cluster.sh` script, provisioning on AWS is disabled by default.
 To enable it, you must either set the USE_REAL_AWS variable or specify a
 real openshift-ansible image to use in the ANSIBLE_IMAGE variable.
-	* `USE_REAL_AWS=1 contrib/examples/create-cluster.sh`
-	* `ANSIBLE_IMAGE=openshift/origin-ansible:latest contrib/examples/create-cluster.sh`
+
+  * `USE_REAL_AWS=1 contrib/examples/create-cluster.sh`
+  * `ANSIBLE_IMAGE=openshift/origin-ansible:latest contrib/examples/create-cluster.sh`
+
+## Developing With OpenShift Ansible
+
+You can build your own custom version of [https://github.com/openshift/openshift-ansible](OpenShift Ansible) when working on playbooks and roles from the openshift-ansible repo:
+
+  `docker build -f images/installer/Dockerfile -t dgoodwin-origin-ansible:latest .`
+
+You can then use this image with Cluster Operator via:
+
+  `ANSIBLE_IMAGE="dgoodwin-origin-ansible:latest" ANSIBLE_IMAGE_PULL_POLICY="Never" contrib/examples/create-cluster.sh`
+
+You can run CO OpenShift Ansible playbooks standalone by creating an inventory like:
+
+```
+[OSEv3:children]
+masters
+nodes
+etcd
+
+[OSEv3:vars]
+ansible_become=true
+ansible_ssh_user=centos
+openshift_deployment_type=origin
+openshift_release="3.9"
+oreg_url=openshift/origin-${component}:v3.9.0
+openshift_aws_ami=ami-833d37f9
+
+[masters]
+
+[etcd]
+
+[nodes]
+```
+
+You can then run ansible with the above inventory file and your cluster ID:
+
+`ansible-playbook -i ec2-hosts playbooks/cluster-operator/node-config-daemonset.yml -e openshift_aws_clusterid=dgoodwin-cluster`
 
