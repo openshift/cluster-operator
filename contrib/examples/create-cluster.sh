@@ -34,8 +34,8 @@ if [ -z ${USE_REAL_AWS} ]
 then
 	: ${ANSIBLE_IMAGE:="fake-openshift-ansible:canary"}
 	: ${ANSIBLE_IMAGE_PULL_POLICY:="Never"}
-else	
-	: ${ANSIBLE_IMAGE:="openshift/origin-ansible:latest"}
+else
+	: ${ANSIBLE_IMAGE:="openshift/origin-ansible:v3.9"}
 	: ${ANSIBLE_IMAGE_PULL_POLICY:="Always"}
 fi
 
