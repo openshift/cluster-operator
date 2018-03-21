@@ -1,0 +1,94 @@
+---
+- name: Setup the master node group
+  hosts: localhost
+  tasks:
+  - import_role:
+      name: openshift_aws
+      tasks_from: setup_master_group.yml
+
+#- name: set the master facts for hostname to elb
+#  hosts: masters
+#  gather_facts: no
+#  remote_user: root
+#  tasks:
+#  - import_role:
+#      name: openshift_aws
+#      tasks_from: master_facts.yml
+
+#- name: run the init
+#  import_playbook: ../init/main.yml
+
+- name: install cluster-api
+  hosts: masters[0]
+  gather_facts: no
+  remote_user: root
+  vars:
+    cluster_api_namespace: kube-cluster
+  tasks:
+  - name: import lib_openshift
+    import_role:
+      name: lib_openshift
+
+  - name: slurp local template content
+    slurp:
+      src: files/cluster-api-template.yaml
+    delegate_to: localhost
+    register: template
+
+  - name: "create {{ cluster_api_namespace }} namesapce"
+    oc_project:
+      state: present
+      name: "{{ cluster_api_namespace }}"
+      display_name: "Cluster API"
+      node_selector:
+      - node-role.kubernetes.io/master=true
+
+  - name: create certificates
+    when: cluster_api_cert is not defined
+    block:
+    - name: create certificates
+      oc_adm_ca_server_cert:
+        signer_cert: /etc/origin/master/ca.crt
+        signer_key: /etc/origin/master/ca.key
+        signer_serial: /etc/origin/master/ca.serial.txt
+        hostnames: "clusterapi.{{ cluster_api_namespace }},clusterapi.{{ cluster_api_namespace }}.svc"
+        cert: /tmp/clusterapi.crt
+        key: /tmp/clusterapi.key
+      register: cert_out
+      run_once: true
+    - debug: var=cert_out
+
+    - name: slurp certificate data
+      slurp:
+        path: /tmp/clusterapi.crt
+      register: clusterapi_crt
+      run_once: true
+
+    - name: slurp key data
+      slurp:
+        path: /tmp/clusterapi.key
+      register: clusterapi_key
+      run_once: true
+
+    - name: save generated cert/key data
+      set_fact:
+        cluster_api_cert: "{{ clusterapi_crt.content }}"
+        cluster_api_key: "{{ clusterapi_key.content }}"
+        cluster_api_ca_bundle: "{{ clusterapi_crt.content }}"
+
+  - name: process template
+    oc_process:
+      namespace: "{{ cluster_api_namespace }}"
+      state: present
+      create: true
+      content: "{{ template.content | b64decode }}"
+      params:
+         CLUSTER_API_NAMESPACE: "{{ cluster_api_namespace }}"
+         SERVING_CA: "{{ cluster_api_ca_bundle }}"
+         SERVING_CERT: "{{ cluster_api_cert }}"
+         SERVING_KEY: "{{ cluster_api_key }}"
+    run_once: true
+    register: template_out
+
+  - debug:
+      var: template_out
