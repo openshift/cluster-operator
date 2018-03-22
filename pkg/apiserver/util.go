@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	apiServerName = "cluster-operator-apiserver"
+	apiServerName = "co-apiserver"
 )
 
 func restStorageProviders(

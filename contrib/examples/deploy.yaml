@@ -23,7 +23,7 @@ objects:
 - apiVersion: v1
   kind: ServiceAccount
   metadata:
-    name: cluster-operator-apiserver
+    name: co-apiserver
     namespace: ${CLUSTER_OPERATOR_NAMESPACE}
 
 # Service account for the Controller Manager
@@ -47,7 +47,7 @@ objects:
   subjects:
   - apiGroup: ""
     kind: ServiceAccount
-    name: cluster-operator-apiserver
+    name: co-apiserver
     namespace: ${CLUSTER_OPERATOR_NAMESPACE}
 
 # API Server gets the ability to read authentication. This allows it to
@@ -65,7 +65,7 @@ objects:
   subjects:
   - apiGroup: ""
     kind: ServiceAccount
-    name: cluster-operator-apiserver
+    name: co-apiserver
     namespace: ${CLUSTER_OPERATOR_NAMESPACE}
 
 # Create a role for the Controller Manager to give it permissions to manage
@@ -118,10 +118,10 @@ objects:
 - apiVersion: v1
   kind: Secret
   metadata:
-    name: cluster-operator-apiserver-cert
+    name: co-apiserver-cert
     namespace: ${CLUSTER_OPERATOR_NAMESPACE}
     labels:
-      app: cluster-operator-apiserver
+      app: co-apiserver
   type: Opaque
   data:
     tls.crt: ${SERVING_CERT}
@@ -169,20 +169,20 @@ objects:
 - apiVersion: apps/v1beta1
   kind: Deployment
   metadata:
-    name: cluster-operator-apiserver
+    name: co-apiserver
     namespace: ${CLUSTER_OPERATOR_NAMESPACE}
     labels:
-      app: cluster-operator-apiserver
+      app: co-apiserver
   spec:
     selector:
       matchLabels:
-        app: cluster-operator-apiserver
+        app: co-apiserver
     template:
       metadata:
         labels:
-          app: cluster-operator-apiserver
+          app: co-apiserver
       spec:
-        serviceAccountName: cluster-operator-apiserver
+        serviceAccountName: co-apiserver
         containers:
         - name: apiserver
           args:
@@ -276,7 +276,7 @@ objects:
         - name: apiserver-ssl
           secret:
             defaultMode: 420
-            secretName: cluster-operator-apiserver-cert
+            secretName: co-apiserver-cert
             items:
             - key: tls.crt
               path: apiserver.crt
@@ -358,11 +358,11 @@ objects:
     name: cluster-operator-apiserver
     namespace: ${CLUSTER_OPERATOR_NAMESPACE}
     labels:
-      app: cluster-operator-apiserver
+      app: co-apiserver
   spec:
     type: NodePort
     selector:
-      app: cluster-operator-apiserver
+      app: co-apiserver
     ports:
     - name: secure
       protocol: TCP
