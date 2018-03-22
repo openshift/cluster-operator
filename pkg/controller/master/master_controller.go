@@ -57,7 +57,7 @@ const (
 	masterPlaybook = "playbooks/aws/openshift-cluster/install.yml"
 	// jobPrefix is used when generating a name for the configmap and job used for each
 	// Ansible execution.
-	jobPrefix = "job-master-"
+	jobPrefix = "master-"
 )
 
 var machineSetKind = clusteroperator.SchemeGroupVersion.WithKind("MachineSet")

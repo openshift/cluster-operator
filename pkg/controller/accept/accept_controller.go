@@ -58,7 +58,7 @@ const (
 	acceptPlaybook = "playbooks/aws/openshift-cluster/accept.yml"
 	// jobPrefix is used when generating a name for the configmap and job used for each
 	// Ansible execution.
-	jobPrefix = "job-accept-"
+	jobPrefix = "acceptnodes-"
 )
 
 var machineSetKind = clusteroperator.SchemeGroupVersion.WithKind("MachineSet")

@@ -57,7 +57,7 @@ const (
 
 	// jobPrefix is used when generating a name for the configmap and job used for each
 	// Ansible execution.
-	jobPrefix = "job-components-"
+	jobPrefix = "components-"
 )
 
 var (
