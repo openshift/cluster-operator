@@ -169,7 +169,7 @@ func Run(s *options.CMServer) error {
 
 	rl, err := resourcelock.New(s.LeaderElection.ResourceLock,
 		s.LeaderElectionNamespace,
-		"cluster-operator-controller-manager",
+		"co-controller-manager",
 		leaderElectionClient.CoreV1(),
 		resourcelock.ResourceLockConfig{
 			Identity:      id,
@@ -220,7 +220,7 @@ func createRecorder(kubeClient *clientset.Clientset) record.EventRecorder {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(glog.Infof)
 	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: v1core.New(kubeClient.CoreV1().RESTClient()).Events("")})
-	return eventBroadcaster.NewRecorder(api.Scheme, v1.EventSource{Component: "cluster-operator-controller-manager"})
+	return eventBroadcaster.NewRecorder(api.Scheme, v1.EventSource{Component: "co-controller-manager"})
 }
 
 func createClients(s *options.CMServer) (*clientset.Clientset, *clientset.Clientset, *restclient.Config, error) {
@@ -233,7 +233,7 @@ func createClients(s *options.CMServer) (*clientset.Clientset, *clientset.Client
 	// Override kubeconfig qps/burst settings from flags
 	kubeconfig.QPS = s.KubeAPIQPS
 	kubeconfig.Burst = int(s.KubeAPIBurst)
-	kubeClient, err := clientset.NewForConfig(restclient.AddUserAgent(kubeconfig, "cluster-operator-controller-manager"))
+	kubeClient, err := clientset.NewForConfig(restclient.AddUserAgent(kubeconfig, "co-controller-manager"))
 	if err != nil {
 		glog.Fatalf("Invalid API configuration: %v", err)
 	}

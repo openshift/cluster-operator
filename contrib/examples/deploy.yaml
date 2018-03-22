@@ -30,7 +30,7 @@ objects:
 - apiVersion: v1
   kind: ServiceAccount
   metadata:
-    name: cluster-operator-controller-manager
+    name: co-controller-manager
     namespace: ${CLUSTER_OPERATOR_NAMESPACE}
 
 # API Server gets the auth-delegator role to delegate auth decisions to
@@ -81,7 +81,7 @@ objects:
     verbs:     ["create"]
   - apiGroups:     [""]
     resources:     ["configmaps"]
-    resourceNames: ["cluster-operator-controller-manager"]
+    resourceNames: ["co-controller-manager"]
     verbs: ["get","update"]
   # events for recording events
   - apiGroups: [""]
@@ -111,7 +111,7 @@ objects:
   subjects:
   - apiGroup: ""
     kind: ServiceAccount
-    name: cluster-operator-controller-manager
+    name: co-controller-manager
     namespace: ${CLUSTER_OPERATOR_NAMESPACE}
 
 # Secret to pass the SSL certs to the API Server
@@ -289,20 +289,20 @@ objects:
 - kind: Deployment
   apiVersion: extensions/v1beta1
   metadata:
-    name: cluster-operator-controller-manager
+    name: co-controller-manager
     namespace: ${CLUSTER_OPERATOR_NAMESPACE}
     labels:
-      app: cluster-operator-controller-manager
+      app: co-controller-manager
   spec:
     selector:
       matchLabels:
-        app: cluster-operator-controller-manager
+        app: co-controller-manager
     template:
       metadata:
         labels:
-          app: cluster-operator-controller-manager
+          app: co-controller-manager
       spec:
-        serviceAccountName: cluster-operator-controller-manager
+        serviceAccountName: co-controller-manager
         containers:
         - name: controller-manager
           image: cluster-operator:canary
