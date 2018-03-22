@@ -67,7 +67,7 @@ parameters:
 - name: ANSIBLE_IMAGE
   displayName: Openshift Ansible Image
   description: Name and tag of the Openshift Ansible image to use to run the ansible jobs
-  value: "openshift/origin-ansible:latest"
+  value: "openshift/origin-ansible:v3.9"
 - name: ANSIBLE_IMAGE_PULL_POLICY
   displayName: Openshift Ansible Image Pull Policy
   description: Policy to use when pulling the Openshift Ansible image
