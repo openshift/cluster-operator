@@ -59,7 +59,7 @@ const (
 	deprovisionInfraPlaybook = "playbooks/cluster-operator/aws/uninstall_infrastructure.yml"
 	// jobPrefix is used when generating a name for the configmap and job used for each
 	// Ansible execution.
-	jobPrefix = "job-infra-"
+	jobPrefix = "infra-"
 )
 
 var clusterKind = clusteroperator.SchemeGroupVersion.WithKind("Cluster")

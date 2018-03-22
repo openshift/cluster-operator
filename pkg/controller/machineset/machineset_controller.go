@@ -59,6 +59,10 @@ const (
 	// Ansible execution.
 	jobPrefix = "provision-machineset-"
 
+	// deprovisionJobPrefixPrefix applies a prefix to the standard job prefix when we're
+	// running a deprovision playbook. (sorry)
+	deprovisionJobPrefixPrefix = "de"
+
 	masterProvisioningPlaybook = "playbooks/aws/openshift-cluster/provision.yml"
 
 	computeProvisioningPlaybook = "playbooks/aws/openshift-cluster/provision_nodes.yml"
@@ -323,8 +327,10 @@ func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object, deleting bool) (con
 			return nil, nil, err
 		}
 		var playbook string
+		jobName := name
 		switch {
 		case deleting:
+			jobName = deprovisionJobPrefixPrefix + name
 			switch machineSet.Spec.NodeType {
 			case clusteroperator.NodeTypeMaster:
 				playbook = masterDeprovisioningPlaybook
@@ -338,7 +344,7 @@ func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object, deleting bool) (con
 		}
 		image, pullPolicy := ansible.GetAnsibleImageForClusterVersion(cv)
 		job, configMap := s.controller.ansibleGenerator.GeneratePlaybookJob(
-			name,
+			jobName,
 			&machineSet.Spec.ClusterHardware,
 			playbook,
 			ansible.DefaultInventory,

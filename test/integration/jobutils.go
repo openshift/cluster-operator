@@ -193,7 +193,7 @@ func completeInfraProvision(t *testing.T, kubeClient *kubefake.Clientset, cluste
 		kubeClient,
 		clusterOperatorClient,
 		cluster.Namespace, cluster.Name,
-		clusterJobRef(t, kubeClient, "job-infra-"),
+		clusterJobRef(t, kubeClient, "infra-"),
 		waitForClusterProvisioned,
 	) {
 		return false
@@ -262,11 +262,11 @@ func completeInfraDeprovision(t *testing.T, kubeClient *kubefake.Clientset, clus
 		kubeClient,
 		clusterOperatorClient,
 		cluster.Namespace, cluster.Name,
-		clusterJobRef(t, kubeClient, "job-infra-"),
+		clusterJobRef(t, kubeClient, "infra-"),
 		func(client clientset.Interface, namespace, name string) error {
 			return waitForObjectToNotExistOrNotHaveFinalizer(
 				namespace, name,
-				"openshift/cluster-operator-job-infra-1",
+				"openshift/cluster-operator-infra-1",
 				func(namespace, name string) (metav1.Object, error) {
 					return getCluster(client, namespace, name)
 				},
@@ -336,7 +336,7 @@ func completeMachineSetDeprovision(t *testing.T, kubeClient *kubefake.Clientset,
 		kubeClient,
 		clusterOperatorClient,
 		machineSet.Namespace, machineSet.Name,
-		machineSetJobRef(t, kubeClient, "provision-machineset-"),
+		machineSetJobRef(t, kubeClient, "deprovision-machineset-"),
 		func(client clientset.Interface, namespace, name string) error {
 			return waitForObjectToNotExistOrNotHaveFinalizer(
 				namespace, name,
@@ -375,7 +375,7 @@ func completeMachineSetInstall(t *testing.T, kubeClient *kubefake.Clientset, clu
 		kubeClient,
 		clusterOperatorClient,
 		machineSet.Namespace, machineSet.Name,
-		machineSetJobRef(t, kubeClient, "job-master-"),
+		machineSetJobRef(t, kubeClient, "master-"),
 		func(client clientset.Interface, namespace, name string) error {
 			return waitForMachineSetStatus(
 				client,
@@ -398,7 +398,7 @@ func completeMachineSetAccept(t *testing.T, kubeClient *kubefake.Clientset, clus
 		kubeClient,
 		clusterOperatorClient,
 		machineSet.Namespace, machineSet.Name,
-		machineSetJobRef(t, kubeClient, "job-accept-"),
+		machineSetJobRef(t, kubeClient, "acceptnodes-"),
 		func(client clientset.Interface, namespace, name string) error {
 			return waitForMachineSetStatus(
 				client,
