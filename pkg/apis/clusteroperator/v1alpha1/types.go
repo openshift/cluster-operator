@@ -362,8 +362,8 @@ type MachineSetList struct {
 
 // ClusterMachineSet is the specification of a machine set in a cluster
 type ClusterMachineSet struct {
-	// Name is a unique name for the machine set within the cluster
-	Name string `json:"name"`
+	// ShortName is a unique name for the machine set within the cluster
+	ShortName string `json:"shortName"`
 
 	// MachineSetConfig is the configuration for the MachineSet
 	MachineSetConfig `json:",inline"`

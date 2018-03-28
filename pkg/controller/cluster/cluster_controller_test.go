@@ -108,7 +108,7 @@ func newCluster(cv *clusteroperator.ClusterVersion, computeNames ...string) *clu
 	computes := make([]clusteroperator.ClusterMachineSet, len(computeNames))
 	for i, computeName := range computeNames {
 		computes[i] = clusteroperator.ClusterMachineSet{
-			Name: computeName,
+			ShortName: computeName,
 			MachineSetConfig: clusteroperator.MachineSetConfig{
 				Size:     1,
 				NodeType: clusteroperator.NodeTypeCompute,
@@ -131,7 +131,7 @@ func newClusterWithMasterInstanceType(cv *clusteroperator.ClusterVersion, instan
 		},
 		Spec: clusteroperator.ClusterSpec{
 			MachineSets: append(computes, clusteroperator.ClusterMachineSet{
-				Name: "master",
+				ShortName: "master",
 				MachineSetConfig: clusteroperator.MachineSetConfig{
 					Size:     1,
 					Infra:    true,
@@ -184,7 +184,7 @@ func newClusterWithSizes(cv *clusteroperator.ClusterVersion, masterSize int, com
 		},
 		Spec: clusteroperator.ClusterSpec{
 			MachineSets: append(computes, clusteroperator.ClusterMachineSet{
-				Name: "master",
+				ShortName: "master",
 				MachineSetConfig: clusteroperator.MachineSetConfig{
 					Infra:    true,
 					Size:     masterSize,
@@ -219,7 +219,7 @@ func newClusterWithSizes(cv *clusteroperator.ClusterVersion, masterSize int, com
 }
 
 // newMachineSet creates a new machine set.
-func newMachineSet(name string, cluster *clusteroperator.Cluster, properlyOwned bool) *clusteroperator.MachineSet {
+func newMachineSet(shortName string, cluster *clusteroperator.Cluster, properlyOwned bool) *clusteroperator.MachineSet {
 	var controllerReference metav1.OwnerReference
 	if properlyOwned {
 		trueVar := true
@@ -233,9 +233,14 @@ func newMachineSet(name string, cluster *clusteroperator.Cluster, properlyOwned 
 	}
 	return &clusteroperator.MachineSet{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:            name,
+			Name:            fmt.Sprintf("%s-%s-random", cluster.Name, shortName),
 			Namespace:       cluster.Namespace,
 			OwnerReferences: []metav1.OwnerReference{controllerReference},
+			Labels: map[string]string{
+				controller.ClusterUIDLabel:          string(testClusterUUID),
+				controller.ClusterNameLabel:         cluster.Name,
+				controller.MachineSetShortNameLabel: shortName,
+			},
 		},
 	}
 }
@@ -255,8 +260,7 @@ func newMachineSets(store cache.Store, cluster *clusteroperator.Cluster, cluster
 				NodeType: clusteroperator.NodeTypeCompute,
 				Size:     1,
 			},
-
-			Name: computeName,
+			ShortName: computeName,
 		}
 	}
 
@@ -268,8 +272,7 @@ func newMachineSets(store cache.Store, cluster *clusteroperator.Cluster, cluster
 func newMachineSetsWithSizes(store cache.Store, cluster *clusteroperator.Cluster, clusterVersion *clusteroperator.ClusterVersion, masterSize int, computes ...clusteroperator.ClusterMachineSet) []*clusteroperator.MachineSet {
 	machineSets := []*clusteroperator.MachineSet{}
 	if masterSize > 0 {
-		name := fmt.Sprintf("%s-master-random", cluster.Name)
-		machineSet := newMachineSet(name, cluster, true)
+		machineSet := newMachineSet("master", cluster, true)
 		machineSet.Spec.NodeType = clusteroperator.NodeTypeMaster
 		machineSet.Spec.Size = masterSize
 		machineSet.Spec.Infra = true
@@ -282,8 +285,7 @@ func newMachineSetsWithSizes(store cache.Store, cluster *clusteroperator.Cluster
 		machineSets = append(machineSets, machineSet)
 	}
 	for _, compute := range computes {
-		name := fmt.Sprintf("%s-%s-random", cluster.Name, compute.Name)
-		machineSet := newMachineSet(name, cluster, true)
+		machineSet := newMachineSet(compute.ShortName, cluster, true)
 		machineSet.Spec.MachineSetConfig = compute.MachineSetConfig
 		machineSet.Spec.ClusterVersionRef = corev1.ObjectReference{
 			Name:      clusterVersion.Name,
@@ -306,8 +308,7 @@ func newMachineSetsWithSizes(store cache.Store, cluster *clusteroperator.Cluster
 func newMachineSetsWithMasterInstanceType(store cache.Store, cluster *clusteroperator.Cluster, clusterVersion *clusteroperator.ClusterVersion, masterInstanceType string, computes ...clusteroperator.ClusterMachineSet) []*clusteroperator.MachineSet {
 	machineSets := []*clusteroperator.MachineSet{}
 	if len(masterInstanceType) > 0 {
-		name := fmt.Sprintf("%s-master-random", cluster.Name)
-		machineSet := newMachineSet(name, cluster, true)
+		machineSet := newMachineSet("master", cluster, true)
 		machineSet.Spec.NodeType = clusteroperator.NodeTypeMaster
 		machineSet.Spec.Size = 1
 		machineSet.Spec.Hardware = &clusteroperator.MachineSetHardwareSpec{
@@ -325,8 +326,7 @@ func newMachineSetsWithMasterInstanceType(store cache.Store, cluster *clusterope
 		machineSets = append(machineSets, machineSet)
 	}
 	for _, compute := range computes {
-		name := fmt.Sprintf("%s-%s-random", cluster.Name, compute.Name)
-		machineSet := newMachineSet(name, cluster, true)
+		machineSet := newMachineSet(compute.ShortName, cluster, true)
 		machineSet.Spec.MachineSetConfig = compute.MachineSetConfig
 		machineSet.Spec.ClusterVersionRef = corev1.ObjectReference{
 			Name:      clusterVersion.Name,
@@ -443,7 +443,8 @@ type expectedClientAction interface {
 // expectedMachineSetCreateAction is an expected client action to create a
 // machine set.
 type expectedMachineSetCreateAction struct {
-	namePrefix   string
+	clusterName  string
+	shortName    string
 	hardwareSpec *clusteroperator.MachineSetHardwareSpec
 }
 
@@ -467,7 +468,13 @@ func (ea expectedMachineSetCreateAction) validate(t *testing.T, action clientgot
 		t.Errorf("machine set create action object is not a MachineSet: %t", machineSet)
 		return false
 	}
-	if machineSet.GenerateName != ea.namePrefix {
+	if machineSet.Labels == nil {
+		return false
+	}
+	if machineSet.Labels[controller.ClusterNameLabel] != ea.clusterName {
+		return false
+	}
+	if machineSet.Labels[controller.MachineSetShortNameLabel] != ea.shortName {
 		return false
 	}
 	if ea.hardwareSpec != nil {
@@ -480,15 +487,16 @@ func (ea expectedMachineSetCreateAction) validate(t *testing.T, action clientgot
 
 // newExpectedMachineSetCreateAction creates a new expected client
 // action for creating a machine set.
-func newExpectedMachineSetCreateAction(cluster *clusteroperator.Cluster, name string) expectedMachineSetCreateAction {
-	return newExpectedMachineSetCreateActionWithHardwareSpec(cluster, name, nil)
+func newExpectedMachineSetCreateAction(cluster *clusteroperator.Cluster, shortName string) expectedMachineSetCreateAction {
+	return newExpectedMachineSetCreateActionWithHardwareSpec(cluster, shortName, nil)
 }
 
 // expectedMachineSetUpdateAction is an expected client action to update a
 // machine set.
 type expectedMachineSetUpdateAction struct {
-	namePrefix string
-	size       int
+	clusterName string
+	shortName   string
+	size        int
 }
 
 func (ea expectedMachineSetUpdateAction) resource() schema.GroupVersionResource {
@@ -511,7 +519,13 @@ func (ea expectedMachineSetUpdateAction) validate(t *testing.T, action clientgot
 		t.Errorf("machine set update action object is not a MachineSet: %t", updatedObject)
 		return false
 	}
-	if !strings.HasPrefix(machineSet.Name, ea.namePrefix) {
+	if machineSet.Labels == nil {
+		return false
+	}
+	if machineSet.Labels[controller.ClusterNameLabel] != ea.clusterName {
+		return false
+	}
+	if machineSet.Labels[controller.MachineSetShortNameLabel] != ea.shortName {
 		return false
 	}
 	if e, a := ea.size, machineSet.Spec.Size; e != a {
@@ -523,8 +537,8 @@ func (ea expectedMachineSetUpdateAction) validate(t *testing.T, action clientgot
 
 // newExpectedMachineSetUpdateAction creates a new expected client
 // action for updating a machine set.
-func newExpectedMachineSetUpdateAction(cluster *clusteroperator.Cluster, name string, size int) expectedMachineSetUpdateAction {
-	return expectedMachineSetUpdateAction{namePrefix: cluster.Name + "-" + name, size: size}
+func newExpectedMachineSetUpdateAction(cluster *clusteroperator.Cluster, shortName string, size int) expectedMachineSetUpdateAction {
+	return expectedMachineSetUpdateAction{clusterName: cluster.Name, shortName: shortName, size: size}
 }
 
 // newExpectedMachineSetCreateActionWithHardwareSpec creates a new expected
@@ -532,11 +546,12 @@ func newExpectedMachineSetUpdateAction(cluster *clusteroperator.Cluster, name st
 // spec in the machine set created.
 func newExpectedMachineSetCreateActionWithHardwareSpec(
 	cluster *clusteroperator.Cluster,
-	name string,
+	shortName string,
 	hardwareSpec *clusteroperator.MachineSetHardwareSpec,
 ) expectedMachineSetCreateAction {
 	return expectedMachineSetCreateAction{
-		namePrefix:   getNamePrefixForMachineSet(cluster, name),
+		clusterName:  cluster.Name,
+		shortName:    shortName,
 		hardwareSpec: hardwareSpec,
 	}
 }
@@ -566,9 +581,9 @@ func (ea expectedMachineSetDeleteAction) validate(t *testing.T, action clientgot
 
 // newExpectedMachineSetDeleteAction creates a new expected client
 // action for deleting a machine set.
-func newExpectedMachineSetDeleteAction(cluster *clusteroperator.Cluster, name string) expectedMachineSetDeleteAction {
+func newExpectedMachineSetDeleteAction(cluster *clusteroperator.Cluster, shortName string) expectedMachineSetDeleteAction {
 	return expectedMachineSetDeleteAction{
-		namePrefix: getNamePrefixForMachineSet(cluster, name),
+		namePrefix: fmt.Sprintf("%s-%s-", cluster.Name, shortName),
 	}
 }
 
@@ -923,13 +938,13 @@ func TestSyncClusterWithVersion(t *testing.T) {
 
 			expectedActions := []expectedClientAction{}
 			if tc.expectedMachineSetsCreated {
-				for _, msName := range allMachineSets {
-					expectedActions = append(expectedActions, newExpectedMachineSetCreateAction(cluster, msName))
+				for _, ms := range allMachineSets {
+					expectedActions = append(expectedActions, newExpectedMachineSetCreateAction(cluster, ms))
 				}
 			}
 			if tc.expectedMachineSetsDeleted {
-				for _, msName := range allMachineSets {
-					expectedActions = append(expectedActions, newExpectedMachineSetDeleteAction(cluster, msName))
+				for _, ms := range allMachineSets {
+					expectedActions = append(expectedActions, newExpectedMachineSetDeleteAction(cluster, ms))
 				}
 			}
 			if tc.expectedStatusUpdate {
@@ -1285,7 +1300,7 @@ func TestSyncClusterMachineSetSpecMutated(t *testing.T) {
 			clusterComputes := make([]clusteroperator.ClusterMachineSet, len(tc.clusterComputeInstanceTypes))
 			realizedComputes := make([]clusteroperator.ClusterMachineSet, len(tc.realizedComputeInstanceTypes))
 			for i := range tc.clusterComputeInstanceTypes {
-				name := fmt.Sprintf("compute%v", i)
+				shortName := fmt.Sprintf("compute%v", i)
 				clusterComputes[i] = clusteroperator.ClusterMachineSet{
 					MachineSetConfig: clusteroperator.MachineSetConfig{
 						NodeType: clusteroperator.NodeTypeCompute,
@@ -1296,7 +1311,7 @@ func TestSyncClusterMachineSetSpecMutated(t *testing.T) {
 							},
 						},
 					},
-					Name: name,
+					ShortName: shortName,
 				}
 				realizedComputes[i] = clusteroperator.ClusterMachineSet{
 					MachineSetConfig: clusteroperator.MachineSetConfig{
@@ -1308,7 +1323,7 @@ func TestSyncClusterMachineSetSpecMutated(t *testing.T) {
 							},
 						},
 					},
-					Name: name,
+					ShortName: shortName,
 				}
 			}
 			cv := newClusterVer(testClusterVerNS, testClusterVerName, testClusterVerUID)
@@ -1332,8 +1347,8 @@ func TestSyncClusterMachineSetSpecMutated(t *testing.T) {
 					continue
 				}
 				expectedActions = append(expectedActions,
-					newExpectedMachineSetDeleteAction(cluster, clusterCompute.Name),
-					newExpectedMachineSetCreateAction(cluster, clusterCompute.Name),
+					newExpectedMachineSetDeleteAction(cluster, clusterCompute.ShortName),
+					newExpectedMachineSetCreateAction(cluster, clusterCompute.ShortName),
 				)
 			}
 
@@ -1399,20 +1414,20 @@ func TestSyncClusterMachineSetSpecScaled(t *testing.T) {
 			clusterComputes := make([]clusteroperator.ClusterMachineSet, len(tc.clusterComputeSizes))
 			realizedComputes := make([]clusteroperator.ClusterMachineSet, len(tc.realizedComputeSizes))
 			for i := range tc.clusterComputeSizes {
-				name := fmt.Sprintf("compute%v", i)
+				shortName := fmt.Sprintf("compute%v", i)
 				clusterComputes[i] = clusteroperator.ClusterMachineSet{
 					MachineSetConfig: clusteroperator.MachineSetConfig{
 						NodeType: clusteroperator.NodeTypeCompute,
 						Size:     tc.clusterComputeSizes[i],
 					},
-					Name: name,
+					ShortName: shortName,
 				}
 				realizedComputes[i] = clusteroperator.ClusterMachineSet{
 					MachineSetConfig: clusteroperator.MachineSetConfig{
 						NodeType: clusteroperator.NodeTypeCompute,
 						Size:     tc.realizedComputeSizes[i],
 					},
-					Name: name,
+					ShortName: shortName,
 				}
 			}
 			cv := newClusterVer(testClusterVerNS, testClusterVerName, testClusterVerUID)
@@ -1435,7 +1450,7 @@ func TestSyncClusterMachineSetSpecScaled(t *testing.T) {
 					continue
 				}
 				expectedActions = append(expectedActions,
-					newExpectedMachineSetUpdateAction(cluster, clusterCompute.Name, clusterCompute.Size),
+					newExpectedMachineSetUpdateAction(cluster, clusterCompute.ShortName, clusterCompute.Size),
 				)
 			}
 
@@ -1487,8 +1502,7 @@ func TestSyncClusterMachineSetOwnerReference(t *testing.T) {
 			cluster := newCluster(cv)
 			clusterStore.Add(cluster)
 
-			machineSetName := fmt.Sprintf("%s-master-random", cluster.Name)
-			machineSet := newMachineSet(machineSetName, cluster, false)
+			machineSet := newMachineSet("master", cluster, false)
 			machineSet.Spec.NodeType = clusteroperator.NodeTypeMaster
 			machineSet.Spec.Size = 1
 			machineSet.Spec.Infra = true
@@ -1548,8 +1562,7 @@ func TestSyncClusterMachineSetDeletionTimestamp(t *testing.T) {
 			cluster := newCluster(cv)
 			clusterStore.Add(cluster)
 
-			machineSetName := fmt.Sprintf("%s-master-random", cluster.Name)
-			machineSet := newMachineSet(machineSetName, cluster, true)
+			machineSet := newMachineSet("master", cluster, true)
 			machineSet.Spec.NodeType = clusteroperator.NodeTypeMaster
 			machineSet.Spec.Size = 1
 			machineSet.Spec.Infra = true
@@ -1597,7 +1610,7 @@ func TestSyncClusterComplex(t *testing.T) {
 					},
 				},
 			},
-			Name: "realized and un-mutated",
+			ShortName: "realized and un-mutated",
 		},
 		clusteroperator.ClusterMachineSet{
 			MachineSetConfig: clusteroperator.MachineSetConfig{
@@ -1609,14 +1622,14 @@ func TestSyncClusterComplex(t *testing.T) {
 					},
 				},
 			},
-			Name: "realized but mutated",
+			ShortName: "realized but mutated",
 		},
 		clusteroperator.ClusterMachineSet{
 			MachineSetConfig: clusteroperator.MachineSetConfig{
 				Size:     1,
 				NodeType: clusteroperator.NodeTypeCompute,
 			},
-			Name: "unrealized",
+			ShortName: "unrealized",
 		},
 	)
 	clusterStore.Add(cluster)
@@ -1632,7 +1645,7 @@ func TestSyncClusterComplex(t *testing.T) {
 					},
 				},
 			},
-			Name: "realized and un-mutated",
+			ShortName: "realized and un-mutated",
 		},
 		clusteroperator.ClusterMachineSet{
 			MachineSetConfig: clusteroperator.MachineSetConfig{
@@ -1644,14 +1657,14 @@ func TestSyncClusterComplex(t *testing.T) {
 					},
 				},
 			},
-			Name: "realized but mutated",
+			ShortName: "realized but mutated",
 		},
 		clusteroperator.ClusterMachineSet{
 			MachineSetConfig: clusteroperator.MachineSetConfig{
 				Size:     1,
 				NodeType: clusteroperator.NodeTypeCompute,
 			},
-			Name: "removed from cluster",
+			ShortName: "removed from cluster",
 		},
 	)
 

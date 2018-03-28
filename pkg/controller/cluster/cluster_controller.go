@@ -19,7 +19,6 @@ package cluster
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -75,6 +74,10 @@ const (
 
 	// versionHasRegion indicates that the cluster's desired version now has an AMI defined for it's region.
 	versionHasRegion = "VersionHasRegion"
+
+	clusterUIDLabel          = "cluster-uid"
+	clusterNameLabel         = "cluster"
+	machineSetShortNameLabel = "machine-set-short-name"
 )
 
 // NewController returns a new controller.
@@ -537,12 +540,7 @@ func (c *Controller) manageMachineSets(machineSets []*clusteroperator.MachineSet
 		return fmt.Errorf("cannot manage machinesets when clusterversion unresolved: %v", cluster.Spec.ClusterVersionRef)
 	}
 
-	machineSetPrefixes := make([]string, len(cluster.Spec.MachineSets))
-	for i, machineSet := range cluster.Spec.MachineSets {
-		machineSetPrefixes[i] = getNamePrefixForMachineSet(cluster, machineSet.Name)
-	}
-
-	clusterMachineSets := make([]*clusteroperator.MachineSet, len(cluster.Spec.MachineSets))
+	existingMachineSets := make([]*clusteroperator.MachineSet, len(cluster.Spec.MachineSets))
 	machineSetsToCreate := []*clusteroperator.MachineSet{}
 	machineSetsToDelete := []*clusteroperator.MachineSet{}
 	machineSetsToUpdate := []*clusteroperator.MachineSet{}
@@ -550,12 +548,12 @@ func (c *Controller) manageMachineSets(machineSets []*clusteroperator.MachineSet
 	// Organize machine sets
 	for _, machineSet := range machineSets {
 		found := false
-		for i, prefix := range machineSetPrefixes {
-			if strings.HasPrefix(machineSet.Name, prefix) {
-				if clusterMachineSets[i] == nil {
-					clusterMachineSets[i] = machineSet
+		for i, clusterMachineSet := range cluster.Spec.MachineSets {
+			if clusterMachineSet.ShortName == machineSet.Labels[controller.MachineSetShortNameLabel] {
+				if existingMachineSets[i] == nil {
+					existingMachineSets[i] = machineSet
 				} else {
-					utilruntime.HandleError(fmt.Errorf("Found two active conflicting machine sets for cluster %s/%s: %s and %s", cluster.Namespace, cluster.Name, clusterMachineSets[i].Name, machineSet.Name))
+					utilruntime.HandleError(fmt.Errorf("Found two active conflicting machine sets for cluster %s/%s: %s and %s", cluster.Namespace, cluster.Name, existingMachineSets[i].Name, machineSet.Name))
 					machineSetsToDelete = append(machineSetsToDelete, machineSet)
 				}
 				found = true
@@ -569,8 +567,8 @@ func (c *Controller) manageMachineSets(machineSets []*clusteroperator.MachineSet
 	errCh := make(chan error, len(cluster.Spec.MachineSets)+len(machineSetsToDelete))
 
 	// Sync machine sets
-	for i := range cluster.Spec.MachineSets {
-		machineSetConfig := cluster.Spec.MachineSets[i].MachineSetConfig
+	for i, clusterMachineSet := range cluster.Spec.MachineSets {
+		machineSetConfig := clusterMachineSet.MachineSetConfig
 		mergedHardwareSpec, err := applyDefaultMachineSetHardwareSpec(machineSetConfig.Hardware, cluster.Spec.DefaultHardwareSpec)
 		if err != nil {
 			errCh <- err
@@ -578,8 +576,8 @@ func (c *Controller) manageMachineSets(machineSets []*clusteroperator.MachineSet
 		}
 		machineSetConfig.Hardware = mergedHardwareSpec
 
-		existingMachineSet := clusterMachineSets[i]
-		machineSet, updateMachineSet := c.manageMachineSet(cluster, clusterVersion, existingMachineSet, machineSetConfig, machineSetPrefixes[i])
+		existingMachineSet := existingMachineSets[i]
+		machineSet, updateMachineSet := c.manageMachineSet(cluster, clusterVersion, existingMachineSet, machineSetConfig, clusterMachineSet.ShortName)
 
 		// If machineSet is nil, then there are no changes to be enacted to
 		// the existing machine set.
@@ -713,14 +711,14 @@ func determineTypeOfMachineSetChange(existingSpec, newSpec clusteroperator.Machi
 // return values:
 // - machineSet to create/update (MachineSet)
 // - should update machineset (bool)
-func (c *Controller) manageMachineSet(cluster *clusteroperator.Cluster, clusterVersion *clusteroperator.ClusterVersion, machineSet *clusteroperator.MachineSet, clusterMachineSetConfig clusteroperator.MachineSetConfig, machineSetNamePrefix string) (*clusteroperator.MachineSet, bool) {
+func (c *Controller) manageMachineSet(cluster *clusteroperator.Cluster, clusterVersion *clusteroperator.ClusterVersion, machineSet *clusteroperator.MachineSet, clusterMachineSetConfig clusteroperator.MachineSetConfig, shortName string) (*clusteroperator.MachineSet, bool) {
 	clusterLog := colog.WithCluster(c.logger, cluster)
 
 	desiredMachineSetSpec := buildNewMachineSetSpec(cluster, clusterVersion, clusterMachineSetConfig)
 
 	if machineSet == nil {
 		clusterLog.Infof("building new machine set")
-		newMachineSet := buildNewMachineSet(cluster, &desiredMachineSetSpec, machineSetNamePrefix)
+		newMachineSet := buildNewMachineSet(cluster, &desiredMachineSetSpec, shortName)
 		return newMachineSet, false
 	}
 
@@ -736,7 +734,7 @@ func (c *Controller) manageMachineSet(cluster *clusteroperator.Cluster, clusterV
 		return updatedMachineSet, true
 	case machineSetRecreateChange:
 		msLog.Infof("machine set recreated")
-		newMachineSet := buildNewMachineSet(cluster, &desiredMachineSetSpec, machineSetNamePrefix)
+		newMachineSet := buildNewMachineSet(cluster, &desiredMachineSetSpec, shortName)
 		return newMachineSet, false
 	default:
 		msLog.Warn("unknown machine set change: %q", changeType)
@@ -750,7 +748,7 @@ func (c *Controller) calculateStatus(clusterLog log.FieldLogger, cluster *cluste
 
 	newStatus.MachineSetCount = 0
 	for _, ms := range cluster.Spec.MachineSets {
-		if machineSet := findMachineSetWithPrefix(machineSets, getNamePrefixForMachineSet(cluster, ms.Name)); machineSet != nil {
+		if machineSet := findMachineSetWithShortName(machineSets, ms.ShortName); machineSet != nil {
 			colog.WithMachineSet(clusterLog, machineSet).Debugf("machineset added to status.MachineSetCount")
 			newStatus.MachineSetCount++
 			if machineSet.Spec.NodeType == clusteroperator.NodeTypeMaster {
@@ -828,23 +826,20 @@ func buildNewMachineSetSpec(cluster *clusteroperator.Cluster, clusterVersion *cl
 	}
 }
 
-func buildNewMachineSet(cluster *clusteroperator.Cluster, machineSetSpec *clusteroperator.MachineSetSpec, machineSetNamePrefix string) *clusteroperator.MachineSet {
+func buildNewMachineSet(cluster *clusteroperator.Cluster, machineSetSpec *clusteroperator.MachineSetSpec, shortName string) *clusteroperator.MachineSet {
 	return &clusteroperator.MachineSet{
 		ObjectMeta: metav1.ObjectMeta{
-			GenerateName:    machineSetNamePrefix,
+			GenerateName:    fmt.Sprintf("%s-%s-", cluster.Name, shortName),
 			OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(cluster, controllerKind)},
+			Labels:          controller.MachineSetLabels(cluster, shortName),
 		},
 		Spec: *machineSetSpec,
 	}
 }
 
-func getNamePrefixForMachineSet(cluster *clusteroperator.Cluster, name string) string {
-	return fmt.Sprintf("%s-%s-", cluster.Name, name)
-}
-
-func findMachineSetWithPrefix(machineSets []*clusteroperator.MachineSet, prefix string) *clusteroperator.MachineSet {
+func findMachineSetWithShortName(machineSets []*clusteroperator.MachineSet, shortName string) *clusteroperator.MachineSet {
 	for _, machineSet := range machineSets {
-		if strings.HasPrefix(machineSet.Name, prefix) {
+		if shortName == machineSet.Labels[machineSetShortNameLabel] {
 			return machineSet
 		}
 	}

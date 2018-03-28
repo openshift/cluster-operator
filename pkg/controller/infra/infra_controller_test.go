@@ -111,7 +111,7 @@ func newCluster() *clusteroperator.Cluster {
 		Spec: clusteroperator.ClusterSpec{
 			MachineSets: []clusteroperator.ClusterMachineSet{
 				{
-					Name: "master",
+					ShortName: "master",
 					MachineSetConfig: clusteroperator.MachineSetConfig{
 						NodeType: clusteroperator.NodeTypeMaster,
 						Infra:    true,

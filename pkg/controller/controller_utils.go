@@ -37,6 +37,25 @@ var (
 	KeyFunc = cache.DeletionHandlingMetaNamespaceKeyFunc
 
 	clusterKind = clusteroperator.SchemeGroupVersion.WithKind("Cluster")
+
+	// ClusterUIDLabel is the label to apply to objects that belong to the cluster
+	// with the UID.
+	ClusterUIDLabel = "cluster-uid"
+	// ClusterNameLabel is the label to apply to objects that belong to the
+	// cluster with the name.
+	ClusterNameLabel = "cluster"
+	// MachineSetShortNameLabel is the label to apply to machine sets, and their
+	// descendants, with the short name.
+	MachineSetShortNameLabel = "machine-set-short-name"
+	// MachineSetUIDLabel is the label to apply to objects that belong to the
+	// machine set with the UID.
+	MachineSetUIDLabel = "machine-set-uid"
+	// MachineSetNameLabel is the label to apply to objects that belong to the
+	// machine set with the name.
+	MachineSetNameLabel = "machine-set"
+	// JobTypeLabel is the label to apply to jobs and configmaps that are used
+	// to execute the type of job.
+	JobTypeLabel = "job-type"
 )
 
 // WaitForCacheSync is a wrapper around cache.WaitForCacheSync that generates log messages
@@ -274,4 +293,50 @@ func MachineSetsForCluster(cluster *clusteroperator.Cluster, machineSetsLister l
 		}
 	}
 	return clusterMachineSets, nil
+}
+
+// MachineSetLabels returns the labels to apply to a machine set belonging to the
+// specified cluster and having the specified short name.
+func MachineSetLabels(cluster *clusteroperator.Cluster, machineSetShortName string) map[string]string {
+	return map[string]string{
+		ClusterUIDLabel:          string(cluster.UID),
+		ClusterNameLabel:         cluster.Name,
+		MachineSetShortNameLabel: machineSetShortName,
+	}
+}
+
+// JobLabelsForClusterController returns the labels to apply to a job doing a task
+// for the specified cluster.
+func JobLabelsForClusterController(cluster *clusteroperator.Cluster, jobType string) map[string]string {
+	return map[string]string{
+		ClusterUIDLabel:  string(cluster.UID),
+		ClusterNameLabel: cluster.Name,
+		JobTypeLabel:     jobType,
+	}
+}
+
+// JobLabelsForMachineSetController returns the labels to apply to a job doing a
+// task for the specified machine set.
+func JobLabelsForMachineSetController(machineSet *clusteroperator.MachineSet, jobType string) map[string]string {
+	labels := map[string]string{
+		MachineSetUIDLabel:  string(machineSet.UID),
+		MachineSetNameLabel: machineSet.Name,
+		JobTypeLabel:        jobType,
+	}
+	for k, v := range machineSet.Labels {
+		labels[k] = v
+	}
+	return labels
+}
+
+// AddLabels add the additional labels to the existing labels of the object.
+func AddLabels(obj metav1.Object, additionalLabels map[string]string) {
+	labels := obj.GetLabels()
+	if labels == nil {
+		labels = map[string]string{}
+		obj.SetLabels(labels)
+	}
+	for k, v := range additionalLabels {
+		labels[k] = v
+	}
 }

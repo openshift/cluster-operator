@@ -364,7 +364,7 @@ func (c *jobControl) onJobEvent(obj interface{}, eventType string) {
 func (c *jobControl) createJob(ownerKey string, owner metav1.Object, jobFactory JobFactory, logger log.FieldLogger) (*kbatch.Job, error) {
 	logger.Infof("Creating new %q job", c.jobPrefix)
 
-	name := names.SimpleNameGenerator.GenerateName(fmt.Sprintf("%s%s-", c.jobPrefix, owner.GetName()))
+	name := names.SimpleNameGenerator.GenerateName(fmt.Sprintf("%s-%s-", c.jobPrefix, owner.GetName()))
 
 	if jobFactory == nil {
 		logger.Warn("asked to build new job but no job factory supplied")

@@ -47,14 +47,14 @@ func validateClusterSpec(spec *clusteroperator.ClusterSpec, fldPath *field.Path)
 	versionPath := fldPath.Child("clusterVersionRef")
 	masterCount := 0
 	infraCount := 0
-	machineSetNames := map[string]bool{}
+	machineSetShortNames := map[string]bool{}
 	for i := range spec.MachineSets {
 		machineSet := spec.MachineSets[i]
 		allErrs = append(allErrs, validateClusterMachineSet(&machineSet, machineSetsPath.Index(i))...)
-		if machineSetNames[machineSet.Name] {
-			allErrs = append(allErrs, field.Duplicate(machineSetsPath.Index(i).Child("name"), machineSet.Name))
+		if machineSetShortNames[machineSet.ShortName] {
+			allErrs = append(allErrs, field.Duplicate(machineSetsPath.Index(i).Child("shortName"), machineSet.ShortName))
 		}
-		machineSetNames[machineSet.Name] = true
+		machineSetShortNames[machineSet.ShortName] = true
 		if machineSet.NodeType == clusteroperator.NodeTypeMaster {
 			masterCount++
 			if masterCount > 1 {
@@ -86,8 +86,8 @@ func validateClusterSpec(spec *clusteroperator.ClusterSpec, fldPath *field.Path)
 
 func validateClusterMachineSet(machineSet *clusteroperator.ClusterMachineSet, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
-	for _, msg := range apivalidation.NameIsDNSSubdomain(machineSet.Name, false) {
-		allErrs = append(allErrs, field.Invalid(fldPath.Child("name"), machineSet.Name, msg))
+	for _, msg := range apivalidation.NameIsDNSSubdomain(machineSet.ShortName, false) {
+		allErrs = append(allErrs, field.Invalid(fldPath.Child("shortName"), machineSet.ShortName, msg))
 	}
 	allErrs = append(allErrs, validateMachineSetConfig(&machineSet.MachineSetConfig, fldPath)...)
 	return allErrs

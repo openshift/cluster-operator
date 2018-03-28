@@ -57,9 +57,8 @@ const (
 
 	infraPlaybook            = "playbooks/cluster-operator/aws/infrastructure.yml"
 	deprovisionInfraPlaybook = "playbooks/cluster-operator/aws/uninstall_infrastructure.yml"
-	// jobPrefix is used when generating a name for the configmap and job used for each
-	// Ansible execution.
-	jobPrefix = "job-infra-"
+	// jobType is the type of job run by this controller.
+	jobType = "infra"
 )
 
 var clusterKind = clusteroperator.SchemeGroupVersion.WithKind("Cluster")
@@ -97,7 +96,7 @@ func NewController(
 	c.clustersSynced = clusterInformer.Informer().HasSynced
 
 	jobOwnerControl := &jobOwnerControl{controller: c}
-	c.jobControl = controller.NewJobControl(jobPrefix, clusterKind, kubeClient, jobInformer.Lister(), jobOwnerControl, logger)
+	c.jobControl = controller.NewJobControl(jobType, clusterKind, kubeClient, jobInformer.Lister(), jobOwnerControl, logger)
 	jobInformer.Informer().AddEventHandler(c.jobControl)
 	c.jobsSynced = jobInformer.Informer().HasSynced
 
@@ -286,6 +285,9 @@ func (c *Controller) getJobFactory(cluster *clusteroperator.Cluster, playbook st
 		}
 		image, pullPolicy := ansible.GetAnsibleImageForClusterVersion(cv)
 		job, configMap := c.ansibleGenerator.GeneratePlaybookJob(name, &cluster.Spec.Hardware, playbook, ansible.DefaultInventory, vars, image, pullPolicy)
+		labels := controller.JobLabelsForClusterController(cluster, jobType)
+		controller.AddLabels(job, labels)
+		controller.AddLabels(configMap, labels)
 		return job, configMap, nil
 	})
 }

@@ -304,7 +304,7 @@ func Convert_clusteroperator_ClusterList_To_v1alpha1_ClusterList(in *clusteroper
 }
 
 func autoConvert_v1alpha1_ClusterMachineSet_To_clusteroperator_ClusterMachineSet(in *ClusterMachineSet, out *clusteroperator.ClusterMachineSet, s conversion.Scope) error {
-	out.Name = in.Name
+	out.ShortName = in.ShortName
 	if err := Convert_v1alpha1_MachineSetConfig_To_clusteroperator_MachineSetConfig(&in.MachineSetConfig, &out.MachineSetConfig, s); err != nil {
 		return err
 	}
@@ -317,7 +317,7 @@ func Convert_v1alpha1_ClusterMachineSet_To_clusteroperator_ClusterMachineSet(in 
 }
 
 func autoConvert_clusteroperator_ClusterMachineSet_To_v1alpha1_ClusterMachineSet(in *clusteroperator.ClusterMachineSet, out *ClusterMachineSet, s conversion.Scope) error {
-	out.Name = in.Name
+	out.ShortName = in.ShortName
 	if err := Convert_clusteroperator_MachineSetConfig_To_v1alpha1_MachineSetConfig(&in.MachineSetConfig, &out.MachineSetConfig, s); err != nil {
 		return err
 	}

@@ -40,7 +40,7 @@ import (
 )
 
 const (
-	testJobPrefix = "test-job-"
+	testJobPrefix = "test-job"
 	testOwnerKey  = "test-owner-key"
 )
 
