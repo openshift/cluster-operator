@@ -781,6 +781,9 @@ func autoConvert_v1alpha1_MachineSetStatus_To_clusteroperator_MachineSetStatus(i
 	out.NodeConfigInstalled = in.NodeConfigInstalled
 	out.NodeConfigInstalledJobGeneration = in.NodeConfigInstalledJobGeneration
 	out.NodeConfigInstalledTime = (*meta_v1.Time)(unsafe.Pointer(in.NodeConfigInstalledTime))
+	out.ClusterAPIInstalled = in.ClusterAPIInstalled
+	out.ClusterAPIInstalledJobGeneration = in.ClusterAPIInstalledJobGeneration
+	out.ClusterAPIInstalledTime = (*meta_v1.Time)(unsafe.Pointer(in.ClusterAPIInstalledTime))
 	out.Installed = in.Installed
 	out.InstalledJobGeneration = in.InstalledJobGeneration
 	out.Provisioned = in.Provisioned
@@ -804,6 +807,9 @@ func autoConvert_clusteroperator_MachineSetStatus_To_v1alpha1_MachineSetStatus(i
 	out.NodeConfigInstalled = in.NodeConfigInstalled
 	out.NodeConfigInstalledJobGeneration = in.NodeConfigInstalledJobGeneration
 	out.NodeConfigInstalledTime = (*meta_v1.Time)(unsafe.Pointer(in.NodeConfigInstalledTime))
+	out.ClusterAPIInstalled = in.ClusterAPIInstalled
+	out.ClusterAPIInstalledJobGeneration = in.ClusterAPIInstalledJobGeneration
+	out.ClusterAPIInstalledTime = (*meta_v1.Time)(unsafe.Pointer(in.ClusterAPIInstalledTime))
 	out.Installed = in.Installed
 	out.InstalledJobGeneration = in.InstalledJobGeneration
 	out.Provisioned = in.Provisioned

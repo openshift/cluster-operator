@@ -445,6 +445,16 @@ type MachineSetStatus struct {
 	// NodeConfigInstalledTime is the time we last successfully installed the node config daemonset on the cluster.
 	NodeConfigInstalledTime *metav1.Time
 
+	// ClusterAPIInstalled is true if the Kubernetes Cluster API controllers have been deployed onto the remote cluster.
+	ClusterAPIInstalled bool
+
+	// ClusterAPIInstalledJobGeneration is the generation of the machine set resource used to
+	// generate the latest completed deployclusterapi installation job.
+	ClusterAPIInstalledJobGeneration int64
+
+	// ClusterAPIInstalledTime is the time we last successfully deployed the Kubernetes Cluster API controllers on the cluster.
+	ClusterAPIInstalledTime *metav1.Time
+
 	// Installed is true if the software required for this machine set is installed
 	// and running.
 	Installed bool
@@ -563,6 +573,16 @@ const (
 
 	// MachineSetAccepted is true when nodes from this machine set have been accepted by the master of the cluster.
 	MachineSetAccepted MachineSetConditionType = "Accepted"
+
+	// MachineSetClusterAPIInstalling is true if the Kubernetes Cluster API controllers are being installed on
+	// the remote cluster.
+	MachineSetClusterAPIInstalling MachineSetConditionType = "ClusterAPIInstalling"
+
+	// MachineSetClusterAPIInstallationFailed is true if the installation of the Kubernetes Cluster API controllers failed.
+	MachineSetClusterAPIInstallationFailed MachineSetConditionType = "ClusterAPIInstallationFailed"
+
+	// MachineSetClusterAPIInstalled is true if the Kubernetes Cluster API controllers have been successfully installed.
+	MachineSetClusterAPIInstalled MachineSetConditionType = "ClusterAPIInstalled"
 )
 
 // +genclient
