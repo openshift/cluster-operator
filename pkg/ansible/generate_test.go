@@ -99,12 +99,14 @@ func TestGenerateClusterVars(t *testing.T) {
 	tests := []struct {
 		name             string
 		cluster          *coapi.Cluster
+		clusterVersion   *coapi.ClusterVersion
 		shouldInclude    []string
 		shouldNotInclude []string
 	}{
 		{
-			name:    "cluster",
-			cluster: testCluster(),
+			name:           "cluster",
+			cluster:        testCluster(),
+			clusterVersion: testClusterVersion(),
 			shouldInclude: []string{
 				"openshift_aws_clusterid: testcluster",
 				"openshift_aws_vpc_name: testcluster",
@@ -112,6 +114,7 @@ func TestGenerateClusterVars(t *testing.T) {
 				"openshift_aws_ssh_key_name: mykey",
 				"openshift_aws_region: us-east-1",
 				"ansible_ssh_user: centos",
+				"openshift_deployment_type: origin",
 			},
 			shouldNotInclude: []string{
 				"openshift_release",
@@ -126,7 +129,7 @@ func TestGenerateClusterVars(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result, err := GenerateClusterVars(tc.cluster)
+			result, err := GenerateClusterVars(tc.cluster, &tc.clusterVersion.Spec)
 			assert.Nil(t, err, "%s: unexpected: %v", tc.name, err)
 			for _, str := range tc.shouldInclude {
 				assert.Contains(t, result, str, "%s: result does not contain %q", tc.name, str)
