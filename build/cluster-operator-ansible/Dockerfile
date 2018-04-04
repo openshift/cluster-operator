@@ -28,6 +28,7 @@ RUN git clone ${CO_ANSIBLE_URL} ${CLONE_LOCATION} && \
 WORKDIR ${CLONE_LOCATION}
 
 RUN mkdir ${CLONE_LOCATION}/playbooks/cluster-api-prep && ln -s ../../roles ./playbooks/cluster-api-prep
-COPY cluster-api-prep/ ${CLONE_LOCATION}/playbooks/cluster-api-prep
+COPY playbooks/cluster-api-prep/ ${CLONE_LOCATION}/playbooks/cluster-api-prep
+COPY playbooks/cluster-operator/* ${CLONE_LOCATION}/playbooks/cluster-operator/
 
 USER 1001:0

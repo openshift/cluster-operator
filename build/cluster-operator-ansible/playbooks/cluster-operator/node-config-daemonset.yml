@@ -1,0 +1,53 @@
+---
+- name: Setup the master node group
+  hosts: localhost
+  tasks:
+  - import_role:
+      name: openshift_aws
+      tasks_from: setup_master_group.yml
+
+- name: run the init
+  import_playbook: ../init/main.yml
+
+- name: Configure Node DaemonSet
+  hosts: oo_first_master
+  roles:
+  vars:
+  tasks:
+
+  - name: List all nodes
+    oc_obj:
+      state: list
+      kind: node
+    register: all_nodes
+
+  # We may break this down and label/match differently depending on node type in the future.
+  - name: Label all nodes to match the config daemonset selector
+    oc_label:
+      state: add
+      kind: node
+      name: "{{ item.metadata.name }}"
+      labels:
+      - key: "co-node-config"
+        value: "true"
+    with_items: "{{ all_nodes.results.results[0]['items'] }}"
+
+  - import_role:
+      name: openshift_daemonset_config
+    vars:
+      openshift_daemonset_config_daemonset_name: "node-config"
+      # We use different versions of origin-ansible in cluster operator depending on the version of the cluster,
+      # but for purposes of dropping config onto nodes it should be fine to use a fixed image.
+      openshift_daemonset_config_image: "openshift/origin-ansible:latest"
+      openshift_daemonset_config_configmap_files: {}
+      openshift_daemonset_config_configmap_literals:
+        configure_host.yml: |
+          ---
+          - hosts: localhost
+            tasks:
+            - debug: msg=HELLO
+        node_config.sh: |
+          #!/bin/bash
+          ansible-playbook /opt/config/configure_host.yml -v
+      openshift_daemonset_config_script: node_config.sh
+      openshift_daemonset_config_node_selector: {"co-node-config": "true"}
