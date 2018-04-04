@@ -29,6 +29,12 @@ WORKDIR ${CLONE_LOCATION}
 
 RUN mkdir ${CLONE_LOCATION}/playbooks/cluster-api-prep && ln -s ../../roles ./playbooks/cluster-api-prep
 COPY playbooks/cluster-api-prep/ ${CLONE_LOCATION}/playbooks/cluster-api-prep
-COPY playbooks/cluster-operator/* ${CLONE_LOCATION}/playbooks/cluster-operator/
+
+# Remove any remnants of our playbooks in the upstream openshift-ansible image:
+# TODO: This can be removed once we drop our directory from openshift-ansible.
+RUN rm -rf /usr/share/ansible/openshift-ansible/playbooks/cluster-operator/
+
+# Copy in our playbooks and roles:
+COPY playbooks/cluster-operator ${CLONE_LOCATION}/playbooks/cluster-operator
 
 USER 1001:0
