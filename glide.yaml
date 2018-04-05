@@ -11,7 +11,14 @@ import:
 - package: k8s.io/code-generator
   version: kubernetes-1.9.0
 - package: k8s.io/gengo
-  version: b58fc7edb82e0c6ffc9b8aef61813c7261b785d4 # version used by kube 1.9.0
+  version: b58fc7edb82e0c6ffc9b8aef61813c7261b785d4
 - package: github.com/kubernetes/repo-infra
 - package: github.com/sirupsen/logrus
   version: v1.0.3
+- package: github.com/spf13/pflag
+  version: v1.0.0
+- package: github.com/spf13/cobra
+  version: v0.0.2
+- package: k8s.io/kube-deploy
+  subpackages:
+  - cluster-api/...
