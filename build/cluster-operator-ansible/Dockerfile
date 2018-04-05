@@ -20,10 +20,22 @@ ARG CLONE_LOCATION=/usr/share/ansible/openshift-ansible
 
 USER root
 
+# WORKAROUND: Fix ansible 2.5.0 issue that causes playbooks to fail
+# https://github.com/ansible/ansible/issues/37850
+# Remove when ansible is updated to contain the fix
+RUN yum -y install dmidecode
+# End WORKAROUND
+
 RUN rm -rf ${CLONE_LOCATION}
 RUN git clone ${CO_ANSIBLE_URL} ${CLONE_LOCATION} && \
     cd ${CLONE_LOCATION} && \
     git checkout ${CO_ANSIBLE_BRANCH}
+
+# WORKAROUND: Fix aws playbook to use the correct filter when 
+# querying subnets from AWS.
+# Remove when fix merges in v3.9 branch of openshift-ansible
+RUN find /usr/share/ansible/openshift-ansible/roles/openshift_aws -type f -exec sed -e 's/availability_zone/availability-zone/g' -i {} \;
+# End WORKAROUND
 
 WORKDIR ${CLONE_LOCATION}
 
