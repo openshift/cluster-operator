@@ -10,6 +10,7 @@ import (
 	v10 "k8s.io/api/core/v1"
 	v11 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	reflect "reflect"
+	time "time"
 )
 
 // MockJobControl is a mock of JobControl interface
@@ -66,8 +67,8 @@ func (mr *MockJobControlMockRecorder) OnDelete(obj interface{}) *gomock.Call {
 }
 
 // ControlJobs mocks base method
-func (m *MockJobControl) ControlJobs(ownerKey string, owner v11.Object, buildNewJob bool, jobFactory JobFactory) (JobControlResult, *v1.Job, error) {
-	ret := m.ctrl.Call(m, "ControlJobs", ownerKey, owner, buildNewJob, jobFactory)
+func (m *MockJobControl) ControlJobs(ownerKey string, owner v11.Object, buildNewJob bool, reprocessInterval *time.Duration, lastJobSuccess *time.Time, jobFactory JobFactory) (JobControlResult, *v1.Job, error) {
+	ret := m.ctrl.Call(m, "ControlJobs", ownerKey, owner, buildNewJob, reprocessInterval, lastJobSuccess, jobFactory)
 	ret0, _ := ret[0].(JobControlResult)
 	ret1, _ := ret[1].(*v1.Job)
 	ret2, _ := ret[2].(error)
@@ -75,8 +76,8 @@ func (m *MockJobControl) ControlJobs(ownerKey string, owner v11.Object, buildNew
 }
 
 // ControlJobs indicates an expected call of ControlJobs
-func (mr *MockJobControlMockRecorder) ControlJobs(ownerKey, owner, buildNewJob, jobFactory interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ControlJobs", reflect.TypeOf((*MockJobControl)(nil).ControlJobs), ownerKey, owner, buildNewJob, jobFactory)
+func (mr *MockJobControlMockRecorder) ControlJobs(ownerKey, owner, buildNewJob, reprocessInterval, lastJobSuccess, jobFactory interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ControlJobs", reflect.TypeOf((*MockJobControl)(nil).ControlJobs), ownerKey, owner, buildNewJob, reprocessInterval, lastJobSuccess, jobFactory)
 }
 
 // ObserveOwnerDeletion mocks base method

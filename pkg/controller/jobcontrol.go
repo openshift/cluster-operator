@@ -21,6 +21,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 
@@ -80,10 +81,12 @@ type JobControl interface {
 	//
 	// ownerKey: key to identify the owner (namespace/name)
 	// owner: owner owning the jobs
-	// currentJobName: name of the current job for the owner. Or an empty
-	//   string if there is not a current job.
 	// buildNewJob: true if a new job should be built if one does not already
 	//   exist
+	// reprocessInterval: approximate period of time after which we would like
+	//   the job to be re-run, or nil if not supported for this job.
+	// lastJobSuccess: time of last successful job completion for jobs which support
+	//   a reprocess interval
 	// jobFactory: function to call to build a new job
 	//
 	// Return:
@@ -94,6 +97,8 @@ type JobControl interface {
 		ownerKey string,
 		owner metav1.Object,
 		buildNewJob bool,
+		reprocessInterval *time.Duration,
+		lastJobSuccess *time.Time,
 		jobFactory JobFactory,
 	) (JobControlResult, *kbatch.Job, error)
 
@@ -165,10 +170,12 @@ func (c *jobControl) ControlJobs(
 	ownerKey string,
 	owner metav1.Object,
 	buildNewJob bool,
+	reprocessInterval *time.Duration,
+	lastJobSuccess *time.Time,
 	jobFactory JobFactory,
 ) (JobControlResult, *kbatch.Job, error) {
 
-	logger := loggerForOwner(c.logger, owner)
+	logger := loggerForOwner(c.logger, owner).WithField("func", "ControlJobs")
 
 	// If there are expectations of creating or deleting jobs that have not
 	// yet been met, then do not do anything while we wait for those
@@ -191,15 +198,33 @@ func (c *jobControl) ControlJobs(
 	if err != nil {
 		return JobControlResult(""), nil, err
 	}
+	logger.Debugf("listed %d jobs", len(jobs))
 	for _, job := range jobs {
+		jobLog := logger.WithFields(log.Fields{
+			"creation": job.CreationTimestamp,
+			"job":      job.Name,
+			"status":   job.Status,
+		})
 		if !metav1.IsControlledBy(job, owner) {
+			jobLog.Debug("skipping job not controlled by owner")
 			continue
 		}
 		if !c.isControlledJob(job) {
+			jobLog.Debug("skipping job not controlled by controller")
 			continue
 		}
+
+		// Look for the most recent job for this generation of the owner. (may be multiple jobs for one
+		// generation for controllers which periodically re-run for on-going config management)
 		if jobOwnerGeneration(job) == owner.GetGeneration() {
-			generationJob = job
+			if generationJob == nil {
+				jobLog.Debugf("found generation job")
+				generationJob = job
+			} else if job.CreationTimestamp.Time.After(generationJob.CreationTimestamp.Time) {
+				jobLog.Debugf("found newer generation job")
+				jobsToDelete = append(jobsToDelete, generationJob)
+				generationJob = job
+			}
 		} else {
 			jobsToDelete = append(jobsToDelete, job)
 		}
@@ -208,17 +233,36 @@ func (c *jobControl) ControlJobs(
 	// There are existing jobs for previous generations of the owner. All the
 	// jobs need to be deleted. A job to process the current generation of the
 	// owner cannot be started until all outstanding jobs are deleted.
+	// TODO: why?
 	if len(jobsToDelete) > 0 {
-		logger.Debugf("deleting %d old jobs", len(jobsToDelete))
+		logger.Debugf("jobsToDelete: %d", len(jobsToDelete))
 		err := c.deleteOldJobs(ownerKey, jobsToDelete, logger)
 		return JobControlDeletingJobs, nil, err
 	}
 
 	if generationJob != nil {
+
+		logger.WithFields(log.Fields{
+			"generationJob": generationJob.Name,
+		}).Debugf("generationJob")
+
 		switch {
-		// A successful job exists for the current generation of the owner.
-		// The owner's status needs to be updated accordingly.
 		case isSuccessful(generationJob):
+
+			// Check if job supports periodical reprocessing:
+			if reprocessInterval != nil && lastJobSuccess != nil {
+				if *lastJobSuccess != generationJob.Status.CompletionTime.Time {
+					// First time we're seeing this successful job:
+					loggerForJob(logger, generationJob).Debug("new successful job found")
+					return JobControlJobSucceeded, generationJob, nil
+				} else if time.Since(*lastJobSuccess) > *reprocessInterval {
+					// Interval exceeded, a new job is required:
+					loggerForJob(logger, generationJob).Debug("reprocess job required")
+					_, err := c.createJob(ownerKey, owner, jobFactory, logger)
+					return JobControlCreatingJob, nil, err
+				}
+			}
+
 			loggerForJob(logger, generationJob).Debug("successful job found")
 			return JobControlJobSucceeded, generationJob, nil
 		// A failed job exists for the current generation of the owner.
@@ -233,8 +277,6 @@ func (c *jobControl) ControlJobs(
 		}
 	}
 
-	// The owner needs a job to process its current generaton. A job needs to
-	// be created to do this processing.
 	if buildNewJob {
 		logger.Debugf("building new job")
 		_, err := c.createJob(ownerKey, owner, jobFactory, logger)

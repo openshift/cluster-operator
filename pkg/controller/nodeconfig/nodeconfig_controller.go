@@ -1,5 +1,5 @@
 /*
-Copyright 2017 The Kubernetes Authors.
+Copyright 2018 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,11 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package machineset
+package nodeconfig
 
 import (
 	"fmt"
 	"time"
+
+	"github.com/golang/glog"
+	log "github.com/sirupsen/logrus"
 
 	v1batch "k8s.io/api/batch/v1"
 	kapi "k8s.io/api/core/v1"
@@ -32,9 +35,6 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 
-	"github.com/golang/glog"
-	log "github.com/sirupsen/logrus"
-
 	"github.com/openshift/cluster-operator/pkg/ansible"
 	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	clusteroperatorclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
@@ -42,34 +42,30 @@ import (
 	lister "github.com/openshift/cluster-operator/pkg/client/listers_generated/clusteroperator/v1alpha1"
 	"github.com/openshift/cluster-operator/pkg/controller"
 	"github.com/openshift/cluster-operator/pkg/kubernetes/pkg/util/metrics"
-	colog "github.com/openshift/cluster-operator/pkg/logging"
+	"github.com/openshift/cluster-operator/pkg/logging"
 )
 
 const (
 	// maxRetries is the number of times a service will be retried before it is dropped out of the queue.
 	// With the current rate-limiter in use (5ms*2^(maxRetries-1)) the following numbers represent the
-	// sequence of delays between successive queuings of a service.
+	// sequence of delays between successive queuings of a machineset.
 	//
 	// 5ms, 10ms, 20ms, 40ms, 80ms, 160ms, 320ms, 640ms, 1.3s, 2.6s, 5.1s, 10.2s, 20.4s, 41s, 82s
 	maxRetries = 15
 
-	controllerLogName = "machineSet"
+	// TODO: move to config map for the controllers once we have one
+	// Re-execute the job every 2-4 hours.
+	configManagementInterval = 2 * time.Hour
 
-	// jobType is the type of job run by this controller.
-	jobType = "provision"
+	controllerLogName = "nodeconfig"
 
-	masterProvisioningPlaybook = "playbooks/aws/openshift-cluster/provision.yml"
-
-	computeProvisioningPlaybook = "playbooks/aws/openshift-cluster/provision_nodes.yml"
-
-	deprovisioningPlaybook = "playbooks/aws/openshift-cluster/uninstall_nodes.yml"
-
-	masterDeprovisioningPlaybook = "playbooks/aws/openshift-cluster/uninstall_masters.yml"
+	nodeConfigPlaybook = "playbooks/cluster-operator/node-config-daemonset.yml"
+	// jobPrefix is used when generating a name for the configmap and job used for each
+	// Ansible execution.
+	jobType = "nodeconfig"
 )
 
-var (
-	machineSetKind = clusteroperator.SchemeGroupVersion.WithKind("MachineSet")
-)
+var machineSetKind = clusteroperator.SchemeGroupVersion.WithKind("MachineSet")
 
 // NewController returns a new *Controller.
 func NewController(
@@ -84,7 +80,7 @@ func NewController(
 	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: v1core.New(kubeClient.CoreV1().RESTClient()).Events("")})
 
 	if kubeClient != nil && kubeClient.CoreV1().RESTClient().GetRateLimiter() != nil {
-		metrics.RegisterMetricAndTrackRateLimiterUsage("clusteroperator_machine_set_controller", kubeClient.CoreV1().RESTClient().GetRateLimiter())
+		metrics.RegisterMetricAndTrackRateLimiterUsage("clusteroperator_nodeconfig_controller", kubeClient.CoreV1().RESTClient().GetRateLimiter())
 	}
 
 	logger := log.WithField("controller", controllerLogName)
@@ -92,14 +88,13 @@ func NewController(
 	c := &Controller{
 		client:     clusteroperatorClient,
 		kubeClient: kubeClient,
-		queue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "machineSet"),
+		queue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "nodeconfig"),
 		logger:     logger,
 	}
 
 	machineSetInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.addMachineSet,
 		UpdateFunc: c.updateMachineSet,
-		DeleteFunc: c.deleteMachineSet,
 	})
 	c.machineSetsLister = machineSetInformer.Lister()
 	c.machineSetsSynced = machineSetInformer.Informer().HasSynced
@@ -109,7 +104,7 @@ func NewController(
 	jobInformer.Informer().AddEventHandler(c.jobControl)
 	c.jobsSynced = jobInformer.Informer().HasSynced
 
-	c.jobSync = controller.NewJobSync(c.jobControl, &jobSyncStrategy{controller: c}, true, logger)
+	c.jobSync = controller.NewJobSync(c.jobControl, &jobSyncStrategy{controller: c}, false, logger)
 
 	c.syncHandler = c.jobSync.Sync
 	c.enqueueMachineSet = c.enqueue
@@ -118,7 +113,8 @@ func NewController(
 	return c
 }
 
-// Controller manages provisioning machine sets.
+// Controller manages launching node config daemonset setup on machines
+// that are masters in the cluster.
 type Controller struct {
 	client     clusteroperatorclientset.Interface
 	kubeClient kubeclientset.Interface
@@ -146,40 +142,28 @@ type Controller struct {
 	// jobsSynced returns true if the job shared informer has been synced at least once.
 	jobsSynced cache.InformerSynced
 
-	// MachineSets that need to be synced
+	// Machines that need to be synced
 	queue workqueue.RateLimitingInterface
 
 	logger log.FieldLogger
 }
 
 func (c *Controller) addMachineSet(obj interface{}) {
-	ms := obj.(*clusteroperator.MachineSet)
-	colog.WithMachineSet(c.logger, ms).Debugf("enqueueing added machine set")
-	c.enqueueMachineSet(ms)
+	machineSet := obj.(*clusteroperator.MachineSet)
+	if !isMasterMachineSet(machineSet) {
+		return
+	}
+	logging.WithMachineSet(c.logger, machineSet).Debugf("Adding master machine set")
+	c.enqueueMachineSet(machineSet)
 }
 
 func (c *Controller) updateMachineSet(old, cur interface{}) {
-	ms := cur.(*clusteroperator.MachineSet)
-	colog.WithMachineSet(c.logger, ms).Debugf("enqueueing updated machine set")
-	c.enqueueMachineSet(ms)
-}
-
-func (c *Controller) deleteMachineSet(obj interface{}) {
-	ms, ok := obj.(*clusteroperator.MachineSet)
-	if !ok {
-		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
-		if !ok {
-			utilruntime.HandleError(fmt.Errorf("Couldn't get object from tombstone %#v", obj))
-			return
-		}
-		ms, ok = tombstone.Obj.(*clusteroperator.MachineSet)
-		if !ok {
-			utilruntime.HandleError(fmt.Errorf("Tombstone contained object that is not a MachineSet %#v", obj))
-			return
-		}
+	machineSet := cur.(*clusteroperator.MachineSet)
+	if !isMasterMachineSet(machineSet) {
+		return
 	}
-	colog.WithMachineSet(c.logger, ms).Debugf("enqueueing deleted machine set")
-	c.enqueueMachineSet(ms)
+	logging.WithMachineSet(c.logger, machineSet).Debugf("Updating master machine set")
+	c.enqueueMachineSet(machineSet)
 }
 
 // Run runs c; will not return until stopCh is closed. workers determines how
@@ -188,11 +172,11 @@ func (c *Controller) Run(workers int, stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer c.queue.ShutDown()
 
-	c.logger.Infof("Starting machine set controller")
-	defer c.logger.Infof("Shutting down machine set controller")
+	c.logger.Infof("Starting nodeconfig controller")
+	defer c.logger.Infof("Shutting down nodeconfig controller")
 
-	if !controller.WaitForCacheSync("machineset", stopCh, c.machineSetsSynced, c.jobsSynced) {
-		c.logger.Errorf("Could not sync caches for machineset controller")
+	if !controller.WaitForCacheSync("nodeconfig", stopCh, c.machineSetsSynced, c.jobsSynced) {
+		c.logger.Errorf("Could not sync caches for nodeconfig controller")
 		return
 	}
 
@@ -211,6 +195,17 @@ func (c *Controller) enqueue(machineSet *clusteroperator.MachineSet) {
 	}
 
 	c.queue.Add(key)
+}
+
+// enqueueAfter will enqueue a machine set after the provided amount of time.
+func (c *Controller) enqueueAfter(ms *clusteroperator.MachineSet, after time.Duration) {
+	key, err := controller.KeyFunc(ms)
+	if err != nil {
+		utilruntime.HandleError(fmt.Errorf("Couldn't get key for object %#v: %v", ms, err))
+		return
+	}
+
+	c.queue.AddAfter(key, after)
 }
 
 // worker runs a worker thread that just dequeues items, processes them, and marks them done.
@@ -241,16 +236,25 @@ func (c *Controller) handleErr(err error, key interface{}) {
 
 	logger := c.logger.WithField("machineset", key)
 
-	logger.Errorf("error syncing machine set: %v", err)
 	if c.queue.NumRequeues(key) < maxRetries {
-		logger.Infof("retrying machine set")
+		logger.Infof("Error syncing master machine set: %v", err)
 		c.queue.AddRateLimited(key)
 		return
 	}
 
 	utilruntime.HandleError(err)
-	logger.Infof("dropping machine set out of the queue: %v", err)
+	logger.Infof("Dropping master machine set out of the queue: %v", err)
 	c.queue.Forget(key)
+}
+
+func isMasterMachineSet(machineSet *clusteroperator.MachineSet) bool {
+	return machineSet.Spec.NodeType == clusteroperator.NodeTypeMaster
+}
+
+type jobFactory func(string) (*v1batch.Job, *kapi.ConfigMap, error)
+
+func (f jobFactory) BuildJob(name string) (*v1batch.Job, *kapi.ConfigMap, error) {
+	return f(name)
 }
 
 type jobOwnerControl struct {
@@ -275,12 +279,6 @@ func (c *jobOwnerControl) OnOwnedJobEvent(owner metav1.Object) {
 	c.controller.enqueueMachineSet(machineSet)
 }
 
-type jobFactory func(string) (*v1batch.Job, *kapi.ConfigMap, error)
-
-func (f jobFactory) BuildJob(name string) (*v1batch.Job, *kapi.ConfigMap, error) {
-	return f(name)
-}
-
 type jobSyncStrategy struct {
 	controller *Controller
 }
@@ -302,18 +300,45 @@ func (s *jobSyncStrategy) DoesOwnerNeedProcessing(owner metav1.Object) bool {
 		s.controller.logger.Warn("could not convert owner from JobSync into a machineset: %#v", owner)
 		return false
 	}
-	return machineSet.Status.ProvisionedJobGeneration != machineSet.Generation
+
+	msLog := logging.WithMachineSet(s.controller.logger, machineSet).WithField("func", "DoesOwnerNeedProcessing")
+	if !machineSet.Status.Installed {
+		msLog.Debug("control plane not installed, returning false")
+		return false
+	}
+
+	// Process if the machine set generation has changed since we last ran:
+	if machineSet.Status.NodeConfigInstalledJobGeneration != machineSet.Generation {
+		msLog.WithFields(log.Fields{
+			"NodeConfigInstalledJobGeneration": machineSet.Status.NodeConfigInstalledJobGeneration,
+			"Generation":                       machineSet.Generation,
+		}).Debug("machine set generation has changed")
+		return true
+	}
+	return false
 }
 
 func (s *jobSyncStrategy) GetReprocessInterval() *time.Duration {
-	return nil
+	tempInterval := configManagementInterval
+	return &tempInterval
 }
 
 func (s *jobSyncStrategy) GetLastJobSuccess(owner metav1.Object) *time.Time {
+	machineSet, ok := owner.(*clusteroperator.MachineSet)
+	if !ok {
+		s.controller.logger.Warn("could not convert owner from JobSync into a machineset: %#v", owner)
+		return nil
+	}
+	if machineSet.Status.NodeConfigInstalledTime != nil {
+		return &machineSet.Status.NodeConfigInstalledTime.Time
+	}
 	return nil
 }
 
 func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object, deleting bool) (controller.JobFactory, error) {
+	if deleting {
+		return nil, fmt.Errorf("should not be undoing on deletes")
+	}
 	machineSet, ok := owner.(*clusteroperator.MachineSet)
 	if !ok {
 		return nil, fmt.Errorf("could not convert owner from JobSync into a machineset")
@@ -324,30 +349,15 @@ func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object, deleting bool) (con
 		if err != nil {
 			return nil, nil, err
 		}
-
-		vars, err := ansible.GenerateMachineSetVars(machineSet, cv)
+		vars, err := ansible.GenerateClusterWideVarsForMachineSet(machineSet, cv)
 		if err != nil {
 			return nil, nil, err
-		}
-		var playbook string
-		switch {
-		case deleting:
-			switch machineSet.Spec.NodeType {
-			case clusteroperator.NodeTypeMaster:
-				playbook = masterDeprovisioningPlaybook
-			default:
-				playbook = deprovisioningPlaybook
-			}
-		case machineSet.Spec.NodeType == clusteroperator.NodeTypeMaster:
-			playbook = masterProvisioningPlaybook
-		default:
-			playbook = computeProvisioningPlaybook
 		}
 		image, pullPolicy := ansible.GetAnsibleImageForClusterVersion(cv)
 		job, configMap := s.controller.ansibleGenerator.GeneratePlaybookJob(
 			name,
 			&machineSet.Spec.ClusterHardware,
-			playbook,
+			nodeConfigPlaybook,
 			ansible.DefaultInventory,
 			vars,
 			image,
@@ -382,6 +392,15 @@ func (s *jobSyncStrategy) SetOwnerJobSyncCondition(
 		s.controller.logger.Warn("could not convert owner from JobSync into a machineset: %#v", owner)
 		return
 	}
+	msLog := logging.WithMachineSet(s.controller.logger, machineSet)
+	msLog.WithFields(log.Fields{
+		"conditionType":        convertJobSyncConditionType(conditionType),
+		"status":               status,
+		"reason":               reason,
+		"message":              message,
+		"updateConditionCheck": updateConditionCheck,
+	}).Debugf("SetOwnerJobSyncCondition")
+
 	controller.SetMachineSetCondition(
 		machineSet,
 		convertJobSyncConditionType(conditionType),
@@ -398,8 +417,26 @@ func (s *jobSyncStrategy) OnJobCompletion(owner metav1.Object, job *v1batch.Job,
 		s.controller.logger.Warn("could not convert owner from JobSync into a machineset: %#v", owner)
 		return
 	}
-	machineSet.Status.Provisioned = succeeded
-	machineSet.Status.ProvisionedJobGeneration = machineSet.Generation
+	msLog := logging.WithMachineSet(s.controller.logger, machineSet).WithFields(log.Fields{
+		"func":      "OnJobCompletion",
+		"job":       job.Name,
+		"succeeded": succeeded,
+	})
+	msLog.Debug("running")
+	machineSet.Status.NodeConfigInstalled = succeeded
+	machineSet.Status.NodeConfigInstalledJobGeneration = machineSet.Generation
+
+	msLog.WithFields(log.Fields{
+		"job":       job.Name,
+		"completed": job.Status.CompletionTime}).Infoln("found successful job")
+	machineSet.Status.NodeConfigInstalledTime = job.Status.CompletionTime
+
+	// We often sync before we hit this reprocess interval, if the threshold for
+	// reprocessing happens to be exceeded on one of those syncs we may actually launch a
+	// new job earlier here.
+	reprocessDuration := wait.Jitter(configManagementInterval, 1.0)
+	msLog.Debugf("reprocessing machine set in: %v", reprocessDuration)
+	s.controller.enqueueAfter(machineSet, reprocessDuration)
 }
 
 func (s *jobSyncStrategy) UpdateOwnerStatus(original, owner metav1.Object) error {
@@ -417,15 +454,11 @@ func (s *jobSyncStrategy) UpdateOwnerStatus(original, owner metav1.Object) error
 func convertJobSyncConditionType(conditionType controller.JobSyncConditionType) clusteroperator.MachineSetConditionType {
 	switch conditionType {
 	case controller.JobSyncProcessing:
-		return clusteroperator.MachineSetHardwareProvisioning
+		return clusteroperator.MachineSetNodeConfigInstalling
 	case controller.JobSyncProcessed:
-		return clusteroperator.MachineSetHardwareProvisioned
+		return clusteroperator.MachineSetNodeConfigInstalled
 	case controller.JobSyncProcessingFailed:
-		return clusteroperator.MachineSetHardwareProvisioningFailed
-	case controller.JobSyncUndoing:
-		return clusteroperator.MachineSetHardwareDeprovisioning
-	case controller.JobSyncUndoFailed:
-		return clusteroperator.MachineSetHardwareDeprovisioningFailed
+		return clusteroperator.MachineSetNodeConfigInstallationFailed
 	default:
 		return clusteroperator.MachineSetConditionType("")
 	}

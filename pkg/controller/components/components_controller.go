@@ -302,6 +302,14 @@ func (s *jobSyncStrategy) DoesOwnerNeedProcessing(owner metav1.Object) bool {
 	return machineSet.Status.ComponentsInstalledJobGeneration != machineSet.Generation
 }
 
+func (s *jobSyncStrategy) GetReprocessInterval() *time.Duration {
+	return nil
+}
+
+func (s *jobSyncStrategy) GetLastJobSuccess(owner metav1.Object) *time.Time {
+	return nil
+}
+
 func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object, deleting bool) (controller.JobFactory, error) {
 	if deleting {
 		return nil, fmt.Errorf("should not be undoing on deletes")
@@ -369,7 +377,7 @@ func (s *jobSyncStrategy) SetOwnerJobSyncCondition(
 	)
 }
 
-func (s *jobSyncStrategy) OnJobCompletion(owner metav1.Object, succeeded bool) {
+func (s *jobSyncStrategy) OnJobCompletion(owner metav1.Object, job *v1batch.Job, succeeded bool) {
 	machineSet, ok := owner.(*clusteroperator.MachineSet)
 	if !ok {
 		s.controller.logger.Warn("could not convert owner from JobSync into a machineset: %#v", owner)

@@ -23,6 +23,7 @@ package v1alpha1
 import (
 	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
 	v1 "k8s.io/api/core/v1"
+	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	conversion "k8s.io/apimachinery/pkg/conversion"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	unsafe "unsafe"
@@ -777,6 +778,9 @@ func autoConvert_v1alpha1_MachineSetStatus_To_clusteroperator_MachineSetStatus(i
 	out.Conditions = *(*[]clusteroperator.MachineSetCondition)(unsafe.Pointer(&in.Conditions))
 	out.ComponentsInstalled = in.ComponentsInstalled
 	out.ComponentsInstalledJobGeneration = in.ComponentsInstalledJobGeneration
+	out.NodeConfigInstalled = in.NodeConfigInstalled
+	out.NodeConfigInstalledJobGeneration = in.NodeConfigInstalledJobGeneration
+	out.NodeConfigInstalledTime = (*meta_v1.Time)(unsafe.Pointer(in.NodeConfigInstalledTime))
 	out.Installed = in.Installed
 	out.InstalledJobGeneration = in.InstalledJobGeneration
 	out.Provisioned = in.Provisioned
@@ -797,6 +801,9 @@ func autoConvert_clusteroperator_MachineSetStatus_To_v1alpha1_MachineSetStatus(i
 	out.Conditions = *(*[]MachineSetCondition)(unsafe.Pointer(&in.Conditions))
 	out.ComponentsInstalled = in.ComponentsInstalled
 	out.ComponentsInstalledJobGeneration = in.ComponentsInstalledJobGeneration
+	out.NodeConfigInstalled = in.NodeConfigInstalled
+	out.NodeConfigInstalledJobGeneration = in.NodeConfigInstalledJobGeneration
+	out.NodeConfigInstalledTime = (*meta_v1.Time)(unsafe.Pointer(in.NodeConfigInstalledTime))
 	out.Installed = in.Installed
 	out.InstalledJobGeneration = in.InstalledJobGeneration
 	out.Provisioned = in.Provisioned

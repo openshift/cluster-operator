@@ -6,14 +6,12 @@
   vars:
     aws_section: default
     ssh_priv_key: '~/.ssh/libra.pem'
-    ansible_image: "fake-openshift-ansible:canary"
-    ansible_image_pull_policy: "Never"
     cluster_operator_namespace: "openshift-cluster-operator"
   tasks:
   - set_fact:
       cluster_operator_namespace: "{{ cli_cluster_operator_namespace }}"
     when: cli_cluster_operator_namespace is defined
-    
+
   - name: create cluster-operator namespace
     command: "oc create namespace {{ cluster_operator_namespace }}"
     register: createns_reg
