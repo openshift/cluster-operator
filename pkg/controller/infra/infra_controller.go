@@ -279,7 +279,7 @@ func (c *Controller) getJobFactory(cluster *clusteroperator.Cluster, playbook st
 		if err != nil {
 			return nil, nil, err
 		}
-		vars, err := ansible.GenerateClusterVars(cluster)
+		vars, err := ansible.GenerateClusterVars(cluster, &cv.Spec)
 		if err != nil {
 			return nil, nil, err
 		}

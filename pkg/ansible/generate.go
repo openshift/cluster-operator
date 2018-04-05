@@ -85,7 +85,7 @@ ansible_ssh_user: [[ .SSHUser ]]
 # Ensure these variables are set for bootstrap
 ################################################################################
 # Deployment type must be specified. ('origin' or 'openshift-enterprise')
-openshift_deployment_type: origin
+openshift_deployment_type: [[ .DeploymentType ]]
 
 openshift_master_bootstrap_enabled: True
 
@@ -328,11 +328,12 @@ ansible_become=true
 )
 
 type clusterParams struct {
-	Name        string
-	Region      string
-	SSHKeyName  string
-	SSHUser     string
-	VPCDefaults string
+	Name           string
+	Region         string
+	SSHKeyName     string
+	SSHUser        string
+	VPCDefaults    string
+	DeploymentType coapi.ClusterDeploymentType
 }
 
 type machineSetParams struct {
@@ -350,13 +351,13 @@ type clusterVersionParams struct {
 
 // GenerateClusterVars generates the vars to pass to the ansible playbook
 // for the cluster.
-func GenerateClusterVars(cluster *coapi.Cluster) (string, error) {
-	return GenerateClusterWideVars(cluster.Name, &cluster.Spec.Hardware)
+func GenerateClusterVars(cluster *coapi.Cluster, clusterVersionSpec *coapi.ClusterVersionSpec) (string, error) {
+	return GenerateClusterWideVars(cluster.Name, &cluster.Spec.Hardware, clusterVersionSpec)
 }
 
 // GenerateClusterWideVars generates the vars to pass to the ansible playbook
 // that are set at the cluster level.
-func GenerateClusterWideVars(name string, hardwareSpec *coapi.ClusterHardwareSpec) (string, error) {
+func GenerateClusterWideVars(name string, hardwareSpec *coapi.ClusterHardwareSpec, clusterVersionSpec *coapi.ClusterVersionSpec) (string, error) {
 
 	// Currently only AWS is supported. If we don't have an AWS cluster spec, return an error
 	if hardwareSpec.AWS == nil {
@@ -370,11 +371,12 @@ func GenerateClusterWideVars(name string, hardwareSpec *coapi.ClusterHardwareSpe
 	}
 
 	params := clusterParams{
-		Name:        name,
-		Region:      hardwareSpec.AWS.Region,
-		SSHKeyName:  hardwareSpec.AWS.KeyPairName,
-		SSHUser:     hardwareSpec.AWS.SSHUser,
-		VPCDefaults: vpcDefaults,
+		Name:           name,
+		Region:         hardwareSpec.AWS.Region,
+		SSHKeyName:     hardwareSpec.AWS.KeyPairName,
+		SSHUser:        hardwareSpec.AWS.SSHUser,
+		VPCDefaults:    vpcDefaults,
+		DeploymentType: clusterVersionSpec.DeploymentType,
 	}
 
 	var buf bytes.Buffer
@@ -418,7 +420,7 @@ func GenerateClusterWideVarsForMachineSet(machineSet *coapi.MachineSet, clusterV
 	if controllerRef == nil {
 		return "", fmt.Errorf("machineset does not have a controller")
 	}
-	commonVars, err := GenerateClusterWideVars(controllerRef.Name, &machineSet.Spec.ClusterHardware)
+	commonVars, err := GenerateClusterWideVars(controllerRef.Name, &machineSet.Spec.ClusterHardware, &clusterVersion.Spec)
 
 	// Layer in the vars that depend on the ClusterVersion:
 	var buf bytes.Buffer
