@@ -22,3 +22,5 @@ import:
 - package: k8s.io/kube-deploy
   subpackages:
   - cluster-api/...
+- package: github.com/aws/aws-sdk-go
+  version: v1.13.28

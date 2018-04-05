@@ -1,8 +1,10 @@
-hash: e3baf46292d13e86e501005b9232a88858f500685ac434799dac43d03dfbb3c3
-updated: 2018-04-05T11:06:09.359909-04:00
+hash: 1b5936c6f74a3621177d39f7c26911b8a11f026d9d75474a47c6e20bbb6c80be
+updated: 2018-04-05T15:17:30.692227-04:00
 imports:
 - name: bitbucket.org/ww/goautoneg
   version: 75cd24fc2f2c2a2088577d12123ddee5f54e0675
+- name: github.com/aws/aws-sdk-go
+  version: 7f68df2a5baf19398d17def23a514a6e617e5937
 - name: github.com/beorn7/perks
   version: 3ac7bf7a47d159a033b107610db8a1b6575507a4
   subpackages:
