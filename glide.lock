@@ -1,5 +1,5 @@
-hash: 474ef6ca0a4e12e5e99a1fa15a4a65c90aa0d4c457b4c2ef5ac15cebbd1539c4
-updated: 2018-02-01T09:47:48.299827512-05:00
+hash: e3baf46292d13e86e501005b9232a88858f500685ac434799dac43d03dfbb3c3
+updated: 2018-04-05T11:06:09.359909-04:00
 imports:
 - name: bitbucket.org/ww/goautoneg
   version: 75cd24fc2f2c2a2088577d12123ddee5f54e0675
@@ -114,15 +114,11 @@ imports:
   - proto
   - sortkeys
 - name: github.com/golang/glog
-  version: 44145f04b68cf362d9c4df2182967c2275eaefed
+  version: 23def4e6c14b4da8ac2ed8007337bc5eb5007998
 - name: github.com/golang/groupcache
   version: 02826c3e79038b59d737d3b1c0a1d937f71a4433
   subpackages:
   - lru
-- name: github.com/golang/mock
-  version: b3e60bcdc577185fce3cf625fc96b62857ce5574
-  subpackages:
-  - gomock
 - name: github.com/golang/protobuf
   version: 1643683e1b54a9e88ad26d98f81400c8c9d9f4f9
   subpackages:
@@ -144,9 +140,9 @@ imports:
   - compiler
   - extensions
 - name: github.com/gorilla/context
-  version: 215affda49addc4c8ef7e2534915df2c8c35c6cd
+  version: 08b5f424b9271eedf6f9f0ce86cb9396ed337a42
 - name: github.com/gorilla/mux
-  version: 8096f47503459bcc74d1f4c487b7e6e42e5746b5
+  version: 94231ffd98496cbcb1c15b7bf2a9edfd5f852cd4
 - name: github.com/gregjones/httpcache
   version: 787624de3eb7bd915c329cba748687a3b22666a6
   subpackages:
@@ -178,7 +174,7 @@ imports:
 - name: github.com/karlseguin/ccache
   version: 3ba9789cfd2cb7b4fb4657efc994cc1c599a648c
 - name: github.com/kubernetes/repo-infra
-  version: e26fc85d14a1d3dc25569831acc06919673c545a
+  version: 06471ba92308f7bfff038aa0850f31cbb7254ea3
 - name: github.com/mailru/easyjson
   version: 2f5df55504ebc322e4d52d34df6a1f5b503bf26d
   subpackages:
@@ -199,6 +195,10 @@ imports:
   version: ca53cad383cad2479bbba7f7a1a05797ec1386e4
 - name: github.com/peterbourgon/diskv
   version: 5f041e8faa004a95c88a202771f4cc3e991971e6
+- name: github.com/pmezard/go-difflib
+  version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
+  subpackages:
+  - difflib
 - name: github.com/prometheus/client_golang
   version: e7e903064f5e9eb5da98208bae10b475d4db0f8c
   subpackages:
@@ -226,9 +226,13 @@ imports:
   subpackages:
   - hooks/test
 - name: github.com/spf13/cobra
-  version: f62e98d28ab7ad31d707ba837a966378465c7b57
+  version: a1f051bc3eba734da4772d60e2d677f47cf93ef4
 - name: github.com/spf13/pflag
-  version: 9ff6c6923cfffbcd502984b8e0c80539a94968b7
+  version: e57e3eeb33f795204c1ca35f56c44f83227c6e66
+- name: github.com/stretchr/testify
+  version: f6abca593680b2315d2075e0f5e2a9751e3f431a
+  subpackages:
+  - assert
 - name: github.com/ugorji/go
   version: ded73eae5db7e7a0ef6f55aace87a2873c5d2b74
   subpackages:
@@ -645,6 +649,10 @@ imports:
   version: fef8bcdbaf36ac6a1a18c9ef7d85200b249fad30
 - name: k8s.io/gengo
   version: b58fc7edb82e0c6ffc9b8aef61813c7261b785d4
+- name: k8s.io/kube-deploy
+  version: ef2f9f85b5384afad2057fd3cf9cb7ce7763e4d4
+  subpackages:
+  - cluster-api/...
 - name: k8s.io/kube-openapi
   version: 39a7bf85c140f972372c2a0d1ee40adbf0c8bfe1
   subpackages:
@@ -654,11 +662,7 @@ imports:
   - pkg/util
   - pkg/util/proto
 testImports:
-- name: github.com/pmezard/go-difflib
-  version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
+- name: github.com/golang/mock
+  version: 44f7022155f1ea17ce69ecee014d5d703a47ffc3
   subpackages:
-  - difflib
-- name: github.com/stretchr/testify
-  version: 69483b4bd14f5845b5a1e55bca19e954e827f1d0
-  subpackages:
-  - assert
+  - gomock
