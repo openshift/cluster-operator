@@ -212,24 +212,10 @@ openshift_aws_vpc: [[ .VPCDefaults ]]
 openshift_aws_ami_map:
   master: [[ .AMI ]]
 
-openshift_aws_master_group_config:
-  # The 'master' key is always required here.
-  master:
-    instance_type: [[ .InstanceType ]]
-    volumes: "{{ openshift_aws_node_group_config_master_volumes }}"
-    health_check:
-      period: 60
-      type: EC2
-    min_size: 1
-    max_size: [[ .Size ]]
-    desired_size: [[ .Size ]]
-    wait_for_instances: True
-    termination_policy: "{{ openshift_aws_node_group_termination_policy }}"
-    replace_all_instances: "{{ openshift_aws_node_group_replace_all_instances }}"
-    iam_role: "{{ openshift_aws_iam_role_name }}"
-    policy_name: "{{ openshift_aws_iam_role_policy_name }}"
-    policy_json: "{{ openshift_aws_iam_role_policy_json }}"
-    elbs: "{{ openshift_aws_elb_dict | json_query('master.[*][0][*].name') }}"
+openshift_aws_master_group_min_size: [[ .Size ]]
+openshift_aws_master_group_max_size: [[ .Size ]]
+openshift_aws_master_group_desired_size: [[ .Size ]]
+openshift_aws_master_group_instance_type: [[ .InstanceType ]]
 
 openshift_aws_master_group:
 - name: "{{ openshift_aws_clusterid }} master group"
@@ -244,22 +230,10 @@ openshift_aws_master_group:
 openshift_aws_ami_map:
   infra: [[ .AMI ]]
 
-openshift_aws_node_group_config:
-  infra:
-    instance_type: [[ .InstanceType ]]
-    volumes: "{{ openshift_aws_node_group_config_node_volumes }}"
-    health_check:
-      period: 60
-      type: EC2
-    min_size: 1
-    max_size: [[ .Size ]]
-    desired_size: [[ .Size ]]
-    termination_policy: "{{ openshift_aws_node_group_termination_policy }}"
-    replace_all_instances: "{{ openshift_aws_node_group_replace_all_instances }}"
-    iam_role: "{{ openshift_aws_iam_role_name }}"
-    policy_name: "{{ openshift_aws_iam_role_policy_name }}"
-    policy_json: "{{ openshift_aws_iam_role_policy_json }}"
-    elbs: "{{ openshift_aws_elb_dict | json_query('infra.[*][0][*].name') }}"
+openshift_aws_infra_group_min_size: [[ .Size ]]
+openshift_aws_infra_group_max_size: [[ .Size ]]
+openshift_aws_infra_group_desired_size: [[ .Size ]]
+openshift_aws_infra_group_instance_type: [[ .InstanceType ]]
 
 openshift_aws_node_groups:
 - name: "{{ openshift_aws_clusterid }} infra group"
@@ -284,21 +258,10 @@ openshift_aws_node_groups:
     runtime: docker
     Name: "{{ openshift_aws_clusterid }}-compute"
 
-openshift_aws_node_group_config:
-  compute:
-    instance_type: [[ .InstanceType ]]
-    volumes: "{{ openshift_aws_node_group_config_node_volumes }}"
-    health_check:
-      period: 60
-      type: EC2
-    min_size: 1
-    max_size: [[ .Size ]]
-    desired_size: [[ .Size ]]
-    termination_policy: "{{ openshift_aws_node_group_termination_policy }}"
-    replace_all_instances: "{{ openshift_aws_node_group_replace_all_instances }}"
-    iam_role: "{{ openshift_aws_iam_role_name }}"
-    policy_name: "{{ openshift_aws_iam_role_policy_name }}"
-    policy_json: "{{ openshift_aws_iam_role_policy_json }}"
+openshift_aws_compute_group_min_size: [[ .Size ]]
+openshift_aws_compute_group_max_size: [[ .Size ]]
+openshift_aws_compute_group_desired_size: [[ .Size ]]
+openshift_aws_compute_group_instance_type: [[ .InstanceType ]]
 `
 	clusterVersionVarsTemplate = `
 
