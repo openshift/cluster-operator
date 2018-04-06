@@ -1,10 +1,38 @@
-hash: 1b5936c6f74a3621177d39f7c26911b8a11f026d9d75474a47c6e20bbb6c80be
-updated: 2018-04-05T15:17:30.692227-04:00
+hash: 1f76b05bf1fd95bc4dac3236430632047e69aab8efef5173c08f2cf1f1744b31
+updated: 2018-04-05T16:12:45.404567-04:00
 imports:
 - name: bitbucket.org/ww/goautoneg
   version: 75cd24fc2f2c2a2088577d12123ddee5f54e0675
 - name: github.com/aws/aws-sdk-go
   version: 7f68df2a5baf19398d17def23a514a6e617e5937
+  subpackages:
+  - aws
+  - aws/awserr
+  - aws/awsutil
+  - aws/client
+  - aws/client/metadata
+  - aws/corehandlers
+  - aws/credentials
+  - aws/credentials/ec2rolecreds
+  - aws/credentials/endpointcreds
+  - aws/credentials/stscreds
+  - aws/defaults
+  - aws/ec2metadata
+  - aws/endpoints
+  - aws/request
+  - aws/session
+  - aws/signer/v4
+  - internal/sdkio
+  - internal/sdkrand
+  - internal/shareddefaults
+  - private/protocol
+  - private/protocol/ec2query
+  - private/protocol/query
+  - private/protocol/query/queryutil
+  - private/protocol/rest
+  - private/protocol/xml/xmlutil
+  - service/ec2
+  - service/sts
 - name: github.com/beorn7/perks
   version: 3ac7bf7a47d159a033b107610db8a1b6575507a4
   subpackages:
@@ -102,6 +130,8 @@ imports:
   version: 944e07253867aacae43c04b2e6a239005443f33a
 - name: github.com/ghodss/yaml
   version: 73d445a93680fa1a78ae23a5839bad48f32ba1ee
+- name: github.com/go-ini/ini
+  version: 5e9692864e22d02ac79e2fa499cffb00520b4fea
 - name: github.com/go-openapi/jsonpointer
   version: 46af16f9f7b149af66e5d1bd010e3574dc06de98
 - name: github.com/go-openapi/jsonreference
@@ -167,6 +197,8 @@ imports:
   version: 6633656539c1639d9d78127b7d47c622b5d7b6dc
 - name: github.com/inconshreveable/mousetrap
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
+- name: github.com/jmespath/go-jmespath
+  version: c2b33e8439af944379acbdd9c3a5fe0bc44bd8a5
 - name: github.com/jonboulle/clockwork
   version: 72f9bd7c4e0c2a40055ab3d0f09654f730cce982
 - name: github.com/json-iterator/go
@@ -175,6 +207,11 @@ imports:
   version: 5b9ff866471762aa2ab2dced63c9fb6f53921342
 - name: github.com/karlseguin/ccache
   version: 3ba9789cfd2cb7b4fb4657efc994cc1c599a648c
+- name: github.com/kubernetes-incubator/apiserver-builder
+  version: e809ac2f9f0c238f08d08a876f8b3f499604f941
+  subpackages:
+  - pkg/builders
+  - pkg/controller
 - name: github.com/kubernetes/repo-infra
   version: 06471ba92308f7bfff038aa0850f31cbb7254ea3
 - name: github.com/mailru/easyjson
@@ -655,6 +692,21 @@ imports:
   version: ef2f9f85b5384afad2057fd3cf9cb7ce7763e4d4
   subpackages:
   - cluster-api/...
+  - cluster-api/pkg/apis/cluster
+  - cluster-api/pkg/apis/cluster/common
+  - cluster-api/pkg/apis/cluster/v1alpha1
+  - cluster-api/pkg/client/clientset_generated/clientset
+  - cluster-api/pkg/client/clientset_generated/clientset/scheme
+  - cluster-api/pkg/client/clientset_generated/clientset/typed/cluster/v1alpha1
+  - cluster-api/pkg/client/informers_generated/externalversions
+  - cluster-api/pkg/client/informers_generated/externalversions/cluster
+  - cluster-api/pkg/client/informers_generated/externalversions/cluster/v1alpha1
+  - cluster-api/pkg/client/informers_generated/externalversions/internalinterfaces
+  - cluster-api/pkg/client/listers_generated/cluster/v1alpha1
+  - cluster-api/pkg/controller/config
+  - cluster-api/pkg/controller/machine
+  - cluster-api/pkg/controller/sharedinformers
+  - cluster-api/util
 - name: k8s.io/kube-openapi
   version: 39a7bf85c140f972372c2a0d1ee40adbf0c8bfe1
   subpackages:
