@@ -104,12 +104,24 @@ NON_VENDOR_DIRS = $(shell $(DOCKER_CMD) glide nv)
 build: .init .generate_files \
 	$(BINDIR)/cluster-operator \
 	$(BINDIR)/fake-openshift-ansible \
-	$(BINDIR)/playbook-mock
+	$(BINDIR)/playbook-mock \
+	$(BINDIR)/aws-machine-controller \
+	$(BINDIR)/aws-actuator-test
 
 .PHONY: $(BINDIR)/cluster-operator
 cluster-operator: $(BINDIR)/cluster-operator
 $(BINDIR)/cluster-operator: .init .generate_files
 	$(DOCKER_CMD) $(GO_BUILD) -o $@ $(CLUSTER_OPERATOR_PKG)/cmd/cluster-operator
+
+.PHONY: $(BINDIR)/aws-machine-controller
+aws-machine-controller: $(BINDIR)/aws-machine-controller
+$(BINDIR)/aws-machine-controller: .init
+	$(DOCKER_CMD) $(GO_BUILD) -o $@ $(CLUSTER_OPERATOR_PKG)/cmd/aws-machine-controller
+
+.PHONY: $(BINDIR)/aws-actuator-test
+aws-actuator-test: $(BINDIR)/aws-actuator-test
+$(BINDIR)/aws-actuator-test: .init
+	$(DOCKER_CMD) $(GO_BUILD) -o $@ $(CLUSTER_OPERATOR_PKG)/contrib/cmd/aws-actuator-test
 
 fake-openshift-ansible: $(BINDIR)/fake-openshift-ansible
 $(BINDIR)/fake-openshift-ansible: contrib/fake-openshift-ansible/fake-openshift-ansible
