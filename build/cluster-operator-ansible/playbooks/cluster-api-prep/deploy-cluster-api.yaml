@@ -76,19 +76,20 @@
         cluster_api_key: "{{ clusterapi_key.content }}"
         cluster_api_ca_bundle: "{{ clusterapi_crt.content }}"
 
-  - name: process template
-    oc_process:
-      namespace: "{{ cluster_api_namespace }}"
-      state: present
-      create: true
-      content: "{{ template.content | b64decode }}"
-      params:
-         CLUSTER_API_NAMESPACE: "{{ cluster_api_namespace }}"
-         SERVING_CA: "{{ cluster_api_ca_bundle }}"
-         SERVING_CERT: "{{ cluster_api_cert }}"
-         SERVING_KEY: "{{ cluster_api_key }}"
-    run_once: true
-    register: template_out
+  - name: create temp file to hold the template
+    tempfile:
+      state: file
+    register: temp_file
 
-  - debug:
-      var: template_out
+  - name: copy template over
+    copy:
+      src: files/cluster-api-template.yaml
+      dest: "{{ temp_file.path }}"
+
+  - name: process template
+    shell: "oc process -f {{ temp_file.path }} -p CLUSTER_API_NAMESPACE={{ cluster_api_namespace }} -p SERVING_CA={{ cluster_api_ca_bundle }} -p SERVING_CERT={{ cluster_api_cert }} -p SERVING_KEY={{ cluster_api_key }} | oc apply -f -"
+
+  - name: remove template file
+    file:
+      state: absent
+      path: "{{ temp_file.path }}"
