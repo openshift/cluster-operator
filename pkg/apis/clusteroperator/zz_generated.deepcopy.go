@@ -693,6 +693,15 @@ func (in *MachineSetStatus) DeepCopyInto(out *MachineSetStatus) {
 			(*in).DeepCopyInto(*out)
 		}
 	}
+	if in.ClusterAPIInstalledTime != nil {
+		in, out := &in.ClusterAPIInstalledTime, &out.ClusterAPIInstalledTime
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(meta_v1.Time)
+			(*in).DeepCopyInto(*out)
+		}
+	}
 	return
 }
 

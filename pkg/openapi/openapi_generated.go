@@ -1127,6 +1127,26 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
 							},
 						},
+						"clusterAPIInstalled": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ClusterAPIInstalled is true if the Kubernetes Cluster API controllers have been deployed onto the remote cluster.",
+								Type:        []string{"boolean"},
+								Format:      "",
+							},
+						},
+						"clusterAPIInstalledJobGeneration": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ClusterAPIInstalledJobGeneration is the generation of the machine set resource used to generate the latest completed deployclusterapi installation job.",
+								Type:        []string{"integer"},
+								Format:      "int64",
+							},
+						},
+						"clusterAPIInstalledTime": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ClusterAPIInstalledTime is the time we last successfully deployed the Kubernetes Cluster API controllers on the cluster.",
+								Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+							},
+						},
 						"installed": {
 							SchemaProps: spec.SchemaProps{
 								Description: "Installed is true if the software required for this machine set is installed and running.",
@@ -1170,7 +1190,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 							},
 						},
 					},
-					Required: []string{"machineCount", "machinesReady", "conditions", "componentsInstalled", "componentsInstalledJobGeneration", "nodeConfigInstalled", "nodeConfigInstalledJobGeneration", "nodeConfigLastInstalled", "installed", "installedJobGeneration", "provisioned", "provisionedJobGeneration", "accepted", "acceptedJobGeneration"},
+					Required: []string{"machineCount", "machinesReady", "conditions", "componentsInstalled", "componentsInstalledJobGeneration", "nodeConfigInstalled", "nodeConfigInstalledJobGeneration", "nodeConfigLastInstalled", "clusterAPIInstalled", "clusterAPIInstalledJobGeneration", "clusterAPIInstalledTime", "installed", "installedJobGeneration", "provisioned", "provisionedJobGeneration", "accepted", "acceptedJobGeneration"},
 				},
 			},
 			Dependencies: []string{

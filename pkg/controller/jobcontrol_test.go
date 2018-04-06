@@ -170,7 +170,7 @@ func newTestControlledJob(namePrefix, nameEnding string, owner metav1.Object, ow
 }
 
 func newTestControlledSuccessfulJob(namePrefix, nameEnding string, owner metav1.Object, ownerKind schema.GroupVersionKind, generation int64, completionTime time.Time) *kbatch.Job {
-	tempTime := metav1.Time{completionTime}
+	tempTime := metav1.Time{Time: completionTime}
 	return &kbatch.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            namePrefix + nameEnding,
