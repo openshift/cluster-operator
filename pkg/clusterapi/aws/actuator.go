@@ -236,6 +236,10 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 		ResourceType: aws.String("instance"),
 		Tags:         tagList,
 	}
+	tagVolume := &ec2.TagSpecification{
+		ResourceType: aws.String("volume"),
+		Tags:         tagList[0:1],
+	}
 
 	// For now, these are fixed
 	blkDeviceMappings := []*ec2.BlockDeviceMapping{
@@ -275,7 +279,7 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 			Name: aws.String(iamRole(coCluster)),
 		},
 		BlockDeviceMappings: blkDeviceMappings,
-		TagSpecifications:   []*ec2.TagSpecification{tagInstance},
+		TagSpecifications:   []*ec2.TagSpecification{tagInstance, tagVolume},
 		NetworkInterfaces:   networkInterfaces,
 	}
 
