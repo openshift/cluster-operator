@@ -64,6 +64,8 @@ GO_BUILD       = env GOOS=$(PLATFORM) GOARCH=$(ARCH) go build -i $(GOFLAGS) \
 BASE_PATH      = $(ROOT:/src/github.com/openshift/cluster-operator/=)
 export GOPATH  = $(BASE_PATH):$(ROOT)/vendor
 
+PUBLIC_REGISTRY=quay.io/openshift/
+
 MUTABLE_TAG                         ?= canary
 CLUSTER_OPERATOR_IMAGE               = $(REGISTRY)cluster-operator-$(ARCH):$(VERSION)
 CLUSTER_OPERATOR_MUTABLE_IMAGE       = $(REGISTRY)cluster-operator-$(ARCH):$(MUTABLE_TAG)
@@ -73,6 +75,10 @@ CLUSTER_OPERATOR_ANSIBLE_IMAGE       = $(REGISTRY)cluster-operator-ansible:$(VER
 CLUSTER_OPERATOR_ANSIBLE_MUTABLE_IMAGE = $(REGISTRY)cluster-operator-ansible:$(MUTABLE_TAG)
 PLAYBOOK_MOCK_IMAGE                  = $(REGISTRY)playbook-mock:$(VERSION)
 PLAYBOOK_MOCK_MUTABLE_IMAGE          = $(REGISTRY)playbook-mock:$(MUTABLE_TAG)
+AWS_MACHINE_CONTROLLER_IMAGE         = $(REGISTRY)aws-machine-controller:$(VERSION)
+AWS_MACHINE_CONTROLLER_MUTABLE_IMAGE = $(REGISTRY)aws-machine-controller:$(MUTABLE_TAG)
+AWS_MACHINE_CONTROLLER_PUBLIC_IMAGE  = $(PUBLIC_REGISTRY)aws-machine-controller:latest
+
 
 $(if $(realpath vendor/k8s.io/apimachinery/vendor), \
 	$(error the vendor directory exists in the apimachinery \
@@ -361,6 +367,13 @@ $(CLUSTERAPI_BIN)/apiserver: .apiServerBuilderImage
 kubernetes-cluster-api: $(CLUSTERAPI_BIN)/apiserver build/clusterapi-image/Dockerfile
 	cp build/clusterapi-image/Dockerfile $(CLUSTERAPI_BIN)
 	docker build -t clusterapi ./$(CLUSTERAPI_BIN)
+
+.PHONY: aws-machine-controller-image
+aws-machine-controller-image: build/aws-machine-controller/Dockerfile $(BINDIR)/aws-machine-controller
+	$(call build-and-tag,"aws-machine-controller",$(AWS_MACHINE_CONTROLLER_IMAGE),$(AWS_MACHINE_CONTROLLER_MUTABLE_IMAGE))
+	docker tag $(AWS_MACHINE_CONTROLLER_IMAGE) $(AWS_MACHINE_CONTROLLER_MUTABLE_IMAGE)
+	docker tag $(AWS_MACHINE_CONTROLLER_IMAGE) $(AWS_MACHINE_CONTROLLER_PUBLIC_IMAGE)
+	
 
 # Push our Docker Images to a registry
 ######################################
