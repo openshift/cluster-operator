@@ -217,6 +217,10 @@ openshift_aws_master_group_max_size: [[ .Size ]]
 openshift_aws_master_group_desired_size: [[ .Size ]]
 openshift_aws_master_group_instance_type: [[ .InstanceType ]]
 
+openshift_aws_iam_master_role_name: "openshift_master_launch_instances_{{ openshift_aws_clusterid }}"
+openshift_aws_iam_master_role_policy_name: "launch_instances_{{ openshift_aws_clusterid }}"
+openshift_aws_iam_master_role_policy_json: "{{ lookup('template', 'launchinstances.json.j2') }}"
+
 openshift_aws_master_group:
 - name: "{{ openshift_aws_clusterid }} master group"
   group: master
