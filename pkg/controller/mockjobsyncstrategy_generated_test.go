@@ -141,3 +141,38 @@ func (m *MockJobSyncStrategy) GetLastJobSuccess(owner v11.Object) *time.Time {
 func (mr *MockJobSyncStrategyMockRecorder) GetLastJobSuccess(owner interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLastJobSuccess", reflect.TypeOf((*MockJobSyncStrategy)(nil).GetLastJobSuccess), owner)
 }
+
+// MockCheckBeforeUndo is a mock of CheckBeforeUndo interface
+type MockCheckBeforeUndo struct {
+	ctrl     *gomock.Controller
+	recorder *MockCheckBeforeUndoMockRecorder
+}
+
+// MockCheckBeforeUndoMockRecorder is the mock recorder for MockCheckBeforeUndo
+type MockCheckBeforeUndoMockRecorder struct {
+	mock *MockCheckBeforeUndo
+}
+
+// NewMockCheckBeforeUndo creates a new mock instance
+func NewMockCheckBeforeUndo(ctrl *gomock.Controller) *MockCheckBeforeUndo {
+	mock := &MockCheckBeforeUndo{ctrl: ctrl}
+	mock.recorder = &MockCheckBeforeUndoMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockCheckBeforeUndo) EXPECT() *MockCheckBeforeUndoMockRecorder {
+	return m.recorder
+}
+
+// CanUndo mocks base method
+func (m *MockCheckBeforeUndo) CanUndo(owner v11.Object) bool {
+	ret := m.ctrl.Call(m, "CanUndo", owner)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// CanUndo indicates an expected call of CanUndo
+func (mr *MockCheckBeforeUndoMockRecorder) CanUndo(owner interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CanUndo", reflect.TypeOf((*MockCheckBeforeUndo)(nil).CanUndo), owner)
+}
