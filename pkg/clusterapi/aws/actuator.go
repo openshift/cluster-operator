@@ -86,6 +86,7 @@ func NewActuator(kubeClient *kubernetes.Clientset, clusterClient *clusterclient.
 
 // Create runs a new EC2 instance
 func (a *Actuator) Create(cluster *clusterv1.Cluster, machine *clusterv1.Machine) error {
+	a.logger.Debug("Create %s/%s", machine.Namespace, machine.Name)
 	result, err := a.CreateMachine(cluster, machine)
 	if err != nil {
 		return err
@@ -294,10 +295,12 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 
 // Delete method is used to delete a AWS machine
 func (a *Actuator) Delete(machine *clusterv1.Machine) error {
-	instanceID, err := getInstanceID(machine)
-	if err != nil {
-		return err
+	a.logger.Debug("Delete %s/%s", machine.Namespace, machine.Name)
+	instanceID := getInstanceID(machine)
+	if len(instanceID) == 0 {
+		return nil
 	}
+
 	coMachineSet, _, err := a.clusterOperatorMachineSet(machine)
 	if err != nil {
 		return err
@@ -326,22 +329,20 @@ func (a *Actuator) Delete(machine *clusterv1.Machine) error {
 }
 
 // Update the machine to the provided definition.
-// TODO: For now, update will result in a delete and create. Eventually if there's
-// an update that should not result in a recreate, then we should handle it.
+// TODO: For now, this results in a No-op.
 func (a *Actuator) Update(c *clusterv1.Cluster, machine *clusterv1.Machine) error {
-	err := a.Delete(machine)
-	if err != nil {
-		return err
-	}
-	return a.Create(c, machine)
+	a.logger.Debug("Update %s/%s", machine.Namespace, machine.Name)
+	return nil
 }
 
 // Exists determines if the given machine currently exists.
 func (a *Actuator) Exists(machine *clusterv1.Machine) (bool, error) {
-	instanceID, err := getInstanceID(machine)
-	if err != nil {
-		return false, err
+	a.logger.Debug("Exists %s/%s", machine.Namespace, machine.Name)
+	instanceID := getInstanceID(machine)
+	if len(instanceID) == 0 {
+		return false, nil
 	}
+
 	coMachineSet, _, err := a.clusterOperatorMachineSet(machine)
 	if err != nil {
 		return false, err
@@ -476,13 +477,13 @@ func getBootstrapKubeconfig() (string, error) {
 	return base64.StdEncoding.EncodeToString(content), nil
 }
 
-func getInstanceID(machine *clusterv1.Machine) (string, error) {
+func getInstanceID(machine *clusterv1.Machine) string {
 	if machine.Annotations != nil {
 		if instanceID, ok := machine.Annotations[instanceIDAnnotation]; ok {
-			return instanceID, nil
+			return instanceID
 		}
 	}
-	return "", fmt.Errorf("machine %q does not have an instance ID annotation", machine.Name)
+	return ""
 }
 
 func iamRole(cluster *cov1.Cluster) string {
