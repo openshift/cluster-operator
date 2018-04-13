@@ -117,6 +117,11 @@ openshift_cloudprovider_kind: aws
 openshift_cloudprovider_aws_access_key: "{{ lookup('env','AWS_ACCESS_KEY_ID') }}"
 openshift_cloudprovider_aws_secret_key: "{{ lookup('env','AWS_SECRET_ACCESS_KEY') }}"
 
+# Enable auto-approve of CSRs
+# TODO: Disable this when we have a controller that accepts nodes based on
+# the existing cluster API machine resources
+openshift_master_bootstrap_auto_approve: true
+
 # --- #
 # VPC #
 # --- #
