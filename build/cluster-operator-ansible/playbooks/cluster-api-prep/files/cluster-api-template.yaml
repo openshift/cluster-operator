@@ -286,7 +286,7 @@ objects:
     name: bootstrap-kubeconfig
     namespace: ${CLUSTER_API_NAMESPACE}
   data:
-    bootstrap.kubeconfig: ${BOOTSTRAP_KUBECONFIG}
+    bootstrap.kubeconfig: "${BOOTSTRAP_KUBECONFIG}"
 
 - apiVersion: rbac.authorization.k8s.io/v1
   kind: ClusterRoleBinding
