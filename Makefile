@@ -343,7 +343,7 @@ ifeq ($(ARCH),amd64)
 endif
 
 CLUSTER_OP_ANSIBLE_REPO   ?= https://github.com/openshift/openshift-ansible.git
-CLUSTER_OP_ANSIBLE_BRANCH ?= release-3.9
+CLUSTER_OP_ANSIBLE_BRANCH ?= master
 
 cluster-operator-ansible-image: build/cluster-operator-ansible/Dockerfile build/cluster-operator-ansible/playbooks/cluster-api-prep/deploy-cluster-api.yaml build/cluster-operator-ansible/playbooks/cluster-api-prep/files/cluster-api-template.yaml build/cluster-operator-ansible/playbooks/cluster-operator/node-config-daemonset.yml
 	docker build -t $(CLUSTER_OPERATOR_ANSIBLE_IMAGE) --build-arg=CO_ANSIBLE_URL=$(CLUSTER_OP_ANSIBLE_REPO) --build-arg=CO_ANSIBLE_BRANCH=$(CLUSTER_OP_ANSIBLE_BRANCH) build/cluster-operator-ansible
@@ -373,7 +373,7 @@ aws-machine-controller-image: build/aws-machine-controller/Dockerfile $(BINDIR)/
 	$(call build-and-tag,"aws-machine-controller",$(AWS_MACHINE_CONTROLLER_IMAGE),$(AWS_MACHINE_CONTROLLER_MUTABLE_IMAGE))
 	docker tag $(AWS_MACHINE_CONTROLLER_IMAGE) $(AWS_MACHINE_CONTROLLER_MUTABLE_IMAGE)
 	docker tag $(AWS_MACHINE_CONTROLLER_IMAGE) $(AWS_MACHINE_CONTROLLER_PUBLIC_IMAGE)
-	
+
 
 # Push our Docker Images to a registry
 ######################################

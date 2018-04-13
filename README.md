@@ -15,12 +15,12 @@
   * Clone this repo to `$HOME/go/src/github.com/openshift/cluster-operator`
   * Get cfssl:
     * `go get -u github.com/cloudflare/cfssl/cmd/...`
-  * Download a recent oc client binary from `origin/releases` (doesn't have to be 3.9):
+  * Download a recent oc client binary from `origin/releases` (doesn't have to be 3.10):
     * https://github.com/openshift/origin/releases
     * Alternatively, you can also compile `oc` from source.
     * Note: It is recommended to put the `oc` binary somewhere in your path.
   * Start an OpenShift cluster:
-    * `oc cluster up --image="docker.io/openshift/origin" --version "v3.9"`
+    * `oc cluster up --image="docker.io/openshift/origin"`
   * Login to the OpenShift cluster as admin:
     * `oc login -u system:admin`
   * Grant admin rights to login to the [WebUI](https://localhost:8443)
@@ -57,7 +57,7 @@ The Cluster Operator uses its own Ansible image which layers our playbooks and r
 
 To build the *cluster-operator-ansible* image you can just run `make images` normally.
 
-**WARNING**: This image is built using OpenShift Ansible v3.9. This can be adjusted by specifying the CO_ANSIBLE_URL and CO_ANSIBLE_BRANCH environment variables to use a different branch/repository for the base openshift-ansible image.
+**WARNING**: This image is built using OpenShift Ansible v3.10. This can be adjusted by specifying the CO_ANSIBLE_URL and CO_ANSIBLE_BRANCH environment variables to use a different branch/repository for the base openshift-ansible image.
 
 You can run cluster-operator-ansible playbooks standalone by creating an inventory like:
 
@@ -71,8 +71,8 @@ etcd
 ansible_become=true
 ansible_ssh_user=centos
 openshift_deployment_type=origin
-openshift_release="3.9"
-oreg_url=openshift/origin-${component}:v3.9.0
+openshift_release="3.10"
+oreg_url=openshift/origin-${component}:v3.10.0
 openshift_aws_ami=ami-833d37f9
 
 [masters]
