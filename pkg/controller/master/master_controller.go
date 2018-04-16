@@ -25,6 +25,8 @@ import (
 
 	v1batch "k8s.io/api/batch/v1"
 	kapi "k8s.io/api/core/v1"
+	v1rbac "k8s.io/api/rbac/v1"
+	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -57,6 +59,13 @@ const (
 	masterPlaybook = "playbooks/aws/openshift-cluster/install.yml"
 	// jobType is the type of job run by this controller.
 	jobType = "master"
+
+	serviceAccountName = "cluster-installer"
+	roleBindingName    = "cluster-installer"
+
+	// this name comes from the created ClusterRole in the deployment
+	// template contrib/examples/deploy.yaml
+	secretCreatorRoleName = "clusteroperator.openshift.io:master-controller"
 )
 
 var machineSetKind = clusteroperator.SchemeGroupVersion.WithKind("MachineSet")
@@ -327,6 +336,12 @@ func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object, deleting bool) (con
 	if !ok {
 		return nil, fmt.Errorf("could not convert owner from JobSync into a machineset")
 	}
+
+	serviceAccount, err := s.setupServiceAccountForJob(owner.GetNamespace())
+	if err != nil {
+		return nil, fmt.Errorf("error creating or setting up service account %v", err)
+	}
+
 	return jobFactory(func(name string) (*v1batch.Job, *kapi.ConfigMap, error) {
 		cvRef := machineSet.Spec.ClusterVersionRef
 		cv, err := s.controller.client.Clusteroperator().ClusterVersions(cvRef.Namespace).Get(cvRef.Name, metav1.GetOptions{})
@@ -339,7 +354,7 @@ func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object, deleting bool) (con
 			return nil, nil, err
 		}
 		image, pullPolicy := ansible.GetAnsibleImageForClusterVersion(cv)
-		job, configMap := s.controller.ansibleGenerator.GeneratePlaybookJob(
+		job, configMap := s.controller.ansibleGenerator.GeneratePlaybookJobWithServiceAccount(
 			name,
 			&machineSet.Spec.ClusterHardware,
 			masterPlaybook,
@@ -347,6 +362,7 @@ func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object, deleting bool) (con
 			vars,
 			image,
 			pullPolicy,
+			serviceAccount,
 		)
 		labels := controller.JobLabelsForMachineSetController(machineSet, jobType)
 		controller.AddLabels(job, labels)
@@ -355,6 +371,64 @@ func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object, deleting bool) (con
 	}), nil
 }
 
+// create a serviceaccount and rolebinding so that the master job
+// can save the target cluster's kubeconfig
+func (s *jobSyncStrategy) setupServiceAccountForJob(clusterNamespace string) (*kapi.ServiceAccount, error) {
+	// create new serviceaccount if it doesn't already exist
+	currentSA, err := s.controller.kubeClient.Core().ServiceAccounts(clusterNamespace).Get(serviceAccountName, metav1.GetOptions{})
+	if err != nil && !apierrs.IsNotFound(err) {
+		return nil, fmt.Errorf("error checking for existing serviceaccount")
+	}
+
+	if apierrs.IsNotFound(err) {
+		currentSA, err = s.controller.kubeClient.Core().ServiceAccounts(clusterNamespace).Create(&kapi.ServiceAccount{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: serviceAccountName,
+			},
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("error creating serviceaccount for master job")
+		}
+	}
+	s.controller.logger.Debugf("using serviceaccount: %+v", currentSA)
+
+	// create rolebinding for the serviceaccount
+	currentRB, err := s.controller.kubeClient.Rbac().RoleBindings(clusterNamespace).Get(roleBindingName, metav1.GetOptions{})
+
+	if err != nil && !apierrs.IsNotFound(err) {
+		return nil, fmt.Errorf("error checking for exising rolebinding")
+	}
+
+	if apierrs.IsNotFound(err) {
+		rb := &v1rbac.RoleBinding{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      roleBindingName,
+				Namespace: clusterNamespace,
+			},
+			Subjects: []v1rbac.Subject{
+				{
+					Kind:      "ServiceAccount",
+					Name:      currentSA.Name,
+					Namespace: clusterNamespace,
+				},
+			},
+			RoleRef: v1rbac.RoleRef{
+				Name: secretCreatorRoleName,
+				Kind: "ClusterRole",
+			},
+		}
+
+		currentRB, err = s.controller.kubeClient.Rbac().RoleBindings(clusterNamespace).Create(rb)
+		if err != nil {
+			return nil, fmt.Errorf("couldn't create rolebinding to clusterrole")
+		}
+	}
+	s.controller.logger.Debugf("rolebinding to serviceaccount: %+v", currentRB)
+
+	return currentSA, nil
+
+}
 func (s *jobSyncStrategy) DeepCopyOwner(owner metav1.Object) metav1.Object {
 	machineSet, ok := owner.(*clusteroperator.MachineSet)
 	if !ok {

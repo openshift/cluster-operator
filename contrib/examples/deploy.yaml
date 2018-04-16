@@ -91,10 +91,14 @@ objects:
     verbs:     ["create", "get", "list", "watch", "update", "patch", "delete"]
   # allow operations on required resources in any namespace a cluster is created
   - apiGroups:     [""]
-    resources:     ["configmaps", "pods", "secrets"]
+    resources:     ["configmaps", "pods", "secrets", "serviceaccounts"]
     verbs: ["*"]
   - apiGroups:     ["batch"]
     resources:     ["jobs"]
+    verbs: ["*"]
+  # allow reading and creating rolebindings
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["rolebindings"]
     verbs: ["*"]
 
 # Bind the Controller Manager service account to the role created for it
@@ -383,6 +387,18 @@ objects:
     caBundle: ${SERVING_CA}
     groupPriorityMinimum: 10000
     versionPriority: 20
+
+# Create a role for the master installer to save a kubeconfig
+# from a managed cluster
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRole
+  metadata:
+    name: "clusteroperator.openshift.io:master-controller"
+  rules:
+  # CRUD secrets with kubeconfig data
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs:     ["create", "delete", "get", "list", "update"]
 
 parameters:
 # Namespace to use for cluster-operator

@@ -60,6 +60,20 @@ type JobGenerator interface {
 		openshiftAnsibleImagePullPolicy kapi.PullPolicy,
 	) (*kbatch.Job, *kapi.ConfigMap)
 
+	// GeneratePlaybookJobWithServiceAccount is same as GeneratePlaybookJob
+	// but allows passing in a serviceaccount object
+	// serviceAccount - ServiceAccount object to apply to job/pod
+	GeneratePlaybookJobWithServiceAccount(
+		name string,
+		hardware *clusteroperator.ClusterHardwareSpec,
+		playbook string,
+		inventory string,
+		vars string,
+		openshiftAnsibleImage string,
+		openshiftAnsibleImagePullPolicy kapi.PullPolicy,
+		serviceAccount *kapi.ServiceAccount,
+	) (*kbatch.Job, *kapi.ConfigMap)
+
 	// GeneratePlaybooksJob generates a job to run the specified playbooks.
 	// Note that neither the job nor the configmap will be created in the API
 	// server. It is the responsibility of the caller to create the objects
@@ -78,10 +92,35 @@ type JobGenerator interface {
 		name string,
 		hardware *clusteroperator.ClusterHardwareSpec,
 		playbooks []string,
+		inventory,
+		vars,
+		openshiftAnsibleImage string,
+		openshiftAnsibleImagePullPolicy kapi.PullPolicy) (*kbatch.Job, *kapi.ConfigMap)
+
+	// GeneratePlaybooksJobWithServiceAccount generates a job to run the specified playbooks.
+	// Note that neither the job nor the configmap will be created in the API
+	// server. It is the responsibility of the caller to create the objects
+	// in the API server.
+	//
+	// name - name to give the job and the configmap
+	// hardware - details of the hardware of the target cluster
+	// playbooks - names of the playbooks to run
+	// inventory - inventory to pass to the playbook
+	// vars - Ansible variables to the pass to the playbook
+	// openshiftAnsibleImage - name of the openshift-ansible image that the
+	//   jobs created by the job generator will use
+	// openshiftAnsibleImagePullPolicy - policy to use to pull the
+	//   openshift-ansible image
+	// serviceAccount - (optional) serviceaccount object to attach to the job/pod
+	GeneratePlaybooksJobWithServiceAccount(
+		name string,
+		hardware *clusteroperator.ClusterHardwareSpec,
+		playbooks []string,
 		inventory string,
 		vars string,
 		openshiftAnsibleImage string,
 		openshiftAnsibleImagePullPolicy kapi.PullPolicy,
+		serviceAccount *kapi.ServiceAccount,
 	) (*kbatch.Job, *kapi.ConfigMap)
 }
 
@@ -112,10 +151,44 @@ func (r *jobGenerator) generateInventoryConfigMap(name, inventory, vars string, 
 }
 
 func (r *jobGenerator) GeneratePlaybookJob(name string, hardware *clusteroperator.ClusterHardwareSpec, playbook, inventory, vars, openshiftAnsibleImage string, openshiftAnsibleImagePullPolicy kapi.PullPolicy) (*kbatch.Job, *kapi.ConfigMap) {
-	return r.GeneratePlaybooksJob(name, hardware, []string{playbook}, inventory, vars, openshiftAnsibleImage, openshiftAnsibleImagePullPolicy)
+	return r.GeneratePlaybooksJobWithServiceAccount(name, hardware, []string{playbook},
+		inventory, vars, openshiftAnsibleImage, openshiftAnsibleImagePullPolicy, nil)
 }
 
-func (r *jobGenerator) GeneratePlaybooksJob(name string, hardware *clusteroperator.ClusterHardwareSpec, playbooks []string, inventory, vars, openshiftAnsibleImage string, openshiftAnsibleImagePullPolicy kapi.PullPolicy) (*kbatch.Job, *kapi.ConfigMap) {
+func (r *jobGenerator) GeneratePlaybookJobWithServiceAccount(
+	name string,
+	hardware *clusteroperator.ClusterHardwareSpec,
+	playbook string,
+	inventory,
+	vars,
+	openshiftAnsibleImage string,
+	openshiftAnsibleImagePullPolicy kapi.PullPolicy,
+	serviceAccount *kapi.ServiceAccount) (*kbatch.Job, *kapi.ConfigMap) {
+	return r.GeneratePlaybooksJobWithServiceAccount(name, hardware, []string{playbook}, inventory, vars,
+		openshiftAnsibleImage, openshiftAnsibleImagePullPolicy, serviceAccount)
+}
+
+func (r *jobGenerator) GeneratePlaybooksJob(
+	name string,
+	hardware *clusteroperator.ClusterHardwareSpec,
+	playbooks []string,
+	inventory,
+	vars,
+	openshiftAnsibleImage string,
+	openshiftAnsibleImagePullPolicy kapi.PullPolicy) (*kbatch.Job, *kapi.ConfigMap) {
+	return r.GeneratePlaybooksJobWithServiceAccount(name, hardware, playbooks, inventory, vars,
+		openshiftAnsibleImage, openshiftAnsibleImagePullPolicy, nil)
+}
+
+func (r *jobGenerator) GeneratePlaybooksJobWithServiceAccount(
+	name string,
+	hardware *clusteroperator.ClusterHardwareSpec,
+	playbooks []string,
+	inventory,
+	vars,
+	openshiftAnsibleImage string,
+	openshiftAnsibleImagePullPolicy kapi.PullPolicy,
+	serviceAccount *kapi.ServiceAccount) (*kbatch.Job, *kapi.ConfigMap) {
 
 	logger := log.WithField("playbooks", playbooks)
 
@@ -243,6 +316,10 @@ func (r *jobGenerator) GeneratePlaybooksJob(name string, hardware *clusteroperat
 		RestartPolicy: kapi.RestartPolicyOnFailure,
 		Containers:    containers,
 		Volumes:       volumes,
+	}
+
+	if serviceAccount != nil {
+		podSpec.ServiceAccountName = serviceAccount.Name
 	}
 
 	completions := int32(1)
