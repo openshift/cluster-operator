@@ -4,8 +4,6 @@
 #
 # Parameters:
 #   CLUSTER_OPERATOR_NAMESPACE: namespace to which to deploy the cluster operator. Defaults to "openshift-cluster-operator".
-#   SERVING_CERT: base-64-encoded, pem cert to use for ssl communication with the Cluster Operator API Server. Required.
-#   SERVING_KEY: base-64-encoded, pem private key for the cert to use for ssl communication with the Cluster Operator API Server. Required.
 #   SERVING_CA: base-64-encoded, pem CA cert for the ssl certs. Required.
 #
 ########
@@ -115,31 +113,6 @@ objects:
     kind: ServiceAccount
     name: cluster-operator-controller-manager
     namespace: ${CLUSTER_OPERATOR_NAMESPACE}
-
-# Secret to pass the SSL certs to the API Server
-- apiVersion: v1
-  kind: Secret
-  metadata:
-    name: cluster-operator-apiserver-cert
-    namespace: ${CLUSTER_OPERATOR_NAMESPACE}
-    labels:
-      app: cluster-operator-apiserver
-  type: Opaque
-  data:
-    tls.crt: ${SERVING_CERT}
-    tls.key: ${SERVING_KEY}
-
-# Default secret for cluster SSL
-- apiVersion: v1
-  kind: Secret
-  metadata:
-    name: ssl-cert
-    namespace: ${CLUSTER_OPERATOR_NAMESPACE}
-  type: Opaque
-  data:
-    server.crt: ${SERVING_CERT}
-    server.key: ${SERVING_KEY}
-    ca.crt: ${SERVING_CA}
 
 # Secret for AWS credentials to provision with.
 # NOTE: likely will be replaced by a set of credentials per cluster
@@ -409,10 +382,6 @@ parameters:
   value: kube-system
 # CA cert for API Server SSL cert
 - name: SERVING_CA
-# Private key for API Server SSL cert
-- name: SERVING_CERT
-# Public API Server SSL cert
-- name: SERVING_KEY
 - name: AWS_ACCESS_KEY_ID
 - name: AWS_SECRET_ACCESS_KEY
 - name: AWS_SSH_PRIVATE_KEY
