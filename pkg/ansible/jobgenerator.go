@@ -218,7 +218,7 @@ func (r *jobGenerator) GeneratePlaybooksJobWithServiceAccount(
 				ValueFrom: &kapi.EnvVarSource{
 					SecretKeyRef: &kapi.SecretKeySelector{
 						LocalObjectReference: hardware.AWS.AccountSecret,
-						Key:                  "aws_access_key_id",
+						Key:                  "awsAccessKeyId",
 					},
 				},
 			},
@@ -227,7 +227,7 @@ func (r *jobGenerator) GeneratePlaybooksJobWithServiceAccount(
 				ValueFrom: &kapi.EnvVarSource{
 					SecretKeyRef: &kapi.SecretKeySelector{
 						LocalObjectReference: hardware.AWS.AccountSecret,
-						Key:                  "aws_secret_access_key",
+						Key:                  "awsSecretAccessKey",
 					},
 				},
 			},

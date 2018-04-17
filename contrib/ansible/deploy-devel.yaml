@@ -49,6 +49,31 @@
       l_aws_secret_access_key: "{{ lookup('ini', 'aws_secret_access_key section=' + aws_creds_section + ' file=~/.aws/credentials') | b64encode }}"
       l_aws_ssh_private_key: "{{ lookup('file', ssh_priv_key) | b64encode }}"
 
+  - name: check if AWS credentials secret exists
+    command: "oc get secret aws-credentials -n {{ cluster_operator_namespace }}"
+    failed_when: false
+    changed_when: false
+    register: aws_creds_secret_exists_reg
+
+  # If the aws credentials secret does not already exist, try to create it:
+  - name: create AWS credentials secret
+    k8s_raw:
+      state: present
+      definition:
+
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: aws-credentials
+          namespace: "{{ cluster_operator_namespace }}"
+          labels:
+            app: cluster-operator
+        type: Opaque
+        data:
+          awsAccessKeyId: "{{ l_aws_access_key_id }}"
+          awsSecretAccessKey: "{{ l_aws_secret_access_key }}"
+    when: aws_creds_secret_exists_reg.rc > 0 and "NotFound" in aws_creds_secret_exists_reg.stderr
+
   - name: check if apiserver cert secret exists
     command: "oc get secret cluster-operator-apiserver-cert -n {{ cluster_operator_namespace }}"
     failed_when: false
@@ -133,7 +158,7 @@
 
   # TODO: not accurately reflecting 'changed' status as apply doesn't report until upstream PRs merge.
   - name: deploy application template
-    shell: "oc process -f {{ playbook_dir }}/../examples/deploy.yaml -o yaml -p CLUSTER_OPERATOR_NAMESPACE={{ cluster_operator_namespace }} -p SERVING_CA={{ l_serving_ca }}  AWS_ACCESS_KEY_ID={{ l_aws_access_key_id }} AWS_SECRET_ACCESS_KEY={{ l_aws_secret_access_key }} AWS_SSH_PRIVATE_KEY={{ l_aws_ssh_private_key }} | oc apply -f -"
+    shell: "oc process -f {{ playbook_dir }}/../examples/deploy.yaml -o yaml -p CLUSTER_OPERATOR_NAMESPACE={{ cluster_operator_namespace }} -p SERVING_CA={{ l_serving_ca }} AWS_SSH_PRIVATE_KEY={{ l_aws_ssh_private_key }} | oc apply -f -"
 
   - name: deploy playbook-mock for testing with fake-openshift-ansible
     shell: "oc apply -n {{ cluster_operator_namespace }} -f {{ playbook_dir }}/../examples/deploy-playbook-mock.yaml"
