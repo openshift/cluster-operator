@@ -114,6 +114,18 @@ objects:
     name: cluster-operator-controller-manager
     namespace: ${CLUSTER_OPERATOR_NAMESPACE}
 
+- kind: PersistentVolumeClaim
+  apiVersion: v1
+  metadata:
+    name: etcd-storage
+  spec:
+    accessModes:
+      - ReadWriteOnce
+    volumeMode: Filesystem
+    resources:
+      requests:
+        storage: 1Gi
+
 # Secret for AWS SSH private key
 - apiVersion: v1
   kind: Secret
@@ -243,8 +255,9 @@ objects:
               path: apiserver.crt
             - key: tls.key
               path: apiserver.key
-        - emptyDir: {}
-          name: etcd-data-dir
+        - name: etcd-data-dir
+          persistentVolumeClaim:
+            claimName: etcd-storage
 
 # Deployment of the Controller Manager pod
 - kind: Deployment
