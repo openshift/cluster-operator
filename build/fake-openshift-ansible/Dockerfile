@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM openshift/origin-ansible:latest
+# If we're building this image, assuming canary mutable tag should exist:
+FROM cluster-operator-ansible:canary
 
 ADD fake-openshift-ansible /usr/local/bin
 
