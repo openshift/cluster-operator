@@ -1,0 +1,54 @@
+---
+# call openshift-ansible's master provisioning
+- import_playbook: ../../aws/openshift-cluster/install.yml
+
+# The below piece of ansible would be needed if we wanted to only
+# do the save-kubeconfig-from-target-cluster steps that follow.
+# This playbook can one day be extended to handle a workflow of
+# just-get-me-an-updated-kubeconfig by enabling/conditionalizing
+# the commented out piece below.
+#- name: setup master ansible hosts
+#  hosts: localhost
+#  gather_facts: false
+#  tasks:
+#  - name: setup the master node group
+#    import_role:
+#      name: openshift_aws
+#      tasks_from: setup_master_group.yml
+
+- name: save kubeconfig into secret
+  hosts: masters[0]
+  gather_facts: false
+  remote_user: root
+  tasks:
+  - name: slurp kubeconfig
+    slurp:
+      src: /etc/origin/master/admin.kubeconfig
+    register: kubeconfig
+
+  - name: temp file to hold kubeconfig
+    tempfile:
+      state: file
+    register: temp_file
+    delegate_to: localhost
+
+  - name: save kubeconfig into temp file
+    copy:
+      content: "{{ kubeconfig.content | b64decode }}"
+      dest: "{{ temp_file.path }}"
+    delegate_to: localhost
+
+  - name: delete any existing secret
+    shell: "oc delete secret {{ openshift_aws_clusterid }}-kubeconfig"
+    ignore_errors: true
+    delegate_to: localhost
+
+  - name: save secret
+    shell: "oc secret new {{ openshift_aws_clusterid }}-kubeconfig kubeconfig={{ temp_file.path }}"
+    delegate_to: localhost
+
+  - name: delete temp file
+    file:
+      state: absent
+      path: "{{ temp_file.path }}"
+    delegate_to: localhost
