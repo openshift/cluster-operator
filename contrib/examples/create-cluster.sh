@@ -39,8 +39,10 @@ else
 	: ${ANSIBLE_IMAGE_PULL_POLICY:="Never"}
 fi
 
+CLUSTER_NAME=${CLUSTER_NAME:-$(whoami)-cluster}
+
 oc process -f contrib/examples/${CLUSTER_YAML} \
-	-p CLUSTER_NAME=$(whoami)-cluster \
+	-p CLUSTER_NAME=${CLUSTER_NAME} \
 	-p ANSIBLE_IMAGE=${ANSIBLE_IMAGE} \
 	-p ANSIBLE_IMAGE_PULL_POLICY=${ANSIBLE_IMAGE_PULL_POLICY} \
 	| oc apply -f -
