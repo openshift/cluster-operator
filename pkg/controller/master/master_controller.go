@@ -56,7 +56,7 @@ const (
 
 	controllerLogName = "master"
 
-	masterPlaybook = "playbooks/aws/openshift-cluster/install.yml"
+	masterPlaybook = "playbooks/cluster-operator/aws/install_masters.yml"
 	// jobType is the type of job run by this controller.
 	jobType = "master"
 
