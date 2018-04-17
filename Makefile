@@ -313,7 +313,7 @@ clean-coverage:
 
 # Building Docker Images for our executables
 ############################################
-images: cluster-operator-image fake-openshift-ansible-image playbook-mock-image cluster-operator-ansible-image
+images: cluster-operator-image playbook-mock-image cluster-operator-ansible-image fake-openshift-ansible-image
 
 images-all: $(addprefix arch-image-,$(ALL_ARCH))
 arch-image-%:
@@ -349,7 +349,7 @@ cluster-operator-ansible-image: build/cluster-operator-ansible/Dockerfile build/
 	docker build -t $(CLUSTER_OPERATOR_ANSIBLE_IMAGE) --build-arg=CO_ANSIBLE_URL=$(CLUSTER_OP_ANSIBLE_REPO) --build-arg=CO_ANSIBLE_BRANCH=$(CLUSTER_OP_ANSIBLE_BRANCH) build/cluster-operator-ansible
 	docker tag $(CLUSTER_OPERATOR_ANSIBLE_IMAGE) $(CLUSTER_OPERATOR_ANSIBLE_MUTABLE_IMAGE)
 
-fake-openshift-ansible-image: build/fake-openshift-ansible/Dockerfile $(BINDIR)/fake-openshift-ansible
+fake-openshift-ansible-image: cluster-operator-ansible-image build/fake-openshift-ansible/Dockerfile $(BINDIR)/fake-openshift-ansible
 	$(call build-and-tag,"fake-openshift-ansible",$(FAKE_OPENSHIFT_ANSIBLE_IMAGE),$(FAKE_OPENSHIFT_ANSIBLE_MUTABLE_IMAGE))
 	docker tag $(FAKE_OPENSHIFT_ANSIBLE_IMAGE) $(REGISTRY)fake-openshift-ansible:$(VERSION)
 	docker tag $(FAKE_OPENSHIFT_ANSIBLE_MUTABLE_IMAGE) $(REGISTRY)fake-openshift-ansible:$(MUTABLE_TAG)
