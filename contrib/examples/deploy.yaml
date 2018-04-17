@@ -114,20 +114,6 @@ objects:
     name: cluster-operator-controller-manager
     namespace: ${CLUSTER_OPERATOR_NAMESPACE}
 
-# Secret for AWS credentials to provision with.
-# NOTE: likely will be replaced by a set of credentials per cluster
-- apiVersion: v1
-  kind: Secret
-  metadata:
-    name: aws-credentials
-    namespace: ${CLUSTER_OPERATOR_NAMESPACE}
-    labels:
-      app: cluster-operator
-  type: Opaque
-  data:
-    aws_access_key_id: ${AWS_ACCESS_KEY_ID}
-    aws_secret_access_key: ${AWS_SECRET_ACCESS_KEY}
-
 # Secret for AWS SSH private key
 - apiVersion: v1
   kind: Secret
@@ -382,6 +368,4 @@ parameters:
   value: kube-system
 # CA cert for API Server SSL cert
 - name: SERVING_CA
-- name: AWS_ACCESS_KEY_ID
-- name: AWS_SECRET_ACCESS_KEY
 - name: AWS_SSH_PRIVATE_KEY
