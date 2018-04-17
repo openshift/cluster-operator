@@ -7,17 +7,17 @@ objects:
 - apiVersion: clusteroperator.openshift.io/v1alpha1
   kind: ClusterVersion
   metadata:
-    name: origin-v3-9
+    name: origin-v3-10
     namespace: ${CLUSTER_VERSION_NS}
   spec:
-    imageFormat: "openshift/origin-${component}:v3.9.0"
+    imageFormat: "openshift/origin-${component}:v3.10.0"
     vmImages:
       awsVMImages:
         regionAMIs:
         - region: us-east-1
-          ami: ami-833d37f9
+          ami: ami-0e8468df91f4e8b6c
     deploymentType: origin
-    version: "v3.9.0"
+    version: "v3.10.0"
     openshiftAnsibleImage: ${ANSIBLE_IMAGE}
     openshiftAnsibleImagePullPolicy: ${ANSIBLE_IMAGE_PULL_POLICY}
 - apiVersion: clusteroperator.openshift.io/v1alpha1
@@ -27,7 +27,7 @@ objects:
   spec:
     clusterVersionRef:
       namespace: ${CLUSTER_VERSION_NS}
-      name: origin-v3-9
+      name: origin-v3-10
     hardware:
       aws:
         accountSecret:
