@@ -4,9 +4,14 @@
   connection: local
   gather_facts: no
   vars:
-    aws_section: default
+    # Section in ~/.aws/credentials with the AWS creds CO should use to create cloud infra and VMs:
+    aws_creds_section: default
+    # SSH key used for access to all VMs CO creates:
     ssh_priv_key: '~/.ssh/libra.pem'
+    # Namespace to deploy CO to:
     cluster_operator_namespace: "openshift-cluster-operator"
+    # Force regeneration of apiserver and default cluster cert. This will be set true if either are
+    # found to not exist.
     redeploy_certs: False
   tasks:
   - set_fact:
@@ -36,12 +41,12 @@
     when: pass_protect_ssh.rc == 0
 
   - set_fact:
-      aws_section: "{{ cli_aws_section }}"
+      aws_creds_section: "{{ cli_aws_section }}"
     when: cli_aws_section is defined
 
   - set_fact:
-      l_aws_access_key_id: "{{ lookup('ini', 'aws_access_key_id section=' + aws_section + ' file=~/.aws/credentials') | b64encode }}"
-      l_aws_secret_access_key: "{{ lookup('ini', 'aws_secret_access_key section=' + aws_section + ' file=~/.aws/credentials') | b64encode }}"
+      l_aws_access_key_id: "{{ lookup('ini', 'aws_access_key_id section=' + aws_creds_section + ' file=~/.aws/credentials') | b64encode }}"
+      l_aws_secret_access_key: "{{ lookup('ini', 'aws_secret_access_key section=' + aws_creds_section + ' file=~/.aws/credentials') | b64encode }}"
       l_aws_ssh_private_key: "{{ lookup('file', ssh_priv_key) | b64encode }}"
 
   - name: check if apiserver cert secret exists
