@@ -22,6 +22,10 @@
     # Force regeneration of apiserver and default cluster cert. This will be set true if either are
     # found to not exist.
     redeploy_certs: False
+    # Whether or not we should process the template with cluster roles, service accounts, etc.
+    # These are separated for deployments where a cluster admin may need to set these up one time,
+    # but users with lesser permissions can maintain the actual deployment itself.
+    deploy_roles: True
   tasks:
   - set_fact:
       cluster_operator_namespace: "{{ cli_cluster_operator_namespace }}"
@@ -187,6 +191,11 @@
   # Ensure l_serving_ca is set even if we did not regen certs, as it's needed for the apiserver aggregation:
   - set_fact:
       l_serving_ca: "{{ (cluster_cert_secret_reg.stdout | from_json)['data']['ca.crt'] }}"
+
+  # TODO: not accurately reflecting 'changed' status as apply doesn't report until upstream PRs merge.
+  - name: deploy cluster operator service accounts, roles and bindings
+    shell: "oc process -f {{ playbook_dir }}/../examples/cluster-operator-roles-template.yaml -o yaml -p CLUSTER_OPERATOR_NAMESPACE={{ cluster_operator_namespace }} | oc apply -f -"
+    when: deploy_roles | bool
 
   # TODO: not accurately reflecting 'changed' status as apply doesn't report until upstream PRs merge.
   - name: deploy application template
