@@ -74,6 +74,7 @@ var (
 // NewController returns a new *Controller.
 func NewController(
 	machineSetInformer informers.MachineSetInformer,
+	clusterInformer informers.ClusterInformer,
 	jobInformer batchinformers.JobInformer,
 	kubeClient kubeclientset.Interface,
 	clusteroperatorClient clusteroperatorclientset.Interface,
@@ -103,6 +104,7 @@ func NewController(
 	})
 	c.machineSetsLister = machineSetInformer.Lister()
 	c.machineSetsSynced = machineSetInformer.Informer().HasSynced
+	c.clustersLister = clusterInformer.Lister()
 
 	jobOwnerControl := &jobOwnerControl{controller: c}
 	c.jobControl = controller.NewJobControl(jobType, machineSetKind, kubeClient, jobInformer.Lister(), jobOwnerControl, logger)
@@ -111,7 +113,11 @@ func NewController(
 
 	c.jobSync = controller.NewJobSync(c.jobControl, &jobSyncStrategy{controller: c}, true, logger)
 
-	c.syncHandler = c.jobSync.Sync
+	// Wrap the regular job sync function to
+	// add a check for cluster readiness at the end of a sync
+	// If the cluster is ready based on the status of its
+	// machinesets, then the cluster resource status will be updated.
+	c.syncHandler = c.checkClusterReady(c.jobSync.Sync)
 	c.enqueueMachineSet = c.enqueue
 	c.ansibleGenerator = ansible.NewJobGenerator()
 
@@ -136,6 +142,9 @@ type Controller struct {
 	// used for unit testing
 	enqueueMachineSet func(machineSet *clusteroperator.MachineSet)
 
+	// clustersLister is able to list/get clusters and is populated by the shared informer passed to
+	// NewController.
+	clustersLister lister.ClusterLister
 	// machineSetsLister is able to list/get machine sets and is populated by the shared informer passed to
 	// NewController.
 	machineSetsLister lister.MachineSetLister
@@ -253,6 +262,72 @@ func (c *Controller) handleErr(err error, key interface{}) {
 	c.queue.Forget(key)
 }
 
+func (c *Controller) getMachineSet(key string) (*clusteroperator.MachineSet, error) {
+	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+	if err != nil {
+		return nil, err
+	}
+	if len(namespace) == 0 || len(name) == 0 {
+		return nil, fmt.Errorf("invalid key %q: either namespace or name is missing", key)
+	}
+	return c.machineSetsLister.MachineSets(namespace).Get(name)
+}
+
+func (c *Controller) checkClusterReady(syncFunc func(string) error) func(string) error {
+	return func(key string) error {
+		err := syncFunc(key)
+		if err != nil {
+			return err
+		}
+		machineSet, err := c.getMachineSet(key)
+		if err != nil {
+			return err
+		}
+		cluster, err := controller.ClusterForMachineSet(machineSet, c.clustersLister)
+		if err != nil {
+			return err
+		}
+		logger := colog.WithCluster(c.logger, cluster)
+		logger.Debugf("checking whether cluster is ready")
+		if cluster.Status.Ready {
+			logger.Debugf("cluster is ready, skipping")
+			return nil
+		}
+
+		if !cluster.Status.Provisioned {
+			logger.Debugf("cluster is not provisioned yet, skipping")
+			return nil
+		}
+		machineSets, err := controller.MachineSetsForCluster(cluster, c.machineSetsLister)
+		if err != nil {
+			return nil
+		}
+		if len(machineSets) != len(cluster.Spec.MachineSets) {
+			return nil
+		}
+		for _, ms := range machineSets {
+			msLogger := colog.WithMachineSet(logger, ms)
+			if ms.Spec.NodeType == clusteroperator.NodeTypeMaster {
+				if !ms.Status.Provisioned || !ms.Status.Installed || !ms.Status.ComponentsInstalled || !ms.Status.NodeConfigInstalled {
+					msLogger.Debugf("master machineset is not ready yet")
+					return nil
+				}
+				msLogger.Debugf("master machineset is ready")
+			} else {
+				if !ms.Status.Provisioned || !ms.Status.Accepted {
+					msLogger.Debugf("compute machineset is not ready yet")
+					return nil
+				}
+				msLogger.Debugf("compute machineset is ready")
+			}
+		}
+		logger.Debugf("updating cluster status to Ready")
+		patchedCluster := cluster.DeepCopy()
+		patchedCluster.Status.Ready = true
+		return controller.PatchClusterStatus(c.client, cluster, patchedCluster)
+	}
+}
+
 type jobOwnerControl struct {
 	controller *Controller
 }
@@ -286,14 +361,7 @@ type jobSyncStrategy struct {
 }
 
 func (s *jobSyncStrategy) GetOwner(key string) (metav1.Object, error) {
-	namespace, name, err := cache.SplitMetaNamespaceKey(key)
-	if err != nil {
-		return nil, err
-	}
-	if len(namespace) == 0 || len(name) == 0 {
-		return nil, fmt.Errorf("invalid key %q: either namespace or name is missing", key)
-	}
-	return s.controller.machineSetsLister.MachineSets(namespace).Get(name)
+	return s.controller.getMachineSet(key)
 }
 
 func (s *jobSyncStrategy) DoesOwnerNeedProcessing(owner metav1.Object) bool {

@@ -344,6 +344,7 @@ func startServerAndControllers(t *testing.T) (
 		func() func() {
 			controller := machinesetcontroller.NewController(
 				coSharedInformers.MachineSets(),
+				coSharedInformers.Clusters(),
 				batchSharedInformers.Jobs(),
 				fakeKubeClient,
 				clusterOperatorClient,

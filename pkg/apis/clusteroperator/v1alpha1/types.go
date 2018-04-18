@@ -277,9 +277,9 @@ type ClusterStatus struct {
 	// generate the latest completed infra provisioning job.
 	ProvisionedJobGeneration int64 `json:"provisionedJobGeneration"`
 
-	// Running is true if the master of the cluster is running and can be accessed using
+	// Ready is true if the master of the cluster is ready to be used and can be accessed using
 	// the KubeconfigSecret
-	Running bool `json:"running"`
+	Ready bool `json:"ready"`
 
 	// Conditions includes more detailed status for the cluster
 	Conditions []ClusterCondition `json:"conditions"`
