@@ -127,18 +127,6 @@ objects:
       requests:
         storage: 1Gi
 
-# Secret for AWS SSH private key
-- apiVersion: v1
-  kind: Secret
-  metadata:
-    name: ssh-private-key
-    namespace: ${CLUSTER_OPERATOR_NAMESPACE}
-    labels:
-      app: cluster-operator
-  type: Opaque
-  data:
-    ssh-privatekey: ${AWS_SSH_PRIVATE_KEY}
-
 # Deployment of the API Server pod
 - apiVersion: apps/v1beta1
   kind: Deployment
@@ -382,4 +370,3 @@ parameters:
   value: kube-system
 # CA cert for API Server SSL cert
 - name: SERVING_CA
-- name: AWS_SSH_PRIVATE_KEY

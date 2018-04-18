@@ -5,13 +5,16 @@
 ## Initial (One-Time) Setup
 
   * Install required packages:
-    * Fedora: `dnf install golang make docker`
+    * Fedora: `sudo dnf install golang make docker ansible`
+    * NOTE: Ansible 2.5+ is required to run our deployment playbooks.
   * Change docker to allow insecure pulls (required for `oc cluster up`):
     * Edit `/etc/sysconfig/docker`
     * Change `OPTIONS=` to include `--insecure-registry 172.30.0.0/16`
   * Enable and Start docker:
-    * `systemctl enable docker`
-    * `systemctl start docker`
+    * `sudo systemctl enable docker`
+    * `sudo systemctl start docker`
+  * Install the OpenShift and Kubernetes Python clients:
+    * `sudo pip install kubernetes openshift`
   * Clone this repo to `$HOME/go/src/github.com/openshift/cluster-operator`
   * Get cfssl:
     * `go get -u github.com/cloudflare/cfssl/cmd/...`

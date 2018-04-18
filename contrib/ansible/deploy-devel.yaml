@@ -1,4 +1,13 @@
 #!/usr/bin/ansible-playbook
+#
+# Deploy Cluster Operator to the cluster for the current users kubeconfig context.
+#
+# Several pieces of secret data (certs, ssh keys) are assumed to be shared amongst the team
+# maintaining the deployment. As such the playbook checks if they exist, if they do not it
+# attempt to generate/create them. Some of these steps may require local setup. However once
+# the secrets are created initially, the deployment ansible will leave them be and other
+# members of the team can update the deployment without needing to locally have the shared
+# SSH key or AWS credentials.
 ---
 - hosts: localhost
   connection: local
@@ -18,12 +27,12 @@
       cluster_operator_namespace: "{{ cli_cluster_operator_namespace }}"
     when: cli_cluster_operator_namespace is defined
 
-  # TODO: use k8s_raw?
   - name: create cluster-operator namespace
-    command: "oc create namespace {{ cluster_operator_namespace }}"
-    register: createns_reg
-    failed_when: createns_reg.rc > 0 and "AlreadyExists" not in createns_reg.stderr
-    changed_when: createns_reg.rc == 0
+    k8s_raw:
+      name: "{{ cluster_operator_namespace }}"
+      api_version: v1
+      kind: Namespace
+      state: present
 
   - set_fact:
       ssh_priv_key: "{{ cli_ssh_priv_key }}"
@@ -55,12 +64,11 @@
     changed_when: false
     register: aws_creds_secret_exists_reg
 
-  # If the aws credentials secret does not already exist, try to create it:
+  # If the aws credentials secret does not already exist, create it:
   - name: create AWS credentials secret
     k8s_raw:
       state: present
       definition:
-
         apiVersion: v1
         kind: Secret
         metadata:
@@ -73,6 +81,29 @@
           awsAccessKeyId: "{{ l_aws_access_key_id }}"
           awsSecretAccessKey: "{{ l_aws_secret_access_key }}"
     when: aws_creds_secret_exists_reg.rc > 0 and "NotFound" in aws_creds_secret_exists_reg.stderr
+
+  - name: check if ssh private key secret exists
+    command: "oc get secret ssh-private-key -n {{ cluster_operator_namespace }}"
+    failed_when: false
+    changed_when: false
+    register: ssh_key_secret_exists_reg
+
+  # If the ssh private key secret does not already exist, create it:
+  - name: create ssh private key secret
+    k8s_raw:
+      state: present
+      definition:
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: ssh-private-key
+          namespace: "{{ cluster_operator_namespace }}"
+          labels:
+            app: cluster-operator
+        type: Opaque
+        data:
+          ssh-privatekey: "{{ l_aws_ssh_private_key }}"
+    when: ssh_key_secret_exists_reg.rc > 0 and "NotFound" in ssh_key_secret_exists_reg.stderr
 
   - name: check if apiserver cert secret exists
     command: "oc get secret cluster-operator-apiserver-cert -n {{ cluster_operator_namespace }}"
@@ -151,6 +182,7 @@
   - name: load serving CA from secret
     command: "oc get secret -n {{ cluster_operator_namespace }} ssl-cert -o json"
     register: cluster_cert_secret_reg
+    changed_when: false
 
   # Ensure l_serving_ca is set even if we did not regen certs, as it's needed for the apiserver aggregation:
   - set_fact:
@@ -158,7 +190,7 @@
 
   # TODO: not accurately reflecting 'changed' status as apply doesn't report until upstream PRs merge.
   - name: deploy application template
-    shell: "oc process -f {{ playbook_dir }}/../examples/deploy.yaml -o yaml -p CLUSTER_OPERATOR_NAMESPACE={{ cluster_operator_namespace }} -p SERVING_CA={{ l_serving_ca }} AWS_SSH_PRIVATE_KEY={{ l_aws_ssh_private_key }} | oc apply -f -"
+    shell: "oc process -f {{ playbook_dir }}/../examples/deploy.yaml -o yaml -p CLUSTER_OPERATOR_NAMESPACE={{ cluster_operator_namespace }} -p SERVING_CA={{ l_serving_ca }} | oc apply -f -"
 
   - name: deploy playbook-mock for testing with fake-openshift-ansible
     shell: "oc apply -n {{ cluster_operator_namespace }} -f {{ playbook_dir }}/../examples/deploy-playbook-mock.yaml"
