@@ -118,6 +118,7 @@ objects:
   apiVersion: v1
   metadata:
     name: etcd-storage
+    namespace: ${CLUSTER_OPERATOR_NAMESPACE}
   spec:
     accessModes:
       - ReadWriteOnce
