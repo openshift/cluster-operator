@@ -38,7 +38,7 @@
   * Compile the Go code and create the Cluster Operator images (both Go and Ansible):
     * `make images`
   * Idempotently deploy cluster operator to the OpenShift cluster.
-    * `ansible-playbook contrib/ansible/deploy-devel.yaml`
+    * `ansible-playbook contrib/ansible/deploy-playbook.yaml`
   * If your image changed, but the kubernetes config did not (which is usually the case), you should pods appropriately:
     * `oc delete pod -l app=cluster-operator-controller-manager`
     * Or if you would rather delete all pods including the apiserver (which seldom changes) and our etcd (which would delete your stored clusters): `oc delete pod --all -n openshift-cluster-operator`

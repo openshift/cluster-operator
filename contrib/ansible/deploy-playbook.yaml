@@ -190,7 +190,7 @@
 
   # TODO: not accurately reflecting 'changed' status as apply doesn't report until upstream PRs merge.
   - name: deploy application template
-    shell: "oc process -f {{ playbook_dir }}/../examples/deploy.yaml -o yaml -p CLUSTER_OPERATOR_NAMESPACE={{ cluster_operator_namespace }} -p SERVING_CA={{ l_serving_ca }} | oc apply -f -"
+    shell: "oc process -f {{ playbook_dir }}/../examples/cluster-operator-template.yaml -o yaml -p CLUSTER_OPERATOR_NAMESPACE={{ cluster_operator_namespace }} -p SERVING_CA={{ l_serving_ca }} | oc apply -f -"
 
   - name: deploy playbook-mock for testing with fake-openshift-ansible
     shell: "oc apply -n {{ cluster_operator_namespace }} -f {{ playbook_dir }}/../examples/deploy-playbook-mock.yaml"
