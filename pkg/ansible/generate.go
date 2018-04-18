@@ -92,6 +92,26 @@ openshift_master_bootstrap_enabled: True
 openshift_hosted_router_wait: False
 openshift_hosted_registry_wait: False
 
+# Override router edits to set the ROUTER_USE_PROXY_PROTOCOL
+# environment variable. Defaults are taken from
+# roles/openshift_hosted/defaults/main.yml in openshift-ansible and
+# are set in addition to ROUTER_USE_PROXY_PROTOCOL.
+openshift_hosted_router_edits:
+- key: spec.strategy.rollingParams.intervalSeconds
+  value: 1
+  action: put
+- key: spec.strategy.rollingParams.updatePeriodSeconds
+  value: 1
+  action: put
+- key: spec.strategy.activeDeadlineSeconds
+  value: 21600
+  action: put
+- key: spec.template.spec.containers[0].env
+  value:
+    name: ROUTER_USE_PROXY_PROTOCOL
+    value: 'true'
+  action: update
+
 ################################################################################
 # cluster specific settings
 ################################################################################
