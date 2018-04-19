@@ -49,4 +49,12 @@ RUN rm -rf /usr/share/ansible/openshift-ansible/playbooks/cluster-operator/
 # Copy in our playbooks and roles:
 COPY playbooks/cluster-operator ${CLONE_LOCATION}/playbooks/cluster-operator
 
+# Replaces roles/openshift_aws/tasks/master_facts.yml in order to
+# temporarily override openshift_master_cluster_public_hostname as the
+# external ELB's DNS name. openshift_master_cluster_public_hostname
+# should be set in inventory as a friendly name which exists in
+# DNS.
+# TODO: Remove this when we're configuring DNS entries for the cluster.
+COPY roles/openshift_aws/tasks ${CLONE_LOCATION}/roles/openshift_aws/tasks
+
 USER 1001:0
