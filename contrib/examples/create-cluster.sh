@@ -36,7 +36,7 @@ then
 	: ${ANSIBLE_IMAGE:="fake-openshift-ansible:canary"}
 	: ${ANSIBLE_IMAGE_PULL_POLICY:="Never"}
 else
-	: ${ANSIBLE_IMAGE:="cluster-operator-ansible:canary"}
+	: ${ANSIBLE_IMAGE:="cluster-operator-ansible:v3.10"}
 	: ${ANSIBLE_IMAGE_PULL_POLICY:="Never"}
 fi
 

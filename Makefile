@@ -29,6 +29,7 @@ BUILD_DIR     ?= build
 COVERAGE      ?= $(CURDIR)/coverage.html
 CLUSTERAPI_BIN = $(BINDIR)/cluster-api
 CLUSTER_OPERATOR_PKG = github.com/openshift/cluster-operator
+CLUSTER_OPERATOR_ANSIBLE_IMAGE_NAME = cluster-operator-ansible
 TOP_SRC_DIRS   = cmd pkg
 SRC_DIRS       = $(shell sh -c "find $(TOP_SRC_DIRS) -name \\*.go \
                    -exec dirname {} \\; | sort | uniq")
@@ -71,8 +72,6 @@ CLUSTER_OPERATOR_IMAGE               = $(REGISTRY)cluster-operator-$(ARCH):$(VER
 CLUSTER_OPERATOR_MUTABLE_IMAGE       = $(REGISTRY)cluster-operator-$(ARCH):$(MUTABLE_TAG)
 FAKE_OPENSHIFT_ANSIBLE_IMAGE         = $(REGISTRY)fake-openshift-ansible:$(VERSION)
 FAKE_OPENSHIFT_ANSIBLE_MUTABLE_IMAGE = $(REGISTRY)fake-openshift-ansible:$(MUTABLE_TAG)
-CLUSTER_OPERATOR_ANSIBLE_IMAGE       = $(REGISTRY)cluster-operator-ansible:$(VERSION)
-CLUSTER_OPERATOR_ANSIBLE_MUTABLE_IMAGE = $(REGISTRY)cluster-operator-ansible:$(MUTABLE_TAG)
 PLAYBOOK_MOCK_IMAGE                  = $(REGISTRY)playbook-mock:$(VERSION)
 PLAYBOOK_MOCK_MUTABLE_IMAGE          = $(REGISTRY)playbook-mock:$(MUTABLE_TAG)
 AWS_MACHINE_CONTROLLER_IMAGE         = $(REGISTRY)aws-machine-controller:$(VERSION)
@@ -319,7 +318,7 @@ clean-coverage:
 
 # Building Docker Images for our executables
 ############################################
-images: cluster-operator-image playbook-mock-image cluster-operator-ansible-image fake-openshift-ansible-image
+images: cluster-operator-image playbook-mock-image cluster-operator-ansible-images fake-openshift-ansible-image
 
 images-all: $(addprefix arch-image-,$(ALL_ARCH))
 arch-image-%:
@@ -348,14 +347,25 @@ ifeq ($(ARCH),amd64)
 	docker tag $(CLUSTER_OPERATOR_MUTABLE_IMAGE) $(REGISTRY)cluster-operator:$(MUTABLE_TAG)
 endif
 
-CLUSTER_OP_ANSIBLE_REPO   ?= https://github.com/openshift/openshift-ansible.git
-CLUSTER_OP_ANSIBLE_BRANCH ?= master
+OA_ANSIBLE_URL    ?= https://github.com/openshift/openshift-ansible.git
+OA_ANSIBLE_BRANCH ?= master
 
-cluster-operator-ansible-image: build/cluster-operator-ansible/Dockerfile build/cluster-operator-ansible/playbooks/cluster-api-prep/deploy-cluster-api.yaml build/cluster-operator-ansible/playbooks/cluster-api-prep/files/cluster-api-template.yaml build/cluster-operator-ansible/playbooks/cluster-operator/node-config-daemonset.yml
-	docker build -t $(CLUSTER_OPERATOR_ANSIBLE_IMAGE) --build-arg=CO_ANSIBLE_URL=$(CLUSTER_OP_ANSIBLE_REPO) --build-arg=CO_ANSIBLE_BRANCH=$(CLUSTER_OP_ANSIBLE_BRANCH) build/cluster-operator-ansible
-	docker tag $(CLUSTER_OPERATOR_ANSIBLE_IMAGE) $(CLUSTER_OPERATOR_ANSIBLE_MUTABLE_IMAGE)
+define build-cluster-operator-ansible-image #(repo, branch, imagename, tag)
+	docker build -t "$3:$4" --build-arg=CO_ANSIBLE_URL=$1 --build-arg=CO_ANSIBLE_BRANCH=$2 build/cluster-operator-ansible
+endef
 
-fake-openshift-ansible-image: cluster-operator-ansible-image build/fake-openshift-ansible/Dockerfile $(BINDIR)/fake-openshift-ansible
+cluster-operator-ansible-images: build/cluster-operator-ansible/Dockerfile build/cluster-operator-ansible/playbooks/cluster-api-prep/deploy-cluster-api.yaml build/cluster-operator-ansible/playbooks/cluster-api-prep/files/cluster-api-template.yaml build/cluster-operator-ansible/playbooks/cluster-operator/node-config-daemonset.yml
+	# build v3.9 on openshift-ansible:release-3.9
+	$(call build-cluster-operator-ansible-image,$(OA_ANSIBLE_URL),"release-3.9",$(CLUSTER_OPERATOR_ANSIBLE_IMAGE_NAME),"v3.9")
+
+	# build v3.10 on openshift-ansible:master
+	$(call build-cluster-operator-ansible-image,$(OA_ANSIBLE_URL),"master",$(CLUSTER_OPERATOR_ANSIBLE_IMAGE_NAME),"v3.10")
+
+	# build master/canary
+	$(call build-cluster-operator-ansible-image,$(OA_ANSIBLE_URL),$(OA_ANSIBLE_BRANCH),$(CLUSTER_OPERATOR_ANSIBLE_IMAGE_NAME),$(VERSION))
+	docker tag $(CLUSTER_OPERATOR_ANSIBLE_IMAGE_NAME):$(VERSION) $(CLUSTER_OPERATOR_ANSIBLE_IMAGE_NAME):$(MUTABLE_TAG)
+
+fake-openshift-ansible-image: cluster-operator-ansible-images build/fake-openshift-ansible/Dockerfile $(BINDIR)/fake-openshift-ansible
 	$(call build-and-tag,"fake-openshift-ansible",$(FAKE_OPENSHIFT_ANSIBLE_IMAGE),$(FAKE_OPENSHIFT_ANSIBLE_MUTABLE_IMAGE))
 	docker tag $(FAKE_OPENSHIFT_ANSIBLE_IMAGE) $(REGISTRY)fake-openshift-ansible:$(VERSION)
 	docker tag $(FAKE_OPENSHIFT_ANSIBLE_MUTABLE_IMAGE) $(REGISTRY)fake-openshift-ansible:$(MUTABLE_TAG)
