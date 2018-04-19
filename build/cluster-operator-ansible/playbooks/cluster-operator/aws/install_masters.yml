@@ -38,6 +38,10 @@
       dest: "{{ temp_file.path }}"
     delegate_to: localhost
 
+  - name: set kubeconfig external context
+    shell: "CONTEXT=$(KUBECONFIG={{ temp_file.path }} oc config get-contexts -o name | grep -v internal) && KUBECONFIG={{ temp_file.path }} oc config use-context $CONTEXT"
+    delegate_to: localhost
+
   - name: delete any existing secret
     shell: "oc delete secret {{ openshift_aws_clusterid }}-kubeconfig"
     ignore_errors: true
