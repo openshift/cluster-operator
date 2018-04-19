@@ -91,6 +91,7 @@ openshift_master_bootstrap_enabled: True
 
 openshift_hosted_router_wait: False
 openshift_hosted_registry_wait: False
+openshift_hosted_registry_replicas: 1
 
 # Override router edits to set the ROUTER_USE_PROXY_PROTOCOL
 # environment variable. Defaults are taken from
