@@ -112,7 +112,8 @@ build: .init .generate_files \
 	$(BINDIR)/fake-openshift-ansible \
 	$(BINDIR)/playbook-mock \
 	$(BINDIR)/aws-machine-controller \
-	$(BINDIR)/aws-actuator-test
+	$(BINDIR)/aws-actuator-test \
+	$(BINDIR)/wait-for-cluster-ready
 
 .PHONY: $(BINDIR)/cluster-operator
 cluster-operator: $(BINDIR)/cluster-operator
@@ -123,6 +124,11 @@ $(BINDIR)/cluster-operator: .init .generate_files
 aws-machine-controller: $(BINDIR)/aws-machine-controller
 $(BINDIR)/aws-machine-controller: .init
 	$(DOCKER_CMD) $(GO_BUILD) -o $@ $(CLUSTER_OPERATOR_PKG)/cmd/aws-machine-controller
+
+.PHONY: $(BINDIR)/wait-for-cluster-ready
+wait-for-cluster-ready: $(BINDIR)/wait-for-cluster-ready
+$(BINDIR)/wait-for-cluster-ready: .init
+	$(DOCKER_CMD) $(GO_BUILD) -o $@ $(CLUSTER_OPERATOR_PKG)/contrib/cmd/wait-for-cluster-ready
 
 .PHONY: $(BINDIR)/aws-actuator-test
 aws-actuator-test: $(BINDIR)/aws-actuator-test
