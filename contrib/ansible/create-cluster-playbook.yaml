@@ -1,0 +1,37 @@
+#!/usr/bin/ansible-playbook
+#
+# Create a test Cluster in the Cluster Operator.
+#
+---
+- hosts: localhost
+  connection: local
+  gather_facts: no
+  vars:
+    # Namespace where you want your Cluster API to be created, and all associated jobs/pods to run:
+    cluster_namespace: openshift-cluster-operator
+    # ID for your cluster, defaults to current username:
+    cluster_name: "{{ lookup ('env', 'USER') }}"
+    # ClusterVersion to install, default to fake so we don't actually create a cluster unless user
+    # explicitly opts-in:
+    cluster_version: origin-v3-10-fake
+    # Namespace where we expect cluster version to exist, does not have to match the cluster namespace
+    # and generally this can be left as is:
+    cluster_version_namespace: openshift-cluster-operator
+
+  tasks:
+
+  # Command will error if it does not exist. Technically this is fine, you can create the cluster
+  # and wait for the version to exist, but in this case it probably signifies a mistake by the user.
+  - name: verify cluster version exists
+    command: "oc get clusterversion {{ cluster_version }} -n {{ cluster_version_namespace }}"
+    changed_when: false
+
+  - name: create cluster namespace
+    k8s_raw:
+      name: "{{ cluster_namespace }}"
+      api_version: v1
+      kind: Namespace
+      state: present
+
+  - name: create the cluster
+    shell: "oc process -f {{ playbook_dir }}/../examples/cluster-template.yaml -p CLUSTER_NAME={{ cluster_name }} -p CLUSTER_NAMESPACE={{ cluster_namespace }} -p CLUSTER_VERSION={{ cluster_version }} -p CLUSTER_VERSION_NAMESPACE={{ cluster_version_namespace }} -o yaml | oc apply -f -"
