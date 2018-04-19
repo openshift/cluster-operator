@@ -18,6 +18,7 @@ set -e
 
 : ${CLUSTER_OPERATOR_NAMESPACE:="openshift-cluster-operator"}
 
+# Copy the secrets we use for AWS credentials, SSH key, and the cluster certificates to the namespace the cluster is being created in:
 oc get secret aws-credentials -n "$CLUSTER_OPERATOR_NAMESPACE" -o yaml | sed -E '/(namespace:|annotations|last-applied-configuration:|selfLink|uid:|resourceVersion:)/d' | oc apply -f -
 oc get secret ssh-private-key -n "$CLUSTER_OPERATOR_NAMESPACE" -o yaml | sed -E '/(namespace:|annotations|last-applied-configuration:|selfLink|uid:|resourceVersion:)/d' | oc apply -f -
 oc get secret ssl-cert -n "$CLUSTER_OPERATOR_NAMESPACE" -o yaml | sed -E '/(namespace:|annotations|last-applied-configuration:|selfLink|uid:|resourceVersion:)/d' | oc apply -f -

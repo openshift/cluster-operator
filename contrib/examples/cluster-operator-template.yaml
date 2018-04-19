@@ -1,10 +1,9 @@
+---
 ########
 #
 # Template for deploying the Cluster Operator.
 #
-# Parameters:
-#   CLUSTER_OPERATOR_NAMESPACE: namespace to which to deploy the cluster operator. Defaults to "openshift-cluster-operator".
-#   SERVING_CA: base-64-encoded, pem CA cert for the ssl certs. Required.
+# NOTE: This template requires auth configuration from the cluster-operator-roles-template.yaml.
 #
 ########
 
@@ -13,107 +12,18 @@ kind: Template
 metadata:
   name: cluster-operator-deploy-template
   namespace: ${CLUSTER_OPERATOR_NAMESPACE}
+
+parameters:
+# Namespace to use for cluster-operator
+- name: CLUSTER_OPERATOR_NAMESPACE
+  value: openshift-cluster-operator
+# CA cert for API Server SSL cert
+- name: SERVING_CA
+# Namespace of kube-system. Do not change. Required due to oc process behavior.
+- name: KUBE_SYSTEM_NAMESPACE
+  value: kube-system
+
 objects:
-
-# Service account for the API Server
-- apiVersion: v1
-  kind: ServiceAccount
-  metadata:
-    name: cluster-operator-apiserver
-    namespace: ${CLUSTER_OPERATOR_NAMESPACE}
-
-# Service account for the Controller Manager
-- apiVersion: v1
-  kind: ServiceAccount
-  metadata:
-    name: cluster-operator-controller-manager
-    namespace: ${CLUSTER_OPERATOR_NAMESPACE}
-
-# API Server gets the auth-delegator role to delegate auth decisions to
-# the core API Server
-- apiVersion: rbac.authorization.k8s.io/v1
-  kind: ClusterRoleBinding
-  metadata:
-    name: "clusteroperator.openshift.io:apiserver-auth-delegator"
-    namespace: ${CLUSTER_OPERATOR_NAMESPACE}
-  roleRef:
-    apiGroup: rbac.authorization.k8s.io
-    kind: ClusterRole
-    name: system:auth-delegator
-  subjects:
-  - apiGroup: ""
-    kind: ServiceAccount
-    name: cluster-operator-apiserver
-    namespace: ${CLUSTER_OPERATOR_NAMESPACE}
-
-# API Server gets the ability to read authentication. This allows it to
-# read the specific configmap that has the requestheader-* entries to
-# enable api aggregation
-- apiVersion: rbac.authorization.k8s.io/v1
-  kind: RoleBinding
-  metadata:
-    name: "clusteroperator.openshift.io:apiserver-authentication-reader"
-    namespace: ${KUBE_SYSTEM_NAMESPACE}
-  roleRef:
-    apiGroup: rbac.authorization.k8s.io
-    kind: Role
-    name: extension-apiserver-authentication-reader
-  subjects:
-  - apiGroup: ""
-    kind: ServiceAccount
-    name: cluster-operator-apiserver
-    namespace: ${CLUSTER_OPERATOR_NAMESPACE}
-
-# Create a role for the Controller Manager to give it permissions to manage
-# the resources of the clusteroperator
-- apiVersion: rbac.authorization.k8s.io/v1
-  kind: ClusterRole
-  metadata:
-    name: "clusteroperator.openshift.io:controller-manager"
-  rules:
-  # configmaps for leader election
-  - apiGroups: [""]
-    resources: ["configmaps"]
-    verbs:     ["create"]
-  - apiGroups:     [""]
-    resources:     ["configmaps"]
-    resourceNames: ["cluster-operator-controller-manager"]
-    verbs: ["get","update"]
-  # events for recording events
-  - apiGroups: [""]
-    resources: ["events"]
-    verbs:     ["create","patch","update"]
-  # allow all operations on all resources in our API group
-  - apiGroups: ["clusteroperator.openshift.io"]
-    resources: ["*"]
-    verbs:     ["create", "get", "list", "watch", "update", "patch", "delete"]
-  # allow operations on required resources in any namespace a cluster is created
-  - apiGroups:     [""]
-    resources:     ["configmaps", "pods", "secrets", "serviceaccounts"]
-    verbs: ["*"]
-  - apiGroups:     ["batch"]
-    resources:     ["jobs"]
-    verbs: ["*"]
-  # allow reading and creating rolebindings
-  - apiGroups: ["rbac.authorization.k8s.io"]
-    resources: ["rolebindings"]
-    verbs: ["*"]
-
-# Bind the Controller Manager service account to the role created for it
-- apiVersion: rbac.authorization.k8s.io/v1
-  kind: ClusterRoleBinding
-  metadata:
-    name: "clusteroperator.openshift.io:controller-manager"
-  roleRef:
-    apiGroup: rbac.authorization.k8s.io
-    kind: ClusterRole
-    name: "clusteroperator.openshift.io:controller-manager"
-  subjects:
-  - apiGroup: ""
-    kind: ServiceAccount
-    name: cluster-operator-controller-manager
-    namespace: ${CLUSTER_OPERATOR_NAMESPACE}
-
 - kind: PersistentVolumeClaim
   apiVersion: v1
   metadata:
@@ -126,18 +36,6 @@ objects:
     resources:
       requests:
         storage: 1Gi
-
-# Secret for AWS SSH private key
-- apiVersion: v1
-  kind: Secret
-  metadata:
-    name: ssh-private-key
-    namespace: ${CLUSTER_OPERATOR_NAMESPACE}
-    labels:
-      app: cluster-operator
-  type: Opaque
-  data:
-    ssh-privatekey: ${AWS_SSH_PRIVATE_KEY}
 
 # Deployment of the API Server pod
 - apiVersion: apps/v1beta1
@@ -372,14 +270,3 @@ objects:
   - apiGroups: [""]
     resources: ["secrets"]
     verbs:     ["create", "delete", "get", "list", "update"]
-
-parameters:
-# Namespace to use for cluster-operator
-- name: CLUSTER_OPERATOR_NAMESPACE
-  value: openshift-cluster-operator
-# Namespace of kube-system. Do not change.
-- name: KUBE_SYSTEM_NAMESPACE
-  value: kube-system
-# CA cert for API Server SSL cert
-- name: SERVING_CA
-- name: AWS_SSH_PRIVATE_KEY
