@@ -72,10 +72,10 @@ func waitForCluster(clusterNamespace, clusterName string) error {
 		return fmt.Errorf("cannot retrieve cluster %s/%s: %v", namespace, clusterName, err)
 	}
 
-	return waitForClusterRunning(coClient, cluster)
+	return waitForClusterReady(coClient, cluster)
 }
 
-func waitForClusterRunning(coClient *coclient.Clientset, cluster *cov1.Cluster) error {
+func waitForClusterReady(coClient *coclient.Clientset, cluster *cov1.Cluster) error {
 	for {
 		w, err := coClient.ClusteroperatorV1alpha1().Clusters(cluster.Namespace).Watch(metav1.ListOptions{})
 		if err != nil {
@@ -84,7 +84,7 @@ func waitForClusterRunning(coClient *coclient.Clientset, cluster *cov1.Cluster) 
 		for e := range w.ResultChan() {
 			c := e.Object.(*cov1.Cluster)
 			if c.Name == cluster.Name {
-				if c.Status.Running {
+				if c.Status.Ready {
 					fmt.Printf("Cluster %s/%s is ready.\n", cluster.Namespace, cluster.Name)
 					return nil
 				}

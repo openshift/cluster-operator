@@ -487,9 +487,9 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Format:      "int64",
 							},
 						},
-						"running": {
+						"ready": {
 							SchemaProps: spec.SchemaProps{
-								Description: "Running is true if the master of the cluster is running and can be accessed using the KubeconfigSecret",
+								Description: "Ready is true if the master of the cluster is ready to be used and can be accessed using the KubeconfigSecret",
 								Type:        []string{"boolean"},
 								Format:      "",
 							},
@@ -514,7 +514,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 							},
 						},
 					},
-					Required: []string{"machineSetCount", "provisioned", "provisionedJobGeneration", "running", "conditions"},
+					Required: []string{"machineSetCount", "provisioned", "provisionedJobGeneration", "ready", "conditions"},
 				},
 			},
 			Dependencies: []string{
