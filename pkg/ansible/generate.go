@@ -127,7 +127,7 @@ openshift_disable_check: disk_availability,memory_availability,docker_storage,pa
 # Multi-region deployments are not supported using these plays at this time.
 openshift_aws_region: [[ .Region ]]
 
-openshift_hosted_infra_selector: type=infra
+openshift_hosted_infra_selector: "node-role.kubernetes.io/infra=true"
 
 #openshift_aws_create_launch_config: true
 #openshift_aws_create_scale_group: true
