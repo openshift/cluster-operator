@@ -21,8 +21,57 @@ parameters:
   description: The namespace where the cluster version lives.
   value: openshift-cluster-operator
   required: true
+- name: CLUSTER_CERT
+  required: true
+  description: Base64 encoded certificate for the cluster.
+- name: CLUSTER_PRIVATE_KEY
+  required: true
+  description: Base64 encoded private key for the cluster.
+- name: AWS_ACCESS_KEY_ID
+  required: true
+  description: Base64 encoded AWS access key ID that can be used to provision cluster resources.
+- name: AWS_SECRET_ACCESS_KEY
+  required: true
+  description: Base64 encoded AWS secret access key that can be used to provision cluster resources.
+- name: SSH_KEY
+  required: true
+  description: Base64 encoded SSH private key that can be used to access the provisioned servers.
 
 objects:
+
+# Secret to pass the SSL certs to the API Server
+- apiVersion: v1
+  kind: Secret
+  metadata:
+    name: ${CLUSTER_NAME}-certs
+    namespace: ${CLUSTER_NAMESPACE}
+  type: Opaque
+  data:
+    server.crt: ${CLUSTER_CERT}
+    server.key: ${CLUSTER_PRIVATE_KEY}
+    # NOTE: not setting ca.crt here as we're using self-signed certs for test clusters
+
+- apiVersion: v1
+  kind: Secret
+  metadata:
+    name: ${CLUSTER_NAME}-aws-creds
+    namespace: ${CLUSTER_NAMESPACE}
+  type: Opaque
+  data:
+    awsAccessKeyId: ${AWS_ACCESS_KEY_ID}
+    awsSecretAccessKey: ${AWS_SECRET_ACCESS_KEY}
+
+- apiVersion: v1
+  kind: Secret
+  metadata:
+    name: ${CLUSTER_NAME}-ssh-key
+    namespace: ${CLUSTER_NAMESPACE}
+    labels:
+      app: cluster-operator
+  type: Opaque
+  data:
+    ssh-privatekey: ${SSH_KEY}
+
 - apiVersion: clusteroperator.openshift.io/v1alpha1
   kind: Cluster
   metadata:
@@ -35,12 +84,12 @@ objects:
     hardware:
       aws:
         accountSecret:
-          name: aws-credentials
+          name: ${CLUSTER_NAME}-aws-creds
         sshSecret:
-          name: ssh-private-key
+          name: ${CLUSTER_NAME}-ssh-key
         sshUser: centos
         sslSecret:
-          name: ssl-cert
+          name: ${CLUSTER_NAME}-certs
         region: "us-east-1"
         keyPairName: "libra"
     defaultHardwareSpec:

@@ -13,15 +13,11 @@
   connection: local
   gather_facts: no
   vars:
-    # Section in ~/.aws/credentials with the AWS creds CO should use to create cloud infra and VMs:
-    aws_creds_section: default
-    # SSH key used for access to all VMs CO creates:
-    ssh_priv_key: '~/.ssh/libra.pem'
     # Namespace to deploy CO to:
     cluster_operator_namespace: "openshift-cluster-operator"
-    # Force regeneration of apiserver and default cluster cert. This will be set true if either are
+    # Force regeneration of apiserver cluster cert. Will happen regardless if one does not exist.
     # found to not exist.
-    redeploy_certs: False
+    redeploy_apiserver_cert: False
     # Whether or not we should process the template with cluster roles, service accounts, etc.
     # These are separated for deployments where a cluster admin may need to set these up one time,
     # but users with lesser permissions can maintain the actual deployment itself.
@@ -38,96 +34,17 @@
       kind: Namespace
       state: present
 
-  - set_fact:
-      ssh_priv_key: "{{ cli_ssh_priv_key }}"
-    when: cli_ssh_priv_key is defined
-
-  - name: check for password-protected ssh key
-    command: "grep ENCRYPTED {{ ssh_priv_key }}"
-    ignore_errors: yes
-    failed_when: false
-    changed_when: no
-    register: pass_protect_ssh
-
-  - fail:
-      msg: password protected ssh key not supported
-    when: pass_protect_ssh.rc == 0
-
-  - set_fact:
-      aws_creds_section: "{{ cli_aws_section }}"
-    when: cli_aws_section is defined
-
-  - set_fact:
-      l_aws_access_key_id: "{{ lookup('ini', 'aws_access_key_id section=' + aws_creds_section + ' file=~/.aws/credentials') | b64encode }}"
-      l_aws_secret_access_key: "{{ lookup('ini', 'aws_secret_access_key section=' + aws_creds_section + ' file=~/.aws/credentials') | b64encode }}"
-      l_aws_ssh_private_key: "{{ lookup('file', ssh_priv_key) | b64encode }}"
-
-  - name: check if AWS credentials secret exists
-    command: "oc get secret aws-credentials -n {{ cluster_operator_namespace }}"
-    failed_when: false
-    changed_when: false
-    register: aws_creds_secret_exists_reg
-
-  # If the aws credentials secret does not already exist, create it:
-  - name: create AWS credentials secret
-    k8s_raw:
-      state: present
-      definition:
-        apiVersion: v1
-        kind: Secret
-        metadata:
-          name: aws-credentials
-          namespace: "{{ cluster_operator_namespace }}"
-          labels:
-            app: cluster-operator
-        type: Opaque
-        data:
-          awsAccessKeyId: "{{ l_aws_access_key_id }}"
-          awsSecretAccessKey: "{{ l_aws_secret_access_key }}"
-    when: aws_creds_secret_exists_reg.rc > 0 and "NotFound" in aws_creds_secret_exists_reg.stderr
-
-  - name: check if ssh private key secret exists
-    command: "oc get secret ssh-private-key -n {{ cluster_operator_namespace }}"
-    failed_when: false
-    changed_when: false
-    register: ssh_key_secret_exists_reg
-
-  # If the ssh private key secret does not already exist, create it:
-  - name: create ssh private key secret
-    k8s_raw:
-      state: present
-      definition:
-        apiVersion: v1
-        kind: Secret
-        metadata:
-          name: ssh-private-key
-          namespace: "{{ cluster_operator_namespace }}"
-          labels:
-            app: cluster-operator
-        type: Opaque
-        data:
-          ssh-privatekey: "{{ l_aws_ssh_private_key }}"
-    when: ssh_key_secret_exists_reg.rc > 0 and "NotFound" in ssh_key_secret_exists_reg.stderr
-
   - name: check if apiserver cert secret exists
     command: "oc get secret cluster-operator-apiserver-cert -n {{ cluster_operator_namespace }}"
     failed_when: false
     changed_when: false
     register: apiserver_cert_exists_reg
 
-  - name: check if cluster cert secret exists
-    # TODO: rename and parameterize these secret names
-    command: "oc get secret ssl-cert -n {{ cluster_operator_namespace }}"
-    failed_when: false
-    changed_when: false
-    register: cluster_cert_exists_reg
-
-  # Either secret missing triggers a full certificate redeploy
-  # TODO: could we lock ourselves out of existing clusters?
   - set_fact:
-      redeploy_certs: True
-    when: (apiserver_cert_exists_reg.rc > 0 and "NotFound" in apiserver_cert_exists_reg.stderr) or (cluster_cert_exists_reg.rc > 0 and "NotFound" in cluster_cert_exists_reg.stderr)
+      redeploy_apiserver_cert: True
+    when: apiserver_cert_exists_reg.rc > 0 and "NotFound" in apiserver_cert_exists_reg.stderr
 
+  # TODO: replace with openssl_certificate but watch out for need for a CA
   - name: generate apiserver certs
     command: "{{ playbook_dir }}/../apiserver-aggregation-tls-setup.sh"
     args:
@@ -135,7 +52,7 @@
       chdir: "{{ playbook_dir }}/../../"
       # only runs if this file does not exist in top level of the git repo.
       creates: "{{ playbook_dir }}/../../apiserver.pem"
-    when: redeploy_certs | bool
+    when: redeploy_apiserver_cert | bool
 
   - set_fact:
       # base-64-encoded, pem CA cert for the ssl certs
@@ -144,7 +61,7 @@
       l_serving_cert: "{{ lookup('file', playbook_dir + '/../../apiserver.pem') | b64encode }}"
       # base-64-encoded, pem private key for the cert to use for ssl communication with the Cluster Operator API Server.
       l_serving_key: "{{ lookup('file', playbook_dir + '/../../apiserver-key.pem') | b64encode }}"
-    when: redeploy_certs | bool
+    when: redeploy_apiserver_cert | bool
 
   - name: create apiserver cert secret
     k8s_raw:
@@ -162,29 +79,11 @@
         data:
           tls.crt: "{{ l_serving_cert }}"
           tls.key: "{{ l_serving_key }}"
-    when: redeploy_certs | bool
-
-  - name: create cluster cert secret
-    k8s_raw:
-      state: present
-      definition:
-        # Secret to pass the SSL certs to the API Server
-        apiVersion: v1
-        kind: Secret
-        metadata:
-          name: ssl-cert
-          namespace: "{{ cluster_operator_namespace }}"
-          labels:
-            app: cluster-operator-apiserver
-        type: Opaque
-        data:
-          server.crt: "{{ l_serving_cert }}"
-          server.key: "{{ l_serving_key }}"
           ca.crt: "{{ l_serving_ca }}"
-    when: redeploy_certs | bool
+    when: redeploy_apiserver_cert | bool
 
   - name: load serving CA from secret
-    command: "oc get secret -n {{ cluster_operator_namespace }} ssl-cert -o json"
+    command: "oc get secret -n {{ cluster_operator_namespace }} cluster-operator-apiserver-cert -o json"
     register: cluster_cert_secret_reg
     changed_when: false
 
