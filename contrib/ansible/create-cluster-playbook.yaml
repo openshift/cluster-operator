@@ -23,7 +23,10 @@
     # and generally this can be left as is:
     cluster_version_namespace: openshift-cluster-operator
 
-    # Section in ~/.aws/credentials with the AWS creds CO should use to create cloud infra and VMs:
+    # Location of AWS credentials file:
+    aws_creds_file: ~/.aws/credentials
+
+    # Section in credentials file with the AWS creds CO should use to create cloud infra and VMs:
     aws_creds_section: default
 
     # SSH key used for access to all VMs CO creates:
@@ -105,8 +108,8 @@
       l_cluster_cert: "{{ lookup('file', cluster_cert_path) | b64encode }}"
       # base-64-encoded, pem private key for the cluster's cert:
       l_cluster_cert_key: "{{ lookup('file', cluster_privatekey_path) | b64encode }}"
-      l_aws_access_key_id: "{{ lookup('ini', 'aws_access_key_id section=' + aws_creds_section + ' file=~/.aws/credentials') | b64encode }}"
-      l_aws_secret_access_key: "{{ lookup('ini', 'aws_secret_access_key section=' + aws_creds_section + ' file=~/.aws/credentials') | b64encode }}"
+      l_aws_access_key_id: "{{ lookup('ini', 'aws_access_key_id section=' + aws_creds_section + ' file=' + aws_creds_file) | b64encode }}"
+      l_aws_secret_access_key: "{{ lookup('ini', 'aws_secret_access_key section=' + aws_creds_section + ' file=' + aws_creds_file) | b64encode }}"
       l_aws_ssh_private_key: "{{ lookup('file', ssh_priv_key) | b64encode }}"
 
   - name: create the cluster
