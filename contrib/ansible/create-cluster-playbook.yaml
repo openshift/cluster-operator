@@ -6,9 +6,11 @@
 - hosts: localhost
   connection: local
   gather_facts: no
+
+  # Variables you can optionally override from the CLI:
   vars:
-    # Namespace where you want your Cluster API to be created, and all associated jobs/pods to run:
-    cluster_namespace: openshift-cluster-operator
+    # NOTE: you may set 'cluster_namespace' to control where the cluster object is created. We do not
+    # set a default here as we need to lookup the current one if unset.
     # ID for your cluster, defaults to current username:
     cluster_name: "{{ lookup ('env', 'USER') }}"
     # ClusterVersion to install, default to fake so we don't actually create a cluster unless user
@@ -29,6 +31,16 @@
     cluster_csr_path: "{{ playbook_dir }}/../../certs/{{ cluster_name }}.csr"
 
   tasks:
+
+  # If no cluster_namespace was defined on the CLI, we want to create the cluster in the current:
+  - name: lookup current namespace if none defined
+    command: "oc project -q"
+    register: current_namespace_reg
+    when: cluster_namespace is not defined
+
+  - set_fact:
+      cluster_namespace: "{{ current_namespace_reg.stdout }}"
+    when: cluster_namespace is not defined
 
   # Command will error if it does not exist. Technically this is fine, you can create the cluster
   # and wait for the version to exist, but in this case it probably signifies a mistake by the user.
@@ -89,7 +101,7 @@
     openssl_csr:
       path: "{{ cluster_csr_path }}"
       privatekey_path: "{{ cluster_privatekey_path }}"
-      # TODO:
+      # TODO: these were previously junk (re-using our apiserver certs), but can we do something meaningful here?
       common_name: "{{ cluster_name }}.example.com"
       #subject_alt_name:
         #- "{{ cluster_name }}"
