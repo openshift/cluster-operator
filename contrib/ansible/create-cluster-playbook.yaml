@@ -1,0 +1,116 @@
+#!/usr/bin/ansible-playbook
+#
+# Create a test Cluster in the Cluster Operator.
+#
+---
+- hosts: localhost
+  connection: local
+  gather_facts: no
+
+  # Variables you can optionally override from the CLI:
+  vars:
+    # NOTE: you may set 'cluster_namespace' to control where the cluster object is created. We do not
+    # set a default here as we need to lookup the current one if unset.
+
+    # ID for your cluster, defaults to current username:
+    cluster_name: "{{ lookup ('env', 'USER') }}"
+
+    # ClusterVersion to install, default to fake so we don't actually create a cluster unless user
+    # explicitly opts-in:
+    cluster_version: origin-v3-10-fake
+
+    # Namespace where we expect cluster version to exist, does not have to match the cluster namespace
+    # and generally this can be left as is:
+    cluster_version_namespace: openshift-cluster-operator
+
+    # Location of AWS credentials file:
+    aws_creds_file: ~/.aws/credentials
+
+    # Section in credentials file with the AWS creds CO should use to create cloud infra and VMs:
+    aws_creds_section: default
+
+    # SSH key used for access to all VMs CO creates:
+    ssh_priv_key: '~/.ssh/libra.pem'
+
+    # Force regeneration of cluster cert. Will happen regardless if one does not exist.
+    redeploy_cluster_cert: False
+
+    # Paths where we will generate self-signed certs for the specific cluster. (probably don't need to
+    # override these but if you wanted to use pre-existing certs you could)
+    cluster_cert_path: "{{ playbook_dir }}/../../certs/{{ cluster_name }}.pem"
+    cluster_privatekey_path: "{{ playbook_dir }}/../../certs/{{ cluster_name }}-key.pem"
+    cluster_csr_path: "{{ playbook_dir }}/../../certs/{{ cluster_name }}.csr"
+
+  tasks:
+
+  # If no cluster_namespace was defined on the CLI, we want to create the cluster in the current:
+  - name: lookup current namespace if none defined
+    command: "oc project -q"
+    register: current_namespace_reg
+    when: cluster_namespace is not defined
+
+  - set_fact:
+      cluster_namespace: "{{ current_namespace_reg.stdout }}"
+    when: cluster_namespace is not defined
+
+  # Command will error if it does not exist. Technically this is fine, you can create the cluster
+  # and wait for the version to exist, but in this case it probably signifies a mistake by the user.
+  - name: verify cluster version exists
+    command: "oc get clusterversion {{ cluster_version }} -n {{ cluster_version_namespace }}"
+    changed_when: false
+
+  - name: create cluster namespace
+    k8s_raw:
+      name: "{{ cluster_namespace }}"
+      api_version: v1
+      kind: Namespace
+      state: present
+
+  - name: check for password-protected ssh key
+    command: "grep ENCRYPTED {{ ssh_priv_key }}"
+    ignore_errors: yes
+    failed_when: false
+    changed_when: no
+    register: pass_protect_ssh
+
+  - fail:
+      msg: password protected ssh key not supported
+    when: pass_protect_ssh.rc == 0
+
+  - name: ensure certs directory exists
+    file:
+      path: "{{ playbook_dir }}/../../certs/"
+      state: directory
+
+  - name: generate cluster privatekey
+    openssl_privatekey:
+      path: "{{ cluster_privatekey_path }}"
+
+  - name: generate cluster CSR
+    openssl_csr:
+      path: "{{ cluster_csr_path }}"
+      privatekey_path: "{{ cluster_privatekey_path }}"
+      # TODO: these were previously junk (re-using our apiserver certs), but can we do something meaningful here?
+      common_name: "{{ cluster_name }}.example.com"
+      #subject_alt_name:
+        #- "{{ cluster_name }}"
+
+  - name: generate cluster cert
+    openssl_certificate:
+      path: "{{ cluster_cert_path }}"
+      privatekey_path: "{{ cluster_privatekey_path }}"
+      csr_path: "{{ cluster_csr_path }}"
+      provider: selfsigned
+
+  - name: load cluster certs, keys and credentials
+    set_fact:
+      # base-64-encoded, pem cert for the cluster's ELB and rounter pods:
+      l_cluster_cert: "{{ lookup('file', cluster_cert_path) | b64encode }}"
+      # base-64-encoded, pem private key for the cluster's cert:
+      l_cluster_cert_key: "{{ lookup('file', cluster_privatekey_path) | b64encode }}"
+      l_aws_access_key_id: "{{ lookup('ini', 'aws_access_key_id section=' + aws_creds_section + ' file=' + aws_creds_file) | b64encode }}"
+      l_aws_secret_access_key: "{{ lookup('ini', 'aws_secret_access_key section=' + aws_creds_section + ' file=' + aws_creds_file) | b64encode }}"
+      l_aws_ssh_private_key: "{{ lookup('file', ssh_priv_key) | b64encode }}"
+
+  - name: create the cluster
+    shell: "oc process -f {{ playbook_dir }}/../examples/cluster-template.yaml -p CLUSTER_NAME={{ cluster_name }} -p CLUSTER_NAMESPACE={{ cluster_namespace }} -p CLUSTER_VERSION={{ cluster_version }} -p CLUSTER_VERSION_NAMESPACE={{ cluster_version_namespace }} -p CLUSTER_CERT={{ l_cluster_cert }} -p CLUSTER_PRIVATE_KEY={{ l_cluster_cert_key }} -p AWS_ACCESS_KEY_ID={{ l_aws_access_key_id }} -p AWS_SECRET_ACCESS_KEY={{ l_aws_secret_access_key }} -p SSH_KEY={{ l_aws_ssh_private_key }} -o yaml | oc apply -f -"

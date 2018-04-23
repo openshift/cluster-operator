@@ -200,7 +200,7 @@ type AWSClusterSpec struct {
 
 	// SSLSecret refers to a secret that contains the SSL certificate to use
 	// for this cluster. The secret is expected to contain the following keys:
-	// - ca.crt - the certificate authority certificate
+	// - ca.crt - the certificate authority certificate (optional)
 	// - server.crt - the server certificate
 	// - server.key - the server key
 	SSLSecret corev1.LocalObjectReference `json:"sslSecret"`

@@ -54,7 +54,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 						},
 						"sslSecret": {
 							SchemaProps: spec.SchemaProps{
-								Description: "SSLSecret refers to a secret that contains the SSL certificate to use for this cluster. The secret is expected to contain the following keys: - ca.crt - the certificate authority certificate - server.crt - the server certificate - server.key - the server key",
+								Description: "SSLSecret refers to a secret that contains the SSL certificate to use for this cluster. The secret is expected to contain the following keys: - ca.crt - the certificate authority certificate (optional) - server.crt - the server certificate - server.key - the server key",
 								Ref:         ref("k8s.io/api/core/v1.LocalObjectReference"),
 							},
 						},

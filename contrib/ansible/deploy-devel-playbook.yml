@@ -1,0 +1,29 @@
+#!/usr/bin/ansible-playbook
+#
+# Deploy Cluster Operator to a development cluster.
+#
+# Wraps the main deploy-playbook.yaml and adds additional performs additional
+# devel specific tasks.
+---
+
+# Perform a normal deployment:
+- import_playbook: deploy-playbook.yaml
+
+- hosts: localhost
+  connection: local
+  gather_facts: no
+  vars:
+    # Namespace to deploy CO to:
+    cluster_operator_namespace: "openshift-cluster-operator"
+  tasks:
+
+  - name: deploy development cluster versions once our apiserver is up
+    shell: "oc process -f {{ playbook_dir }}/../examples/cluster-versions-template.yaml -o yaml | oc apply -f -"
+    # Wait up to 2 minutes for our apiserver to be accepting our types:
+    register: result
+    until: result.rc == 0
+    retries: 24
+    delay: 5
+
+  - name: deploy playbook-mock for testing with fake-openshift-ansible
+    shell: "oc apply -n {{ cluster_operator_namespace }} -f {{ playbook_dir }}/../examples/deploy-playbook-mock.yaml"

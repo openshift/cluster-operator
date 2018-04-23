@@ -1,0 +1,56 @@
+---
+apiVersion: v1
+kind: Template
+metadata:
+  name: cluster-versions-template
+
+parameters:
+- name: CLUSTER_VERSION_NS
+  displayName: Cluster Version Namespace
+  description: Namespace where cluster verions should live
+  value: openshift-cluster-operator
+- name: ANSIBLE_IMAGE
+  displayName: Openshift Ansible Image
+  description: Name and tag of the Openshift Ansible image to use to run the ansible jobs
+  value: "cluster-operator-ansible:canary"
+- name: ANSIBLE_IMAGE_PULL_POLICY
+  displayName: Openshift Ansible Image Pull Policy
+  description: Policy to use when pulling the Openshift Ansible image
+  value: "Always"
+
+objects:
+
+- apiVersion: clusteroperator.openshift.io/v1alpha1
+  kind: ClusterVersion
+  metadata:
+    name: origin-v3-10
+    namespace: ${CLUSTER_VERSION_NS}
+  spec:
+    imageFormat: "openshift/origin-${component}:v3.10.0"
+    vmImages:
+      awsVMImages:
+        regionAMIs:
+        - region: us-east-1
+          ami: ami-0e8468df91f4e8b6c
+    deploymentType: origin
+    version: "v3.10.0"
+    # TODO: Update after jdiaz incoming work is merged:
+    openshiftAnsibleImage: cluster-operator-ansible:canary
+    openshiftAnsibleImagePullPolicy: Never
+
+- apiVersion: clusteroperator.openshift.io/v1alpha1
+  kind: ClusterVersion
+  metadata:
+    name: origin-v3-10-fake
+    namespace: ${CLUSTER_VERSION_NS}
+  spec:
+    imageFormat: "openshift/origin-${component}:v3.10.0"
+    vmImages:
+      awsVMImages:
+        regionAMIs:
+        - region: us-east-1
+          ami: ami-0e8468df91f4e8b6c
+    deploymentType: origin
+    version: "v3.10.0"
+    openshiftAnsibleImage: fake-openshift-ansible:canary
+    openshiftAnsibleImagePullPolicy: Never

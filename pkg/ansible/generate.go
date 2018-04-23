@@ -222,7 +222,9 @@ openshift_aws_create_s3: false
 # custom certificates are required for the ELB
 openshift_aws_iam_cert_path: /ansible/ssl/server.crt
 openshift_aws_iam_cert_key_path: /ansible/ssl/server.key
-openshift_aws_iam_cert_chain_path: /ansible/ssl/ca.crt
+
+# TODO: WARNING: set when we're not using self-signed certs
+#openshift_aws_iam_cert_chain_path: /ansible/ssl/ca.crt
 
 openshift_aws_create_iam_role: True
 openshift_node_use_instance_profiles: True
