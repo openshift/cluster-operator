@@ -12,18 +12,28 @@
 - hosts: localhost
   connection: local
   gather_facts: no
+  roles:
+    - kubectl-ansible
   vars:
     # Namespace to deploy CO to:
     cluster_operator_namespace: "openshift-cluster-operator"
   tasks:
 
-  - name: deploy development cluster versions once our apiserver is up
-    shell: "oc process -f {{ playbook_dir }}/../examples/cluster-versions-template.yaml -o yaml | oc apply -f -"
-    # Wait up to 2 minutes for our apiserver to be accepting our types:
+  - name: process cluster versions template
+    oc_process:
+      template_file: "{{ playbook_dir }}/../examples/cluster-versions-template.yaml"
+    register: cluster_versions_reg
+
+  - name: wait for our apiserver and create/update cluster versions
+    kubectl_apply:
+      definition: "{{ cluster_versions_reg.result | to_json }}"
     register: result
-    until: result.rc == 0
+    # Wait up to 2 minutes for our apiserver to be accepting our types:
+    until: result.failed == false
     retries: 24
     delay: 5
 
-  - name: deploy playbook-mock for testing with fake-openshift-ansible
-    shell: "oc apply -n {{ cluster_operator_namespace }} -f {{ playbook_dir }}/../examples/deploy-playbook-mock.yaml"
+  - name: create/update playbook mock deployment
+    kubectl_apply:
+      namespace: "{{ cluster_operator_namespace }}"
+      src: "{{ playbook_dir }}/../examples/deploy-playbook-mock.yaml"

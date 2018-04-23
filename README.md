@@ -7,9 +7,8 @@
   * Install required packages:
     * Fedora: `sudo dnf install golang make docker ansible`
     * Mac OSX:
-      * [Go](https://golang.org/doc/install#osx) 
+      * [Go](https://golang.org/doc/install#osx)
       * [Ansible](http://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html#latest-releases-via-pip)
-    * NOTE: Ansible 2.5+ is required to run our deployment playbooks.
   * Change docker to allow insecure pulls (required for `oc cluster up`):
     * Edit `/etc/sysconfig/docker`
     * Change `OPTIONS=` to include `--insecure-registry 172.30.0.0/16`

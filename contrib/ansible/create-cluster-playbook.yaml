@@ -15,7 +15,7 @@
     # ID for your cluster, defaults to current username:
     cluster_name: "{{ lookup ('env', 'USER') }}"
 
-    # ClusterVersion to install, default to fake so we don't actually create a cluster unless user
+    # ClusterVersion to use, default to fake so we don't actually create a cluster unless user
     # explicitly opts-in:
     cluster_version: origin-v3-10-fake
 
@@ -43,6 +43,9 @@
     # in the cert dir defined above.
     cluster_ca_name: ca
 
+  roles:
+    - kubectl-ansible
+
   tasks:
 
   # If no cluster_namespace was defined on the CLI, we want to create the cluster in the current:
@@ -62,11 +65,12 @@
     changed_when: false
 
   - name: create cluster namespace
-    k8s_raw:
-      name: "{{ cluster_namespace }}"
-      api_version: v1
-      kind: Namespace
-      state: present
+    kubectl_apply:
+      definition:
+        kind: "Namespace"
+        apiVersion: v1
+        metadata:
+          name: "{{ cluster_namespace }}"
 
   - name: check for password-protected ssh key
     command: "grep ENCRYPTED {{ ssh_priv_key }}"
@@ -111,5 +115,21 @@
       l_aws_secret_access_key: "{{ lookup('ini', 'aws_secret_access_key section=' + aws_creds_section + ' file=' + aws_creds_file) | b64encode }}"
       l_aws_ssh_private_key: "{{ lookup('file', ssh_priv_key) | b64encode }}"
 
-  - name: create the cluster
-    shell: "oc process -f {{ playbook_dir }}/../examples/cluster-template.yaml -p CLUSTER_NAME={{ cluster_name }} -p CLUSTER_NAMESPACE={{ cluster_namespace }} -p CLUSTER_VERSION={{ cluster_version }} -p CLUSTER_VERSION_NAMESPACE={{ cluster_version_namespace }} -p CLUSTER_CERT={{ l_cluster_cert }} -p CLUSTER_PRIVATE_KEY={{ l_cluster_cert_key }} -p AWS_ACCESS_KEY_ID={{ l_aws_access_key_id }} -p AWS_SECRET_ACCESS_KEY={{ l_aws_secret_access_key }} -p SSH_KEY={{ l_aws_ssh_private_key }} -o yaml | oc apply -f -"
+  - name: process cluster template
+    oc_process:
+      template_file: "{{ playbook_dir }}/../examples/cluster-template.yaml"
+      parameters:
+        CLUSTER_NAME: "{{ cluster_name }}"
+        CLUSTER_NAMESPACE: "{{ cluster_namespace }}"
+        CLUSTER_VERSION: "{{ cluster_version }}"
+        CLUSTER_VERSION_NAMESPACE: "{{ cluster_version_namespace }}"
+        CLUSTER_CERT: "{{ l_cluster_cert }}"
+        CLUSTER_PRIVATE_KEY: "{{ l_cluster_cert_key }}"
+        AWS_ACCESS_KEY_ID: "{{ l_aws_access_key_id }}"
+        AWS_SECRET_ACCESS_KEY: "{{ l_aws_secret_access_key }}"
+        SSH_KEY: "{{ l_aws_ssh_private_key }}"
+    register: cluster_reg
+
+  - name: create/update cluster
+    kubectl_apply:
+      definition: "{{ cluster_reg.result | to_json }}"

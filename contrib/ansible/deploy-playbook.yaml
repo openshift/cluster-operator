@@ -28,17 +28,20 @@
     # in the cert dir defined above.
     apiserver_ca_name: ca
 
+  roles:
+    - kubectl-ansible
   tasks:
   - set_fact:
       cluster_operator_namespace: "{{ cli_cluster_operator_namespace }}"
     when: cli_cluster_operator_namespace is defined
 
-  - name: create cluster-operator namespace
-    k8s_raw:
-      name: "{{ cluster_operator_namespace }}"
-      api_version: v1
-      kind: Namespace
-      state: present
+  - name: create the cluster operator namespace
+    kubectl_apply:
+      definition:
+        kind: "Namespace"
+        apiVersion: v1
+        metadata:
+          name: "{{ cluster_operator_namespace }}"
 
   - name: check if apiserver cert secret exists
     command: "oc get secret cluster-operator-apiserver-cert -n {{ cluster_operator_namespace }}"
@@ -82,8 +85,7 @@
     when: redeploy_apiserver_cert | bool
 
   - name: create apiserver cert secret
-    k8s_raw:
-      state: present
+    kubectl_apply:
       definition:
         # Secret to pass the SSL certs to the API Server
         apiVersion: v1
@@ -109,10 +111,27 @@
   - set_fact:
       l_serving_ca: "{{ (cluster_cert_secret_reg.stdout | from_json)['data']['ca.crt'] }}"
 
-  - name: deploy cluster operator service accounts, roles and bindings
-    shell: "oc process -f {{ playbook_dir }}/../examples/cluster-operator-roles-template.yaml -o yaml -p CLUSTER_OPERATOR_NAMESPACE={{ cluster_operator_namespace }} | oc apply -f -"
+  - name: process authentication template
+    oc_process:
+      template_file: "{{ playbook_dir }}/../examples/cluster-operator-roles-template.yaml"
+      parameters:
+        CLUSTER_OPERATOR_NAMESPACE: "{{ cluster_operator_namespace }}"
+    register: auth_reg
     when: deploy_roles | bool
 
-  - name: deploy application template
-    shell: "oc process -f {{ playbook_dir }}/../examples/cluster-operator-template.yaml -o yaml -p CLUSTER_OPERATOR_NAMESPACE={{ cluster_operator_namespace }} -p SERVING_CA={{ l_serving_ca }} | oc apply -f -"
+  - name: deploy authentication objects
+    kubectl_apply:
+      definition: "{{ auth_reg.result | to_json }}"
+    when: deploy_roles | bool
 
+  - name: process cluster operator application template
+    oc_process:
+      template_file: "{{ playbook_dir }}/../examples/cluster-operator-template.yaml"
+      parameters:
+        CLUSTER_OPERATOR_NAMESPACE: "{{ cluster_operator_namespace }}"
+        SERVING_CA: "{{ l_serving_ca }}"
+    register: cluster_app_reg
+
+  - name: deploy cluster operator
+    kubectl_apply:
+      definition: "{{ cluster_app_reg.result | to_json }}"
