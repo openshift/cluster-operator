@@ -37,7 +37,7 @@
 
   * Compile the Go code and create the Cluster Operator images (both Go and Ansible):
     * `make images`
-  * Deploy cluster operator to the OpenShift cluster you're currently logged into:
+  * Deploy cluster operator to the OpenShift cluster you are currently logged into. (see above for oc login example)
     * `ansible-playbook contrib/ansible/deploy-devel-playbook.yaml`
   * If your code/image changed, but the kubernetes config did not (which is usually the case), you should delete pods appropriately:
     * `oc delete pod -l app=cluster-operator-controller-manager`
@@ -47,9 +47,9 @@
 
   * `ansible-playbook contrib/ansible/create-cluster-playbook.yaml`
     * This will create a cluster named after your username in your current context's namespace, using a fake ClusterVersion. (no actual resources will be provisioned, the Ansible image used will just verify the playbook called exists, and return indicating success)
-    * Specify `-e cluster_version` to use a real cluster version and provision an actual cluster in AWS. (see `oc get clusterversions` for list of the defaults we create)
+    * Specify `-e cluster_version` to use a real cluster version and provision an actual cluster in AWS. (see `oc get clusterversions -n openshift-cluster-operator` for list of the defaults we create)
     * Specify `-e cluster_name`, '-e cluster_namespace`, or other variables you can override as defined at the top of the playbook.
-    * This command can be re-run to update the definition of the cluster and test how the cluster operator will respond to changed. (WARNING: do not try to change the name/namespace, as this will create a new cluster)
+    * This command can be re-run to update the definition of the cluster and test how the cluster operator will respond to the change. (WARNING: do not try to change the name/namespace, as this will create a new cluster)
 
 ## Developing With OpenShift Ansible
 
