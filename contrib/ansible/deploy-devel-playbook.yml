@@ -16,6 +16,13 @@
     # Namespace to deploy CO to:
     cluster_operator_namespace: "openshift-cluster-operator"
   tasks:
+  - name: wait for apiserver deployment to finish
+    command: |-
+      oc rollout status deploymentconfig/cluster-operator-apiserver -n {{ cluster_operator_namespace | quote }}
+
+  - name: wait for controller-manager deployment to finish
+    command: |-
+      oc rollout status deploymentconfig/cluster-operator-controller-manager -n {{ cluster_operator_namespace | quote }}
 
   - import_role:
       name: kubectl-ansible
