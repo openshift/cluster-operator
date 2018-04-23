@@ -72,6 +72,7 @@ func NewCMServer() *CMServer {
 			ConcurrentAcceptSyncs:           defaultConcurrentSyncs,
 			ConcurrentComponentSyncs:        defaultConcurrentSyncs,
 			ConcurrentNodeConfigSyncs:       defaultConcurrentSyncs,
+			ConcurrentSyncMachineSetSyncs:   defaultConcurrentSyncs,
 			ConcurrentDeployClusterAPISyncs: defaultConcurrentSyncs,
 			LeaderElection:                  leaderelectionconfig.DefaultLeaderElectionConfiguration(),
 			LeaderElectionNamespace:         defaultLeaderElectionNamespace,
@@ -107,6 +108,7 @@ func (s *CMServer) AddFlags(fs *pflag.FlagSet, allControllers []string, disabled
 	fs.Int32Var(&s.ConcurrentAcceptSyncs, "concurrent-accept-syncs", s.ConcurrentAcceptSyncs, "The number of machine set objects that are allowed to accept concurrently. Larger number = more responsive accept jobs, but more CPU (and network) load")
 	fs.Int32Var(&s.ConcurrentComponentSyncs, "concurrent-component-syncs", s.ConcurrentComponentSyncs, "The number of master machine set objects that are allowed to install components concurrently. Larger number = more responsive accept jobs, but more CPU (and network) load")
 	fs.Int32Var(&s.ConcurrentNodeConfigSyncs, "concurrent-nodeconfig-syncs", s.ConcurrentNodeConfigSyncs, "The number of clusters that are allowed to configure the node config daemonset concurrently. Larger number = more responsive node config jobs, but more CPU (and network) load")
+	fs.Int32Var(&s.ConcurrentSyncMachineSetSyncs, "concurrent-syncmachineset-syncs", s.ConcurrentSyncMachineSetSyncs, "The number of machine sets we can sync to remote clusters concurrently. Larger number = more responsive node config jobs, but more CPU (and network) load")
 	fs.Int32Var(&s.ConcurrentDeployClusterAPISyncs, "concurrent-deploy-cluster-api-syncs", s.ConcurrentDeployClusterAPISyncs, "The number of master machine set objects that are allowed to install the upstream cluster API controllers concurrently. Larger number = more responsive accept jobs, but more CPU (and network) load")
 	fs.BoolVar(&s.EnableProfiling, "profiling", s.EnableProfiling, "Enable profiling via web interface host:port/debug/pprof/")
 	fs.BoolVar(&s.EnableContentionProfiling, "contention-profiling", s.EnableContentionProfiling, "Enable lock contention profiling, if profiling is enabled")
