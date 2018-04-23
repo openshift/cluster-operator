@@ -1,0 +1,107 @@
+#
+# Sample playbook demonstrating the various ways you can use the kubectl apply wrapper module.
+#
+# This playbook will create a test namespace and clean it up after execution.
+---
+- hosts: localhost
+  gather_facts: false
+  connection: local
+  roles:
+    - kubectl-ansible
+  vars:
+    kubeconfig_file: /home/dgoodwin/.kube/config
+  tasks:
+  # TODO: for some reason kubectl apply thinks always considers this yaml def "changed", even
+  # if you run it from CLI with a separate file.
+  - name: Create a namespace from inline yaml with kubeconfig file path
+    kubectl_apply:
+      # Optional, default will try to use ~/.kube/config
+      kubeconfig:
+        # Kubeconfig file on the remote host:
+        file: "{{ kubeconfig_file }}"
+      #context: cluster-operator/127-0-0-1:8443/system:admin
+      definition:
+        kind: "Namespace"
+        apiVersion: v1
+        metadata:
+          name: testnamespace
+    register: ns_apply_reg
+
+  - debug: var=ns_apply_reg
+
+  # Use a kubeconfig and configmap definition from the local control host filesystem:
+  - name: Create configmap with inline kubeconfig and configmap file on Ansible controller filesystem
+    kubectl_apply:
+      kubeconfig:
+        # TODO: sync up with k8s_raw authors here, is inline/local kubeconfig worth implementing?
+        inline: "{{ lookup('file', kubeconfig_file) }}"
+      namespace: testnamespace
+      definition: "{{ lookup('file', 'configmap.yml') | from_yaml }}"
+    register: ns_apply_reg
+
+  - debug: var=ns_apply_reg
+
+  - name: Create configmap with inline kubeconfig and remote configmap file
+    kubectl_apply:
+      kubeconfig:
+        # TODO: sync up with k8s_raw authors here, is inline/local kubeconfig worth implementing?
+        inline: "{{ lookup('file', kubeconfig_file) }}"
+      namespace: testnamespace
+      src: files/configmap2.yml
+    register: config2_reg
+
+  - debug: var=config2_reg
+
+  - name: Process a template file on the remote filesystem
+    oc_process:
+      kubeconfig:
+        file: "{{ kubeconfig_file }}"
+      template_file: files/template1.yml
+      parameters:
+        SECRET_NAME: template1secret
+        KEY: "{{ 'key1' | b64encode }}"
+        VALUE: "{{ 'value1' | b64encode }}"
+    register: template1_out
+
+  - debug: var=template1_out
+  - debug: var=template1_out.result
+
+  - name: Apply the template
+    kubectl_apply:
+      kubeconfig:
+        file: "{{ kubeconfig_file }}"
+      namespace: testnamespace
+      definition: "{{ template1_out.result | to_json }}"
+    register: template1_apply_result
+
+  - debug: var=template1_apply_result
+
+
+  - name: Process a template file on the Ansible controller filesystem
+    oc_process:
+      kubeconfig:
+        file: "{{ kubeconfig_file }}"
+      template_definition: "{{ lookup('file', 'template1.yml') | from_yaml }}"
+      parameters:
+        SECRET_NAME: template2secret
+        KEY: "{{ 'key2' | b64encode }}"
+        VALUE: "{{ 'value2' | b64encode }}"
+    register: template2_out
+
+  - debug: var=template2_out
+
+  - name: Apply the template
+    kubectl_apply:
+      kubeconfig:
+        file: "{{ kubeconfig_file }}"
+      namespace: testnamespace
+      definition: "{{ template2_out.result | to_json }}"
+    register: template2_apply_result
+
+  - debug: var=template2_apply_result
+
+  #- name: Cleanup testnamespace
+    #k8s_raw:
+      #state: absent
+      #kind: Namespace
+      #name: testnamespace
