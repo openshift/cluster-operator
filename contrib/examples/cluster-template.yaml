@@ -106,3 +106,4 @@ objects:
     - shortName: compute
       nodeType: Compute
       size: 1
+
