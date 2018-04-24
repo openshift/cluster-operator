@@ -1,0 +1,9 @@
+---
+# These files are implied by the ca/cert names given when calling the role, they cannot be changed:
+l_ca_setup_file: "{{ certgen_cert_dir }}/{{ certgen_ca_name }}-setup.json"
+l_ca_config_file: "{{ certgen_cert_dir }}/{{ certgen_ca_name }}-config.json"
+l_ca_file: "{{ certgen_cert_dir }}/{{ certgen_ca_name }}.pem"
+l_ca_key_file: "{{ certgen_cert_dir }}/{{ certgen_ca_name }}-key.pem"
+
+l_cert_config_file: "{{ certgen_cert_dir }}/{{ certgen_cert_name }}-config.json"
+l_cert_file: "{{ certgen_cert_dir }}/{{ certgen_cert_name }}.pem"

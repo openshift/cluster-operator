@@ -1,0 +1,16 @@
+{
+    "hosts": [ {{ certgen_alt_names }} ],
+    "key": {
+        "algo": "rsa",
+        "size": 2048
+    },
+    "names": [
+        {
+            "C": "US",
+            "L": "san jose",
+            "O": "kube",
+            "OU": "WWW",
+            "ST": "California"
+        }
+    ]
+}

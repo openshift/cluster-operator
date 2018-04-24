@@ -22,12 +22,5 @@ contrib/examples/*-cluster.yaml
 .kube
 .var
 .vscode
-apiserver-key.pem
-apiserver.csr
-apiserver.pem
-cluster-operator-ca.json
-ca-key.pem
-ca.csr
-ca.pem
-server-ca-config.json
 *.retry
+certs/**

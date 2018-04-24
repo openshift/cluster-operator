@@ -22,6 +22,12 @@
     # These are separated for deployments where a cluster admin may need to set these up one time,
     # but users with lesser permissions can maintain the actual deployment itself.
     deploy_roles: True
+    # Paths where we will generate self-signed certs for the apiserver cluster.
+    apiserver_cert_dir: "{{ playbook_dir }}/../../certs"
+    # This CA will be generated once and then re-used for all certs. Will be created
+    # in the cert dir defined above.
+    apiserver_ca_name: ca
+
   tasks:
   - set_fact:
       cluster_operator_namespace: "{{ cli_cluster_operator_namespace }}"
@@ -44,23 +50,30 @@
       redeploy_apiserver_cert: True
     when: apiserver_cert_exists_reg.rc > 0 and "NotFound" in apiserver_cert_exists_reg.stderr
 
-  # TODO: replace with openssl_certificate but watch out for need for a CA
-  - name: generate apiserver certs
-    command: "{{ playbook_dir }}/../apiserver-aggregation-tls-setup.sh"
-    args:
-      # ensure these land in the top level of the project where expected
-      chdir: "{{ playbook_dir }}/../../"
-      # only runs if this file does not exist in top level of the git repo.
-      creates: "{{ playbook_dir }}/../../apiserver.pem"
-    when: redeploy_apiserver_cert | bool
+  - include_role:
+      name: cluster_operator_certgen
+    vars:
+      certgen_cert_dir: "{{ apiserver_cert_dir }}"
+      certgen_ca_name: "{{ apiserver_ca_name }}"
+      certgen_cert_name: "apiserver"
+      certgen_cn: cluster-operator-apiserver
+      certgen_alt_names: "\"cluster-operator-apiserver.{{ cluster_operator_namespace }}\",\"cluster-operator-apiserver.{{ cluster_operator_namespace }}.svc\""
+
+  # These are expected locations of the files given the directory and names provided when
+  # we called the role.
+  - name: set implicit cert path facts
+    set_fact:
+      apiserver_cert_path: "{{ apiserver_cert_dir }}/apiserver.pem"
+      apiserver_privatekey_path: "{{ apiserver_cert_dir }}/apiserver-key.pem"
+      apiserver_ca_path: "{{ apiserver_cert_dir }}/{{ apiserver_ca_name }}.pem"
 
   - set_fact:
       # base-64-encoded, pem CA cert for the ssl certs
-      l_serving_ca: "{{ lookup('file', playbook_dir + '/../../ca.pem') | b64encode }}"
+      l_serving_ca: "{{ lookup('file', apiserver_ca_path) | b64encode }}"
       # base-64-encoded, pem cert to use for ssl communication with the Cluster Operator API Server
-      l_serving_cert: "{{ lookup('file', playbook_dir + '/../../apiserver.pem') | b64encode }}"
+      l_serving_cert: "{{ lookup('file', apiserver_cert_path) | b64encode }}"
       # base-64-encoded, pem private key for the cert to use for ssl communication with the Cluster Operator API Server.
-      l_serving_key: "{{ lookup('file', playbook_dir + '/../../apiserver-key.pem') | b64encode }}"
+      l_serving_key: "{{ lookup('file', apiserver_privatekey_path) | b64encode }}"
     when: redeploy_apiserver_cert | bool
 
   - name: create apiserver cert secret
