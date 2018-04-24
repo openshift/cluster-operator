@@ -1,0 +1,54 @@
+---
+- name: check if CA needs to be generated
+  stat:
+    path: "{{ l_ca_file }}"
+  register: ca_stat
+
+- name: write CA setup json
+  template:
+    src: ca-setup.json.j2
+    dest: "{{ l_ca_setup_file }}"
+  when: not ca_stat.stat.exists
+
+- name: write CA config json
+  copy:
+    src: ca-config.json
+    dest: "{{ l_ca_config_file }}"
+  when: not ca_stat.stat.exists
+
+- name: generate CA
+  shell: "cfssl genkey --initca {{ l_ca_setup_file }} | cfssljson -bare {{ certgen_ca_name }}"
+  args:
+    chdir: "{{ certgen_cert_dir }}"
+  when: not ca_stat.stat.exists
+
+- name: check if cert needs to be generated
+  stat:
+    path: "{{ l_cert_file }}"
+  register: cert_stat
+
+- name: write cert config json
+  template:
+    src: cert-config.json.j2
+    dest: "{{ l_cert_config_file }}"
+  when: not cert_stat.stat.exists
+
+- name: generate cert
+  shell: "cfssl gencert -ca={{ l_ca_file }} -ca-key={{ l_ca_key_file }} -config={{ l_ca_config_file }} {{ l_cert_config_file }} | cfssljson -bare {{ certgen_cert_name }}"
+  args:
+    chdir: "{{ certgen_cert_dir }}"
+  when: not cert_stat.stat.exists
+
+- name: cleanup temporary files
+  file:
+    path: "{{ item }}"
+    state: absent
+  with_items:
+    - "{{ l_ca_setup_file }}"
+    - "{{ l_cert_config_file }}"
+    - "{{ certgen_cert_dir }}/{{ certgen_cert_name }}.csr"
+    - "{{ certgen_cert_dir }}/{{ certgen_ca_name }}.csr"
+
+
+
+

@@ -37,9 +37,11 @@
 
     # Paths where we will generate self-signed certs for the specific cluster. (probably don't need to
     # override these but if you wanted to use pre-existing certs you could)
-    cluster_cert_path: "{{ playbook_dir }}/../../certs/{{ cluster_name }}.pem"
-    cluster_privatekey_path: "{{ playbook_dir }}/../../certs/{{ cluster_name }}-key.pem"
-    cluster_csr_path: "{{ playbook_dir }}/../../certs/{{ cluster_name }}.csr"
+    cluster_cert_dir: "{{ playbook_dir }}/../../certs"
+
+    # This CA will be generated once and then re-used for all certs. Will be created
+    # in the cert dir defined above.
+    cluster_ca_name: ca
 
   tasks:
 
@@ -82,25 +84,22 @@
       path: "{{ playbook_dir }}/../../certs/"
       state: directory
 
-  - name: generate cluster privatekey
-    openssl_privatekey:
-      path: "{{ cluster_privatekey_path }}"
+  - include_role:
+      name: cluster_operator_certgen
+    vars:
+      certgen_cert_dir: "{{ cluster_cert_dir }}"
+      certgen_ca_name: "{{ cluster_ca_name }}"
+      certgen_cert_name: "{{ cluster_name }}"
+      # TODO: do something meaningful here?
+      certgen_cn: "{{ cluster_name }}"
+      certgen_alt_names: "\"{{ cluster_name }}.{{ cluster_namespace }}\",\"{{ cluster_name }}.{{ cluster_namespace }}.svc\""
 
-  - name: generate cluster CSR
-    openssl_csr:
-      path: "{{ cluster_csr_path }}"
-      privatekey_path: "{{ cluster_privatekey_path }}"
-      # TODO: these were previously junk (re-using our apiserver certs), but can we do something meaningful here?
-      common_name: "{{ cluster_name }}.example.com"
-      #subject_alt_name:
-        #- "{{ cluster_name }}"
-
-  - name: generate cluster cert
-    openssl_certificate:
-      path: "{{ cluster_cert_path }}"
-      privatekey_path: "{{ cluster_privatekey_path }}"
-      csr_path: "{{ cluster_csr_path }}"
-      provider: selfsigned
+  # These are expected locations of the files given the directory and names provided when
+  # we called the role.
+  - name: set implicit cert path facts
+    set_fact:
+      cluster_cert_path: "{{ cluster_cert_dir }}/{{ cluster_name }}.pem"
+      cluster_privatekey_path: "{{ cluster_cert_dir }}/{{ cluster_name }}-key.pem"
 
   - name: load cluster certs, keys and credentials
     set_fact:
