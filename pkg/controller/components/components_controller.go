@@ -26,6 +26,7 @@ import (
 	v1batch "k8s.io/api/batch/v1"
 	kapi "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	batchinformers "k8s.io/client-go/informers/batch/v1"
@@ -310,6 +311,16 @@ func (s *jobSyncStrategy) GetLastJobSuccess(owner metav1.Object) *time.Time {
 	return nil
 }
 
+func (s *jobSyncStrategy) getInfraCount(machineSet *clusteroperator.MachineSet) (int, error) {
+	msList, _ := s.controller.machineSetsLister.MachineSets(machineSet.Namespace).List(labels.Everything())
+	for _, ms := range msList {
+		if ms.Spec.Infra && ms.ClusterName == machineSet.ClusterName {
+			return ms.Spec.Size, nil
+		}
+	}
+	return 0, fmt.Errorf("no machineset of type Infra found")
+}
+
 func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object, deleting bool) (controller.JobFactory, error) {
 	if deleting {
 		return nil, fmt.Errorf("should not be undoing on deletes")
@@ -318,13 +329,17 @@ func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object, deleting bool) (con
 	if !ok {
 		return nil, fmt.Errorf("could not convert owner from JobSync into a machineset")
 	}
+	infraSize, err := s.getInfraCount(machineSet)
+	if err != nil {
+		return nil, err
+	}
 	return jobFactory(func(name string) (*v1batch.Job, *kapi.ConfigMap, error) {
 		cvRef := machineSet.Spec.ClusterVersionRef
 		cv, err := s.controller.client.Clusteroperator().ClusterVersions(cvRef.Namespace).Get(cvRef.Name, metav1.GetOptions{})
 		if err != nil {
 			return nil, nil, err
 		}
-		vars, err := ansible.GenerateClusterWideVarsForMachineSet(machineSet, cv)
+		vars, err := ansible.GenerateClusterWideVarsForMachineSetWithInfraSize(machineSet, cv, infraSize)
 		if err != nil {
 			return nil, nil, err
 		}

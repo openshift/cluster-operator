@@ -91,6 +91,8 @@ openshift_master_bootstrap_enabled: True
 
 openshift_hosted_router_wait: False
 openshift_hosted_registry_wait: False
+# cap to size 1 instead of .InfraSize while we use PV-backed registry storage
+#openshift_hosted_registry_replicas: "{{ [ [[ .InfraSize ]], 2 ] | min }}"
 openshift_hosted_registry_replicas: 1
 
 # Override router edits to set the ROUTER_USE_PROXY_PROTOCOL
@@ -329,6 +331,7 @@ type clusterParams struct {
 	SSHUser        string
 	VPCDefaults    string
 	DeploymentType coapi.ClusterDeploymentType
+	InfraSize      int
 }
 
 type machineSetParams struct {
@@ -344,15 +347,33 @@ type clusterVersionParams struct {
 	ImageFormat string
 }
 
+func getInfraSize(cluster *coapi.Cluster) (int, error) {
+	// find the 'infra' machineset and return its size
+	for _, ms := range cluster.Spec.MachineSets {
+		if ms.Infra {
+			return ms.Size, nil
+		}
+	}
+
+	return 0, fmt.Errorf("no machineset of type Infra found")
+}
+
 // GenerateClusterVars generates the vars to pass to the ansible playbook
 // for the cluster.
 func GenerateClusterVars(cluster *coapi.Cluster, clusterVersionSpec *coapi.ClusterVersionSpec) (string, error) {
-	return GenerateClusterWideVars(cluster.Name, &cluster.Spec.Hardware, clusterVersionSpec)
+	infraSize, err := getInfraSize(cluster)
+	if err != nil {
+		return "", err
+	}
+	return GenerateClusterWideVars(cluster.Name, &cluster.Spec.Hardware, clusterVersionSpec, infraSize)
 }
 
 // GenerateClusterWideVars generates the vars to pass to the ansible playbook
 // that are set at the cluster level.
-func GenerateClusterWideVars(name string, hardwareSpec *coapi.ClusterHardwareSpec, clusterVersionSpec *coapi.ClusterVersionSpec) (string, error) {
+func GenerateClusterWideVars(name string,
+	hardwareSpec *coapi.ClusterHardwareSpec,
+	clusterVersionSpec *coapi.ClusterVersionSpec,
+	infraSize int) (string, error) {
 
 	// Currently only AWS is supported. If we don't have an AWS cluster spec, return an error
 	if hardwareSpec.AWS == nil {
@@ -372,6 +393,7 @@ func GenerateClusterWideVars(name string, hardwareSpec *coapi.ClusterHardwareSpe
 		SSHUser:        hardwareSpec.AWS.SSHUser,
 		VPCDefaults:    vpcDefaults,
 		DeploymentType: clusterVersionSpec.DeploymentType,
+		InfraSize:      infraSize,
 	}
 
 	var buf bytes.Buffer
@@ -411,11 +433,21 @@ func convertVersionToRelease(version string) (string, error) {
 // ansible playbook that are set at the cluster level for a machine set in
 // that cluster.
 func GenerateClusterWideVarsForMachineSet(machineSet *coapi.MachineSet, clusterVersion *coapi.ClusterVersion) (string, error) {
+	// since we haven't been passed an infraSize, just assume minimum size of 1
+	return GenerateClusterWideVarsForMachineSetWithInfraSize(machineSet, clusterVersion, 1)
+}
+
+// GenerateClusterWideVarsForMachineSetWithInfraSize generates the vars to pass to the
+// ansible playbook that are set at the cluster level for a machine set in
+// that cluster taking into account the size/count of infra nodes.
+func GenerateClusterWideVarsForMachineSetWithInfraSize(machineSet *coapi.MachineSet,
+	clusterVersion *coapi.ClusterVersion,
+	infraSize int) (string, error) {
 	controllerRef := metav1.GetControllerOf(machineSet)
 	if controllerRef == nil {
 		return "", fmt.Errorf("machineset does not have a controller")
 	}
-	commonVars, err := GenerateClusterWideVars(controllerRef.Name, &machineSet.Spec.ClusterHardware, &clusterVersion.Spec)
+	commonVars, err := GenerateClusterWideVars(controllerRef.Name, &machineSet.Spec.ClusterHardware, &clusterVersion.Spec, infraSize)
 
 	// Layer in the vars that depend on the ClusterVersion:
 	var buf bytes.Buffer
