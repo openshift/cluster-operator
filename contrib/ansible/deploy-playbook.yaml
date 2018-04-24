@@ -50,6 +50,11 @@
       redeploy_apiserver_cert: True
     when: apiserver_cert_exists_reg.rc > 0 and "NotFound" in apiserver_cert_exists_reg.stderr
 
+  - name: ensure certs directory exists
+    file:
+      path: "{{ apiserver_cert_dir }}"
+      state: directory
+
   - include_role:
       name: cluster_operator_certgen
     vars:
