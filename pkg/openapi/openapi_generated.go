@@ -148,6 +148,45 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 			Dependencies: []string{
 				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.AWSRegionAMIs"},
 		},
+		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.AddOnSpec": {
+			Schema: spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Description: "AddOnSpec specifies the post-installation extras to apply to a cluster",
+					Properties: map[string]spec.Schema{
+						"name": {
+							SchemaProps: spec.SchemaProps{
+								Description: "name of addon",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"image": {
+							SchemaProps: spec.SchemaProps{
+								Description: "container image implementing install/upgrade/etc for the addon",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"command": {
+							SchemaProps: spec.SchemaProps{
+								Description: "command to run on container images",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"params": {
+							SchemaProps: spec.SchemaProps{
+								Description: "any parameters that are necessary for the image to perform its tasks",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+					},
+					Required: []string{"name", "image", "command", "params"},
+				},
+			},
+			Dependencies: []string{},
+		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.Cluster": {
 			Schema: spec.Schema{
 				SchemaProps: spec.SchemaProps{
@@ -434,12 +473,25 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Ref:         ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterVersionReference"),
 							},
 						},
+						"addons": {
+							SchemaProps: spec.SchemaProps{
+								Description: "AddOns are post-installation tasks to perform",
+								Type:        []string{"array"},
+								Items: &spec.SchemaOrArray{
+									Schema: &spec.Schema{
+										SchemaProps: spec.SchemaProps{
+											Ref: ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.AddOnSpec"),
+										},
+									},
+								},
+							},
+						},
 					},
 					Required: []string{"hardware", "config", "machineSets", "clusterVersionRef"},
 				},
 			},
 			Dependencies: []string{
-				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterConfigSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterHardwareSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterMachineSet", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterVersionReference", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetHardwareSpec"},
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.AddOnSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterConfigSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterHardwareSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterMachineSet", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterVersionReference", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetHardwareSpec"},
 		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterStatus": {
 			Schema: spec.Schema{
