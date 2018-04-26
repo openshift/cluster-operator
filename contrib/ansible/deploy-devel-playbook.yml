@@ -20,21 +20,9 @@
   - import_role:
       name: kubectl-ansible
 
-  - name: process cluster versions template
-    oc_process:
-      template_file: "{{ playbook_dir }}/../examples/cluster-versions-template.yaml"
-    register: cluster_versions_reg
-
-  - name: wait for our apiserver and create/update cluster versions
-    kubectl_apply:
-      definition: "{{ cluster_versions_reg.result | to_json }}"
-    register: result
-    # Wait up to 2 minutes for our apiserver to be accepting our types:
-    until: result.failed == false
-    retries: 24
-    delay: 5
-
   - name: create/update playbook mock deployment
     kubectl_apply:
       namespace: "{{ cluster_operator_namespace }}"
       src: "{{ playbook_dir }}/../examples/deploy-playbook-mock.yaml"
+
+  - debug: msg="Deployment complete, you may need to push images to the registry or start a build before the Cluster Operator will deploy. (see README.md)"
