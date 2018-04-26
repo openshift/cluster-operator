@@ -7,9 +7,8 @@
   * Install required packages:
     * Fedora: `sudo dnf install golang make docker ansible`
     * Mac OSX:
-      * [Go](https://golang.org/doc/install#osx) 
+      * [Go](https://golang.org/doc/install#osx)
       * [Ansible](http://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html#latest-releases-via-pip)
-    * NOTE: Ansible 2.5+ is required to run our deployment playbooks.
   * Change docker to allow insecure pulls (required for `oc cluster up`):
     * Edit `/etc/sysconfig/docker`
     * Change `OPTIONS=` to include `--insecure-registry 172.30.0.0/16`
@@ -96,3 +95,20 @@ You can then run ansible with the above inventory file and your cluster ID:
 
 `ansible-playbook -i ec2-hosts build/cluster-operator-ansible/playbooks/cluster-operator/node-config-daemonset.yml -e openshift_aws_clusterid=dgoodwin-cluster`
 
+## Maintenance
+
+We're using the Cluster Operator deployment Ansible as a testing ground for the
+kubectl-ansible modules that wrap apply and oc process. These roles are
+vendored in similar to how golang works using a tool called
+[gogitit](https://github.com/dgoodwin/gogitit/). The required gogitit manifest
+and cache are committed, but only the person updating the vendored code needs
+to install the tool or worry about the manifest. For everyone else the roles
+are just available normally and this allows us to not require developers to
+periodically re-run ansible-galaxy install.
+
+Updating the vendored code can be done with:
+
+```
+$ cd contrib/ansible/
+$ gogitit sync
+```
