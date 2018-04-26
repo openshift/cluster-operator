@@ -43,10 +43,10 @@
     # in the cert dir defined above.
     cluster_ca_name: ca
 
-  roles:
-    - kubectl-ansible
-
   tasks:
+
+  - import_role:
+      name: kubectl-ansible
 
   # If no cluster_namespace was defined on the CLI, we want to create the cluster in the current:
   - name: lookup current namespace if none defined

@@ -28,9 +28,9 @@
     # in the cert dir defined above.
     apiserver_ca_name: ca
 
-  roles:
-    - kubectl-ansible
   tasks:
+  - import_role:
+      name: kubectl-ansible
   - set_fact:
       cluster_operator_namespace: "{{ cli_cluster_operator_namespace }}"
     when: cli_cluster_operator_namespace is defined

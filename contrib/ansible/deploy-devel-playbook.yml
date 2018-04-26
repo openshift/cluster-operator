@@ -12,12 +12,13 @@
 - hosts: localhost
   connection: local
   gather_facts: no
-  roles:
-    - kubectl-ansible
   vars:
     # Namespace to deploy CO to:
     cluster_operator_namespace: "openshift-cluster-operator"
   tasks:
+
+  - import_role:
+      name: kubectl-ansible
 
   - name: process cluster versions template
     oc_process:
