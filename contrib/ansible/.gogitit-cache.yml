@@ -1,0 +1,10 @@
+manifest_sha: 0cc69b2bd17096a4ba36540aa579207cf01cc436
+paths: {/home/dgoodwin/go/src/github.com/openshift/cluster-operator/contrib/ansible/roles/kubectl-ansible: !!python/unicode '0f977daf1cbfa4b940c44ec54861eacd9bba2fc1',
+  /home/dgoodwin/go/src/github.com/openshift/cluster-operator/contrib/ansible/roles/kubectl-ansible/defaults: !!python/unicode '0f977daf1cbfa4b940c44ec54861eacd9bba2fc1',
+  /home/dgoodwin/go/src/github.com/openshift/cluster-operator/contrib/ansible/roles/kubectl-ansible/examples: !!python/unicode '0f977daf1cbfa4b940c44ec54861eacd9bba2fc1',
+  /home/dgoodwin/go/src/github.com/openshift/cluster-operator/contrib/ansible/roles/kubectl-ansible/handlers: !!python/unicode '0f977daf1cbfa4b940c44ec54861eacd9bba2fc1',
+  /home/dgoodwin/go/src/github.com/openshift/cluster-operator/contrib/ansible/roles/kubectl-ansible/library: !!python/unicode '0f977daf1cbfa4b940c44ec54861eacd9bba2fc1',
+  /home/dgoodwin/go/src/github.com/openshift/cluster-operator/contrib/ansible/roles/kubectl-ansible/meta: !!python/unicode '0f977daf1cbfa4b940c44ec54861eacd9bba2fc1',
+  /home/dgoodwin/go/src/github.com/openshift/cluster-operator/contrib/ansible/roles/kubectl-ansible/tasks: !!python/unicode '0f977daf1cbfa4b940c44ec54861eacd9bba2fc1',
+  /home/dgoodwin/go/src/github.com/openshift/cluster-operator/contrib/ansible/roles/kubectl-ansible/tests: !!python/unicode '0f977daf1cbfa4b940c44ec54861eacd9bba2fc1',
+  /home/dgoodwin/go/src/github.com/openshift/cluster-operator/contrib/ansible/roles/kubectl-ansible/vars: !!python/unicode '0f977daf1cbfa4b940c44ec54861eacd9bba2fc1'}

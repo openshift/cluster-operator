@@ -1,0 +1,10 @@
+---
+output_dir: ./
+repos:
+- url: https://github.com/dgoodwin/kubectl-ansible.git
+  version: master
+
+  copy:
+
+  - src: ./*
+    dst: roles/kubectl-ansible
