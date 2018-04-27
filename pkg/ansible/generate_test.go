@@ -66,6 +66,32 @@ func testMachineSet() *coapi.MachineSet {
 	}
 }
 
+func testClusterMachineSetBuilder(name string, nodeType coapi.NodeType, infra bool, size int,
+	cluster *coapi.Cluster) *coapi.ClusterMachineSet {
+	return &coapi.ClusterMachineSet{
+		ShortName: name,
+		MachineSetConfig: coapi.MachineSetConfig{
+			NodeType: nodeType,
+			Infra:    infra,
+			Size:     size,
+			Hardware: &coapi.MachineSetHardwareSpec{
+				AWS: &coapi.MachineSetAWSHardwareSpec{
+					InstanceType: "x9large",
+				},
+			},
+		},
+	}
+}
+
+func testClusterWithInfra() *coapi.Cluster {
+	cluster := testCluster()
+	cluster.Spec.MachineSets = []coapi.ClusterMachineSet{
+		*testClusterMachineSetBuilder("master", coapi.NodeTypeMaster, false, 3, cluster),
+		*testClusterMachineSetBuilder("infra", coapi.NodeTypeCompute, true, 2, cluster),
+	}
+	return cluster
+}
+
 func testClusterVersion() *coapi.ClusterVersion {
 	masterAMI := "master-AMI-west"
 	return &coapi.ClusterVersion{
@@ -105,7 +131,7 @@ func TestGenerateClusterVars(t *testing.T) {
 	}{
 		{
 			name:           "cluster",
-			cluster:        testCluster(),
+			cluster:        testClusterWithInfra(),
 			clusterVersion: testClusterVersion(),
 			shouldInclude: []string{
 				"openshift_aws_clusterid: testcluster",
