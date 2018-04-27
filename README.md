@@ -30,25 +30,33 @@
     * Fedora: `oc cluster up --image="docker.io/openshift/origin"`
     * Mac OSX: Follow the Minishift [Getting Started Guide](https://docs.openshift.org/latest/minishift/getting-started/index.html)
     * Note: Startup output will contain the URL to the web console for your openshift cluster, save this for later
-  * Login to the OpenShift cluster as admin:
+  * Login to the OpenShift cluster as system:admin:
     * `oc login -u system:admin`
-  * Grant admin rights to login to the web console
+  * Create an "admin" account with cluster-admin role which you can use to login to the [WebUI](https://localhost:8443) or with oc:
     * `oc adm policy add-cluster-role-to-user cluster-admin admin`
+  * Login to the OpenShift cluster as a normal admin account:
+    * `oc login -u admin -p password`
   * Ensure the following files are available on your local machine:
-    * `$HOME/.aws/credentials` - your AWS credentials
+    * `$HOME/.aws/credentials` - your AWS credentials, default section will be used but can be overridden by vars when running the create cluster playbook.
     * `$HOME/.ssh/libra.pem` - the SSH private key to use for AWS
 
 
 ## Deploy / Re-deploy Cluster Operator
 
-  * Compile the Go code and create the Cluster Operator images (both Go and Ansible):
-    * Mac OSX only: `eval $(minishift docker-env)`
-    * `make images`
-  * Deploy cluster operator to the OpenShift cluster you are currently logged into. (see above for oc login example)
+  * Deploy cluster operator to the OpenShift cluster you are currently logged into. (see above for oc login instructions above)
     * `ansible-playbook contrib/ansible/deploy-devel-playbook.yaml`
-  * If your code/image changed, but the kubernetes config did not (which is usually the case), you should delete pods appropriately:
-    * `oc delete pod -l app=cluster-operator-controller-manager`
-    * Or if you would rather delete all pods including the apiserver (which seldom changes) and our etcd (which would delete your stored clusters): `oc delete pod --all -n openshift-cluster-operator`
+    * This creates an OpenShift BuildConfig and ImageStream for the cluster-operator image. (which does not yet exist)
+  * Compile and push an image.
+    * If you would just like to deploy Cluster Operator from the latest code in git:
+      * `oc start-build cluster-operator`
+    * If you are a developer and would like to quickly compile code locally and deploy to your cluster:
+      * Mac OSX only: `eval $(minishift docker-env)`
+      * `NO_DOCKER=1 make images`
+        * This will compile the go code locally, and build both cluster-operator and cluster-operator-ansible images.
+      * `make integrated-registry-push`
+        * This will attempt to get your current OpenShift whoami token, login to the integrated cluster registry, and push your local images.
+	* This will immediately trigger a deployment now that the images are available.
+    * Re-run these steps to deploy new code as often as you like, once the push completes the ImageStream will trigger a new deployment.
 
 ## Creating a Test Cluster
 

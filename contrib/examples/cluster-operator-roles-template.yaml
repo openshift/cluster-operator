@@ -53,6 +53,62 @@ objects:
     name: cluster-operator-apiserver
     namespace: ${CLUSTER_OPERATOR_NAMESPACE}
 
+# We have to create our openshift-cluster-operator namespace outside of "oc new-project"
+# due to restrictions on project names starting with "openshift-". This results in the default
+# service accounts (namely "deployer") being unable to view ReplicationControllers in the
+# namespace, and thus unable to actually deploy. A controller is incoming to monitor for this.
+#
+# NOTE: may not be required in 3.10, a controller was added to maintain these bindings.
+#
+# Until then we manually bind the deployer/builder service accounts to appropriate roles:
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: RoleBinding
+  metadata:
+    name: "system:deployers"
+    namespace: ${CLUSTER_OPERATOR_NAMESPACE}
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: system:deployer
+  subjects:
+  - apiGroup: ""
+    kind: ServiceAccount
+    name: deployer
+    namespace: ${CLUSTER_OPERATOR_NAMESPACE}
+  #userNames:
+  #- system:serviceaccount:${CLUSTER_OPERATOR_NAMESPACE}:deployer
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: RoleBinding
+  metadata:
+    name: "system:image-builders"
+    namespace: ${CLUSTER_OPERATOR_NAMESPACE}
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: system:image-builder
+  subjects:
+  - apiGroup: ""
+    kind: ServiceAccount
+    name: builder
+    namespace: ${CLUSTER_OPERATOR_NAMESPACE}
+  #userNames:
+  #- system:serviceaccount:${CLUSTER_OPERATOR_NAMESPACE}:builder
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: RoleBinding
+  metadata:
+    name: "system:image-pullers"
+    namespace: ${CLUSTER_OPERATOR_NAMESPACE}
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: system:image-puller
+  subjects:
+  - apiGroup: ""
+    kind: Group
+    name: system:serviceaccounts:${CLUSTER_OPERATOR_NAMESPACE}
+  #userNames:
+  #- system:serviceaccount:${CLUSTER_OPERATOR_NAMESPACE}:deployer
+
 # API Server gets the ability to read authentication. This allows it to
 # read the specific configmap that has the requestheader-* entries to
 # enable api aggregation
@@ -121,3 +177,14 @@ objects:
     name: cluster-operator-controller-manager
     namespace: ${CLUSTER_OPERATOR_NAMESPACE}
 
+# Create a role for the master installer to save a kubeconfig
+# from a managed cluster
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRole
+  metadata:
+    name: "clusteroperator.openshift.io:master-controller"
+  rules:
+  # CRUD secrets with kubeconfig data
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs:     ["create", "delete", "get", "list", "update"]

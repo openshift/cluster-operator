@@ -48,6 +48,17 @@
   - import_role:
       name: kubectl-ansible
 
+  - name: process cluster versions template
+    oc_process:
+      template_file: "{{ playbook_dir }}/../examples/cluster-versions-template.yaml"
+    parameters:
+      CLUSTER_VERSION_NS: "{{ cluster_version_namespace }}"
+    register: cluster_versions_reg
+
+  - name: create/update cluster versions
+    kubectl_apply:
+      definition: "{{ cluster_versions_reg.result | to_json }}"
+
   # If no cluster_namespace was defined on the CLI, we want to create the cluster in the current:
   - name: lookup current namespace if none defined
     command: "oc project -q"

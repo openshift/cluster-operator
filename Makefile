@@ -390,6 +390,17 @@ aws-machine-controller-image: build/aws-machine-controller/Dockerfile $(BINDIR)/
 	docker tag $(AWS_MACHINE_CONTROLLER_IMAGE) $(AWS_MACHINE_CONTROLLER_MUTABLE_IMAGE)
 	docker tag $(AWS_MACHINE_CONTROLLER_IMAGE) $(AWS_MACHINE_CONTROLLER_PUBLIC_IMAGE)
 
+# Push our Docker Images to the integrated registry:
+INTEGRATED_REGISTRY                         ?= 172.30.1.1
+integrated-registry-push:
+	# WARNING: this will fail if logged in as system:admin, see README for creating an "admin" account
+	# you can use separately that will work here:
+	 $(eval OPENSHIFT_TOKEN := $(shell oc whoami -t))
+	docker login -u admin -p $(OPENSHIFT_TOKEN) $(INTEGRATED_REGISTRY):5000
+	# NOTE: the in-cluster ImageStream tag we use is latest:
+	docker tag cluster-operator:$(MUTABLE_TAG) $(INTEGRATED_REGISTRY):5000/openshift-cluster-operator/cluster-operator:latest
+	docker push $(INTEGRATED_REGISTRY):5000/openshift-cluster-operator/cluster-operator:latest
+
 
 # Push our Docker Images to a registry
 ######################################

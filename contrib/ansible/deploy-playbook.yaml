@@ -27,6 +27,9 @@
     # This CA will be generated once and then re-used for all certs. Will be created
     # in the cert dir defined above.
     apiserver_ca_name: ca
+    # Cluster operator git repository to build:
+    cluster_operator_git_repo: "https://github.com/openshift/cluster-operator"
+    cluster_operator_git_ref: master
 
   tasks:
   - import_role:
@@ -130,6 +133,8 @@
       parameters:
         CLUSTER_OPERATOR_NAMESPACE: "{{ cluster_operator_namespace }}"
         SERVING_CA: "{{ l_serving_ca }}"
+        GIT_REPO: "{{ cluster_operator_git_repo }}"
+        GIT_REF: "{{ cluster_operator_git_ref }}"
     register: cluster_app_reg
 
   - name: deploy cluster operator

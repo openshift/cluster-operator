@@ -22,7 +22,12 @@ parameters:
 # Namespace of kube-system. Do not change. Required due to oc process behavior.
 - name: KUBE_SYSTEM_NAMESPACE
   value: kube-system
-
+- name: GIT_REPO
+  description: Cluster Operator git repository the BuildConfig will use.
+  value: https://github.com/openshift/cluster-operator
+- name: GIT_REF
+  description: Cluster Operator git repository branch/tag/commit the BuildConfig will use.
+  value: master
 objects:
 - kind: PersistentVolumeClaim
   apiVersion: v1
@@ -37,9 +42,45 @@ objects:
       requests:
         storage: 1Gi
 
+- kind: ImageStream
+  apiVersion: image.openshift.io/v1
+  metadata:
+    name: cluster-operator
+    namespace: ${CLUSTER_OPERATOR_NAMESPACE}
+  spec: {}
+
+- kind: BuildConfig
+  apiVersion: build.openshift.io/v1
+  metadata:
+    name: cluster-operator
+    namespace: ${CLUSTER_OPERATOR_NAMESPACE}
+  spec:
+    source:
+      type: "Git"
+      git:
+        uri: ${GIT_REPO}
+        ref: ${GIT_REF}
+    strategy:
+      type: "Docker"
+      dockerStrategy:
+        from:
+          kind: DockerImage
+          name: golang:1.9
+        dockerfilePath:
+    output:
+      to:
+        kind: ImageStreamTag
+        name: cluster-operator:latest
+    triggers: []
+    nodeSelector: {}
+    successfulBuildsHistoryLimit: 3
+    failedBuildsHistoryLimit: 3
+  status:
+    lastVersion: 0
+
 # Deployment of the API Server pod
-- apiVersion: apps/v1beta1
-  kind: Deployment
+- kind: DeploymentConfig
+  apiVersion: apps.openshift.io/v1
   metadata:
     name: cluster-operator-apiserver
     namespace: ${CLUSTER_OPERATOR_NAMESPACE}
@@ -47,8 +88,23 @@ objects:
       app: cluster-operator-apiserver
   spec:
     selector:
-      matchLabels:
-        app: cluster-operator-apiserver
+      app: cluster-operator-apiserver
+    replicas: 1
+    revisionHistoryLimit: 4
+    # NOTE: can't do Rolling here yet, the new etcd container can't come up due to a lock on the snap/db
+    # in the persistent volume which is held by the running deployment.
+    strategy:
+      type: Recreate
+    triggers:
+      - type: "ConfigChange"
+      - type: "ImageChange"
+        imageChangeParams:
+          automatic: true
+          containerNames:
+            - "apiserver"
+          from:
+            kind: "ImageStreamTag"
+            name: "cluster-operator:latest"
     template:
       metadata:
         labels:
@@ -65,14 +121,12 @@ objects:
           - http://localhost:2379
           - -v
           - "10"
-          image: cluster-operator:canary
-          command: ["/opt/services/cluster-operator"]
+          image: cluster-operator:latest
           imagePullPolicy: Never
           name: apiserver
           ports:
           - containerPort: 6443
             protocol: TCP
-          resources: {}
           terminationMessagePath: /dev/termination-log
           volumeMounts:
           - mountPath: /var/run/openshift-cluster-operator
@@ -99,6 +153,7 @@ objects:
             successThreshold: 1
             timeoutSeconds: 2
         - name: etcd
+          # TODO: fixed tag here?
           image: quay.io/coreos/etcd:latest
           imagePullPolicy: Always
           resources:
@@ -142,7 +197,6 @@ objects:
             timeoutSeconds: 2
         dnsPolicy: ClusterFirst
         restartPolicy: Always
-        securityContext: {}
         terminationGracePeriodSeconds: 30
         volumes:
         - name: apiserver-ssl
@@ -159,8 +213,8 @@ objects:
             claimName: etcd-storage
 
 # Deployment of the Controller Manager pod
-- kind: Deployment
-  apiVersion: extensions/v1beta1
+- kind: DeploymentConfig
+  apiVersion: apps.openshift.io/v1
   metadata:
     name: cluster-operator-controller-manager
     namespace: ${CLUSTER_OPERATOR_NAMESPACE}
@@ -168,8 +222,19 @@ objects:
       app: cluster-operator-controller-manager
   spec:
     selector:
-      matchLabels:
-        app: cluster-operator-controller-manager
+      app: cluster-operator-controller-manager
+    triggers:
+      - type: "ConfigChange"
+      - type: "ImageChange"
+        imageChangeParams:
+          automatic: true
+          containerNames:
+            - "controller-manager"
+          from:
+            kind: "ImageStreamTag"
+            name: "cluster-operator:latest"
+    replicas: 1
+    revisionHistoryLimit: 4
     template:
       metadata:
         labels:
@@ -178,7 +243,7 @@ objects:
         serviceAccountName: cluster-operator-controller-manager
         containers:
         - name: controller-manager
-          image: cluster-operator:canary
+          image: cluster-operator:latest
           imagePullPolicy: Never
           resources:
             requests:
@@ -258,15 +323,3 @@ objects:
     caBundle: ${SERVING_CA}
     groupPriorityMinimum: 10000
     versionPriority: 20
-
-# Create a role for the master installer to save a kubeconfig
-# from a managed cluster
-- apiVersion: rbac.authorization.k8s.io/v1
-  kind: ClusterRole
-  metadata:
-    name: "clusteroperator.openshift.io:master-controller"
-  rules:
-  # CRUD secrets with kubeconfig data
-  - apiGroups: [""]
-    resources: ["secrets"]
-    verbs:     ["create", "delete", "get", "list", "update"]
