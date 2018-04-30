@@ -36,7 +36,7 @@ import (
 	coapi "github.com/openshift/cluster-operator/pkg/api"
 	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 
-	clusterv1 "k8s.io/kube-deploy/cluster-api/pkg/apis/cluster/v1alpha1"
+	clusterv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 
 	"github.com/openshift/cluster-operator/pkg/clusterapi/aws"
 )
@@ -231,7 +231,9 @@ func testClusterAPIResources(name string) (*clusterv1.Cluster, *clusterv1.Machin
 	// Now define cluster-api resources
 	cluster := clusterv1.Cluster{}
 	cluster.Name = name
-	cluster.Spec.ProviderConfig = serializeCOResource(&coCluster)
+	cluster.Spec.ProviderConfig.Value = &runtime.RawExtension{
+		Raw: []byte(serializeCOResource(&coCluster)),
+	}
 
 	machine := clusterv1.Machine{}
 	machine.Name = name + "-compute-machine-1"

@@ -29,10 +29,10 @@ import (
 
 	"github.com/kubernetes-incubator/apiserver-builder/pkg/controller"
 
-	"k8s.io/kube-deploy/cluster-api/pkg/client/clientset_generated/clientset"
-	"k8s.io/kube-deploy/cluster-api/pkg/controller/config"
-	"k8s.io/kube-deploy/cluster-api/pkg/controller/machine"
-	"k8s.io/kube-deploy/cluster-api/pkg/controller/sharedinformers"
+	"sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
+	"sigs.k8s.io/cluster-api/pkg/controller/config"
+	"sigs.k8s.io/cluster-api/pkg/controller/machine"
+	"sigs.k8s.io/cluster-api/pkg/controller/sharedinformers"
 
 	"github.com/openshift/cluster-operator/pkg/clusterapi/aws"
 )
