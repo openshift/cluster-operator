@@ -377,7 +377,7 @@ playbook-mock-image: build/playbook-mock/Dockerfile $(BINDIR)/playbook-mock
 
 .PHONY: $(CLUSTERAPI_BIN)/apiserver
 $(CLUSTERAPI_BIN)/apiserver: .apiServerBuilderImage
-	mkdir -p $(PWD)/$(CLUSTERAPI_BIN) && docker run --security-opt label:disable -v $(PWD)/$(CLUSTERAPI_BIN):/output --entrypoint=/bin/bash apiserverbuilderimage -c "export GOPATH=/go && mkdir -p /go/src/k8s.io/kube-deploy && cd /go/src/k8s.io/kube-deploy && git clone https://github.com/kubernetes/kube-deploy.git . && cd cluster-api && apiserver-boot build executables --generate=false && cp bin/* /output"
+	mkdir -p $(PWD)/$(CLUSTERAPI_BIN) && docker run --security-opt label:disable -v $(PWD)/$(CLUSTERAPI_BIN):/output --entrypoint=/bin/bash apiserverbuilderimage -c "export GOPATH=/go && mkdir -p /go/src/sigs.k8s.io/cluster-api && cd /go/src/sigs.k8s.io/cluster-api && git clone https://github.com/kubernetes-sigs/cluster-api.git . && apiserver-boot build executables --generate=false && touch /output/controller-manager /output/apiserver && cp bin/* /output"
 
 .PHONY: kubernetes-cluster-api
 kubernetes-cluster-api: $(CLUSTERAPI_BIN)/apiserver build/clusterapi-image/Dockerfile
