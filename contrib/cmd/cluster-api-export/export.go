@@ -94,6 +94,9 @@ func exportCluster(clusterName string, out io.Writer) error {
 	capiCluster.Spec.ProviderConfig.Value = &runtime.RawExtension{
 		Raw: []byte(serializeCOResource(cluster)),
 	}
+	capiCluster.Spec.ClusterNetwork.ServiceDomain = "cluster-api.k8s.io"
+	capiCluster.Spec.ClusterNetwork.Pods.CIDRBlocks = []string{"10.10.0.0/16"}
+	capiCluster.Spec.ClusterNetwork.Services.CIDRBlocks = []string{"172.30.0.0/16"}
 	result.Items = append(result.Items, runtime.RawExtension{
 		Raw: []byte(serializeClusterAPIResource(capiCluster)),
 	})
