@@ -1,5 +1,5 @@
-hash: 1f76b05bf1fd95bc4dac3236430632047e69aab8efef5173c08f2cf1f1744b31
-updated: 2018-04-05T16:12:45.404567-04:00
+hash: 15d40998b89952af6e466f19c373d9d195fdbbdd6566a567a2b62aa53e57ee65
+updated: 2018-04-30T10:52:49.103039-04:00
 imports:
 - name: bitbucket.org/ww/goautoneg
   version: 75cd24fc2f2c2a2088577d12123ddee5f54e0675
@@ -131,7 +131,7 @@ imports:
 - name: github.com/ghodss/yaml
   version: 73d445a93680fa1a78ae23a5839bad48f32ba1ee
 - name: github.com/go-ini/ini
-  version: 5e9692864e22d02ac79e2fa499cffb00520b4fea
+  version: bda519ae5f4cbc60d391ff8610711627a08b86ae
 - name: github.com/go-openapi/jsonpointer
   version: 46af16f9f7b149af66e5d1bd010e3574dc06de98
 - name: github.com/go-openapi/jsonreference
@@ -146,7 +146,7 @@ imports:
   - proto
   - sortkeys
 - name: github.com/golang/glog
-  version: 23def4e6c14b4da8ac2ed8007337bc5eb5007998
+  version: 44145f04b68cf362d9c4df2182967c2275eaefed
 - name: github.com/golang/groupcache
   version: 02826c3e79038b59d737d3b1c0a1d937f71a4433
   subpackages:
@@ -174,7 +174,7 @@ imports:
 - name: github.com/gorilla/context
   version: 08b5f424b9271eedf6f9f0ce86cb9396ed337a42
 - name: github.com/gorilla/mux
-  version: 94231ffd98496cbcb1c15b7bf2a9edfd5f852cd4
+  version: b57cb1605fd11ba2ecfa7f68992b4b9cc791934d
 - name: github.com/gregjones/httpcache
   version: 787624de3eb7bd915c329cba748687a3b22666a6
   subpackages:
@@ -213,7 +213,7 @@ imports:
   - pkg/builders
   - pkg/controller
 - name: github.com/kubernetes/repo-infra
-  version: 06471ba92308f7bfff038aa0850f31cbb7254ea3
+  version: d9bb9fdc907665c61c228baa64fed9b91c7dc1b0
 - name: github.com/mailru/easyjson
   version: 2f5df55504ebc322e4d52d34df6a1f5b503bf26d
   subpackages:
@@ -283,9 +283,6 @@ imports:
   subpackages:
   - bcrypt
   - blowfish
-  - nacl/secretbox
-  - poly1305
-  - salsa20/salsa
   - ssh/terminal
 - name: golang.org/x/net
   version: 1c05540f6879653db88113bc4a2b70aec4bd491f
@@ -689,9 +686,8 @@ imports:
 - name: k8s.io/gengo
   version: b58fc7edb82e0c6ffc9b8aef61813c7261b785d4
 - name: k8s.io/kube-deploy
-  version: ef2f9f85b5384afad2057fd3cf9cb7ce7763e4d4
+  version: 5d7e0ecaec541c561f6e18cb4500c11554cfa406
   subpackages:
-  - cluster-api/...
   - cluster-api/pkg/apis/cluster
   - cluster-api/pkg/apis/cluster/common
   - cluster-api/pkg/apis/cluster/v1alpha1
@@ -715,8 +711,10 @@ imports:
   - pkg/handler
   - pkg/util
   - pkg/util/proto
+- name: sigs.k8s.io/cluster-api
+  version: a4f58439a3f93d8884e65dd595c0e0f9d6614819
 testImports:
 - name: github.com/golang/mock
-  version: 44f7022155f1ea17ce69ecee014d5d703a47ffc3
+  version: 87f106fccd7e3ced294a19e86bebd7846911690a
   subpackages:
   - gomock

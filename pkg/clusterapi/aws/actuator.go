@@ -25,8 +25,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/client-go/kubernetes"
-	clusterv1 "k8s.io/kube-deploy/cluster-api/pkg/apis/cluster/v1alpha1"
-	clusterclient "k8s.io/kube-deploy/cluster-api/pkg/client/clientset_generated/clientset"
+	clusterv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	clusterclient "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -390,7 +390,7 @@ func (a *Actuator) ec2Client(region string) (*ec2.EC2, error) {
 }
 
 func (a *Actuator) clusterOperatorCluster(c *clusterv1.Cluster) (*cov1.Cluster, error) {
-	obj, _, err := a.codecFactory.UniversalDecoder(cov1.SchemeGroupVersion).Decode([]byte(c.Spec.ProviderConfig), nil, nil)
+	obj, _, err := a.codecFactory.UniversalDecoder(cov1.SchemeGroupVersion).Decode([]byte(c.Spec.ProviderConfig.Value.Raw), nil, nil)
 	if err != nil {
 		return nil, err
 	}

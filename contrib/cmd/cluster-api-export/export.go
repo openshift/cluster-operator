@@ -34,8 +34,8 @@ import (
 	corev1scheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/clientcmd"
 
-	clusterv1 "k8s.io/kube-deploy/cluster-api/pkg/apis/cluster/v1alpha1"
-	clusterv1scheme "k8s.io/kube-deploy/cluster-api/pkg/client/clientset_generated/clientset/scheme"
+	clusterv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	clusterv1scheme "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset/scheme"
 
 	coapi "github.com/openshift/cluster-operator/pkg/api"
 	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
@@ -91,7 +91,9 @@ func exportCluster(clusterName string, out io.Writer) error {
 	result := &corev1.List{}
 	capiCluster := &clusterv1.Cluster{}
 	capiCluster.Name = cluster.Name
-	capiCluster.Spec.ProviderConfig = serializeCOResource(cluster)
+	capiCluster.Spec.ProviderConfig.Value = &runtime.RawExtension{
+		Raw: []byte(serializeCOResource(cluster)),
+	}
 	result.Items = append(result.Items, runtime.RawExtension{
 		Raw: []byte(serializeClusterAPIResource(capiCluster)),
 	})
