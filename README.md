@@ -44,11 +44,11 @@
 ## Deploy / Re-deploy Cluster Operator
 
   * Deploy cluster operator to the OpenShift cluster you are currently logged into. (see above for oc login instructions above)
-    * `ansible-playbook contrib/ansible/deploy-devel-playbook.yaml`
+    * `ansible-playbook contrib/ansible/deploy-devel-playbook.yml`
     * This creates an OpenShift BuildConfig and ImageStream for the cluster-operator image. (which does not yet exist)
   * Compile and push an image.
     * If you would just like to deploy Cluster Operator from the latest code in git:
-      * `oc start-build cluster-operator`
+      * `oc start-build cluster-operator -n openshift-cluster-operator`
     * If you are a developer and would like to quickly compile code locally and deploy to your cluster:
       * Mac OSX only: `eval $(minishift docker-env)`
       * `NO_DOCKER=1 make images`
@@ -60,7 +60,7 @@
 
 ## Creating a Test Cluster
 
-  * `ansible-playbook contrib/ansible/create-cluster-playbook.yaml`
+  * `ansible-playbook contrib/ansible/create-cluster-playbook.yml`
     * This will create a cluster named after your username in your current context's namespace, using a fake ClusterVersion. (no actual resources will be provisioned, the Ansible image used will just verify the playbook called exists, and return indicating success)
     * Specify `-e cluster_version` to use a real cluster version and provision an actual cluster in AWS. (see `oc get clusterversions -n openshift-cluster-operator` for list of the defaults we create)
     * Specify `-e cluster_name`, `-e cluster_namespace`, or other variables you can override as defined at the top of the playbook.

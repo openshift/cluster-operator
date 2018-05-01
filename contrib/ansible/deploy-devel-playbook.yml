@@ -7,7 +7,7 @@
 ---
 
 # Perform a normal deployment:
-- import_playbook: deploy-playbook.yaml
+- import_playbook: deploy-playbook.yml
 
 - hosts: localhost
   connection: local
