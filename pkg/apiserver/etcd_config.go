@@ -23,6 +23,9 @@ import (
 	"k8s.io/apiserver/pkg/registry/rest"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/apiserver/pkg/server/storage"
+
+	ca_apis "sigs.k8s.io/cluster-api/pkg/apis"
+	cav1alpha1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 )
 
 // EtcdConfig contains a generic API server Config along with config specific to
@@ -97,6 +100,9 @@ func (c completedEtcdConfig) NewServer(stopCh <-chan struct{}) (*ClusterOperator
 	}
 
 	glog.V(4).Infoln("Installing API groups")
+
+	groupInfos := make([]*genericapiserver.APIGroupInfo, 0)
+
 	// default namespace doesn't matter for etcd
 	providers := restStorageProviders("" /* default namespace */, nil)
 	for _, provider := range providers {
@@ -107,10 +113,24 @@ func (c completedEtcdConfig) NewServer(stopCh <-chan struct{}) (*ClusterOperator
 		} else if err != nil {
 			return nil, err
 		}
+		groupInfos = append(groupInfos, groupInfo)
+	}
 
-		glog.V(4).Infof("Installing API group %v", provider.GroupName())
+	caRestOptions, err := roFactory.GetRESTOptions(cav1alpha1.SchemeGroupVersion.WithResource("cluster").GroupResource())
+	if err != nil {
+		return nil, err
+	}
+	caGroupInfo := ca_apis.GetClusterAPIBuilder().Build(caRestOptions)
+	if caGroupInfo != nil {
+		groupInfos = append(groupInfos, caGroupInfo)
+	} else {
+		glog.V(4).Infoln("Could not build cluster API groups")
+	}
+
+	for _, groupInfo := range groupInfos {
+		glog.V(4).Infof("Installing API group %v", groupInfo.GroupMeta.GroupVersion)
 		if err := s.GenericAPIServer.InstallAPIGroup(groupInfo); err != nil {
-			glog.Fatalf("Error installing API group %v: %v", provider.GroupName(), err)
+			glog.Fatalf("Error installing API group %v: %v", groupInfo.GroupMeta.GroupVersion, err)
 		}
 
 		// We've successfully installed, so hook the stopCh to the destroy func of all the sucessfully installed apigroups

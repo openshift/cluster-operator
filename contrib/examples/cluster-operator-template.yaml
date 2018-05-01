@@ -323,3 +323,19 @@ objects:
     caBundle: ${SERVING_CA}
     groupPriorityMinimum: 10000
     versionPriority: 20
+
+# Registration of the cluster-api API with the aggregator
+- apiVersion: apiregistration.k8s.io/v1beta1
+  kind: APIService
+  metadata:
+    name: v1alpha1.cluster.k8s.io
+    namespace: ${KUBE_SYSTEM_NAMESPACE}
+  spec:
+    group: cluster.k8s.io
+    version: v1alpha1
+    service:
+      namespace: ${CLUSTER_OPERATOR_NAMESPACE}
+      name: cluster-operator-apiserver
+    caBundle: ${SERVING_CA}
+    groupPriorityMinimum: 10000
+    versionPriority: 20
