@@ -24,7 +24,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 
-	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/install"
+	co_install "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/install"
+	ca_install "sigs.k8s.io/cluster-api/pkg/apis/cluster/install"
 )
 
 var (
@@ -40,7 +41,8 @@ var (
 )
 
 func init() {
-	install.Install(groupFactoryRegistry, Registry, Scheme)
+	co_install.Install(groupFactoryRegistry, Registry, Scheme)
+	ca_install.Install(groupFactoryRegistry, Registry, Scheme)
 
 	// we need to add the options to empty v1
 	// TODO fix the server code to avoid this
