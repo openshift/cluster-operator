@@ -42,7 +42,7 @@ objects:
         containers:
         - name: machine-controller
           image: cluster-operator:latest
-          imagePullPolicy: Never
+          imagePullPolicy: ${IMAGE_PULL_POLICY}
           command:
           - /opt/services/aws-machine-controller
           args:

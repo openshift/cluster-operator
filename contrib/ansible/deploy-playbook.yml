@@ -38,6 +38,12 @@
       cluster_operator_namespace: "{{ cli_cluster_operator_namespace }}"
     when: cli_cluster_operator_namespace is defined
 
+  - name: check if cluster operator namespace exists
+    command: "oc get namespace {{ cluster_operator_namespace }}"
+    failed_when: false
+    changed_when: false
+    register: namespace_exists_reg
+
   - name: create the cluster operator namespace
     kubectl_apply:
       definition:
@@ -45,6 +51,7 @@
         apiVersion: v1
         metadata:
           name: "{{ cluster_operator_namespace }}"
+    when: namespace_exists_reg.rc > 0 and "NotFound" in namespace_exists_reg.stderr
 
   - name: check if apiserver cert secret exists
     command: "oc get secret cluster-operator-apiserver-cert -n {{ cluster_operator_namespace }}"
@@ -117,6 +124,7 @@
   - name: process authentication template
     oc_process:
       template_file: "{{ playbook_dir }}/../examples/cluster-operator-roles-template.yaml"
+      namespace: "{{ cluster_operator_namespace }}"
       parameters:
         CLUSTER_OPERATOR_NAMESPACE: "{{ cluster_operator_namespace }}"
     register: auth_reg

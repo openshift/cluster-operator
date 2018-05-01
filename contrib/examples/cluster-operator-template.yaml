@@ -122,7 +122,6 @@ objects:
           - -v
           - "10"
           image: cluster-operator:latest
-          imagePullPolicy: Never
           name: apiserver
           ports:
           - containerPort: 6443
@@ -244,7 +243,6 @@ objects:
         containers:
         - name: controller-manager
           image: cluster-operator:latest
-          imagePullPolicy: Never
           resources:
             requests:
               cpu: 100m

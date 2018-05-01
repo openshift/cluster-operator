@@ -8,11 +8,10 @@
 # itself.
 #
 ########
-apiVersion: v1
+apiVersion: template.openshift.io/v1
 kind: Template
 metadata:
-  name: cluster-operator-deploy-template
-  namespace: ${CLUSTER_OPERATOR_NAMESPACE}
+  name: cluster-operator-auth-template
 
 parameters:
 # Namespace to use for cluster-operator
@@ -149,11 +148,11 @@ objects:
   # allow all operations on all resources in our API group
   - apiGroups: ["clusteroperator.openshift.io"]
     resources: ["*"]
-    verbs:     ["*"]
+    verbs:     ["create", "get", "list", "watch", "update", "patch", "delete"]
   # allow all operations on all resources in the cluster-api API group
   - apiGroups: ["cluster.k8s.io"]
     resources: ["*"]
-    verbs:     ["*"]
+    verbs:     ["create", "get", "list", "watch", "update", "patch", "delete"]
   # allow operations on required resources in any namespace a cluster is created
   - apiGroups:     [""]
     resources:     ["configmaps", "pods", "secrets", "serviceaccounts"]
