@@ -17,7 +17,6 @@ limitations under the License.
 package cluster
 
 import (
-	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -29,7 +28,6 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/apimachinery/pkg/util/wait"
 	kubeclientset "k8s.io/client-go/kubernetes"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -569,7 +567,7 @@ func (c *Controller) manageMachineSets(machineSets []*clusteroperator.MachineSet
 	// Sync machine sets
 	for i, clusterMachineSet := range cluster.Spec.MachineSets {
 		machineSetConfig := clusterMachineSet.MachineSetConfig
-		mergedHardwareSpec, err := applyDefaultMachineSetHardwareSpec(machineSetConfig.Hardware, cluster.Spec.DefaultHardwareSpec)
+		mergedHardwareSpec, err := controller.ApplyDefaultMachineSetHardwareSpec(machineSetConfig.Hardware, cluster.Spec.DefaultHardwareSpec)
 		if err != nil {
 			errCh <- err
 			continue
@@ -792,26 +790,6 @@ func (c *Controller) resolveClusterVersion(cluster *clusteroperator.Cluster) (*c
 	cv, err := c.clusterVersionsLister.ClusterVersions(versionNS).Get(
 		cluster.Spec.ClusterVersionRef.Name)
 	return cv, err
-}
-
-func applyDefaultMachineSetHardwareSpec(machineSetHardwareSpec, defaultHardwareSpec *clusteroperator.MachineSetHardwareSpec) (*clusteroperator.MachineSetHardwareSpec, error) {
-	if defaultHardwareSpec == nil {
-		return machineSetHardwareSpec, nil
-	}
-	defaultHwSpecJSON, err := json.Marshal(defaultHardwareSpec)
-	if err != nil {
-		return nil, err
-	}
-	specificHwSpecJSON, err := json.Marshal(machineSetHardwareSpec)
-	if err != nil {
-		return nil, err
-	}
-	merged, err := strategicpatch.StrategicMergePatch(defaultHwSpecJSON, specificHwSpecJSON, machineSetHardwareSpec)
-	mergedSpec := &clusteroperator.MachineSetHardwareSpec{}
-	if err = json.Unmarshal(merged, mergedSpec); err != nil {
-		return nil, err
-	}
-	return mergedSpec, nil
 }
 
 func buildNewMachineSetSpec(cluster *clusteroperator.Cluster, clusterVersion *clusteroperator.ClusterVersion, machineSetConfig clusteroperator.MachineSetConfig) clusteroperator.MachineSetSpec {

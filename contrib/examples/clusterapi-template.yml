@@ -130,55 +130,64 @@ objects:
   metadata:
     name: ${CLUSTER_NAME}-master
     namespace: ${CLUSTER_NAMESPACE}
+    labels:
+      clusteroperator.openshift.io/cluster: ${CLUSTER_NAME}
   spec:
     replicas: 1
     selector:
       matchLabels:
-        machineset: master
+        clusteroperator.openshift.io/machineset: ${CLUSTER_NAME}-master
+        clusteroperator.openshift.io/cluster: ${CLUSTER_NAME}
     template:
       metadata:
         labels:
-          machineset: master
+          # TODO: enforce this in validation
+          clusteroperator.openshift.io/machineset: ${CLUSTER_NAME}-master
+          clusteroperator.openshift.io/cluster: ${CLUSTER_NAME}
       spec:
+        providerConfig:
+          value:
+            apiVersion: clusteroperator.openshift.io/v1alpha1
+            kind: MachineSetProviderConfigSpec
         roles:
           - master
 
 
 # TODO: transition these to MachineDeployments once we have the upstream controller running.
-- apiVersion: cluster.k8s.io/v1alpha1
-  kind: MachineSet
-  metadata:
-    name: ${CLUSTER_NAME}-infra
-    namespace: ${CLUSTER_NAMESPACE}
-  spec:
-    replicas: 1
-    selector:
-      matchLabels:
-        machineset: infra
-    template:
-      metadata:
-        labels:
-          machineset: infra
-      spec:
-        roles:
-          - compute
+#- apiVersion: cluster.k8s.io/v1alpha1
+  #kind: MachineSet
+  #metadata:
+    #name: ${CLUSTER_NAME}-infra
+    #namespace: ${CLUSTER_NAMESPACE}
+  #spec:
+    #replicas: 1
+    #selector:
+      #matchLabels:
+        #clusteroperator.openshift.io/machineset: infra
+    #template:
+      #metadata:
+        #labels:
+          #clusteroperator.openshift.io/machineset: infra
+      #spec:
+        #roles:
+          #- compute
 
 
-- apiVersion: cluster.k8s.io/v1alpha1
-  kind: MachineSet
-  metadata:
-    name: ${CLUSTER_NAME}-compute
-    namespace: ${CLUSTER_NAMESPACE}
-  spec:
-    replicas: 1
-    selector:
-      matchLabels:
-        machineset: compute
-    template:
-      metadata:
-        labels:
-          machineset: compute
-      spec:
-        roles:
-          - compute
+#- apiVersion: cluster.k8s.io/v1alpha1
+  #kind: MachineSet
+  #metadata:
+    #name: ${CLUSTER_NAME}-compute
+    #namespace: ${CLUSTER_NAMESPACE}
+  #spec:
+    #replicas: 1
+    #selector:
+      #matchLabels:
+        #clusteroperator.openshift.io/machineset: compute
+    #template:
+      #metadata:
+        #labels:
+          #clusteroperator.openshift.io/machineset: compute
+      #spec:
+        #roles:
+          #- compute
 

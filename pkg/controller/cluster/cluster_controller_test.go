@@ -710,61 +710,6 @@ func validateControllerExpectations(t *testing.T, testName string, ctrlr *Contro
 	}
 }
 
-// TestApplyDefaultMachineSetHardwareSpec tests merging a default hardware spec with a specific spec from a
-// machine set
-func TestApplyDefaultMachineSetHardwareSpec(t *testing.T) {
-
-	awsSpec := func(amiName, instanceType string) *clusteroperator.MachineSetHardwareSpec {
-		return &clusteroperator.MachineSetHardwareSpec{
-			AWS: &clusteroperator.MachineSetAWSHardwareSpec{
-				InstanceType: instanceType,
-			},
-		}
-	}
-	cases := []struct {
-		name        string
-		defaultSpec *clusteroperator.MachineSetHardwareSpec
-		specific    *clusteroperator.MachineSetHardwareSpec
-		expected    *clusteroperator.MachineSetHardwareSpec
-	}{
-		{
-			name:        "no default",
-			defaultSpec: nil,
-			specific:    awsSpec("base-ami", "large-instance"),
-			expected:    awsSpec("base-ami", "large-instance"),
-		},
-		{
-			name:        "only default",
-			defaultSpec: awsSpec("base-ami", "small-instance"),
-			specific:    &clusteroperator.MachineSetHardwareSpec{},
-			expected:    awsSpec("base-ami", "small-instance"),
-		},
-		{
-			name:        "override default",
-			defaultSpec: awsSpec("base-ami", "large-instance"),
-			specific:    awsSpec("", "specific-instance"),
-			expected:    awsSpec("base-ami", "specific-instance"),
-		},
-		{
-			name:        "partial default",
-			defaultSpec: awsSpec("base-ami", ""),
-			specific:    awsSpec("", "large-instance"),
-			expected:    awsSpec("base-ami", "large-instance"),
-		},
-	}
-
-	for _, tc := range cases {
-		result, err := applyDefaultMachineSetHardwareSpec(tc.specific, tc.defaultSpec)
-		if err != nil {
-			t.Errorf("%s: unexpected error: %v", tc.name, err)
-			continue
-		}
-		if !reflect.DeepEqual(result, tc.expected) {
-			t.Errorf("%s: unexpected result. Expected: %v, Got: %v", tc.name, tc.expected, result)
-		}
-	}
-}
-
 // TestSyncClusterSteadyState tests syncing a cluster when it is in a steady
 // state.
 func TestSyncClusterSteadyState(t *testing.T) {

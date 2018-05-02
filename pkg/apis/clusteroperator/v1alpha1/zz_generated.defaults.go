@@ -36,6 +36,9 @@ func RegisterDefaults(scheme *runtime.Scheme) error {
 	scheme.AddTypeDefaultingFunc(&MachineList{}, func(obj interface{}) { SetObjectDefaults_MachineList(obj.(*MachineList)) })
 	scheme.AddTypeDefaultingFunc(&MachineSet{}, func(obj interface{}) { SetObjectDefaults_MachineSet(obj.(*MachineSet)) })
 	scheme.AddTypeDefaultingFunc(&MachineSetList{}, func(obj interface{}) { SetObjectDefaults_MachineSetList(obj.(*MachineSetList)) })
+	scheme.AddTypeDefaultingFunc(&MachineSetProviderConfigSpec{}, func(obj interface{}) {
+		SetObjectDefaults_MachineSetProviderConfigSpec(obj.(*MachineSetProviderConfigSpec))
+	})
 	return nil
 }
 
@@ -80,4 +83,8 @@ func SetObjectDefaults_MachineSetList(in *MachineSetList) {
 		a := &in.Items[i]
 		SetObjectDefaults_MachineSet(a)
 	}
+}
+
+func SetObjectDefaults_MachineSetProviderConfigSpec(in *MachineSetProviderConfigSpec) {
+	SetDefaults_MachineSetSpec(&in.MachineSetSpec)
 }

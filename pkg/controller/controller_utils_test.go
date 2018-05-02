@@ -19,9 +19,11 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 
 	corev1 "k8s.io/api/core/v1"
@@ -33,7 +35,15 @@ import (
 	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	clusteroperatorclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset/fake"
 	informers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions"
+
+	clustercommon "sigs.k8s.io/cluster-api/pkg/apis/cluster/common"
 	clusterapi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+)
+
+const (
+	testAMI             = "computeAMI_ID"
+	testRegion          = "us-east-1"
+	defaultInstanceType = "t2.xlarge"
 )
 
 // TestUpdateConditionAlways tests the UpdateConditionAlways function.
@@ -1195,4 +1205,243 @@ func TestClusterAPIProviderStatusFromClusterStatus(t *testing.T) {
 	assert.Equal(t, "ClusterProviderStatus", providerStatusData["kind"], "unexpected kind")
 	assert.Equal(t, 1., providerStatusData["machineSetCount"], "unexpected machineSetCount")
 	assert.Equal(t, "master", providerStatusData["masterMachineSetName"], "unexpected masterMachineSetName")
+}
+
+func TestGetImage(t *testing.T) {
+	cases := []struct {
+		name             string
+		clusterVersion   *clusteroperator.ClusterVersion
+		clusterSpec      *clusteroperator.ClusterSpec
+		expectedErrorMsg string
+	}{
+		{
+			name:           "single region cluster version",
+			clusterVersion: newClusterVersion("origin-v3-10"),
+			clusterSpec:    newClusterSpec(testRegion, defaultInstanceType),
+		},
+		{
+			name:           "cluster has no AWS hardware",
+			clusterVersion: newClusterVersion("origin-v3-10"),
+			clusterSpec: func() *clusteroperator.ClusterSpec {
+				cs := newClusterSpec(testRegion, defaultInstanceType)
+				cs.Hardware.AWS = nil
+				return cs
+			}(),
+			expectedErrorMsg: "no AWS hardware defined for cluster",
+		},
+		{
+			name: "cluster version has no AWS images",
+			clusterVersion: func() *clusteroperator.ClusterVersion {
+				cv := newClusterVersion("origin-v3-10")
+				cv.Spec.VMImages.AWSImages = nil
+				return cv
+			}(),
+			clusterSpec:      newClusterSpec(testRegion, defaultInstanceType),
+			expectedErrorMsg: "no AWS images defined for cluster version",
+		},
+		{
+			name:           "no matching region",
+			clusterVersion: newClusterVersion("origin-v3-10"),
+			clusterSpec: func() *clusteroperator.ClusterSpec {
+				cs := newClusterSpec(testRegion, defaultInstanceType)
+				cs.Hardware.AWS.Region = "us-west-notreal"
+				return cs
+			}(),
+			expectedErrorMsg: "no AWS image defined for region",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			img, err := getImage(tc.clusterSpec, tc.clusterVersion)
+			if tc.expectedErrorMsg != "" {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErrorMsg)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, testAMI, *img.AWSImage)
+			}
+		})
+	}
+}
+
+func newClusterSpec(region, instanceType string) *clusteroperator.ClusterSpec {
+	return &clusteroperator.ClusterSpec{
+		Hardware: clusteroperator.ClusterHardwareSpec{
+			AWS: &clusteroperator.AWSClusterSpec{
+				Region: testRegion,
+			},
+		},
+		DefaultHardwareSpec: &clusteroperator.MachineSetHardwareSpec{
+			AWS: &clusteroperator.MachineSetAWSHardwareSpec{
+				InstanceType: instanceType,
+			},
+		},
+	}
+}
+
+func newClusterVersion(name string) *clusteroperator.ClusterVersion {
+	cv := &clusteroperator.ClusterVersion{
+		ObjectMeta: metav1.ObjectMeta{
+			UID:       "testuid",
+			Name:      name,
+			Namespace: "testns",
+		},
+		Spec: clusteroperator.ClusterVersionSpec{
+			ImageFormat: "openshift/origin-${component}:${version}",
+			VMImages: clusteroperator.VMImages{
+				AWSImages: &clusteroperator.AWSVMImages{
+					RegionAMIs: []clusteroperator.AWSRegionAMIs{
+						{
+							Region: testRegion,
+							AMI:    testAMI,
+						},
+					},
+				},
+			},
+		},
+	}
+	return cv
+}
+
+func newMachineSpec(msSpec *clusteroperator.MachineSetSpec) clusterapi.MachineSpec {
+	ms := clusterapi.MachineSpec{
+		Roles: []clustercommon.MachineRole{"Master"},
+	}
+	providerConfig, _ := ClusterAPIMachineProviderConfigFromMachineSetSpec(msSpec)
+	ms.ProviderConfig.Value = providerConfig
+	return ms
+}
+
+func newMachineSetSpec(instanceType, vmImage string) *clusteroperator.MachineSetSpec {
+	msSpec := &clusteroperator.MachineSetSpec{
+		VMImage: clusteroperator.VMImage{
+			AWSImage: &vmImage,
+		},
+	}
+	msSpec.Hardware = &clusteroperator.MachineSetHardwareSpec{
+		AWS: &clusteroperator.MachineSetAWSHardwareSpec{
+			InstanceType: instanceType,
+		},
+	}
+	return msSpec
+}
+
+func TestPopulateMachineSpec(t *testing.T) {
+	cases := []struct {
+		name                 string
+		machineSetSpec       *clusteroperator.MachineSetSpec
+		clusterSpec          *clusteroperator.ClusterSpec
+		clusterVersion       *clusteroperator.ClusterVersion
+		expectedErrorMsg     string
+		expectedAMI          string
+		expectedInstanceType string
+	}{
+		{
+			name:                 "no providerConfig",
+			clusterSpec:          newClusterSpec(testRegion, defaultInstanceType),
+			clusterVersion:       newClusterVersion("origin-v3-10"),
+			expectedAMI:          testAMI,
+			expectedInstanceType: defaultInstanceType,
+		},
+		{
+			name:                 "VMImage already set",
+			machineSetSpec:       newMachineSetSpec(defaultInstanceType, "alreadySetAMI"),
+			clusterSpec:          newClusterSpec(testRegion, defaultInstanceType),
+			clusterVersion:       newClusterVersion("origin-v3-10"),
+			expectedAMI:          "alreadySetAMI",
+			expectedInstanceType: defaultInstanceType,
+		},
+		{
+			name:                 "default instance already set",
+			machineSetSpec:       newMachineSetSpec("fake.alreadyset.5", testAMI),
+			clusterSpec:          newClusterSpec(testRegion, defaultInstanceType),
+			clusterVersion:       newClusterVersion("origin-v3-10"),
+			expectedAMI:          testAMI,
+			expectedInstanceType: "fake.alreadyset.5",
+		},
+		{
+			name:                 "defaults to clusters instance type",
+			machineSetSpec:       newMachineSetSpec("", testAMI),
+			clusterSpec:          newClusterSpec(testRegion, "t2.micro"),
+			clusterVersion:       newClusterVersion("origin-v3-10"),
+			expectedAMI:          testAMI,
+			expectedInstanceType: "t2.micro",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			machineSpec := &clusterapi.MachineSpec{}
+			if tc.machineSetSpec != nil {
+				providerConfig, err := ClusterAPIMachineProviderConfigFromMachineSetSpec(tc.machineSetSpec)
+				assert.NoError(t, err)
+				machineSpec.ProviderConfig.Value = providerConfig
+			}
+			err := PopulateMachineSpec(machineSpec, tc.clusterSpec, tc.clusterVersion, log.WithField("test", tc.name))
+			if tc.expectedErrorMsg != "" {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErrorMsg)
+			} else {
+				msSpec, err := MachineSetSpecFromClusterAPIMachineSpec(machineSpec)
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expectedAMI, *msSpec.VMImage.AWSImage)
+				assert.Equal(t, tc.expectedInstanceType, msSpec.Hardware.AWS.InstanceType)
+			}
+		})
+	}
+
+}
+
+// TestApplyDefaultMachineSetHardwareSpec tests merging a default hardware spec with a specific spec from a
+// machine set
+func TestApplyDefaultMachineSetHardwareSpec(t *testing.T) {
+
+	awsSpec := func(amiName, instanceType string) *clusteroperator.MachineSetHardwareSpec {
+		return &clusteroperator.MachineSetHardwareSpec{
+			AWS: &clusteroperator.MachineSetAWSHardwareSpec{
+				InstanceType: instanceType,
+			},
+		}
+	}
+	cases := []struct {
+		name        string
+		defaultSpec *clusteroperator.MachineSetHardwareSpec
+		specific    *clusteroperator.MachineSetHardwareSpec
+		expected    *clusteroperator.MachineSetHardwareSpec
+	}{
+		{
+			name:        "no default",
+			defaultSpec: nil,
+			specific:    awsSpec("base-ami", "large-instance"),
+			expected:    awsSpec("base-ami", "large-instance"),
+		},
+		{
+			name:        "only default",
+			defaultSpec: awsSpec("base-ami", "small-instance"),
+			specific:    &clusteroperator.MachineSetHardwareSpec{},
+			expected:    awsSpec("base-ami", "small-instance"),
+		},
+		{
+			name:        "override default",
+			defaultSpec: awsSpec("base-ami", "large-instance"),
+			specific:    awsSpec("", "specific-instance"),
+			expected:    awsSpec("base-ami", "specific-instance"),
+		},
+		{
+			name:        "partial default",
+			defaultSpec: awsSpec("base-ami", ""),
+			specific:    awsSpec("", "large-instance"),
+			expected:    awsSpec("base-ami", "large-instance"),
+		},
+	}
+
+	for _, tc := range cases {
+		result, err := ApplyDefaultMachineSetHardwareSpec(tc.specific, tc.defaultSpec)
+		if err != nil {
+			t.Errorf("%s: unexpected error: %v", tc.name, err)
+			continue
+		}
+		if !reflect.DeepEqual(result, tc.expected) {
+			t.Errorf("%s: unexpected result. Expected: %v, Got: %v", tc.name, tc.expected, result)
+		}
+	}
 }

@@ -397,16 +397,32 @@ type ClusterMachineSet struct {
 	MachineSetConfig `json:",inline"`
 }
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// MachineSetProviderConfigSpec is the machine set specification stored in the
+// ProviderConfig of a cluster.k8s.io MachineSpec.
+type MachineSetProviderConfigSpec struct {
+	// +optional
+	metav1.TypeMeta `json:",inline"`
+	// +optional
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	MachineSetSpec `json:",inline"`
+}
+
 // MachineSetConfig contains configuration for a MachineSet
 type MachineSetConfig struct {
 	// NodeType is the type of nodes that comprise the MachineSet
+	// TODO: remove in favor of upstream MachineTemplateSpec roles.
 	NodeType NodeType `json:"nodeType"`
 
 	// Infra indicates whether this machine set should contain infrastructure
 	// pods
+	// TODO: remove in favor of upstream MachineTemplateSpec roles.
 	Infra bool `json:"infra"`
 
 	// Size is the number of nodes that the node group should contain
+	// TODO: remove in favor of upstream MachineSet and MachineDeployment replicas.
 	Size int `json:"size"`
 
 	// Hardware defines what the hardware should look like for this
@@ -419,16 +435,27 @@ type MachineSetConfig struct {
 	NodeLabels map[string]string `json:"nodeLabels"`
 }
 
-// MachineSetSpec is the specification for a MachineSet
+// MachineSetSpec is the Cluster Operator specification for a Cluster API machine template provider config.
+// TODO: This should be renamed, it is now used on MachineTemplate.Spec.ProviderConfig.
 type MachineSetSpec struct {
 	// MachineSetConfig is the configuration for the MachineSet
 	MachineSetConfig `json:",inline"`
 
-	// ClusterHardware specifies the hardware that the cluster will run on
+	// ClusterHardware specifies the hardware that the cluster will run on. It is typically a copy of
+	// the clusters data and set automatically by controllers.
 	ClusterHardware ClusterHardwareSpec `json:"clusterHardware"`
 
 	// ClusterVersionRef references the clusterversion the machine set is running.
 	ClusterVersionRef corev1.ObjectReference `json:"clusterVersionRef"`
+
+	// VMImage contains a single cloud provider specific image to use for this machine set.
+	VMImage VMImage `json:"vmImage"`
+}
+
+// VMImage contains a specified single image to use for a supported cloud provider.
+type VMImage struct {
+	// +optional
+	AWSImage *string `json:"awsImage"`
 }
 
 // MachineSetHardwareSpec specifies the hardware for a MachineSet
