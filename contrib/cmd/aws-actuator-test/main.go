@@ -68,7 +68,7 @@ func deleteClusterMachine(instanceId string) error {
 		instanceIDAnnotation: instanceId,
 	}
 	actuator := aws.NewActuator(nil, nil, log.WithField("example", "delete-machine"), "us-east-1c")
-	err := actuator.Delete(machine)
+	err := actuator.DeleteMachine(machine)
 	if err != nil {
 		return err
 	}
