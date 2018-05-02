@@ -253,8 +253,6 @@ objects:
           imagePullPolicy: ${IMAGE_PULL_POLICY}
           command:
           - "./controller-manager"
-          args:
-          - --cloud=aws
           resources:
             requests:
               cpu: 100m
