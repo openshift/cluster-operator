@@ -27,6 +27,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	clusterv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	clusterclient "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
+	"sigs.k8s.io/cluster-api/util"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -86,7 +87,7 @@ func NewActuator(kubeClient *kubernetes.Clientset, clusterClient *clusterclient.
 
 // Create runs a new EC2 instance
 func (a *Actuator) Create(cluster *clusterv1.Cluster, machine *clusterv1.Machine) error {
-	a.logger.Debug("Create %s/%s", machine.Namespace, machine.Name)
+	a.logger.Debugf("Create %s/%s", machine.Namespace, machine.Name)
 	result, err := a.CreateMachine(cluster, machine)
 	if err != nil {
 		return err
@@ -113,7 +114,7 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 	}
 
 	region := coCluster.Spec.Hardware.AWS.Region
-	a.logger.Debug("Obtaining EC2 client for region %q", region)
+	a.logger.Debugf("Obtaining EC2 client for region %q", region)
 	client, err := a.ec2Client(region)
 	if err != nil {
 		return nil, fmt.Errorf("unable to obtain EC2 client: %v", err)
@@ -126,7 +127,7 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 	if err != nil {
 		return nil, err
 	}
-	a.logger.Debug("Creating a machine for machineset %q and cluster version %q", coMachineSet.Name, coClusterVersion.Name)
+	a.logger.Debugf("Creating a machine for machineset %q and cluster version %q", coMachineSet.Name, coClusterVersion.Name)
 
 	if coClusterVersion.Spec.VMImages.AWSImages == nil {
 		return nil, fmt.Errorf("cluster version does not contain AWS images")
@@ -138,7 +139,7 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 		return nil, fmt.Errorf("cannot determine AMI name from cluster version %q and region %s", coClusterVersion.Name, region)
 	}
 
-	a.logger.Debug("Describing AMI %q", amiName)
+	a.logger.Debugf("Describing AMI %q", amiName)
 	imageIds := []*string{aws.String(amiName)}
 	describeImagesRequest := ec2.DescribeImagesInput{
 		ImageIds: imageIds,
@@ -147,7 +148,7 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 	if err != nil {
 		return nil, fmt.Errorf("error describing AMI %s: %v", amiName, err)
 	}
-	a.logger.Debug("Describe AMI result:\n%s", describeAMIResult)
+	a.logger.Debugf("Describe AMI result:\n%s", describeAMIResult)
 	if len(describeAMIResult.Images) != 1 {
 		return nil, fmt.Errorf("Unexpected number of images returned: %d", len(describeAMIResult.Images))
 	}
@@ -162,7 +163,7 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 	if err != nil {
 		return nil, fmt.Errorf("Error describing VPC %s: %v", vpcName, err)
 	}
-	a.logger.Debug("Describe VPC result:\n%v", describeVpcsResult)
+	a.logger.Debugf("Describe VPC result:\n%v", describeVpcsResult)
 	if len(describeVpcsResult.Vpcs) != 1 {
 		return nil, fmt.Errorf("Unexpected number of VPCs: %d", len(describeVpcsResult.Vpcs))
 	}
@@ -183,7 +184,7 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 	if err != nil {
 		return nil, fmt.Errorf("Error describing Subnets for VPC %s: %v", vpcName, err)
 	}
-	a.logger.Debug("Describe Subnets result:\n%v", describeSubnetsResult)
+	a.logger.Debugf("Describe Subnets result:\n%v", describeSubnetsResult)
 	if len(describeSubnetsResult.Subnets) == 0 {
 		return nil, fmt.Errorf("Did not find a subnet")
 	}
@@ -209,7 +210,7 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 	if err != nil {
 		return nil, err
 	}
-	a.logger.Debug("Describe Security Groups result:\n%v", describeSecurityGroupsResult)
+	a.logger.Debugf("Describe Security Groups result:\n%v", describeSecurityGroupsResult)
 
 	var securityGroupIds []*string
 	for _, g := range describeSecurityGroupsResult.SecurityGroups {
@@ -288,14 +289,28 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 	if err != nil {
 		return nil, fmt.Errorf("cannot create EC2 instance: %v", err)
 	}
-	a.logger.Debug("Run Instances result:\n%v", runResult)
+	a.logger.Debugf("Run Instances result:\n%v", runResult)
 
 	return runResult, nil
 }
 
-// Delete method is used to delete a AWS machine
+// Delete deletes a machine and updates its finalizer
 func (a *Actuator) Delete(machine *clusterv1.Machine) error {
-	a.logger.Debug("Delete %s/%s", machine.Namespace, machine.Name)
+	a.logger.Debugf("Delete %s/%s", machine.Namespace, machine.Name)
+	if err := a.DeleteMachine(machine); err != nil {
+		return err
+	}
+
+	// Deleting the machine was successful, remove the finalizer from the machine resource
+	machineCopy := machine.DeepCopy()
+	machineCopy.ObjectMeta.Finalizers = util.Filter(machineCopy.ObjectMeta.Finalizers, clusterv1.MachineFinalizer)
+	_, err := a.clusterClient.ClusterV1alpha1().Machines(machineCopy.Namespace).Update(machineCopy)
+	return err
+}
+
+// DeleteMachine deletes an AWS instance
+func (a *Actuator) DeleteMachine(machine *clusterv1.Machine) error {
+	a.logger.Debugf("DeleteMachine %s/%s", machine.Namespace, machine.Name)
 	instanceID := getInstanceID(machine)
 	if len(instanceID) == 0 {
 		return nil
@@ -324,20 +339,20 @@ func (a *Actuator) Delete(machine *clusterv1.Machine) error {
 	if err != nil {
 		return fmt.Errorf("error terminating instance %q: %v", instanceID, err)
 	}
-	a.logger.Debug("Terminate Instances result:\n%v", terminateInstancesResult)
+	a.logger.Debugf("Terminate Instances result:\n%v", terminateInstancesResult)
 	return nil
 }
 
 // Update the machine to the provided definition.
 // TODO: For now, this results in a No-op.
 func (a *Actuator) Update(c *clusterv1.Cluster, machine *clusterv1.Machine) error {
-	a.logger.Debug("Update %s/%s", machine.Namespace, machine.Name)
+	a.logger.Debugf("Update %s/%s", machine.Namespace, machine.Name)
 	return nil
 }
 
 // Exists determines if the given machine currently exists.
 func (a *Actuator) Exists(machine *clusterv1.Machine) (bool, error) {
-	a.logger.Debug("Exists %s/%s", machine.Namespace, machine.Name)
+	a.logger.Debugf("Exists %s/%s", machine.Namespace, machine.Name)
 	instanceID := getInstanceID(machine)
 	if len(instanceID) == 0 {
 		return false, nil
@@ -365,7 +380,7 @@ func (a *Actuator) Exists(machine *clusterv1.Machine) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	a.logger.Debug("Describe Instances result:\n%v", result)
+	a.logger.Debugf("Describe Instances result:\n%v", result)
 	if len(result.Reservations) == 0 || len(result.Reservations[0].Instances) == 0 {
 		return false, nil
 	}
