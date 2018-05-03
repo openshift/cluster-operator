@@ -36,6 +36,10 @@ parameters:
 - name: SSH_KEY
   required: true
   description: Base64 encoded SSH private key that can be used to access the provisioned servers.
+- name: SSH_KEYPAIR_NAME
+  required: true
+  value: libra
+  description: Name of AWS keypair to use for machines in this cluster.
 
 objects:
 
@@ -91,7 +95,7 @@ objects:
         sslSecret:
           name: ${CLUSTER_NAME}-certs
         region: "us-east-1"
-        keyPairName: "libra"
+        keyPairName: ${SSH_KEYPAIR_NAME}
     defaultHardwareSpec:
       aws:
         instanceType: "t2.xlarge"
