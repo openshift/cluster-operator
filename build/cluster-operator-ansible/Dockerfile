@@ -26,6 +26,10 @@ USER root
 RUN yum -y install dmidecode
 # End WORKAROUND
 
+# Install docker module needed for image pulls
+# TODO: Add this to the base origin-ansible image
+RUN pip install docker-py
+
 RUN rm -rf ${CLONE_LOCATION}
 RUN git clone ${CO_ANSIBLE_URL} ${CLONE_LOCATION} && \
     cd ${CLONE_LOCATION} && \
