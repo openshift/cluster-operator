@@ -348,7 +348,7 @@ ifeq ($(ARCH),amd64)
 endif
 
 OA_ANSIBLE_URL    ?= https://github.com/openshift/openshift-ansible.git
-OA_ANSIBLE_BRANCH ?= master
+OA_ANSIBLE_BRANCH ?= openshift-ansible-3.10.0-0.32.0
 
 define build-cluster-operator-ansible-image #(repo, branch, imagename, tag)
 	docker build -t "$3:$4" --build-arg=CO_ANSIBLE_URL=$1 --build-arg=CO_ANSIBLE_BRANCH=$2 build/cluster-operator-ansible
@@ -359,7 +359,7 @@ cluster-operator-ansible-images: build/cluster-operator-ansible/Dockerfile build
 	$(call build-cluster-operator-ansible-image,$(OA_ANSIBLE_URL),"release-3.9",$(CLUSTER_OPERATOR_ANSIBLE_IMAGE_NAME),"v3.9")
 
 	# build v3.10 on openshift-ansible:master
-	$(call build-cluster-operator-ansible-image,$(OA_ANSIBLE_URL),"master",$(CLUSTER_OPERATOR_ANSIBLE_IMAGE_NAME),"v3.10")
+	$(call build-cluster-operator-ansible-image,$(OA_ANSIBLE_URL),"openshift-ansible-3.10.0-0.32.0",$(CLUSTER_OPERATOR_ANSIBLE_IMAGE_NAME),"v3.10")
 
 	# build master/canary
 	$(call build-cluster-operator-ansible-image,$(OA_ANSIBLE_URL),$(OA_ANSIBLE_BRANCH),$(CLUSTER_OPERATOR_ANSIBLE_IMAGE_NAME),$(VERSION))
