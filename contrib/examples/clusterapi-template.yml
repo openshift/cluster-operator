@@ -1,0 +1,182 @@
+apiVersion: v1
+kind: Template
+metadata:
+  name: clusterapi-create-template
+
+parameters:
+- name: CLUSTER_NAME
+  displayName: Cluster Name
+  description: The name to give to the Cluster created. If using real AWS, then this name should include your username so that resources created in AWS can be identified as yours.
+  required: true
+- name: CLUSTER_NAMESPACE
+  displayName: Cluster Namespace
+  description: The namespace where the cluster should be created.
+  value: openshift-cluster-operator
+  required: true
+- name: CLUSTER_VERSION
+  displayName: Cluster Version
+  description: Cluster version to install.
+- name: CLUSTER_VERSION_NAMESPACE
+  displayName: Cluster Version Namespace
+  description: The namespace where the cluster version lives.
+  value: openshift-cluster-operator
+  required: true
+- name: CLUSTER_CERT
+  required: true
+  description: Base64 encoded certificate for the cluster.
+- name: CLUSTER_PRIVATE_KEY
+  required: true
+  description: Base64 encoded private key for the cluster.
+- name: AWS_ACCESS_KEY_ID
+  required: true
+  description: Base64 encoded AWS access key ID that can be used to provision cluster resources.
+- name: AWS_SECRET_ACCESS_KEY
+  required: true
+  description: Base64 encoded AWS secret access key that can be used to provision cluster resources.
+- name: SSH_KEY
+  required: true
+  description: Base64 encoded SSH private key that can be used to access the provisioned servers.
+- name: SSH_KEYPAIR_NAME
+  required: true
+  value: libra
+  description: Name of AWS keypair to use for machines in this cluster.
+
+objects:
+
+# Secret to pass the SSL certs to the API Server
+- apiVersion: v1
+  kind: Secret
+  metadata:
+    name: ${CLUSTER_NAME}-certs
+    namespace: ${CLUSTER_NAMESPACE}
+  type: Opaque
+  data:
+    server.crt: ${CLUSTER_CERT}
+    server.key: ${CLUSTER_PRIVATE_KEY}
+    # NOTE: not setting ca.crt here as we're using self-signed certs for test clusters
+
+- apiVersion: v1
+  kind: Secret
+  metadata:
+    name: ${CLUSTER_NAME}-aws-creds
+    namespace: ${CLUSTER_NAMESPACE}
+  type: Opaque
+  data:
+    awsAccessKeyId: ${AWS_ACCESS_KEY_ID}
+    awsSecretAccessKey: ${AWS_SECRET_ACCESS_KEY}
+
+- apiVersion: v1
+  kind: Secret
+  metadata:
+    name: ${CLUSTER_NAME}-ssh-key
+    namespace: ${CLUSTER_NAMESPACE}
+    labels:
+      app: cluster-operator
+  type: Opaque
+  data:
+    ssh-privatekey: ${SSH_KEY}
+
+- apiVersion: cluster.k8s.io/v1alpha1
+  kind: Cluster
+  metadata:
+    name: ${CLUSTER_NAME}
+    namespace: ${CLUSTER_NAMESPACE}
+  spec:
+    # TODO:
+    clusterNetwork:
+      services:
+        cidrBlocks:
+          - "10.0.0.1/24"
+      pods:
+        cidrBlocks:
+          - "10.0.0.2/24"
+      serviceDomain: example.com
+    providerConfig:
+      value:
+        clusterVersionRef:
+          namespace: ${CLUSTER_VERSION_NAMESPACE}
+          name: ${CLUSTER_VERSION}
+        hardware:
+          aws:
+            accountSecret:
+              name: ${CLUSTER_NAME}-aws-creds
+            sshSecret:
+              name: ${CLUSTER_NAME}-ssh-key
+            sshUser: centos
+            sslSecret:
+              name: ${CLUSTER_NAME}-certs
+            region: "us-east-1"
+            keyPairName: ${SSH_KEYPAIR_NAME}
+        defaultHardwareSpec:
+          aws:
+            instanceType: "t2.xlarge"
+        machineSets:
+        - shortName: master
+          nodeType: Master
+          size: 1
+        - shortName: infra
+          nodeType: Compute
+          infra: true
+          size: 1
+        - shortName: compute
+          nodeType: Compute
+          size: 1
+
+# Master machine set should *never* be backed by a MachineDeployment, these are pets not cattle.
+- apiVersion: cluster.k8s.io/v1alpha1
+  kind: MachineSet
+  metadata:
+    name: master
+    namespace: ${CLUSTER_NAMESPACE}
+  spec:
+    replicas: 1
+    selector:
+      matchLabels:
+        machineset: master
+    template:
+      metadata:
+        labels:
+          machineset: master
+      spec:
+        roles:
+          - master
+
+
+# TODO: transition these to MachineDeployments once we have the upstream controller running.
+- apiVersion: cluster.k8s.io/v1alpha1
+  kind: MachineSet
+  metadata:
+    name: infra
+    namespace: ${CLUSTER_NAMESPACE}
+  spec:
+    replicas: 1
+    selector:
+      matchLabels:
+        machineset: infra
+    template:
+      metadata:
+        labels:
+          machineset: infra
+      spec:
+        roles:
+          - compute
+
+
+- apiVersion: cluster.k8s.io/v1alpha1
+  kind: MachineSet
+  metadata:
+    name: compute
+    namespace: ${CLUSTER_NAMESPACE}
+  spec:
+    replicas: 1
+    selector:
+      matchLabels:
+        machineset: compute
+    template:
+      metadata:
+        labels:
+          machineset: compute
+      spec:
+        roles:
+          - compute
+
