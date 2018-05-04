@@ -21,6 +21,7 @@ import (
 	restclient "k8s.io/client-go/rest"
 
 	"github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
+	clusterclientset "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 
 	"github.com/golang/glog"
 )
@@ -41,6 +42,9 @@ type ClientBuilder interface {
 	// KubeClientOrDie returns a new kubeclientset.Interface with the given
 	// user agent name or logs a fatal error.
 	KubeClientOrDie(name string) kubeclientset.Interface
+	// ClusterAPIClientOrDie returns a new cluster API clientset.Interface
+	// with the given user agent name, or logs a fatal error.
+	ClusterAPIClientOrDie(name string) clusterclientset.Interface
 }
 
 // SimpleClientBuilder returns a fixed client with different user agents
@@ -95,4 +99,16 @@ func (b SimpleClientBuilder) KubeClientOrDie(name string) kubeclientset.Interfac
 		glog.Fatal(err)
 	}
 	return kubeClient
+}
+
+// ClusterAPIClientOrDie returns a new kubeclientset.Interface with the given
+// user agent name or logs a fatal error.
+func (b SimpleClientBuilder) ClusterAPIClientOrDie(name string) clusterclientset.Interface {
+	clientConfigCopy := *b.ClientConfig
+	clientConfig := restclient.AddUserAgent(&clientConfigCopy, name)
+	capiClient, err := clusterclientset.NewForConfig(clientConfig)
+	if err != nil {
+		glog.Fatal(err)
+	}
+	return capiClient
 }
