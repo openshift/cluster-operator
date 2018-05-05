@@ -17,6 +17,7 @@ limitations under the License.
 package controller
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -277,7 +278,7 @@ func TestSetClusterCondtion(t *testing.T) {
 			}
 			startTime := time.Now()
 			SetClusterCondition(
-				cluster,
+				&cluster.Status,
 				tc.conditionType,
 				tc.status,
 				tc.reason,
@@ -389,7 +390,7 @@ func TestFindClusterCondition(t *testing.T) {
 					Conditions: tc.conditions,
 				},
 			}
-			actual := FindClusterCondition(cluster, tc.conditionType)
+			actual := FindClusterCondition(&cluster.Status, tc.conditionType)
 			if tc.expectedConditionIndex < 0 {
 				assert.Nil(t, actual, "expected to not find condition")
 			} else {
@@ -1148,7 +1149,6 @@ kind: Machine
 		{
 			name:           "missing provider status",
 			providerStatus: "",
-			expectedError:  true,
 		},
 	}
 	for _, tc := range cases {
@@ -1166,8 +1166,33 @@ kind: Machine
 				if !assert.NoError(t, err, "expected success") {
 					return
 				}
-				assert.Equal(t, clusterStatus.ClusterVersionRef.Name, tc.expectedClusterVersionRefName, "unexpected clusterVersionRef name")
+				if tc.expectedClusterVersionRefName != "" {
+					assert.Equal(t, clusterStatus.ClusterVersionRef.Name, tc.expectedClusterVersionRefName, "unexpected clusterVersionRef name")
+				} else {
+					assert.Nil(t, clusterStatus.ClusterVersionRef, "unexpected clusterVersionRef")
+				}
 			}
 		})
 	}
+}
+
+func TestClusterAPIProviderStatusFromClusterStatus(t *testing.T) {
+	clusterStatus := &clusteroperator.ClusterStatus{
+		MachineSetCount:      1,
+		MasterMachineSetName: "master",
+	}
+	providerStatus, err := ClusterAPIProviderStatusFromClusterStatus(clusterStatus)
+	if !assert.NoError(t, err, "unexpected error converting to provider status") {
+		return
+	}
+	t.Logf("provider status = %v", string(providerStatus.Raw))
+	providerStatusData := map[string]interface{}{}
+	err = json.Unmarshal(providerStatus.Raw, &providerStatusData)
+	if !assert.NoError(t, err, "unexpected error unmarshalling json") {
+		return
+	}
+	assert.Equal(t, "clusteroperator.openshift.io/v1alpha1", providerStatusData["apiVersion"], "unexpected apiVersion")
+	assert.Equal(t, "ClusterProviderStatus", providerStatusData["kind"], "unexpected kind")
+	assert.Equal(t, 1., providerStatusData["machineSetCount"], "unexpected machineSetCount")
+	assert.Equal(t, "master", providerStatusData["masterMachineSetName"], "unexpected masterMachineSetName")
 }

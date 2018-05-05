@@ -31,6 +31,7 @@ func RegisterDefaults(scheme *runtime.Scheme) error {
 	scheme.AddTypeDefaultingFunc(&Cluster{}, func(obj interface{}) { SetObjectDefaults_Cluster(obj.(*Cluster)) })
 	scheme.AddTypeDefaultingFunc(&ClusterList{}, func(obj interface{}) { SetObjectDefaults_ClusterList(obj.(*ClusterList)) })
 	scheme.AddTypeDefaultingFunc(&ClusterProviderConfigSpec{}, func(obj interface{}) { SetObjectDefaults_ClusterProviderConfigSpec(obj.(*ClusterProviderConfigSpec)) })
+	scheme.AddTypeDefaultingFunc(&CombinedCluster{}, func(obj interface{}) { SetObjectDefaults_CombinedCluster(obj.(*CombinedCluster)) })
 	scheme.AddTypeDefaultingFunc(&Machine{}, func(obj interface{}) { SetObjectDefaults_Machine(obj.(*Machine)) })
 	scheme.AddTypeDefaultingFunc(&MachineList{}, func(obj interface{}) { SetObjectDefaults_MachineList(obj.(*MachineList)) })
 	scheme.AddTypeDefaultingFunc(&MachineSet{}, func(obj interface{}) { SetObjectDefaults_MachineSet(obj.(*MachineSet)) })
@@ -51,6 +52,12 @@ func SetObjectDefaults_ClusterList(in *ClusterList) {
 
 func SetObjectDefaults_ClusterProviderConfigSpec(in *ClusterProviderConfigSpec) {
 	SetDefaults_ClusterSpec(&in.ClusterSpec)
+}
+
+func SetObjectDefaults_CombinedCluster(in *CombinedCluster) {
+	if in.ClusterOperatorSpec != nil {
+		SetDefaults_ClusterSpec(in.ClusterOperatorSpec)
+	}
 }
 
 func SetObjectDefaults_Machine(in *Machine) {

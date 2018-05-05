@@ -19,6 +19,8 @@ package v1alpha1
 import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	clusterapi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 )
 
 // Annotation constants
@@ -658,3 +660,18 @@ const (
 	// NodeTypeCompute is a node that is a compute node in the cluster
 	NodeTypeCompute NodeType = "Compute"
 )
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// CombinedCluster is a cluster object that combines the information from
+// cluster-operator Cluster and cluster-api Cluster.
+type CombinedCluster struct {
+	metav1.TypeMeta
+	metav1.ObjectMeta
+
+	ClusterOperatorSpec   *ClusterSpec
+	ClusterOperatorStatus *ClusterStatus
+
+	ClusterAPISpec   *clusterapi.ClusterSpec
+	ClusterAPIStatus *clusterapi.ClusterStatus
+}

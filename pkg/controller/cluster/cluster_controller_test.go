@@ -465,7 +465,7 @@ func (ea expectedMachineSetCreateAction) validate(t *testing.T, action clientgot
 	createdObject := createAction.GetObject()
 	machineSet, ok := createdObject.(*clusteroperator.MachineSet)
 	if !ok {
-		t.Errorf("machine set create action object is not a MachineSet: %t", machineSet)
+		t.Errorf("machine set create action object is not a MachineSet: %T", machineSet)
 		return false
 	}
 	if machineSet.Labels == nil {

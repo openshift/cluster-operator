@@ -155,7 +155,7 @@ func waitForClusterProvisioning(client clientset.Interface, namespace, name stri
 		client,
 		namespace, name,
 		func(cluster *v1alpha1.Cluster) bool {
-			condition := controller.FindClusterCondition(cluster, v1alpha1.ClusterInfraProvisioning)
+			condition := controller.FindClusterCondition(&cluster.Status, v1alpha1.ClusterInfraProvisioning)
 			return condition != nil && condition.Status == corev1.ConditionTrue
 		},
 	)

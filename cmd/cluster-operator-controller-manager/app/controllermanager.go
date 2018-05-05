@@ -338,6 +338,8 @@ func NewControllerInitializers() map[string]InitFunc {
 	controllers["nodeconfig"] = startNodeConfigController
 	controllers["deployclusterapi"] = startDeployClusterAPIController
 
+	controllers["capi-infra"] = startClusterAPIInfraController
+
 	return controllers
 }
 
@@ -538,11 +540,25 @@ func startInfraController(ctx ControllerContext) (bool, error) {
 	if !clusterOperatorResourcesAvailable(ctx) {
 		return false, nil
 	}
-	go infra.NewController(
+	go infra.NewClusterOperatorController(
 		ctx.InformerFactory.Clusteroperator().V1alpha1().Clusters(),
 		ctx.KubeInformerFactory.Batch().V1().Jobs(),
 		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-infra-controller"),
 		ctx.ClientBuilder.ClientOrDie("clusteroperator-infra-controller"),
+	).Run(int(ctx.Options.ConcurrentClusterSyncs), ctx.Stop)
+	return true, nil
+}
+
+func startClusterAPIInfraController(ctx ControllerContext) (bool, error) {
+	if !clusterAPIResourcesAvailable(ctx) {
+		return false, nil
+	}
+	go infra.NewClusterAPIController(
+		ctx.ClusterAPIInformerFactory.Cluster().V1alpha1().Clusters(),
+		ctx.KubeInformerFactory.Batch().V1().Jobs(),
+		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-capi-infra-controller"),
+		ctx.ClientBuilder.ClientOrDie("clusteroperator-capi-infra-controller"),
+		ctx.ClientBuilder.ClusterAPIClientOrDie("clusteroperator-capi-infra-controller"),
 	).Run(int(ctx.Options.ConcurrentClusterSyncs), ctx.Stop)
 	return true, nil
 }

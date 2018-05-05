@@ -347,9 +347,9 @@ type clusterVersionParams struct {
 	ImageFormat string
 }
 
-func getInfraSize(cluster *coapi.Cluster) (int, error) {
+func getInfraSize(clusterSpec *coapi.ClusterSpec) (int, error) {
 	// find the 'infra' machineset and return its size
-	for _, ms := range cluster.Spec.MachineSets {
+	for _, ms := range clusterSpec.MachineSets {
 		if ms.Infra {
 			return ms.Size, nil
 		}
@@ -360,12 +360,12 @@ func getInfraSize(cluster *coapi.Cluster) (int, error) {
 
 // GenerateClusterVars generates the vars to pass to the ansible playbook
 // for the cluster.
-func GenerateClusterVars(cluster *coapi.Cluster, clusterVersionSpec *coapi.ClusterVersionSpec) (string, error) {
-	infraSize, err := getInfraSize(cluster)
+func GenerateClusterVars(clusterName string, clusterSpec *coapi.ClusterSpec, clusterVersionSpec *coapi.ClusterVersionSpec) (string, error) {
+	infraSize, err := getInfraSize(clusterSpec)
 	if err != nil {
 		return "", err
 	}
-	return GenerateClusterWideVars(cluster.Name, &cluster.Spec.Hardware, clusterVersionSpec, infraSize)
+	return GenerateClusterWideVars(clusterName, &clusterSpec.Hardware, clusterVersionSpec, infraSize)
 }
 
 // GenerateClusterWideVars generates the vars to pass to the ansible playbook

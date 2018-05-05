@@ -502,7 +502,7 @@ func validateAWSRegion(cluster *clusteroperator.Cluster, clusterVersion *cluster
 	if !foundRegion {
 		clusterLog.Warnf("no AMI defined for cluster version %s/%s in region %v", clusterVersion.Namespace, clusterVersion.Name, cluster.Spec.Hardware.AWS.Region)
 
-		controller.SetClusterCondition(cluster, clusteroperator.ClusterVersionIncompatible,
+		controller.SetClusterCondition(&cluster.Status, clusteroperator.ClusterVersionIncompatible,
 			corev1.ConditionTrue,
 			versionMissingRegion,
 			fmt.Sprintf("no AMI defined for cluster version %s/%s in region %v", clusterVersion.Namespace, clusterVersion.Name, cluster.Spec.Hardware.AWS.Region),
@@ -512,7 +512,7 @@ func validateAWSRegion(cluster *clusteroperator.Cluster, clusterVersion *cluster
 
 	// If this cluster previously had a version incompatible condition, clear it:
 	clusterLog.Debugf("AMI defined for cluster version %s/%s in region %v", clusterVersion.Namespace, clusterVersion.Name, cluster.Spec.Hardware.AWS.Region)
-	controller.SetClusterCondition(cluster, clusteroperator.ClusterVersionIncompatible,
+	controller.SetClusterCondition(&cluster.Status, clusteroperator.ClusterVersionIncompatible,
 		corev1.ConditionFalse,
 		versionHasRegion,
 		fmt.Sprintf("AMI now defined for cluster version %s/%s in region %v", clusterVersion.Namespace, clusterVersion.Name, cluster.Spec.Hardware.AWS.Region),

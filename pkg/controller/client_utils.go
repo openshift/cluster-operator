@@ -106,7 +106,7 @@ func patchClusterAPIStatus(c clusterclientset.Interface, oldCluster, newCluster 
 	}
 
 	logger.Debugf("about to patch cluster with %s", string(patchBytes))
-	_, err = c.Cluster().Clusters(newCluster.Namespace).Patch(newCluster.Name, types.StrategicMergePatchType, patchBytes, "status")
+	_, err = c.ClusterV1alpha1().Clusters(newCluster.Namespace).Patch(newCluster.Name, types.StrategicMergePatchType, patchBytes, "status")
 	if err != nil {
 		logger.Warningf("Error patching cluster: %v", err)
 	}

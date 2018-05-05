@@ -17,6 +17,7 @@ limitations under the License.
 package controller
 
 import (
+	"bytes"
 	"fmt"
 
 	"github.com/golang/glog"
@@ -25,7 +26,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/runtime/serializer/json"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/cache"
 
@@ -118,7 +121,7 @@ func shouldUpdateCondition(
 // 1) Requested status is different than existing status.
 // 2) The updateConditionCheck function returns true.
 func SetClusterCondition(
-	cluster *clusteroperator.Cluster,
+	clusterStatus *clusteroperator.ClusterStatus,
 	conditionType clusteroperator.ClusterConditionType,
 	status corev1.ConditionStatus,
 	reason string,
@@ -126,11 +129,11 @@ func SetClusterCondition(
 	updateConditionCheck UpdateConditionCheck,
 ) {
 	now := metav1.Now()
-	existingCondition := FindClusterCondition(cluster, conditionType)
+	existingCondition := FindClusterCondition(clusterStatus, conditionType)
 	if existingCondition == nil {
 		if status == corev1.ConditionTrue {
-			cluster.Status.Conditions = append(
-				cluster.Status.Conditions,
+			clusterStatus.Conditions = append(
+				clusterStatus.Conditions,
 				clusteroperator.ClusterCondition{
 					Type:               conditionType,
 					Status:             status,
@@ -160,10 +163,10 @@ func SetClusterCondition(
 
 // FindClusterCondition finds in the cluster the condition that has the
 // specified condition type. If none exists, then returns nil.
-func FindClusterCondition(cluster *clusteroperator.Cluster, conditionType clusteroperator.ClusterConditionType) *clusteroperator.ClusterCondition {
-	for i, condition := range cluster.Status.Conditions {
+func FindClusterCondition(clusterStatus *clusteroperator.ClusterStatus, conditionType clusteroperator.ClusterConditionType) *clusteroperator.ClusterCondition {
+	for i, condition := range clusterStatus.Conditions {
 		if condition.Type == conditionType {
-			return &cluster.Status.Conditions[i]
+			return &clusterStatus.Conditions[i]
 		}
 	}
 	return nil
@@ -309,10 +312,12 @@ func MachineSetLabels(cluster *clusteroperator.Cluster, machineSetShortName stri
 
 // JobLabelsForClusterController returns the labels to apply to a job doing a task
 // for the specified cluster.
-func JobLabelsForClusterController(cluster *clusteroperator.Cluster, jobType string) map[string]string {
+// The cluster parameter is a metav1.Object because it could be either a
+// cluster-operator Cluster, and cluster-api Cluster, or a CombinedCluster.
+func JobLabelsForClusterController(cluster metav1.Object, jobType string) map[string]string {
 	return map[string]string{
-		ClusterUIDLabel:  string(cluster.UID),
-		ClusterNameLabel: cluster.Name,
+		ClusterUIDLabel:  string(cluster.GetUID()),
+		ClusterNameLabel: cluster.GetName(),
 		JobTypeLabel:     jobType,
 	}
 }
@@ -364,7 +369,7 @@ func ClusterSpecFromClusterAPI(cluster *clusterapi.Cluster) (*clusteroperator.Cl
 // specified cluster-api Cluster.
 func ClusterStatusFromClusterAPI(cluster *clusterapi.Cluster) (*clusteroperator.ClusterStatus, error) {
 	if cluster.Status.ProviderStatus == nil {
-		return nil, fmt.Errorf("No Value in ProviderStatus")
+		return &clusteroperator.ClusterStatus{}, nil
 	}
 	obj, _, err := api.Codecs.UniversalDecoder(clusteroperator.SchemeGroupVersion).Decode([]byte(cluster.Status.ProviderStatus.Raw), nil, nil)
 	if err != nil {
@@ -375,4 +380,25 @@ func ClusterStatusFromClusterAPI(cluster *clusterapi.Cluster) (*clusteroperator.
 		return nil, fmt.Errorf("Unexpected object: %#v", obj)
 	}
 	return &status.ClusterStatus, nil
+}
+
+// ClusterAPIProviderStatusFromClusterStatus gets the cluster-api ProviderStatus
+// storing the cluster-operator ClusterStatus.
+func ClusterAPIProviderStatusFromClusterStatus(clusterStatus *clusteroperator.ClusterStatus) (*runtime.RawExtension, error) {
+	clusterProviderStatus := &clusteroperator.ClusterProviderStatus{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: clusteroperator.SchemeGroupVersion.String(),
+			Kind:       "ClusterProviderStatus",
+		},
+		ClusterStatus: *clusterStatus,
+	}
+	serializer := json.NewSerializer(json.DefaultMetaFactory, api.Scheme, api.Scheme, false)
+	var buffer bytes.Buffer
+	err := serializer.Encode(clusterProviderStatus, &buffer)
+	if err != nil {
+		return nil, err
+	}
+	return &runtime.RawExtension{
+		Raw: buffer.Bytes(),
+	}, nil
 }

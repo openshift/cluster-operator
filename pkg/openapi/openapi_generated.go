@@ -855,6 +855,48 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 			},
 			Dependencies: []string{},
 		},
+		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.CombinedCluster": {
+			Schema: spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Description: "CombinedCluster is a cluster object that combines the information from cluster-operator Cluster and cluster-api Cluster.",
+					Properties: map[string]spec.Schema{
+						"TypeMeta": {
+							SchemaProps: spec.SchemaProps{
+								Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.TypeMeta"),
+							},
+						},
+						"ObjectMeta": {
+							SchemaProps: spec.SchemaProps{
+								Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+							},
+						},
+						"ClusterOperatorSpec": {
+							SchemaProps: spec.SchemaProps{
+								Ref: ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterSpec"),
+							},
+						},
+						"ClusterOperatorStatus": {
+							SchemaProps: spec.SchemaProps{
+								Ref: ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterStatus"),
+							},
+						},
+						"ClusterAPISpec": {
+							SchemaProps: spec.SchemaProps{
+								Ref: ref("sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1.ClusterSpec"),
+							},
+						},
+						"ClusterAPIStatus": {
+							SchemaProps: spec.SchemaProps{
+								Ref: ref("sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1.ClusterStatus"),
+							},
+						},
+					},
+					Required: []string{"TypeMeta", "ObjectMeta", "ClusterOperatorSpec", "ClusterOperatorStatus", "ClusterAPISpec", "ClusterAPIStatus"},
+				},
+			},
+			Dependencies: []string{
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta", "k8s.io/apimachinery/pkg/apis/meta/v1.TypeMeta", "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1.ClusterSpec", "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1.ClusterStatus"},
+		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.Machine": {
 			Schema: spec.Schema{
 				SchemaProps: spec.SchemaProps{

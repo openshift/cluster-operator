@@ -1,0 +1,89 @@
+/*
+Copyright 2018 The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package controller
+
+import (
+	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	clusterapi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+)
+
+// CombinedClusterForClusterOperatorCluster creates a CombinedCluster
+// for the specified cluster-operator Cluster.
+func CombinedClusterForClusterOperatorCluster(cluster *clusteroperator.Cluster) *clusteroperator.CombinedCluster {
+	return &clusteroperator.CombinedCluster{
+		TypeMeta:              cluster.TypeMeta,
+		ObjectMeta:            cluster.ObjectMeta,
+		ClusterOperatorSpec:   &cluster.Spec,
+		ClusterOperatorStatus: &cluster.Status,
+	}
+}
+
+// CombinedClusterForClusterAPICluster creates a CombinedCluster
+// for the specified cluster-api Cluster.
+func CombinedClusterForClusterAPICluster(cluster *clusterapi.Cluster) (*clusteroperator.CombinedCluster, error) {
+	clusterOperatorSpec, err := ClusterSpecFromClusterAPI(cluster)
+	if err != nil {
+		return nil, err
+	}
+	clusterOperatorStatus, err := ClusterStatusFromClusterAPI(cluster)
+	if err != nil {
+		return nil, err
+	}
+	return &clusteroperator.CombinedCluster{
+		TypeMeta:              cluster.TypeMeta,
+		ObjectMeta:            cluster.ObjectMeta,
+		ClusterOperatorSpec:   clusterOperatorSpec,
+		ClusterOperatorStatus: clusterOperatorStatus,
+		ClusterAPISpec:        &cluster.Spec,
+		ClusterAPIStatus:      &cluster.Status,
+	}, nil
+}
+
+// ClusterOperatorClusterForCombinedCluster creates a cluster-operator Cluster
+// from the specified CombinedCluster.
+func ClusterOperatorClusterForCombinedCluster(cluster *clusteroperator.CombinedCluster) *clusteroperator.Cluster {
+	return &clusteroperator.Cluster{
+		TypeMeta:   cluster.TypeMeta,
+		ObjectMeta: cluster.ObjectMeta,
+		Spec:       *cluster.ClusterOperatorSpec,
+		Status:     *cluster.ClusterOperatorStatus,
+	}
+}
+
+// ClusterAPIClusterForCombinedCluster creates a cluster-api Cluster from the
+// specified CombinedCluster.
+// If ignoreChanges is true, then the ProviderStatus will not be modified with
+// the cluster-operator ClusterStatus. This is useful for re-creating the original
+// cluster-api Cluster that was used to create the CombinedCluster.
+func ClusterAPIClusterForCombinedCluster(cluster *clusteroperator.CombinedCluster, ignoreChanges bool) (*clusterapi.Cluster, error) {
+	newCluster := &clusterapi.Cluster{
+		TypeMeta:   cluster.TypeMeta,
+		ObjectMeta: cluster.ObjectMeta,
+		Spec:       *cluster.ClusterAPISpec,
+		Status:     *cluster.ClusterAPIStatus,
+	}
+	if !ignoreChanges {
+		// We don't bother replacing ProviderConfig since we will not be updating the
+		// cluster spec.
+		providerStatus, err := ClusterAPIProviderStatusFromClusterStatus(cluster.ClusterOperatorStatus)
+		if err != nil {
+			return nil, err
+		}
+		newCluster.Status.ProviderStatus = providerStatus
+	}
+	return newCluster, nil
+}

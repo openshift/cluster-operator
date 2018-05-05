@@ -1,5 +1,5 @@
 /*
-Copyright 2017 The Kubernetes Authors.
+Copyright 2018 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import (
 	v1batch "k8s.io/api/batch/v1"
 	kapi "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	batchinformers "k8s.io/client-go/informers/batch/v1"
@@ -38,11 +39,15 @@ import (
 	"github.com/openshift/cluster-operator/pkg/ansible"
 	"github.com/openshift/cluster-operator/pkg/kubernetes/pkg/util/metrics"
 
+	"github.com/openshift/cluster-operator/pkg/controller"
+
 	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	clusteroperatorclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
-	informers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions/clusteroperator/v1alpha1"
-	lister "github.com/openshift/cluster-operator/pkg/client/listers_generated/clusteroperator/v1alpha1"
-	"github.com/openshift/cluster-operator/pkg/controller"
+	clusteroperatorinformers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions/clusteroperator/v1alpha1"
+
+	clusterapi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	clusterapiclientset "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
+	clusterapiinformers "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions/cluster/v1alpha1"
 )
 
 const (
@@ -53,22 +58,74 @@ const (
 	// 5ms, 10ms, 20ms, 40ms, 80ms, 160ms, 320ms, 640ms, 1.3s, 2.6s, 5.1s, 10.2s, 20.4s, 41s, 82s
 	maxRetries = 15
 
-	controllerLogName = "infra"
-
 	infraPlaybook            = "playbooks/cluster-operator/aws/infrastructure.yml"
 	deprovisionInfraPlaybook = "playbooks/cluster-operator/aws/uninstall_infrastructure.yml"
 	// jobType is the type of job run by this controller.
 	jobType = "infra"
 )
 
-var clusterKind = clusteroperator.SchemeGroupVersion.WithKind("Cluster")
-
-// NewController returns a new *Controller.
-func NewController(
-	clusterInformer informers.ClusterInformer,
+// NewClusterOperatorController returns a new *Controller to use with
+// cluster-operator resources.
+func NewClusterOperatorController(
+	clusterInformer clusteroperatorinformers.ClusterInformer,
 	jobInformer batchinformers.JobInformer,
 	kubeClient kubeclientset.Interface,
 	clusteroperatorClient clusteroperatorclientset.Interface,
+) *Controller {
+	clusterLister := clusterInformer.Lister()
+	return newController(
+		schema.GroupVersionKind{Group: "clusteroperator.openshift.io", Version: "v1alpha1", Kind: "Cluster"},
+		"clusteroperator_infra_controller",
+		"infra",
+		clusteroperatorClient,
+		nil,
+		kubeClient,
+		jobInformer,
+		func(handler cache.ResourceEventHandler) { clusterInformer.Informer().AddEventHandler(handler) },
+		func(namespace, name string) (metav1.Object, error) {
+			return clusterLister.Clusters(namespace).Get(name)
+		},
+		clusterInformer.Informer().HasSynced,
+	)
+}
+
+// NewClusterAPIController returns a new *Controller to use with
+// cluster-api resources.
+func NewClusterAPIController(
+	clusterInformer clusterapiinformers.ClusterInformer,
+	jobInformer batchinformers.JobInformer,
+	kubeClient kubeclientset.Interface,
+	clusteroperatorClient clusteroperatorclientset.Interface,
+	clusterapiClient clusterapiclientset.Interface,
+) *Controller {
+	clusterLister := clusterInformer.Lister()
+	return newController(
+		schema.GroupVersionKind{Group: "cluster.k8s.io", Version: "v1alpha1", Kind: "Cluster"},
+		"clusteroperator_capi_infra_controller",
+		"capi-infra",
+		clusteroperatorClient,
+		clusterapiClient,
+		kubeClient,
+		jobInformer,
+		func(handler cache.ResourceEventHandler) { clusterInformer.Informer().AddEventHandler(handler) },
+		func(namespace, name string) (metav1.Object, error) {
+			return clusterLister.Clusters(namespace).Get(name)
+		},
+		clusterInformer.Informer().HasSynced,
+	)
+}
+
+func newController(
+	clusterKind schema.GroupVersionKind,
+	metricsName string,
+	loggerName string,
+	clusteroperatorClient clusteroperatorclientset.Interface,
+	clusterapiClient clusterapiclientset.Interface,
+	kubeClient kubeclientset.Interface,
+	jobInformer batchinformers.JobInformer,
+	addInformerEventHandler func(cache.ResourceEventHandler),
+	getCluster func(namespace, name string) (metav1.Object, error),
+	clustersSynced cache.InformerSynced,
 ) *Controller {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(glog.Infof)
@@ -76,24 +133,26 @@ func NewController(
 	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: v1core.New(kubeClient.CoreV1().RESTClient()).Events("")})
 
 	if kubeClient != nil && kubeClient.CoreV1().RESTClient().GetRateLimiter() != nil {
-		metrics.RegisterMetricAndTrackRateLimiterUsage("clusteroperator_cluster_controller", kubeClient.CoreV1().RESTClient().GetRateLimiter())
+		metrics.RegisterMetricAndTrackRateLimiterUsage(metricsName, kubeClient.CoreV1().RESTClient().GetRateLimiter())
 	}
 
-	logger := log.WithField("controller", controllerLogName)
+	logger := log.WithField("controller", loggerName)
 	c := &Controller{
-		coClient:   clusteroperatorClient,
-		kubeClient: kubeClient,
-		queue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "cluster"),
-		logger:     logger,
+		clusterKind:    clusterKind,
+		coClient:       clusteroperatorClient,
+		caClient:       clusterapiClient,
+		kubeClient:     kubeClient,
+		queue:          workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), loggerName),
+		logger:         logger,
+		getCluster:     getCluster,
+		clustersSynced: clustersSynced,
 	}
 
-	clusterInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	addInformerEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.addCluster,
 		UpdateFunc: c.updateCluster,
 		DeleteFunc: c.deleteCluster,
 	})
-	c.clustersLister = clusterInformer.Lister()
-	c.clustersSynced = clusterInformer.Informer().HasSynced
 
 	jobOwnerControl := &jobOwnerControl{controller: c}
 	c.jobControl = controller.NewJobControl(jobType, clusterKind, kubeClient, jobInformer.Lister(), jobOwnerControl, logger)
@@ -111,7 +170,10 @@ func NewController(
 
 // Controller manages clusters.
 type Controller struct {
+	clusterKind schema.GroupVersionKind
+
 	coClient   clusteroperatorclientset.Interface
+	caClient   clusterapiclientset.Interface
 	kubeClient kubeclientset.Interface
 
 	// To allow injection of syncCluster for testing.
@@ -125,11 +187,11 @@ type Controller struct {
 	jobSync controller.JobSync
 
 	// used for unit testing
-	enqueueCluster func(cluster *clusteroperator.Cluster)
+	enqueueCluster func(cluster metav1.Object)
 
-	// clustersLister is able to list/get clusters and is populated by the shared informer passed to
-	// NewController.
-	clustersLister lister.ClusterLister
+	// getCluster gets the cluster with the specified namespace and name from
+	// the lister
+	getCluster func(namespace, name string) (metav1.Object, error)
 	// clustersSynced returns true if the cluster shared informer has been synced at least once.
 	// Added as a member to the struct to allow injection for testing.
 	clustersSynced cache.InformerSynced
@@ -144,32 +206,32 @@ type Controller struct {
 }
 
 func (c *Controller) addCluster(obj interface{}) {
-	cluster := obj.(*clusteroperator.Cluster)
-	c.logger.Debugf("enqueueing added cluster %s/%s", cluster.Namespace, cluster.Name)
+	cluster := obj.(metav1.Object)
+	c.logger.Debugf("enqueueing added cluster %s/%s", cluster.GetNamespace(), cluster.GetName())
 	c.enqueueCluster(cluster)
 }
 
 func (c *Controller) updateCluster(old, obj interface{}) {
-	cluster := obj.(*clusteroperator.Cluster)
-	c.logger.Debugf("enqueueing updated cluster %s/%s", cluster.Namespace, cluster.Name)
+	cluster := obj.(metav1.Object)
+	c.logger.Debugf("enqueueing updated cluster %s/%s", cluster.GetNamespace(), cluster.GetName())
 	c.enqueueCluster(cluster)
 }
 
 func (c *Controller) deleteCluster(obj interface{}) {
-	cluster, ok := obj.(*clusteroperator.Cluster)
+	cluster, ok := obj.(metav1.Object)
 	if !ok {
 		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("couldn't get object from tombstone %#v", obj))
 			return
 		}
-		cluster, ok = tombstone.Obj.(*clusteroperator.Cluster)
+		cluster, ok = tombstone.Obj.(metav1.Object)
 		if !ok {
-			utilruntime.HandleError(fmt.Errorf("tombstone contained object that is not a cluster %#v", obj))
+			utilruntime.HandleError(fmt.Errorf("tombstone contained object that is not an Object %#v", obj))
 			return
 		}
 	}
-	c.logger.Debugf("enqueueing deleted cluster %s/%s", cluster.Namespace, cluster.Name)
+	c.logger.Debugf("enqueueing deleted cluster %s/%s", cluster.GetNamespace(), cluster.GetName())
 	c.enqueueCluster(cluster)
 }
 
@@ -194,7 +256,7 @@ func (c *Controller) Run(workers int, stopCh <-chan struct{}) {
 	<-stopCh
 }
 
-func (c *Controller) enqueue(cluster *clusteroperator.Cluster) {
+func (c *Controller) enqueue(cluster metav1.Object) {
 	key, err := controller.KeyFunc(cluster)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("couldn't get key for object %#v: %v", cluster, err))
@@ -244,6 +306,29 @@ func (c *Controller) handleErr(err error, key interface{}) {
 	c.queue.Forget(key)
 }
 
+func (c *Controller) combinedCluster(obj metav1.Object) (*clusteroperator.CombinedCluster, error) {
+	combinedCluster, ok := obj.(*clusteroperator.CombinedCluster)
+	if ok {
+		return combinedCluster, nil
+	}
+	switch c.clusterKind.Group {
+	case "clusteroperator.openshift.io":
+		cluster, ok := obj.(*clusteroperator.Cluster)
+		if !ok {
+			return nil, fmt.Errorf("could not convert object into cluster-operator Cluster (%T)", obj)
+		}
+		return controller.CombinedClusterForClusterOperatorCluster(cluster), nil
+	case "cluster.k8s.io":
+		cluster, ok := obj.(*clusterapi.Cluster)
+		if !ok {
+			return nil, fmt.Errorf("could not convert object into cluster-api Cluster (%T)", obj)
+		}
+		return controller.CombinedClusterForClusterAPICluster(cluster)
+	default:
+		return nil, fmt.Errorf("unknown cluster kind %+v", c.clusterKind)
+	}
+}
+
 type jobOwnerControl struct {
 	controller *Controller
 }
@@ -253,43 +338,21 @@ func (c *jobOwnerControl) GetOwnerKey(owner metav1.Object) (string, error) {
 }
 
 func (c *jobOwnerControl) GetOwner(namespace string, name string) (metav1.Object, error) {
-	return c.controller.clustersLister.Clusters(namespace).Get(name)
+	cluster, err := c.controller.getCluster(namespace, name)
+	if err != nil {
+		return nil, err
+	}
+	return c.controller.combinedCluster(cluster)
 }
 
 func (c *jobOwnerControl) OnOwnedJobEvent(owner metav1.Object) {
-	cluster, ok := owner.(*clusteroperator.Cluster)
-	if !ok {
-		c.controller.logger.WithFields(log.Fields{"owner": owner.GetName(), "namespace": owner.GetNamespace()}).
-			Errorf("attempt to enqueue owner that is not a cluster")
-		return
-	}
-	c.controller.enqueueCluster(cluster)
+	c.controller.enqueueCluster(owner)
 }
 
 type jobFactory func(string) (*v1batch.Job, *kapi.ConfigMap, error)
 
 func (f jobFactory) BuildJob(name string) (*v1batch.Job, *kapi.ConfigMap, error) {
 	return f(name)
-}
-
-func (c *Controller) getJobFactory(cluster *clusteroperator.Cluster, playbook string) controller.JobFactory {
-	return jobFactory(func(name string) (*v1batch.Job, *kapi.ConfigMap, error) {
-		cvRef := cluster.Spec.ClusterVersionRef
-		cv, err := c.coClient.Clusteroperator().ClusterVersions(cvRef.Namespace).Get(cvRef.Name, metav1.GetOptions{})
-		if err != nil {
-			return nil, nil, err
-		}
-		vars, err := ansible.GenerateClusterVars(cluster, &cv.Spec)
-		if err != nil {
-			return nil, nil, err
-		}
-		image, pullPolicy := ansible.GetAnsibleImageForClusterVersion(cv)
-		job, configMap := c.ansibleGenerator.GeneratePlaybookJob(name, &cluster.Spec.Hardware, playbook, ansible.DefaultInventory, vars, image, pullPolicy)
-		labels := controller.JobLabelsForClusterController(cluster, jobType)
-		controller.AddLabels(job, labels)
-		controller.AddLabels(configMap, labels)
-		return job, configMap, nil
-	})
 }
 
 type jobSyncStrategy struct {
@@ -304,22 +367,36 @@ func (s *jobSyncStrategy) GetOwner(key string) (metav1.Object, error) {
 	if len(namespace) == 0 || len(name) == 0 {
 		return nil, fmt.Errorf("invalid key %q: either namespace or name is missing", key)
 	}
-	return s.controller.clustersLister.Clusters(namespace).Get(name)
+	cluster, err := s.controller.getCluster(namespace, name)
+	if err != nil {
+		return nil, err
+	}
+	return s.controller.combinedCluster(cluster)
 }
 
 func (s *jobSyncStrategy) DoesOwnerNeedProcessing(owner metav1.Object) bool {
-	cluster, ok := owner.(*clusteroperator.Cluster)
-	if !ok {
-		s.controller.logger.Warn("could not convert owner from JobSync into a cluster: %#v", owner)
+	cluster, err := s.controller.combinedCluster(owner)
+	if err != nil {
+		s.controller.logger.Warnf("could not convert owner from JobSync into a cluster: %v: %#v", err, owner)
 		return false
 	}
 
 	// cannot run ansible jobs until the ClusterVersion has been resolved
-	if cluster.Status.ClusterVersionRef == nil {
-		return false
+	if cluster.ClusterOperatorStatus.ClusterVersionRef == nil {
+		// staebler: Temporary work-around until we have a controller that sets
+		// the ClusterVersionRef for cluster-api clusters.
+		if cluster.ClusterAPISpec == nil {
+			return false
+		}
+		_, err := s.controller.coClient.ClusteroperatorV1alpha1().
+			ClusterVersions(cluster.ClusterOperatorSpec.ClusterVersionRef.Namespace).
+			Get(cluster.ClusterOperatorSpec.ClusterVersionRef.Name, metav1.GetOptions{})
+		if err != nil {
+			return false
+		}
 	}
 
-	return cluster.Status.ProvisionedJobGeneration != cluster.Generation
+	return cluster.ClusterOperatorStatus.ProvisionedJobGeneration != cluster.Generation
 }
 
 func (s *jobSyncStrategy) GetReprocessInterval() *time.Duration {
@@ -331,21 +408,38 @@ func (s *jobSyncStrategy) GetLastJobSuccess(owner metav1.Object) *time.Time {
 }
 
 func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object, deleting bool) (controller.JobFactory, error) {
-	cluster, ok := owner.(*clusteroperator.Cluster)
-	if !ok {
-		return nil, fmt.Errorf("could not convert owner from JobSync into a cluster")
+	cluster, err := s.controller.combinedCluster(owner)
+	if err != nil {
+		return nil, fmt.Errorf("could not convert owner from JobSync into a cluster: %v: %#v", err, owner)
 	}
 	playbook := infraPlaybook
 	if deleting {
 		playbook = deprovisionInfraPlaybook
 	}
-	return s.controller.getJobFactory(cluster, playbook), nil
+	jobFactory := jobFactory(func(name string) (*v1batch.Job, *kapi.ConfigMap, error) {
+		cvRef := cluster.ClusterOperatorSpec.ClusterVersionRef
+		cv, err := s.controller.coClient.Clusteroperator().ClusterVersions(cvRef.Namespace).Get(cvRef.Name, metav1.GetOptions{})
+		if err != nil {
+			return nil, nil, err
+		}
+		vars, err := ansible.GenerateClusterVars(cluster.Name, cluster.ClusterOperatorSpec, &cv.Spec)
+		if err != nil {
+			return nil, nil, err
+		}
+		image, pullPolicy := ansible.GetAnsibleImageForClusterVersion(cv)
+		job, configMap := s.controller.ansibleGenerator.GeneratePlaybookJob(name, &cluster.ClusterOperatorSpec.Hardware, playbook, ansible.DefaultInventory, vars, image, pullPolicy)
+		labels := controller.JobLabelsForClusterController(cluster, jobType)
+		controller.AddLabels(job, labels)
+		controller.AddLabels(configMap, labels)
+		return job, configMap, nil
+	})
+	return jobFactory, nil
 }
 
 func (s *jobSyncStrategy) DeepCopyOwner(owner metav1.Object) metav1.Object {
-	cluster, ok := owner.(*clusteroperator.Cluster)
-	if !ok {
-		s.controller.logger.Warn("could not convert owner from JobSync into a cluster: %#v", owner)
+	cluster, err := s.controller.combinedCluster(owner)
+	if err != nil {
+		s.controller.logger.Warnf("could not convert owner from JobSync into a cluster: %v: %#v", err, owner)
 		return cluster
 	}
 	return cluster.DeepCopy()
@@ -359,13 +453,13 @@ func (s *jobSyncStrategy) SetOwnerJobSyncCondition(
 	message string,
 	updateConditionCheck controller.UpdateConditionCheck,
 ) {
-	cluster, ok := owner.(*clusteroperator.Cluster)
-	if !ok {
-		s.controller.logger.Warn("could not convert owner from JobSync into a cluster: %#v", owner)
+	cluster, err := s.controller.combinedCluster(owner)
+	if err != nil {
+		s.controller.logger.Warnf("could not convert owner from JobSync into a cluster: %v: %#v", err, owner)
 		return
 	}
 	controller.SetClusterCondition(
-		cluster,
+		cluster.ClusterOperatorStatus,
 		convertJobSyncConditionType(conditionType),
 		status,
 		reason,
@@ -375,25 +469,42 @@ func (s *jobSyncStrategy) SetOwnerJobSyncCondition(
 }
 
 func (s *jobSyncStrategy) OnJobCompletion(owner metav1.Object, job *v1batch.Job, succeeded bool) {
-	cluster, ok := owner.(*clusteroperator.Cluster)
-	if !ok {
-		s.controller.logger.Warn("could not convert owner from JobSync into a cluster: %#v", owner)
+	cluster, err := s.controller.combinedCluster(owner)
+	if err != nil {
+		s.controller.logger.Warnf("could not convert owner from JobSync into a cluster: %v: %#v", err, owner)
 		return
 	}
-	cluster.Status.Provisioned = succeeded
-	cluster.Status.ProvisionedJobGeneration = cluster.Generation
+	cluster.ClusterOperatorStatus.Provisioned = succeeded
+	cluster.ClusterOperatorStatus.ProvisionedJobGeneration = cluster.Generation
 }
 
 func (s *jobSyncStrategy) UpdateOwnerStatus(original, owner metav1.Object) error {
-	originalCluster, ok := original.(*clusteroperator.Cluster)
-	if !ok {
-		return fmt.Errorf("could not convert original from JobSync into a cluster")
+	originalCombinedCluster, err := s.controller.combinedCluster(original)
+	if err != nil {
+		return fmt.Errorf("could not convert original from JobSync into a cluster: %v: %#v", err, owner)
 	}
-	cluster, ok := owner.(*clusteroperator.Cluster)
-	if !ok {
-		return fmt.Errorf("could not convert owner from JobSync into a cluster")
+	combinedCluster, err := s.controller.combinedCluster(owner)
+	if err != nil {
+		return fmt.Errorf("could not convert owner from JobSync into a cluster: %v: %#v", err, owner)
 	}
-	return controller.PatchClusterStatus(s.controller.coClient, originalCluster, cluster)
+	switch s.controller.clusterKind.Group {
+	case "clusteroperator.openshift.io":
+		originalCluster := controller.ClusterOperatorClusterForCombinedCluster(originalCombinedCluster)
+		cluster := controller.ClusterOperatorClusterForCombinedCluster(combinedCluster)
+		return controller.PatchClusterStatus(s.controller.coClient, originalCluster, cluster)
+	case "cluster.k8s.io":
+		originalCluster, err := controller.ClusterAPIClusterForCombinedCluster(originalCombinedCluster, true /*ignoreChanges*/)
+		if err != nil {
+			return err
+		}
+		cluster, err := controller.ClusterAPIClusterForCombinedCluster(combinedCluster, false /*ignoreChanges*/)
+		if err != nil {
+			return err
+		}
+		return controller.PatchClusterAPIStatus(s.controller.caClient, originalCluster, cluster)
+	default:
+		return fmt.Errorf("unknown cluster kind %+v", s.controller.clusterKind)
+	}
 }
 
 func convertJobSyncConditionType(conditionType controller.JobSyncConditionType) clusteroperator.ClusterConditionType {
