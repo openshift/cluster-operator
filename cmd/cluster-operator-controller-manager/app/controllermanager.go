@@ -72,6 +72,7 @@ import (
 	"github.com/openshift/cluster-operator/pkg/controller/master"
 	"github.com/openshift/cluster-operator/pkg/controller/nodeconfig"
 	"github.com/openshift/cluster-operator/pkg/version"
+	capiinformers "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions"
 )
 
 const (
@@ -252,6 +253,9 @@ type ControllerContext struct {
 	// InformerFactory gives access to informers for the controller.
 	InformerFactory clusteroperatorinformers.SharedInformerFactory
 
+	// InformerFactory gives access to informers for the controller.
+	ClusterAPIInformerFactory capiinformers.SharedInformerFactory
+
 	// KubeInformerFactory gives access to kubernetes informers for the controller.
 	KubeInformerFactory kubeinformers.SharedInformerFactory
 
@@ -320,6 +324,7 @@ var ControllersDisabledByDefault = sets.NewString()
 // paired to their InitFunc.  This allows for structured downstream composition and subdivision.
 func NewControllerInitializers() map[string]InitFunc {
 	controllers := map[string]InitFunc{}
+
 	controllers["cluster"] = startClusterController
 	controllers["infra"] = startInfraController
 	controllers["machineset"] = startMachineSetController
@@ -329,6 +334,7 @@ func NewControllerInitializers() map[string]InitFunc {
 	controllers["components"] = startComponentsController
 	controllers["nodeconfig"] = startNodeConfigController
 	controllers["deployclusterapi"] = startDeployClusterAPIController
+
 	return controllers
 }
 
@@ -405,8 +411,10 @@ func GetAvailableResources(clientBuilder controller.ClientBuilder) (map[schema.G
 func CreateControllerContext(s *options.CMServer, clientBuilder controller.ClientBuilder, stop <-chan struct{}) (ControllerContext, error) {
 	versionedClient := clientBuilder.ClientOrDie("shared-informers")
 	kubeClient := clientBuilder.KubeClientOrDie("shared-informers")
+	capiClient := clientBuilder.ClusterAPIClientOrDie("shared-informers")
 	sharedInformers := clusteroperatorinformers.NewSharedInformerFactory(versionedClient, ResyncPeriod(s)())
 	kubeSharedInformers := kubeinformers.NewSharedInformerFactory(kubeClient, ResyncPeriod(s)())
+	capiInformers := capiinformers.NewSharedInformerFactory(capiClient, ResyncPeriod(s)())
 
 	availableResources, err := GetAvailableResources(clientBuilder)
 	if err != nil {
@@ -414,13 +422,14 @@ func CreateControllerContext(s *options.CMServer, clientBuilder controller.Clien
 	}
 
 	ctx := ControllerContext{
-		ClientBuilder:       clientBuilder,
-		InformerFactory:     sharedInformers,
-		KubeInformerFactory: kubeSharedInformers,
-		Options:             *s,
-		AvailableResources:  availableResources,
-		Stop:                stop,
-		InformersStarted:    make(chan struct{}),
+		ClientBuilder:             clientBuilder,
+		InformerFactory:           sharedInformers,
+		KubeInformerFactory:       kubeSharedInformers,
+		ClusterAPIInformerFactory: capiInformers,
+		Options:                   *s,
+		AvailableResources:        availableResources,
+		Stop:                      stop,
+		InformersStarted:          make(chan struct{}),
 	}
 	return ctx, nil
 }
