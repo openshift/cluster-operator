@@ -68,6 +68,20 @@
 
 You can then check the provisioning status of your cluster by running `oc describe cluster <cluster_name>`
 
+## Developing Cluster Operator Controllers Locally
+
+If you are actively working on controller code you can save some time by compiling and running locally:
+
+  * Run the deploy playbooks normally.
+  * Disable your controller in the cluster-operator-controller-manager DeploymentConfig using *one* of the below methods:
+    * Scale everything down: `oc scale -n openshift-cluster-operator --replicas=0 dc/cluster-operator-controller-manager`
+    * Disable just your controller: `oc edit -n openshift-cluster-operator DeploymentConfig cluster-operator-controller-manager` and add an argument for --controllers=-disableme or --controllers=c1,c2,c3 for just the controllers you want.
+    * Delete it entirely: `oc delete -n openshift-cluster-operator DeploymentConfig cluster-operator-controller-manager`
+  * `make build`
+    * On Mac you may need to instead build a Darwin binary with: `go install ./cmd/cluster-operator`
+  * `bin/cluster-operator controller-manager --log-level debug --k8s-kubeconfig ~/.kube/config`
+    * You can adjust the controllers run with `--controllers clusterapi,machineset,etc`. Use --help to see the full list.
+
 ## Developing With OpenShift Ansible
 
 The Cluster Operator uses its own Ansible image which layers our playbooks and roles on top of the upstream (https://github.com/openshift/openshift-ansible)[OpenShift Ansible] images. Typically our Ansible changes only require work in this repo. See the `build/cluster-operator-ansible` directory for the Dockerfile and playbooks we layer in.
