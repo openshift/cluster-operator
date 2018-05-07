@@ -140,3 +140,14 @@
   - name: deploy cluster operator
     kubectl_apply:
       definition: "{{ cluster_app_reg.result | to_json }}"
+
+  - name: process cluster-api controllers template
+    oc_process:
+      template_file: "{{ playbook_dir }}/../examples/cluster-api-controllers-template.yaml"
+      parameters:
+        CLUSTER_API_NAMESPACE: "{{ cluster_operator_namespace }}"
+    register: cluster_api_controllers
+
+  - name: deploy cluster api controllers
+    kubectl_apply:
+      definition: "{{ cluster_api_controllers.result | to_json }}"
