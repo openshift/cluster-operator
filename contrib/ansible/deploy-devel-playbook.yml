@@ -15,7 +15,23 @@
   vars:
     # Namespace to deploy CO to:
     cluster_operator_namespace: "openshift-cluster-operator"
+
+    # Normally we assume to build and push images for devel deployments:
+    push_images: True
   tasks:
+
+  - name: build images off latest source
+    command: make images
+    args:
+      chdir: "{{ playbook_dir }}/../../"
+    when: push_images | bool
+
+  - name: push devel images to integrated registry
+    command: make integrated-registry-push
+    args:
+      chdir: "{{ playbook_dir }}/../../"
+    when: push_images | bool
+
   - name: wait for apiserver deployment to finish
     command: |-
       oc rollout status deploymentconfig/cluster-operator-apiserver -n {{ cluster_operator_namespace | quote }}
@@ -32,4 +48,14 @@
       namespace: "{{ cluster_operator_namespace }}"
       src: "{{ playbook_dir }}/../examples/deploy-playbook-mock.yaml"
 
-  - debug: msg="Deployment complete, you may need to push images to the registry or start a build before the Cluster Operator will deploy. (see README.md)"
+  - name: process cluster versions template
+    oc_process:
+      template_file: "{{ playbook_dir }}/../examples/cluster-versions-template.yaml"
+    parameters:
+      CLUSTER_VERSION_NS: "{{ cluster_version_namespace }}"
+    register: cluster_versions_reg
+
+  - name: create/update cluster versions
+    kubectl_apply:
+      definition: "{{ cluster_versions_reg.result | to_json }}"
+
