@@ -18,6 +18,7 @@ package apiserver
 
 import (
 	"github.com/golang/glog"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apiserver/pkg/registry/generic"
 	"k8s.io/apiserver/pkg/registry/generic/registry"
 	"k8s.io/apiserver/pkg/registry/rest"
@@ -120,7 +121,7 @@ func (c completedEtcdConfig) NewServer(stopCh <-chan struct{}) (*ClusterOperator
 	if err != nil {
 		return nil, err
 	}
-	caGroupInfo := ca_apis.GetClusterAPIBuilder().Build(caRestOptions)
+	caGroupInfo := ca_apis.GetClusterAPIBuilder().Build(caRESTOptions{options: caRestOptions})
 	if caGroupInfo != nil {
 		groupInfos = append(groupInfos, caGroupInfo)
 	} else {
@@ -152,4 +153,14 @@ func (c completedEtcdConfig) NewServer(stopCh <-chan struct{}) (*ClusterOperator
 	glog.Infoln("Finished installing API groups")
 
 	return s, nil
+}
+
+type caRESTOptions struct {
+	options generic.RESTOptions
+}
+
+func (o caRESTOptions) GetRESTOptions(resource schema.GroupResource) (generic.RESTOptions, error) {
+	newOptions := o.options
+	newOptions.ResourcePrefix = resource.Group + "/" + resource.Resource
+	return newOptions, nil
 }
