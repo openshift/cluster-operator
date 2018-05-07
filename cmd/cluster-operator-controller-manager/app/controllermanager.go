@@ -461,7 +461,7 @@ func StartControllers(ctx ControllerContext, controllers map[string]InitFunc) er
 }
 
 func startClusterController(ctx ControllerContext) (bool, error) {
-	if !resourcesAvailable(ctx) {
+	if !clusterOperatorResourcesAvailable(ctx) {
 		return false, nil
 	}
 	go cluster.NewController(
@@ -475,7 +475,7 @@ func startClusterController(ctx ControllerContext) (bool, error) {
 }
 
 func startInfraController(ctx ControllerContext) (bool, error) {
-	if !resourcesAvailable(ctx) {
+	if !clusterOperatorResourcesAvailable(ctx) {
 		return false, nil
 	}
 	go infra.NewController(
@@ -488,7 +488,7 @@ func startInfraController(ctx ControllerContext) (bool, error) {
 }
 
 func startMachineSetController(ctx ControllerContext) (bool, error) {
-	if !resourcesAvailable(ctx) {
+	if !clusterOperatorResourcesAvailable(ctx) {
 		return false, nil
 	}
 	go machineset.NewController(
@@ -502,7 +502,7 @@ func startMachineSetController(ctx ControllerContext) (bool, error) {
 }
 
 func startMachineController(ctx ControllerContext) (bool, error) {
-	if !resourcesAvailable(ctx) {
+	if !clusterOperatorResourcesAvailable(ctx) {
 		return false, nil
 	}
 	go machine.NewController(
@@ -514,7 +514,7 @@ func startMachineController(ctx ControllerContext) (bool, error) {
 }
 
 func startMasterController(ctx ControllerContext) (bool, error) {
-	if !resourcesAvailable(ctx) {
+	if !clusterOperatorResourcesAvailable(ctx) {
 		return false, nil
 	}
 	go master.NewController(
@@ -527,7 +527,7 @@ func startMasterController(ctx ControllerContext) (bool, error) {
 }
 
 func startAcceptController(ctx ControllerContext) (bool, error) {
-	if !resourcesAvailable(ctx) {
+	if !clusterOperatorResourcesAvailable(ctx) {
 		return false, nil
 	}
 	go accept.NewController(
@@ -540,7 +540,7 @@ func startAcceptController(ctx ControllerContext) (bool, error) {
 }
 
 func startComponentsController(ctx ControllerContext) (bool, error) {
-	if !resourcesAvailable(ctx) {
+	if !clusterOperatorResourcesAvailable(ctx) {
 		return false, nil
 	}
 	go components.NewController(
@@ -553,7 +553,7 @@ func startComponentsController(ctx ControllerContext) (bool, error) {
 }
 
 func startNodeConfigController(ctx ControllerContext) (bool, error) {
-	if !resourcesAvailable(ctx) {
+	if !clusterOperatorResourcesAvailable(ctx) {
 		return false, nil
 	}
 	go nodeconfig.NewController(
@@ -566,7 +566,7 @@ func startNodeConfigController(ctx ControllerContext) (bool, error) {
 }
 
 func startDeployClusterAPIController(ctx ControllerContext) (bool, error) {
-	if !resourcesAvailable(ctx) {
+	if !clusterOperatorResourcesAvailable(ctx) {
 		return false, nil
 	}
 	go deployclusterapi.NewController(
@@ -578,14 +578,23 @@ func startDeployClusterAPIController(ctx ControllerContext) (bool, error) {
 	return true, nil
 }
 
-func resourcesAvailable(ctx ControllerContext) bool {
-	gvrs := []schema.GroupVersionResource{
-		{Group: "clusteroperator.openshift.io", Version: "v1alpha1", Resource: "clusters"},
-		{Group: "clusteroperator.openshift.io", Version: "v1alpha1", Resource: "machinesets"},
-	}
+func clusterOperatorResourcesAvailable(ctx ControllerContext) bool {
+	return resourcesAvailable(ctx,
+		schema.GroupVersionResource{Group: "clusteroperator.openshift.io", Version: "v1alpha1", Resource: "clusters"},
+		schema.GroupVersionResource{Group: "clusteroperator.openshift.io", Version: "v1alpha1", Resource: "machinesets"},
+	)
+}
 
-	for _, gvr := range gvrs {
-		if !ctx.AvailableResources[gvr] {
+func clusterAPIResourcesAvailable(ctx ControllerContext) bool {
+	return resourcesAvailable(ctx,
+		schema.GroupVersionResource{Group: "cluster.k8s.io", Version: "v1alpha1", Resource: "clusters"},
+		schema.GroupVersionResource{Group: "cluster.k8s.io", Version: "v1alpha1", Resource: "machinesets"},
+	)
+}
+
+func resourcesAvailable(ctx ControllerContext, resources ...schema.GroupVersionResource) bool {
+	for _, resource := range resources {
+		if !ctx.AvailableResources[resource] {
 			return false
 		}
 	}
