@@ -154,6 +154,7 @@ func Run(s *options.CMServer) error {
 		}
 
 		ctx.InformerFactory.Start(ctx.Stop)
+		ctx.ClusterAPIInformerFactory.Start(ctx.Stop)
 		ctx.KubeInformerFactory.Start(ctx.Stop)
 		close(ctx.InformersStarted)
 
