@@ -18,7 +18,6 @@ package apiserver
 
 import (
 	"github.com/golang/glog"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apiserver/pkg/registry/generic"
 	"k8s.io/apiserver/pkg/registry/generic/registry"
 	"k8s.io/apiserver/pkg/registry/rest"
@@ -26,7 +25,6 @@ import (
 	"k8s.io/apiserver/pkg/server/storage"
 
 	ca_apis "sigs.k8s.io/cluster-api/pkg/apis"
-	cav1alpha1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 )
 
 // EtcdConfig contains a generic API server Config along with config specific to
@@ -117,11 +115,7 @@ func (c completedEtcdConfig) NewServer(stopCh <-chan struct{}) (*ClusterOperator
 		groupInfos = append(groupInfos, groupInfo)
 	}
 
-	caRestOptions, err := roFactory.GetRESTOptions(cav1alpha1.SchemeGroupVersion.WithResource("cluster").GroupResource())
-	if err != nil {
-		return nil, err
-	}
-	caGroupInfo := ca_apis.GetClusterAPIBuilder().Build(caRESTOptions{options: caRestOptions})
+	caGroupInfo := ca_apis.GetClusterAPIBuilder().Build(roFactory)
 	if caGroupInfo != nil {
 		groupInfos = append(groupInfos, caGroupInfo)
 	} else {
@@ -153,14 +147,4 @@ func (c completedEtcdConfig) NewServer(stopCh <-chan struct{}) (*ClusterOperator
 	glog.Infoln("Finished installing API groups")
 
 	return s, nil
-}
-
-type caRESTOptions struct {
-	options generic.RESTOptions
-}
-
-func (o caRESTOptions) GetRESTOptions(resource schema.GroupResource) (generic.RESTOptions, error) {
-	newOptions := o.options
-	newOptions.ResourcePrefix = resource.Group + "/" + resource.Resource
-	return newOptions, nil
 }
