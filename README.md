@@ -105,6 +105,7 @@ You can then run ansible with the above inventory file and your cluster ID:
 
 ## Maintenance
 
+### Use of kubectl_ansible and oc_process modules
 We're using the Cluster Operator deployment Ansible as a testing ground for the
 kubectl-ansible modules that wrap apply and oc process. These roles are
 vendored in similar to how golang works using a tool called
@@ -120,3 +121,7 @@ Updating the vendored code can be done with:
 $ cd contrib/ansible/
 $ gogitit sync
 ```
+
+### Roles Template Duplication
+
+For OpenShift CI our roles template, which we do not have permissions to apply ourselves, had to be copied to https://github.com/openshift/release/blob/master/projects/cluster-operator/cluster-operator-roles-template.yaml. Our copy in this repo is authoritative, we need to remember to copy the file and submit a PR, and request someone run the make target for us whenever the auth/roles definitions change.
