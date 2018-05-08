@@ -359,3 +359,20 @@ func ClusterSpecFromClusterAPI(cluster *clusterapi.Cluster) (*clusteroperator.Cl
 	}
 	return &spec.ClusterSpec, nil
 }
+
+// ClusterStatusFromClusterAPI gets the cluster-operator ClusterStatus from the
+// specified cluster-api Cluster.
+func ClusterStatusFromClusterAPI(cluster *clusterapi.Cluster) (*clusteroperator.ClusterStatus, error) {
+	if cluster.Status.ProviderStatus == nil {
+		return nil, fmt.Errorf("No Value in ProviderStatus")
+	}
+	obj, _, err := api.Codecs.UniversalDecoder(clusteroperator.SchemeGroupVersion).Decode([]byte(cluster.Status.ProviderStatus.Raw), nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	status, ok := obj.(*clusteroperator.ClusterProviderStatus)
+	if !ok {
+		return nil, fmt.Errorf("Unexpected object: %#v", obj)
+	}
+	return &status.ClusterStatus, nil
+}

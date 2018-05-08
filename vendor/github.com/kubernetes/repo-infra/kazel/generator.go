@@ -17,23 +17,20 @@ limitations under the License.
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 )
 
 const (
-	openAPITagName = "openapi-gen"
-	staging        = "staging/src/"
-)
+	openAPIGenTag = "// +k8s:openapi-gen"
 
-var (
-	// Generator tags are specified using the format "// +k8s:name=value"
-	genTagRe = regexp.MustCompile(`//\s*\+k8s:([^\s=]+)(?:=(\S+))\s*\n`)
+	baseImport = "k8s.io/kubernetes/"
+	staging    = "staging/src/"
 )
 
 // walkGenerated updates the rule for kubernetes' OpenAPI generated file.
@@ -79,12 +76,8 @@ func (v *Vendorer) findOpenAPI(root string) ([]string, error) {
 			if err != nil {
 				return nil, err
 			}
-			matches := genTagRe.FindAllSubmatch(b, -1)
-			for _, m := range matches {
-				if len(m) >= 2 && string(m[1]) == openAPITagName {
-					includeMe = true
-					break
-				}
+			if bytes.Contains(b, []byte(openAPIGenTag)) {
+				includeMe = true
 			}
 		}
 	}
@@ -103,10 +96,9 @@ func (v *Vendorer) findOpenAPI(root string) ([]string, error) {
 func (v *Vendorer) addGeneratedOpenAPIRule(paths []string) error {
 	var openAPITargets []string
 	var vendorTargets []string
-	baseImport := v.cfg.GoPrefix + "/"
 	for _, p := range paths {
 		if !strings.HasPrefix(p, baseImport) {
-			return fmt.Errorf("openapi-gen path outside of %s: %s", v.cfg.GoPrefix, p)
+			return fmt.Errorf("openapi-gen path outside of kubernetes: %s", p)
 		}
 		np := p[len(baseImport):]
 		if strings.HasPrefix(np, staging) {

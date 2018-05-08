@@ -1118,3 +1118,56 @@ kind: Machine
 		})
 	}
 }
+
+func TestClusterStatusFromClusterAPI(t *testing.T) {
+	cases := []struct {
+		name                          string
+		providerStatus                string
+		expectedClusterVersionRefName string
+		expectedError                 bool
+	}{
+		{
+			name: "good",
+			providerStatus: `
+apiVersion: clusteroperator.openshift.io/v1alpha1
+kind: ClusterProviderStatus
+clusterVersionRef:
+  namespace: cluster-version-namespace
+  name: cluster-version
+`,
+			expectedClusterVersionRefName: "cluster-version",
+		},
+		{
+			name: "different type",
+			providerStatus: `
+apiVersion: clusteroperator.openshift.io/v1alpha1
+kind: Machine
+`,
+			expectedError: true,
+		},
+		{
+			name:           "missing provider status",
+			providerStatus: "",
+			expectedError:  true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cluster := &clusterapi.Cluster{}
+			if tc.providerStatus != "" {
+				cluster.Status.ProviderStatus = &runtime.RawExtension{
+					Raw: []byte(tc.providerStatus),
+				}
+			}
+			clusterStatus, err := ClusterStatusFromClusterAPI(cluster)
+			if tc.expectedError {
+				assert.Error(t, err, "expected an error")
+			} else {
+				if !assert.NoError(t, err, "expected success") {
+					return
+				}
+				assert.Equal(t, clusterStatus.ClusterVersionRef.Name, tc.expectedClusterVersionRefName, "unexpected clusterVersionRef name")
+			}
+		})
+	}
+}

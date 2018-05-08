@@ -264,6 +264,19 @@ const (
 	ClusterDeploymentTypeEnterprise ClusterDeploymentType = "openshift-enterprise"
 )
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// ClusterProviderStatus is the cluster status stored in the
+// ProviderStatus of a cluster.k8s.io Cluster.
+type ClusterProviderStatus struct {
+	// +optional
+	metav1.TypeMeta
+	// +optional
+	metav1.ObjectMeta
+
+	ClusterStatus
+}
+
 // ClusterStatus contains the status for a cluster
 type ClusterStatus struct {
 	// MachineSetCount is the number of actual machine sets that are active for the cluster

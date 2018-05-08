@@ -30,7 +30,7 @@ import (
 	"sort"
 	"strings"
 
-	bzl "github.com/bazelbuild/buildtools/build"
+	bzl "github.com/bazelbuild/buildifier/core"
 	"github.com/golang/glog"
 )
 
