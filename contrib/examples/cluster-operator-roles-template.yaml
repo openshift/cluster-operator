@@ -150,6 +150,10 @@ objects:
   - apiGroups: ["clusteroperator.openshift.io"]
     resources: ["*"]
     verbs:     ["create", "get", "list", "watch", "update", "patch", "delete"]
+  # allow all operations on all resources in the cluster-api API group
+  - apiGroups: ["cluster.k8s.io"]
+    resources: ["*"]
+    verbs:     ["create", "get", "list", "watch", "update", "patch", "delete"]
   # allow operations on required resources in any namespace a cluster is created
   - apiGroups:     [""]
     resources:     ["configmaps", "pods", "secrets", "serviceaccounts"]
