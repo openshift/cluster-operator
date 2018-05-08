@@ -221,7 +221,7 @@ objects:
         dnsPolicy: ClusterFirst
         restartPolicy: Always
         securityContext: {}
-        termindationGracePeriodSeconds: 30
+        terminationGracePeriodSeconds: 30
         volumes:
         - name: bootstrap-kubeconfig
           secret:
@@ -263,7 +263,7 @@ objects:
         dnsPolicy: ClusterFirst
         restartPolicy: Always
         securityContext: {}
-        termindationGracePeriodSeconds: 30
+        terminationGracePeriodSeconds: 30
 
 - apiVersion: v1
   kind: Secret
