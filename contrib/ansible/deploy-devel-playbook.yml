@@ -58,4 +58,18 @@
   - name: create/update cluster versions
     kubectl_apply:
       definition: "{{ cluster_versions_reg.result | to_json }}"
+    # Even with waiting for the apiserver deployment, there are still a few seconds before the apiserver responds:
+    retries: 5
+    delay: 5
+    register: create_versions_result
+    until: create_versions_result is succeeded
+    ignore_errors: yes
+
+  - debug: var=create_versions_result
+    when: not create_versions_result is succeeded
+
+  - name: report error if unable to create cluster versions
+    fail:
+      msg: 'Unable to create cluster versions'
+    when: not create_versions_result is succeeded
 
