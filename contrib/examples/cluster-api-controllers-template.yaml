@@ -10,8 +10,8 @@ objects:
     name: cluster-api-controller-manager
     namespace: ${CLUSTER_API_NAMESPACE}
 
-- apiVersion: apps/v1beta1
-  kind: Deployment
+- kind: DeploymentConfig
+  apiVersion: apps.openshift.io/v1
   metadata:
     name: aws-machine-controller
     namespace: ${CLUSTER_API_NAMESPACE}
@@ -19,9 +19,20 @@ objects:
       app: aws-machine-controller
   spec:
     selector:
-      matchLabels:
-        app: aws-machine-controller
+      app: aws-machine-controller
+    triggers:
+      - type: "ConfigChange"
+      - type: "ImageChange"
+        imageChangeParams:
+          automatic: true
+          containerNames:
+            - "machine-controller"
+          from:
+            # Uses the same ImageStream as our main controllers:
+            kind: "ImageStreamTag"
+            name: "cluster-operator:latest"
     replicas: 1
+    revisionHistoryLimit: 4
     template:
       metadata:
         labels:
@@ -30,8 +41,10 @@ objects:
         serviceAccountName: cluster-api-controller-manager
         containers:
         - name: machine-controller
-          image: ${MACHINE_CONTROLLER_IMAGE}
-          imagePullPolicy: ${IMAGE_PULL_POLICY}
+          image: cluster-operator:latest
+          imagePullPolicy: Never
+          command:
+          - /opt/services/aws-machine-controller
           args:
           - --log-level=debug
           - --default-availability-zone=${DEFAULT_AVAILABILITY_ZONE}
@@ -54,6 +67,7 @@ objects:
         - name: bootstrap-kubeconfig
           secret:
             secretName: bootstrap-kubeconfig
+
 - apiVersion: apps/v1beta1
   kind: Deployment
   metadata:
@@ -106,8 +120,6 @@ parameters:
 - name: CLUSTER_API_IMAGE
   value: quay.io/openshift/kubernetes-cluster-api:latest
 # machine controller image
-- name: MACHINE_CONTROLLER_IMAGE
-  value: quay.io/csrwng/aws-machine-controller:latest
 - name: DEFAULT_AVAILABILITY_ZONE
   value: us-east-1c
 # pull policy (for testing)
