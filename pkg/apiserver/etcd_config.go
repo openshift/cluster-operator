@@ -24,7 +24,9 @@ import (
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/apiserver/pkg/server/storage"
 
+	"github.com/openshift/cluster-operator/pkg/apis/clusterapi/validation"
 	ca_apis "sigs.k8s.io/cluster-api/pkg/apis"
+	ca "sigs.k8s.io/cluster-api/pkg/apis/cluster"
 )
 
 // EtcdConfig contains a generic API server Config along with config specific to
@@ -115,7 +117,9 @@ func (c completedEtcdConfig) NewServer(stopCh <-chan struct{}) (*ClusterOperator
 		groupInfos = append(groupInfos, groupInfo)
 	}
 
-	caGroupInfo := ca_apis.GetClusterAPIBuilder().Build(roFactory)
+	caAPIBuilder := ca_apis.GetClusterAPIBuilder()
+	validation.ReplaceStorageBuilder(caAPIBuilder, ca.InternalMachine, validation.ReplaceMachineStorageBuilder)
+	caGroupInfo := caAPIBuilder.Build(roFactory)
 	if caGroupInfo != nil {
 		groupInfos = append(groupInfos, caGroupInfo)
 	} else {
