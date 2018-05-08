@@ -22,19 +22,33 @@ import (
 	kubeinformers "k8s.io/client-go/informers"
 	kubeclientset "k8s.io/client-go/kubernetes"
 
-	"github.com/openshift/cluster-operator/pkg/client/clientset_generated/internalclientset"
-	informers "github.com/openshift/cluster-operator/pkg/client/informers_generated/internalversion"
+	coclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/internalclientset"
+	coinformers "github.com/openshift/cluster-operator/pkg/client/informers_generated/internalversion"
+	caclientset "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
+	cainformers "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions"
 )
 
 // WantsInternalClusterOperatorClientSet defines a function which sets ClientSet for admission plugins that need it
 type WantsInternalClusterOperatorClientSet interface {
-	SetInternalClusterOperatorClientSet(internalclientset.Interface)
+	SetInternalClusterOperatorClientSet(coclientset.Interface)
 	admission.ValidationInterface
 }
 
 // WantsInternalClusterOperatorInformerFactory defines a function which sets InformerFactory for admission plugins that need it
 type WantsInternalClusterOperatorInformerFactory interface {
-	SetInternalClusterOperatorInformerFactory(informers.SharedInformerFactory)
+	SetInternalClusterOperatorInformerFactory(coinformers.SharedInformerFactory)
+	admission.ValidationInterface
+}
+
+// WantsClusterAPIClientSet defines a function which sets ClientSet for admission plugins that need it
+type WantsClusterAPIClientSet interface {
+	SetClusterAPIClientSet(caclientset.Interface)
+	admission.ValidationInterface
+}
+
+// WantsClusterAPIInformerFactory defines a function which sets InformerFactory for admission plugins that need it
+type WantsClusterAPIInformerFactory interface {
+	SetClusterAPIInformerFactory(cainformers.SharedInformerFactory)
 	admission.ValidationInterface
 }
 
@@ -51,9 +65,10 @@ type WantsKubeInformerFactory interface {
 }
 
 type pluginInitializer struct {
-	internalClient internalclientset.Interface
-	informers      informers.SharedInformerFactory
-
+	coClient      coclientset.Interface
+	coInformers   coinformers.SharedInformerFactory
+	caClient      caclientset.Interface
+	caInformers   cainformers.SharedInformerFactory
 	kubeClient    kubeclientset.Interface
 	kubeInformers kubeinformers.SharedInformerFactory
 }
@@ -61,13 +76,17 @@ type pluginInitializer struct {
 var _ admission.PluginInitializer = pluginInitializer{}
 
 // NewPluginInitializer constructs new instance of PluginInitializer
-func NewPluginInitializer(internalClient internalclientset.Interface, sharedInformers informers.SharedInformerFactory,
+func NewPluginInitializer(
+	coClient coclientset.Interface, coSharedInformers coinformers.SharedInformerFactory,
+	caClient caclientset.Interface, caSharedInformers cainformers.SharedInformerFactory,
 	kubeClient kubeclientset.Interface, kubeInformers kubeinformers.SharedInformerFactory) admission.PluginInitializer {
 	return pluginInitializer{
-		internalClient: internalClient,
-		informers:      sharedInformers,
-		kubeClient:     kubeClient,
-		kubeInformers:  kubeInformers,
+		coClient:      coClient,
+		coInformers:   coSharedInformers,
+		caClient:      caClient,
+		caInformers:   caSharedInformers,
+		kubeClient:    kubeClient,
+		kubeInformers: kubeInformers,
 	}
 }
 
@@ -75,11 +94,19 @@ func NewPluginInitializer(internalClient internalclientset.Interface, sharedInfo
 // and provide the appropriate initialization data
 func (i pluginInitializer) Initialize(plugin admission.Interface) {
 	if wants, ok := plugin.(WantsInternalClusterOperatorClientSet); ok {
-		wants.SetInternalClusterOperatorClientSet(i.internalClient)
+		wants.SetInternalClusterOperatorClientSet(i.coClient)
 	}
 
 	if wants, ok := plugin.(WantsInternalClusterOperatorInformerFactory); ok {
-		wants.SetInternalClusterOperatorInformerFactory(i.informers)
+		wants.SetInternalClusterOperatorInformerFactory(i.coInformers)
+	}
+
+	if wants, ok := plugin.(WantsClusterAPIClientSet); ok {
+		wants.SetClusterAPIClientSet(i.caClient)
+	}
+
+	if wants, ok := plugin.(WantsClusterAPIInformerFactory); ok {
+		wants.SetClusterAPIInformerFactory(i.caInformers)
 	}
 
 	if wants, ok := plugin.(WantsKubeClientSet); ok {

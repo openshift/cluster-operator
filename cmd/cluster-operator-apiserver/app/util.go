@@ -36,19 +36,29 @@ import (
 	"github.com/openshift/cluster-operator/pkg/api"
 	clusteroperatoradmission "github.com/openshift/cluster-operator/pkg/apiserver/admission"
 	"github.com/openshift/cluster-operator/pkg/apiserver/authenticator"
-	"github.com/openshift/cluster-operator/pkg/client/clientset_generated/internalclientset"
-	informers "github.com/openshift/cluster-operator/pkg/client/informers_generated/internalversion"
+	coclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/internalclientset"
+	coinformers "github.com/openshift/cluster-operator/pkg/client/informers_generated/internalversion"
 	"github.com/openshift/cluster-operator/pkg/version"
+	caclientset "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
+	cainformers "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions"
 )
 
 // clusteroperatorConfig is a placeholder for configuration
 type clusteroperatorConfig struct {
-	// the shared informers that know how to speak back to this apiserver
-	sharedInformers informers.SharedInformerFactory
+	// the shared informers that know how to speak back to this apiserver for
+	// cluster-operator resources
+	coSharedInformers coinformers.SharedInformerFactory
+	// the shared informers that know how to speak back to this apiserver for
+	// cluster-api resources
+	caSharedInformers cainformers.SharedInformerFactory
 	// the shared informers that know how to speak back to kube apiserver
 	kubeSharedInformers kubeinformers.SharedInformerFactory
-	// the configured loopback client for this apiserver
-	client internalclientset.Interface
+	// the configured loopback client for this apiserver for cluster-operator
+	// resources
+	coClient coclientset.Interface
+	// the configured loopback client for this apiserver for cluster-api
+	// resources
+	caClient caclientset.Interface
 	// the configured client for kube apiserver
 	kubeClient kubeclientset.Interface
 }
@@ -101,16 +111,25 @@ func buildGenericConfig(s *options.ClusterOperatorServerRunOptions) (*genericapi
 	genericConfig.Version = &serviceCatalogVersion
 
 	// FUTURE: use protobuf for communication back to itself?
-	client, err := internalclientset.NewForConfig(genericConfig.LoopbackClientConfig)
+	coClient, err := coclientset.NewForConfig(genericConfig.LoopbackClientConfig)
 	if err != nil {
 		glog.Errorf("Failed to create clientset for clusteroperator self-communication: %v", err)
 		return nil, nil, err
 	}
-	sharedInformers := informers.NewSharedInformerFactory(client, 10*time.Minute)
+	coSharedInformers := coinformers.NewSharedInformerFactory(coClient, 10*time.Minute)
+
+	caClient, err := caclientset.NewForConfig(genericConfig.LoopbackClientConfig)
+	if err != nil {
+		glog.Errorf("Failed to create clientset for clusteroperator self-communication: %v", err)
+		return nil, nil, err
+	}
+	caSharedInformers := cainformers.NewSharedInformerFactory(caClient, 10*time.Minute)
 
 	clusteroperatorConfig := &clusteroperatorConfig{
-		client:          client,
-		sharedInformers: sharedInformers,
+		coClient:          coClient,
+		coSharedInformers: coSharedInformers,
+		caClient:          caClient,
+		caSharedInformers: caSharedInformers,
 	}
 	if inCluster {
 		inClusterConfig, err := restclient.InClusterConfig()
@@ -131,7 +150,7 @@ func buildGenericConfig(s *options.ClusterOperatorServerRunOptions) (*genericapi
 
 		// TODO: we need upstream to package AlwaysAdmit, or stop defaulting to it!
 		// NOTE: right now, we only run admission controllers when on kube cluster.
-		genericConfig.AdmissionControl, err = buildAdmission(s, client, sharedInformers, kubeClient, kubeSharedInformers)
+		genericConfig.AdmissionControl, err = buildAdmission(s, coClient, coSharedInformers, caClient, caSharedInformers, kubeClient, kubeSharedInformers)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to initialize admission: %v", err)
 		}
@@ -145,14 +164,15 @@ func buildGenericConfig(s *options.ClusterOperatorServerRunOptions) (*genericapi
 
 // buildAdmission constructs the admission chain
 func buildAdmission(s *options.ClusterOperatorServerRunOptions,
-	client internalclientset.Interface, sharedInformers informers.SharedInformerFactory,
+	coClient coclientset.Interface, coSharedInformers coinformers.SharedInformerFactory,
+	caClient caclientset.Interface, caSharedInformers cainformers.SharedInformerFactory,
 	kubeClient kubeclientset.Interface, kubeSharedInformers kubeinformers.SharedInformerFactory) (admission.Interface, error) {
 
 	admissionControlPluginNames := s.Admission.PluginNames
 	glog.Infof("Admission control plugin names: %v", admissionControlPluginNames)
 	var err error
 
-	pluginInitializer := clusteroperatoradmission.NewPluginInitializer(client, sharedInformers, kubeClient, kubeSharedInformers)
+	pluginInitializer := clusteroperatoradmission.NewPluginInitializer(coClient, coSharedInformers, caClient, caSharedInformers, kubeClient, kubeSharedInformers)
 	admissionConfigProvider, err := admission.ReadAdmissionConfiguration(admissionControlPluginNames, s.Admission.ConfigFile, api.Scheme)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read plugin config: %v", err)
@@ -164,7 +184,8 @@ func buildAdmission(s *options.ClusterOperatorServerRunOptions,
 func addPostStartHooks(server *genericapiserver.GenericAPIServer, scConfig *clusteroperatorConfig, stopCh <-chan struct{}) {
 	server.AddPostStartHook("start-cluster-operator-apiserver-informers", func(context genericapiserver.PostStartHookContext) error {
 		glog.Infof("Starting shared informers")
-		scConfig.sharedInformers.Start(stopCh)
+		scConfig.coSharedInformers.Start(stopCh)
+		scConfig.caSharedInformers.Start(stopCh)
 		if scConfig.kubeSharedInformers != nil {
 			scConfig.kubeSharedInformers.Start(stopCh)
 		}
