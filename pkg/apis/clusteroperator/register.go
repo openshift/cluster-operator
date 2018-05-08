@@ -56,6 +56,7 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&MachineSetList{},
 		&Machine{},
 		&MachineList{},
+		&ClusterProviderConfigSpec{},
 	)
 	return nil
 }

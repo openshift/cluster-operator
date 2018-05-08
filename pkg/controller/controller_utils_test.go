@@ -25,12 +25,14 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	runtime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 
 	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	clusteroperatorclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset/fake"
 	informers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions"
+	clusterapi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 )
 
 // TestUpdateConditionAlways tests the UpdateConditionAlways function.
@@ -1060,6 +1062,59 @@ func TestAddLabels(t *testing.T) {
 			}
 			AddLabels(obj, tc.additional)
 			assert.Equal(t, tc.expected, obj.Labels)
+		})
+	}
+}
+
+func TestClusterSpecFromClusterAPI(t *testing.T) {
+	cases := []struct {
+		name                          string
+		providerConfig                string
+		expectedClusterVersionRefName string
+		expectedError                 bool
+	}{
+		{
+			name: "good",
+			providerConfig: `
+apiVersion: clusteroperator.openshift.io/v1alpha1
+kind: ClusterProviderConfigSpec
+clusterVersionRef:
+  namespace: cluster-version-namespace
+  name: cluster-version
+`,
+			expectedClusterVersionRefName: "cluster-version",
+		},
+		{
+			name: "different type",
+			providerConfig: `
+apiVersion: clusteroperator.openshift.io/v1alpha1
+kind: Machine
+`,
+			expectedError: true,
+		},
+		{
+			name:           "missing provider config",
+			providerConfig: "",
+			expectedError:  true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cluster := &clusterapi.Cluster{}
+			if tc.providerConfig != "" {
+				cluster.Spec.ProviderConfig.Value = &runtime.RawExtension{
+					Raw: []byte(tc.providerConfig),
+				}
+			}
+			clusterSpec, err := ClusterSpecFromClusterAPI(cluster)
+			if tc.expectedError {
+				assert.Error(t, err, "expected an error")
+			} else {
+				if !assert.NoError(t, err, "expected success") {
+					return
+				}
+				assert.Equal(t, clusterSpec.ClusterVersionRef.Name, tc.expectedClusterVersionRefName, "unexpected clusterVersionRef name")
+			}
 		})
 	}
 }
