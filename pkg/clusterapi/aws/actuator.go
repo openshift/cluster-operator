@@ -90,6 +90,7 @@ func (a *Actuator) Create(cluster *clusterv1.Cluster, machine *clusterv1.Machine
 	a.logger.Debugf("Create %s/%s", machine.Namespace, machine.Name)
 	result, err := a.CreateMachine(cluster, machine)
 	if err != nil {
+		a.logger.Errorf("error creating machine: %v", err)
 		return err
 	}
 	machineCopy := machine.DeepCopy()
@@ -98,6 +99,10 @@ func (a *Actuator) Create(cluster *clusterv1.Cluster, machine *clusterv1.Machine
 	}
 	machineCopy.Annotations[instanceIDAnnotation] = *(result.Instances[0].InstanceId)
 	_, err = a.clusterClient.ClusterV1alpha1().Machines(machineCopy.Namespace).Update(machineCopy)
+	if err != nil {
+		a.logger.Errorf("error annotating new machine with instance ID: %v", err)
+		return err
+	}
 	return err
 }
 
@@ -298,6 +303,7 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 func (a *Actuator) Delete(machine *clusterv1.Machine) error {
 	a.logger.Debugf("Delete %s/%s", machine.Namespace, machine.Name)
 	if err := a.DeleteMachine(machine); err != nil {
+		a.logger.Errorf("error deleting machine: %v", err)
 		return err
 	}
 
@@ -305,6 +311,9 @@ func (a *Actuator) Delete(machine *clusterv1.Machine) error {
 	machineCopy := machine.DeepCopy()
 	machineCopy.ObjectMeta.Finalizers = util.Filter(machineCopy.ObjectMeta.Finalizers, clusterv1.MachineFinalizer)
 	_, err := a.clusterClient.ClusterV1alpha1().Machines(machineCopy.Namespace).Update(machineCopy)
+	if err != nil {
+		a.logger.Errorf("error removing finalizer from deleted machine: %v", err)
+	}
 	return err
 }
 
