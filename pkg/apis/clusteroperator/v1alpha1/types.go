@@ -144,6 +144,19 @@ type AWSRegionAMIs struct {
 	MasterAMI *string `json:"masterAMI,omitempty"`
 }
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// ClusterProviderConfigSpec is the cluster specification stored in the
+// ProviderConfig of a cluster.k8s.io Cluster.
+type ClusterProviderConfigSpec struct {
+	// +optional
+	metav1.TypeMeta `json:",inline"`
+	// +optional
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	ClusterSpec `json:",inline"`
+}
+
 // ClusterSpec is the specification of a cluster's hardware and configuration
 type ClusterSpec struct {
 	// Hardware specifies the hardware that the cluster will run on
@@ -251,6 +264,19 @@ const (
 	// ClusterDeploymentTypeEnterprise is a deployment type of openshift enterprise
 	ClusterDeploymentTypeEnterprise ClusterDeploymentType = "openshift-enterprise"
 )
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// ClusterProviderStatus is the cluster status stored in the
+// ProviderStatus of a cluster.k8s.io Cluster.
+type ClusterProviderStatus struct {
+	// +optional
+	metav1.TypeMeta `json:",inline"`
+	// +optional
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	ClusterStatus `json:",inline"`
+}
 
 // ClusterStatus contains the status for a cluster
 type ClusterStatus struct {

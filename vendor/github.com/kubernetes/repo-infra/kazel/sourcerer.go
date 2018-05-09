@@ -21,7 +21,7 @@ import (
 	"io/ioutil"
 	"path/filepath"
 
-	bzl "github.com/bazelbuild/buildtools/build"
+	bzl "github.com/bazelbuild/buildifier/core"
 )
 
 const (

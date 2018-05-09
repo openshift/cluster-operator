@@ -30,6 +30,7 @@ import (
 func RegisterDefaults(scheme *runtime.Scheme) error {
 	scheme.AddTypeDefaultingFunc(&Cluster{}, func(obj interface{}) { SetObjectDefaults_Cluster(obj.(*Cluster)) })
 	scheme.AddTypeDefaultingFunc(&ClusterList{}, func(obj interface{}) { SetObjectDefaults_ClusterList(obj.(*ClusterList)) })
+	scheme.AddTypeDefaultingFunc(&ClusterProviderConfigSpec{}, func(obj interface{}) { SetObjectDefaults_ClusterProviderConfigSpec(obj.(*ClusterProviderConfigSpec)) })
 	scheme.AddTypeDefaultingFunc(&Machine{}, func(obj interface{}) { SetObjectDefaults_Machine(obj.(*Machine)) })
 	scheme.AddTypeDefaultingFunc(&MachineList{}, func(obj interface{}) { SetObjectDefaults_MachineList(obj.(*MachineList)) })
 	scheme.AddTypeDefaultingFunc(&MachineSet{}, func(obj interface{}) { SetObjectDefaults_MachineSet(obj.(*MachineSet)) })
@@ -46,6 +47,10 @@ func SetObjectDefaults_ClusterList(in *ClusterList) {
 		a := &in.Items[i]
 		SetObjectDefaults_Cluster(a)
 	}
+}
+
+func SetObjectDefaults_ClusterProviderConfigSpec(in *ClusterProviderConfigSpec) {
+	SetDefaults_ClusterSpec(&in.ClusterSpec)
 }
 
 func SetObjectDefaults_Machine(in *Machine) {

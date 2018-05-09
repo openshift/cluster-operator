@@ -1,5 +1,5 @@
 hash: 15d40998b89952af6e466f19c373d9d195fdbbdd6566a567a2b62aa53e57ee65
-updated: 2018-04-30T10:52:49.103039-04:00
+updated: 2018-05-08T17:34:33.238841971-04:00
 imports:
 - name: bitbucket.org/ww/goautoneg
   version: 75cd24fc2f2c2a2088577d12123ddee5f54e0675
@@ -131,7 +131,7 @@ imports:
 - name: github.com/ghodss/yaml
   version: 73d445a93680fa1a78ae23a5839bad48f32ba1ee
 - name: github.com/go-ini/ini
-  version: bda519ae5f4cbc60d391ff8610711627a08b86ae
+  version: 300e940a926eb277d3901b20bdfcc54928ad3642
 - name: github.com/go-openapi/jsonpointer
   version: 46af16f9f7b149af66e5d1bd010e3574dc06de98
 - name: github.com/go-openapi/jsonreference
@@ -172,9 +172,9 @@ imports:
   - compiler
   - extensions
 - name: github.com/gorilla/context
-  version: 08b5f424b9271eedf6f9f0ce86cb9396ed337a42
+  version: 215affda49addc4c8ef7e2534915df2c8c35c6cd
 - name: github.com/gorilla/mux
-  version: b57cb1605fd11ba2ecfa7f68992b4b9cc791934d
+  version: 8096f47503459bcc74d1f4c487b7e6e42e5746b5
 - name: github.com/gregjones/httpcache
   version: 787624de3eb7bd915c329cba748687a3b22666a6
   subpackages:
@@ -198,7 +198,7 @@ imports:
 - name: github.com/inconshreveable/mousetrap
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
 - name: github.com/jmespath/go-jmespath
-  version: c2b33e8439af944379acbdd9c3a5fe0bc44bd8a5
+  version: 0b12d6b521d83fc7f755e7cfc1b1fbdd35a01a74
 - name: github.com/jonboulle/clockwork
   version: 72f9bd7c4e0c2a40055ab3d0f09654f730cce982
 - name: github.com/json-iterator/go
@@ -208,12 +208,12 @@ imports:
 - name: github.com/karlseguin/ccache
   version: 3ba9789cfd2cb7b4fb4657efc994cc1c599a648c
 - name: github.com/kubernetes-incubator/apiserver-builder
-  version: e809ac2f9f0c238f08d08a876f8b3f499604f941
+  version: 14201e804a58a140011a0044b15331f477535f91
   subpackages:
   - pkg/builders
   - pkg/controller
 - name: github.com/kubernetes/repo-infra
-  version: d9bb9fdc907665c61c228baa64fed9b91c7dc1b0
+  version: e26fc85d14a1d3dc25569831acc06919673c545a
 - name: github.com/mailru/easyjson
   version: 2f5df55504ebc322e4d52d34df6a1f5b503bf26d
   subpackages:
@@ -269,7 +269,7 @@ imports:
 - name: github.com/spf13/pflag
   version: e57e3eeb33f795204c1ca35f56c44f83227c6e66
 - name: github.com/stretchr/testify
-  version: f6abca593680b2315d2075e0f5e2a9751e3f431a
+  version: 69483b4bd14f5845b5a1e55bca19e954e827f1d0
   subpackages:
   - assert
 - name: github.com/ugorji/go
@@ -685,24 +685,6 @@ imports:
   version: fef8bcdbaf36ac6a1a18c9ef7d85200b249fad30
 - name: k8s.io/gengo
   version: b58fc7edb82e0c6ffc9b8aef61813c7261b785d4
-- name: k8s.io/kube-deploy
-  version: 5d7e0ecaec541c561f6e18cb4500c11554cfa406
-  subpackages:
-  - cluster-api/pkg/apis/cluster
-  - cluster-api/pkg/apis/cluster/common
-  - cluster-api/pkg/apis/cluster/v1alpha1
-  - cluster-api/pkg/client/clientset_generated/clientset
-  - cluster-api/pkg/client/clientset_generated/clientset/scheme
-  - cluster-api/pkg/client/clientset_generated/clientset/typed/cluster/v1alpha1
-  - cluster-api/pkg/client/informers_generated/externalversions
-  - cluster-api/pkg/client/informers_generated/externalversions/cluster
-  - cluster-api/pkg/client/informers_generated/externalversions/cluster/v1alpha1
-  - cluster-api/pkg/client/informers_generated/externalversions/internalinterfaces
-  - cluster-api/pkg/client/listers_generated/cluster/v1alpha1
-  - cluster-api/pkg/controller/config
-  - cluster-api/pkg/controller/machine
-  - cluster-api/pkg/controller/sharedinformers
-  - cluster-api/util
 - name: k8s.io/kube-openapi
   version: 39a7bf85c140f972372c2a0d1ee40adbf0c8bfe1
   subpackages:
@@ -712,9 +694,27 @@ imports:
   - pkg/util
   - pkg/util/proto
 - name: sigs.k8s.io/cluster-api
-  version: a4f58439a3f93d8884e65dd595c0e0f9d6614819
+  version: 5d5cdec6cf1208bfb4f63e3b2cd48154a12d52a5
+  subpackages:
+  - pkg/apis
+  - pkg/apis/cluster
+  - pkg/apis/cluster/common
+  - pkg/apis/cluster/install
+  - pkg/apis/cluster/v1alpha1
+  - pkg/client/clientset_generated/clientset
+  - pkg/client/clientset_generated/clientset/scheme
+  - pkg/client/clientset_generated/clientset/typed/cluster/v1alpha1
+  - pkg/client/informers_generated/externalversions
+  - pkg/client/informers_generated/externalversions/cluster
+  - pkg/client/informers_generated/externalversions/cluster/v1alpha1
+  - pkg/client/informers_generated/externalversions/internalinterfaces
+  - pkg/client/listers_generated/cluster/v1alpha1
+  - pkg/controller/config
+  - pkg/controller/machine
+  - pkg/controller/sharedinformers
+  - util
 testImports:
 - name: github.com/golang/mock
-  version: 87f106fccd7e3ced294a19e86bebd7846911690a
+  version: 22bbf0ddf08105dfa364d0a2fa619dfa71014af5
   subpackages:
   - gomock

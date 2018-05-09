@@ -29,7 +29,9 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/openshift/cluster-operator/pkg/api"
 	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	clusterapi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 )
 
 var (
@@ -339,4 +341,38 @@ func AddLabels(obj metav1.Object, additionalLabels map[string]string) {
 	for k, v := range additionalLabels {
 		labels[k] = v
 	}
+}
+
+// ClusterSpecFromClusterAPI gets the cluster-operator ClusterSpec from the
+// specified cluster-api Cluster.
+func ClusterSpecFromClusterAPI(cluster *clusterapi.Cluster) (*clusteroperator.ClusterSpec, error) {
+	if cluster.Spec.ProviderConfig.Value == nil {
+		return nil, fmt.Errorf("No Value in ProviderConfig")
+	}
+	obj, _, err := api.Codecs.UniversalDecoder(clusteroperator.SchemeGroupVersion).Decode([]byte(cluster.Spec.ProviderConfig.Value.Raw), nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	spec, ok := obj.(*clusteroperator.ClusterProviderConfigSpec)
+	if !ok {
+		return nil, fmt.Errorf("Unexpected object: %#v", obj)
+	}
+	return &spec.ClusterSpec, nil
+}
+
+// ClusterStatusFromClusterAPI gets the cluster-operator ClusterStatus from the
+// specified cluster-api Cluster.
+func ClusterStatusFromClusterAPI(cluster *clusterapi.Cluster) (*clusteroperator.ClusterStatus, error) {
+	if cluster.Status.ProviderStatus == nil {
+		return nil, fmt.Errorf("No Value in ProviderStatus")
+	}
+	obj, _, err := api.Codecs.UniversalDecoder(clusteroperator.SchemeGroupVersion).Decode([]byte(cluster.Status.ProviderStatus.Raw), nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	status, ok := obj.(*clusteroperator.ClusterProviderStatus)
+	if !ok {
+		return nil, fmt.Errorf("Unexpected object: %#v", obj)
+	}
+	return &status.ClusterStatus, nil
 }

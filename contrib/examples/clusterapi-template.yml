@@ -93,6 +93,8 @@ objects:
       serviceDomain: example.com
     providerConfig:
       value:
+        apiVersion: clusteroperator.openshift.io/v1alpha1
+        kind: ClusterProviderConfigSpec
         clusterVersionRef:
           namespace: ${CLUSTER_VERSION_NAMESPACE}
           name: ${CLUSTER_VERSION}
