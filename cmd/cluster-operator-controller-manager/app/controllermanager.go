@@ -29,6 +29,7 @@ import (
 	"os"
 	goruntime "runtime"
 	"strconv"
+	"sync"
 	"time"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -59,7 +60,7 @@ import (
 
 	"github.com/openshift/cluster-operator/cmd/cluster-operator-controller-manager/app/options"
 	"github.com/openshift/cluster-operator/pkg/api"
-	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	cov1alpha1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	clusteroperatorinformers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions"
 	"github.com/openshift/cluster-operator/pkg/controller"
 	"github.com/openshift/cluster-operator/pkg/controller/accept"
@@ -72,6 +73,7 @@ import (
 	"github.com/openshift/cluster-operator/pkg/controller/master"
 	"github.com/openshift/cluster-operator/pkg/controller/nodeconfig"
 	"github.com/openshift/cluster-operator/pkg/version"
+	cav1alpha1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	capiinformers "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions"
 )
 
@@ -345,23 +347,82 @@ func NewControllerInitializers() map[string]InitFunc {
 //  users don't have to restart their controller manager if they change the apiserver.
 // Until we get there, the structure here needs to be exposed for the construction of a proper ControllerContext.
 func GetAvailableResources(clientBuilder controller.ClientBuilder) (map[schema.GroupVersionResource]bool, error) {
+	var allResources = make(map[schema.GroupVersionResource]bool)
+
+	resourceGroups := []struct {
+		discoveryClientFn func() (discovery.DiscoveryInterface, error)
+		groupVersion      string
+	}{
+		{
+			discoveryClientFn: func() (discovery.DiscoveryInterface, error) {
+				coClient, err := clientBuilder.Client("controller-discovery")
+				if err != nil {
+					return nil, err
+				}
+				return coClient.Discovery(), nil
+			},
+			groupVersion: cov1alpha1.SchemeGroupVersion.String(),
+		},
+		{
+			discoveryClientFn: func() (discovery.DiscoveryInterface, error) {
+				capiClient, err := clientBuilder.ClusterAPIClient("controller-discovery")
+				if err != nil {
+					return nil, err
+				}
+				return capiClient.Discovery(), nil
+			},
+			groupVersion: cav1alpha1.SchemeGroupVersion.String(),
+		},
+	}
+
+	errc := make(chan error, len(resourceGroups))
+	resourcesc := make(chan []schema.GroupVersionResource, len(resourceGroups))
+
+	var wg sync.WaitGroup
+	for _, rg := range resourceGroups {
+		wg.Add(1)
+		go func(clientFn func() (discovery.DiscoveryInterface, error), gv string) {
+			defer wg.Done()
+			resources, err := waitForAPIServer(clientFn, gv)
+			if err != nil {
+				errc <- err
+				return
+			}
+			resourcesc <- resources
+		}(rg.discoveryClientFn, rg.groupVersion)
+	}
+	wg.Wait()
+	close(resourcesc)
+
+	if len(errc) > 0 {
+		return nil, <-errc
+	}
+
+	for resourceList := range resourcesc {
+		for _, resource := range resourceList {
+			allResources[resource] = true
+		}
+	}
+	return allResources, nil
+}
+
+func waitForAPIServer(discoveryClientFn func() (discovery.DiscoveryInterface, error), schemeGroupVersion string) ([]schema.GroupVersionResource, error) {
 	var (
-		discoveryClient discovery.DiscoveryInterface
-		allResources    map[schema.GroupVersionResource]bool
-		healthzContent  string
+		resources      []schema.GroupVersionResource
+		healthzContent string
+		err            error
 	)
 
 	// If apiserver is not running we should wait for some time and fail only then. This is particularly
 	// important when we start apiserver and controller manager at the same time.
-	err := wait.PollImmediate(10*time.Second, 3*time.Minute, func() (bool, error) {
-		client, err := clientBuilder.Client("controller-discovery")
+	err = wait.PollImmediate(10*time.Second, 3*time.Minute, func() (bool, error) {
+		discoveryClient, err := discoveryClientFn()
 		if err != nil {
-			glog.Errorf("Failed to get api versions from server: %v", err)
+			glog.Errorf("Failed to get API client for %s: %v", schemeGroupVersion, err)
 			return false, nil
 		}
-
 		healthStatus := 0
-		resp := client.Discovery().RESTClient().Get().AbsPath("/healthz").Do().StatusCode(&healthStatus)
+		resp := discoveryClient.RESTClient().Get().AbsPath("/healthz").Do().StatusCode(&healthStatus)
 		if healthStatus != http.StatusOK {
 			glog.Errorf("Server isn't healthy yet.  Waiting a little while.")
 			return false, nil
@@ -369,42 +430,40 @@ func GetAvailableResources(clientBuilder controller.ClientBuilder) (map[schema.G
 		content, _ := resp.Raw()
 		healthzContent = string(content)
 
-		discoveryClient = client.Discovery()
-
 		resourceMap, err := discoveryClient.ServerResources()
 		if err != nil {
 			glog.Errorf("API Extensions have not all been registered yet. Waiting a little while. %v", err)
 			return false, nil
 		}
 
-		clusterOperatorResourcesRegistered := false
-		allResources = map[schema.GroupVersionResource]bool{}
+		resourcesRegistered := false
 		for _, apiResourceList := range resourceMap {
 			version, err := schema.ParseGroupVersion(apiResourceList.GroupVersion)
 			if err != nil {
 				glog.Errorf("unable to parse group version %q: %v", apiResourceList.GroupVersion, err)
 				return false, nil
 			}
-			if apiResourceList.GroupVersion == v1alpha1.SchemeGroupVersion.String() {
-				clusterOperatorResourcesRegistered = true
+			if apiResourceList.GroupVersion != schemeGroupVersion {
+				continue
 			}
+			resourcesRegistered = true
 			for _, apiResource := range apiResourceList.APIResources {
-				allResources[version.WithResource(apiResource.Name)] = true
+				resources = append(resources, version.WithResource(apiResource.Name))
 			}
 		}
 
-		if !clusterOperatorResourcesRegistered {
-			glog.Errorf("Cluster operator resources are not registered yet with the API server. Waiting a little while.")
+		if !resourcesRegistered {
+			glog.Errorf("resources for %s are not registered yet with the API server. Waiting a little while.", schemeGroupVersion)
 			return false, nil
 		}
 
+		glog.Infof("Resources for %s are registered.", schemeGroupVersion)
 		return true, nil
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get api versions from server: %v: %v", healthzContent, err)
 	}
-
-	return allResources, nil
+	return resources, nil
 }
 
 // CreateControllerContext creates a context struct containing references to resources needed by the

@@ -36,6 +36,9 @@ type ClientBuilder interface {
 	// Client returns a new clientset.Interface with the given user agent
 	// name.
 	Client(name string) (clientset.Interface, error)
+	// ClusterAPIClient returns a new cluster API clientset.Interface
+	// with the given user agent name.
+	ClusterAPIClient(name string) (clusterclientset.Interface, error)
 	// ClientOrDie returns a new clientset.Interface with the given user agent
 	// name or logs a fatal error.
 	ClientOrDie(name string) clientset.Interface
@@ -101,14 +104,20 @@ func (b SimpleClientBuilder) KubeClientOrDie(name string) kubeclientset.Interfac
 	return kubeClient
 }
 
+// ClusterAPIClient returns a new kubeclientset.Interface with the given
+// user agent name.
+func (b SimpleClientBuilder) ClusterAPIClient(name string) (clusterclientset.Interface, error) {
+	clientConfigCopy := *b.ClientConfig
+	clientConfig := restclient.AddUserAgent(&clientConfigCopy, name)
+	return clusterclientset.NewForConfig(clientConfig)
+}
+
 // ClusterAPIClientOrDie returns a new kubeclientset.Interface with the given
 // user agent name or logs a fatal error.
 func (b SimpleClientBuilder) ClusterAPIClientOrDie(name string) clusterclientset.Interface {
-	clientConfigCopy := *b.ClientConfig
-	clientConfig := restclient.AddUserAgent(&clientConfigCopy, name)
-	capiClient, err := clusterclientset.NewForConfig(clientConfig)
+	client, err := b.ClusterAPIClient(name)
 	if err != nil {
 		glog.Fatal(err)
 	}
-	return capiClient
+	return client
 }
