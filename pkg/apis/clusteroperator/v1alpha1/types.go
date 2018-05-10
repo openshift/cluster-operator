@@ -315,6 +315,10 @@ type ClusterStatus struct {
 	// ClusterVersionRef references the resolved clusterversion the cluster should be running.
 	// +optional
 	ClusterVersionRef *corev1.ObjectReference `json:"clusterVersionRef,omitempty"`
+
+	// DeprovisionedComputeMachinesets is true of the compute machinesets of this cluster
+	// have been deprovisioned.
+	DeprovisionedComputeMachinesets bool `json:"deprovisionedComputeMachineSets"`
 }
 
 // ClusterCondition contains details for the current condition of a cluster

@@ -436,6 +436,7 @@ func autoConvert_v1alpha1_ClusterStatus_To_clusteroperator_ClusterStatus(in *Clu
 	out.Ready = in.Ready
 	out.Conditions = *(*[]clusteroperator.ClusterCondition)(unsafe.Pointer(&in.Conditions))
 	out.ClusterVersionRef = (*v1.ObjectReference)(unsafe.Pointer(in.ClusterVersionRef))
+	out.DeprovisionedComputeMachinesets = in.DeprovisionedComputeMachinesets
 	return nil
 }
 
@@ -454,6 +455,7 @@ func autoConvert_clusteroperator_ClusterStatus_To_v1alpha1_ClusterStatus(in *clu
 	out.Ready = in.Ready
 	out.Conditions = *(*[]ClusterCondition)(unsafe.Pointer(&in.Conditions))
 	out.ClusterVersionRef = (*v1.ObjectReference)(unsafe.Pointer(in.ClusterVersionRef))
+	out.DeprovisionedComputeMachinesets = in.DeprovisionedComputeMachinesets
 	return nil
 }
 
