@@ -507,6 +507,14 @@ func (s *jobSyncStrategy) UpdateOwnerStatus(original, owner metav1.Object) error
 	}
 }
 
+func (s *jobSyncStrategy) CanUndo(owner metav1.Object) bool {
+	cluster, ok := owner.(*clusteroperator.CombinedCluster)
+	if !ok {
+		return false
+	}
+	return cluster.ClusterOperatorStatus.DeprovisionedComputeMachinesets
+}
+
 func convertJobSyncConditionType(conditionType controller.JobSyncConditionType) clusteroperator.ClusterConditionType {
 	switch conditionType {
 	case controller.JobSyncProcessing:

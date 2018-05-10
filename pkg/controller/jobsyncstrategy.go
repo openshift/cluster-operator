@@ -71,3 +71,10 @@ type JobSyncStrategy interface {
 	// do not want to support reprocessing should return nil.
 	GetLastJobSuccess(owner metav1.Object) *time.Time
 }
+
+// CheckBeforeUndo should be implemented by a strategy to have the sync loop check
+// whether a particular owner resource is ready for undo when a DeletionTimestamp is detected.
+type CheckBeforeUndo interface {
+	// CanUndo should return true if the owner resource is ready for undo
+	CanUndo(owner metav1.Object) bool
+}

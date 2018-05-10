@@ -553,7 +553,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 						},
 						"deprovisionedComputeMachineSets": {
 							SchemaProps: spec.SchemaProps{
-								Description: "DeprovisionedComputeMachinesets is true of the compute machinesets of this cluster have been deprovisioned.",
+								Description: "DeprovisionedComputeMachinesets is true if the compute machinesets of this cluster have been deprovisioned.",
 								Type:        []string{"boolean"},
 								Format:      "",
 							},
@@ -688,7 +688,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 						},
 						"deprovisionedComputeMachineSets": {
 							SchemaProps: spec.SchemaProps{
-								Description: "DeprovisionedComputeMachinesets is true of the compute machinesets of this cluster have been deprovisioned.",
+								Description: "DeprovisionedComputeMachinesets is true if the compute machinesets of this cluster have been deprovisioned.",
 								Type:        []string{"boolean"},
 								Format:      "",
 							},

@@ -316,7 +316,7 @@ type ClusterStatus struct {
 	// +optional
 	ClusterVersionRef *corev1.ObjectReference `json:"clusterVersionRef,omitempty"`
 
-	// DeprovisionedComputeMachinesets is true of the compute machinesets of this cluster
+	// DeprovisionedComputeMachinesets is true if the compute machinesets of this cluster
 	// have been deprovisioned.
 	DeprovisionedComputeMachinesets bool `json:"deprovisionedComputeMachineSets"`
 }
