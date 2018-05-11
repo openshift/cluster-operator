@@ -593,11 +593,27 @@ func startMasterController(ctx ControllerContext) (bool, error) {
 	if !clusterOperatorResourcesAvailable(ctx) {
 		return false, nil
 	}
-	go master.NewController(
+	go master.NewClustopController(
+		ctx.InformerFactory.Clusteroperator().V1alpha1().Clusters(),
 		ctx.InformerFactory.Clusteroperator().V1alpha1().MachineSets(),
 		ctx.KubeInformerFactory.Batch().V1().Jobs(),
 		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-master-controller"),
 		ctx.ClientBuilder.ClientOrDie("clusteroperator-master-controller"),
+	).Run(int(ctx.Options.ConcurrentMasterSyncs), ctx.Stop)
+	return true, nil
+}
+
+func startClusterAPIMasterController(ctx ControllerContext) (bool, error) {
+	if !clusterOperatorResourcesAvailable(ctx) {
+		return false, nil
+	}
+	go master.NewCAPIController(
+		ctx.ClusterAPIInformerFactory.Cluster().V1alpha1().Clusters(),
+		ctx.ClusterAPIInformerFactory.Cluster().V1alpha1().MachineSets(),
+		ctx.KubeInformerFactory.Batch().V1().Jobs(),
+		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-capi-master-controller"),
+		ctx.ClientBuilder.ClientOrDie("clusteroperator-capi-master-controller"),
+		ctx.ClientBuilder.ClusterAPIClientOrDie("clusteroperator-capi-master-controller"),
 	).Run(int(ctx.Options.ConcurrentMasterSyncs), ctx.Stop)
 	return true, nil
 }
@@ -620,6 +636,7 @@ func startComponentsController(ctx ControllerContext) (bool, error) {
 		return false, nil
 	}
 	go components.NewController(
+		ctx.InformerFactory.Clusteroperator().V1alpha1().Clusters(),
 		ctx.InformerFactory.Clusteroperator().V1alpha1().MachineSets(),
 		ctx.KubeInformerFactory.Batch().V1().Jobs(),
 		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-components-controller"),
@@ -633,6 +650,7 @@ func startNodeConfigController(ctx ControllerContext) (bool, error) {
 		return false, nil
 	}
 	go nodeconfig.NewController(
+		ctx.InformerFactory.Clusteroperator().V1alpha1().Clusters(),
 		ctx.InformerFactory.Clusteroperator().V1alpha1().MachineSets(),
 		ctx.KubeInformerFactory.Batch().V1().Jobs(),
 		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-nodeconfig-controller"),
@@ -646,6 +664,7 @@ func startDeployClusterAPIController(ctx ControllerContext) (bool, error) {
 		return false, nil
 	}
 	go deployclusterapi.NewController(
+		ctx.InformerFactory.Clusteroperator().V1alpha1().Clusters(),
 		ctx.InformerFactory.Clusteroperator().V1alpha1().MachineSets(),
 		ctx.KubeInformerFactory.Batch().V1().Jobs(),
 		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-deployclusterapi-controller"),

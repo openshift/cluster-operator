@@ -74,7 +74,7 @@ func NewClusterOperatorController(
 ) *Controller {
 	clusterLister := clusterInformer.Lister()
 	return newController(
-		schema.GroupVersionKind{Group: "clusteroperator.openshift.io", Version: "v1alpha1", Kind: "Cluster"},
+		clusteroperator.SchemeGroupVersion.WithKind("Cluster"),
 		"clusteroperator_infra_controller",
 		"infra",
 		clusteroperatorClient,
@@ -100,7 +100,7 @@ func NewClusterAPIController(
 ) *Controller {
 	clusterLister := clusterInformer.Lister()
 	return newController(
-		schema.GroupVersionKind{Group: "cluster.k8s.io", Version: "v1alpha1", Kind: "Cluster"},
+		clusterapi.SchemeGroupVersion.WithKind("Cluster"),
 		"clusteroperator_capi_infra_controller",
 		"capi-infra",
 		clusteroperatorClient,
@@ -306,29 +306,6 @@ func (c *Controller) handleErr(err error, key interface{}) {
 	c.queue.Forget(key)
 }
 
-func (c *Controller) combinedCluster(obj metav1.Object) (*clusteroperator.CombinedCluster, error) {
-	combinedCluster, ok := obj.(*clusteroperator.CombinedCluster)
-	if ok {
-		return combinedCluster, nil
-	}
-	switch c.clusterKind.Group {
-	case "clusteroperator.openshift.io":
-		cluster, ok := obj.(*clusteroperator.Cluster)
-		if !ok {
-			return nil, fmt.Errorf("could not convert object into cluster-operator Cluster (%T)", obj)
-		}
-		return controller.CombinedClusterForClusterOperatorCluster(cluster), nil
-	case "cluster.k8s.io":
-		cluster, ok := obj.(*clusterapi.Cluster)
-		if !ok {
-			return nil, fmt.Errorf("could not convert object into cluster-api Cluster (%T)", obj)
-		}
-		return controller.CombinedClusterForClusterAPICluster(cluster)
-	default:
-		return nil, fmt.Errorf("unknown cluster kind %+v", c.clusterKind)
-	}
-}
-
 type jobOwnerControl struct {
 	controller *Controller
 }
@@ -342,7 +319,7 @@ func (c *jobOwnerControl) GetOwner(namespace string, name string) (metav1.Object
 	if err != nil {
 		return nil, err
 	}
-	return c.controller.combinedCluster(cluster)
+	return controller.ConvertToCombinedCluster(cluster)
 }
 
 func (c *jobOwnerControl) OnOwnedJobEvent(owner metav1.Object) {
@@ -371,11 +348,11 @@ func (s *jobSyncStrategy) GetOwner(key string) (metav1.Object, error) {
 	if err != nil {
 		return nil, err
 	}
-	return s.controller.combinedCluster(cluster)
+	return controller.ConvertToCombinedCluster(cluster)
 }
 
 func (s *jobSyncStrategy) DoesOwnerNeedProcessing(owner metav1.Object) bool {
-	cluster, err := s.controller.combinedCluster(owner)
+	cluster, err := controller.ConvertToCombinedCluster(owner)
 	if err != nil {
 		s.controller.logger.Warnf("could not convert owner from JobSync into a cluster: %v: %#v", err, owner)
 		return false
@@ -408,7 +385,7 @@ func (s *jobSyncStrategy) GetLastJobSuccess(owner metav1.Object) *time.Time {
 }
 
 func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object, deleting bool) (controller.JobFactory, error) {
-	cluster, err := s.controller.combinedCluster(owner)
+	cluster, err := controller.ConvertToCombinedCluster(owner)
 	if err != nil {
 		return nil, fmt.Errorf("could not convert owner from JobSync into a cluster: %v: %#v", err, owner)
 	}
@@ -437,7 +414,7 @@ func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object, deleting bool) (con
 }
 
 func (s *jobSyncStrategy) DeepCopyOwner(owner metav1.Object) metav1.Object {
-	cluster, err := s.controller.combinedCluster(owner)
+	cluster, err := controller.ConvertToCombinedCluster(owner)
 	if err != nil {
 		s.controller.logger.Warnf("could not convert owner from JobSync into a cluster: %v: %#v", err, owner)
 		return cluster
@@ -453,7 +430,7 @@ func (s *jobSyncStrategy) SetOwnerJobSyncCondition(
 	message string,
 	updateConditionCheck controller.UpdateConditionCheck,
 ) {
-	cluster, err := s.controller.combinedCluster(owner)
+	cluster, err := controller.ConvertToCombinedCluster(owner)
 	if err != nil {
 		s.controller.logger.Warnf("could not convert owner from JobSync into a cluster: %v: %#v", err, owner)
 		return
@@ -469,7 +446,7 @@ func (s *jobSyncStrategy) SetOwnerJobSyncCondition(
 }
 
 func (s *jobSyncStrategy) OnJobCompletion(owner metav1.Object, job *v1batch.Job, succeeded bool) {
-	cluster, err := s.controller.combinedCluster(owner)
+	cluster, err := controller.ConvertToCombinedCluster(owner)
 	if err != nil {
 		s.controller.logger.Warnf("could not convert owner from JobSync into a cluster: %v: %#v", err, owner)
 		return
@@ -479,20 +456,20 @@ func (s *jobSyncStrategy) OnJobCompletion(owner metav1.Object, job *v1batch.Job,
 }
 
 func (s *jobSyncStrategy) UpdateOwnerStatus(original, owner metav1.Object) error {
-	originalCombinedCluster, err := s.controller.combinedCluster(original)
+	originalCombinedCluster, err := controller.ConvertToCombinedCluster(original)
 	if err != nil {
 		return fmt.Errorf("could not convert original from JobSync into a cluster: %v: %#v", err, owner)
 	}
-	combinedCluster, err := s.controller.combinedCluster(owner)
+	combinedCluster, err := controller.ConvertToCombinedCluster(owner)
 	if err != nil {
 		return fmt.Errorf("could not convert owner from JobSync into a cluster: %v: %#v", err, owner)
 	}
 	switch s.controller.clusterKind.Group {
-	case "clusteroperator.openshift.io":
+	case clusteroperator.SchemeGroupVersion.Group:
 		originalCluster := controller.ClusterOperatorClusterForCombinedCluster(originalCombinedCluster)
 		cluster := controller.ClusterOperatorClusterForCombinedCluster(combinedCluster)
 		return controller.PatchClusterStatus(s.controller.coClient, originalCluster, cluster)
-	case "cluster.k8s.io":
+	case clusterapi.SchemeGroupVersion.Group:
 		originalCluster, err := controller.ClusterAPIClusterForCombinedCluster(originalCombinedCluster, true /*ignoreChanges*/)
 		if err != nil {
 			return err

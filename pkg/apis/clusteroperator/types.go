@@ -302,6 +302,20 @@ type ClusterStatus struct {
 	// generate the latest completed infra provisioning job.
 	ProvisionedJobGeneration int64
 
+	// ControlPlaneInstalled is true if the control plane is installed
+	// and running in the cluster.
+	ControlPlaneInstalled bool
+
+	// ControlPlaneInstalledJobClusterGeneration is the generation of the cluster
+	// resource used to generate the latest completed control-plane installation
+	// job.
+	ControlPlaneInstalledJobClusterGeneration int64
+
+	// ControlPlaneInstalledJobMachineSetGeneration is the generation of the
+	// master machine set resource used to generate the latest completed
+	// control-plane installation job.
+	ControlPlaneInstalledJobMachineSetGeneration int64
+
 	// Ready is true if the master of the cluster is ready to be used and can be accessed using
 	// the KubeconfigSecret
 	Ready bool
@@ -353,6 +367,14 @@ const (
 	ClusterInfraDeprovisioning ClusterConditionType = "InfraDeprovisioning"
 	// ClusterInfraDeprovisioningFailed is true when the job to deprovision cluster infrastructure has failed.
 	ClusterInfraDeprovisioningFailed ClusterConditionType = "InfraDeprovisioningFailed"
+	// ControlPlaneInstalling is true if the control plane is being installed in
+	// the cluster.
+	ControlPlaneInstalling ClusterConditionType = "ControlPlaneInstalling"
+	// ControlPlaneInstallationFailed is true if the installation of
+	// the control plane failed.
+	ControlPlaneInstallationFailed ClusterConditionType = "ControlPlaneInstallationFailed"
+	// ControlPlaneInstalled is true if the control plane has been installed
+	// in the cluster.
 	// ClusterVersionIncompatible is true when the cluster version does not have an AMI defined for the cluster's region.
 	ClusterVersionIncompatible ClusterConditionType = "VersionIncompatible"
 	// ClusterReady means the cluster is able to service requests
@@ -485,14 +507,6 @@ type MachineSetStatus struct {
 	// ClusterAPIInstalledTime is the time we last successfully deployed the Kubernetes Cluster API controllers on the cluster.
 	ClusterAPIInstalledTime *metav1.Time
 
-	// Installed is true if the software required for this machine set is installed
-	// and running.
-	Installed bool
-
-	// InstalledJobGeneration is the generation of the machine set resource used to
-	// generate the latest completed installation job.
-	InstalledJobGeneration int64
-
 	// Provisioned is true if the hardware that corresponds to this MachineSet has
 	// been provisioned
 	Provisioned bool
@@ -553,18 +567,6 @@ const (
 	// MachineSetHardwareProvisioned is true if the corresponding cloud resource(s) for
 	// this machine set have been provisioned (ie. AWS autoscaling group)
 	MachineSetHardwareProvisioned MachineSetConditionType = "HardwareProvisioned"
-
-	// MachineSetInstalling is true if OpenShift is being installed on
-	// this machine set.
-	MachineSetInstalling MachineSetConditionType = "Installing"
-
-	// MachineSetInstallationFailed is true if the installation of
-	// OpenShift on this machine set failed.
-	MachineSetInstallationFailed MachineSetConditionType = "InstallationFailed"
-
-	// MachineSetInstalled is true if OpenShift has been installed
-	// on this machine set.
-	MachineSetInstalled MachineSetConditionType = "Installed"
 
 	// MachineSetComponentsInstalling is true if OpenShift components are being installed on
 	// this machine set.

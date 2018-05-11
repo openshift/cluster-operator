@@ -218,7 +218,7 @@ func TestClusterCreate(t *testing.T) {
 				return
 			}
 
-			if !completeMachineSetInstall(t, kubeClient, clusterOperatorClient, masterMachineSet) {
+			if !completeControlPlaneInstall(t, kubeClient, clusterOperatorClient, cluster) {
 				return
 			}
 
@@ -352,7 +352,8 @@ func startServerAndControllers(t *testing.T) (
 			return func() { controller.Run(1, stopCh) }
 		}(),
 		func() func() {
-			controller := mastercontroller.NewController(
+			controller := mastercontroller.NewClustopController(
+				coSharedInformers.Clusters(),
 				coSharedInformers.MachineSets(),
 				batchSharedInformers.Jobs(),
 				fakeKubeClient,

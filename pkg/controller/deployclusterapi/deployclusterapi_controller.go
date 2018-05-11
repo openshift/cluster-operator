@@ -68,6 +68,7 @@ var machineSetKind = clusteroperator.SchemeGroupVersion.WithKind("MachineSet")
 
 // NewController returns a new *Controller.
 func NewController(
+	clusterInformer informers.ClusterInformer,
 	machineSetInformer informers.MachineSetInformer,
 	jobInformer batchinformers.JobInformer,
 	kubeClient kubeclientset.Interface,
@@ -90,6 +91,13 @@ func NewController(
 		queue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "deployclusterapi"),
 		logger:     logger,
 	}
+
+	clusterInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    c.addCluster,
+		UpdateFunc: c.updateCluster,
+	})
+	c.clustersLister = clusterInformer.Lister()
+	c.clustersSynced = clusterInformer.Informer().HasSynced
 
 	machineSetInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.addMachineSet,
@@ -131,6 +139,13 @@ type Controller struct {
 	// used for unit testing
 	enqueueMachineSet func(machineSet *clusteroperator.MachineSet)
 
+	// clustersLister is able to list/get clusters and is populated by the shared informer passed to
+	// NewController.
+	clustersLister lister.ClusterLister
+	// clustersSynced returns true if the cluster shared informer has been synced at least once.
+	// Added as a member to the struct to allow injection for testing.
+	clustersSynced cache.InformerSynced
+
 	// machineSetsLister is able to list/get machine sets and is populated by the shared informer passed to
 	// NewController.
 	machineSetsLister lister.MachineSetLister
@@ -145,6 +160,40 @@ type Controller struct {
 	queue workqueue.RateLimitingInterface
 
 	logger log.FieldLogger
+}
+
+func (c *Controller) addCluster(obj interface{}) {
+	cluster := obj.(*clusteroperator.Cluster)
+	clusterLogger := logging.WithCluster(c.logger, cluster)
+	clusterLogger.Debugf("Adding cluster")
+	masterMachineSetName := cluster.Status.MasterMachineSetName
+	if masterMachineSetName == "" {
+		clusterLogger.Debug("No master machineset yet")
+		return
+	}
+	machineSet, err := c.machineSetsLister.MachineSets(cluster.Namespace).Get(masterMachineSetName)
+	if err != nil {
+		clusterLogger.Warnf("Could not retrieve master machineset")
+		return
+	}
+	c.enqueueMachineSet(machineSet)
+}
+
+func (c *Controller) updateCluster(old, cur interface{}) {
+	cluster := cur.(*clusteroperator.Cluster)
+	clusterLogger := logging.WithCluster(c.logger, cluster)
+	clusterLogger.Debugf("Updating cluster")
+	masterMachineSetName := cluster.Status.MasterMachineSetName
+	if masterMachineSetName == "" {
+		clusterLogger.Debug("No master machineset yet")
+		return
+	}
+	machineSet, err := c.machineSetsLister.MachineSets(cluster.Namespace).Get(masterMachineSetName)
+	if err != nil {
+		clusterLogger.Warnf("Could not retrieve master machineset")
+		return
+	}
+	c.enqueueMachineSet(machineSet)
 }
 
 func (c *Controller) addMachineSet(obj interface{}) {
@@ -301,7 +350,12 @@ func (s *jobSyncStrategy) DoesOwnerNeedProcessing(owner metav1.Object) bool {
 	}
 
 	msLog := logging.WithMachineSet(s.controller.logger, machineSet).WithField("func", "DoesOwnerNeedProcessing")
-	if !machineSet.Status.Installed {
+	cluster, err := controller.ClusterForMachineSet(machineSet, s.controller.clustersLister)
+	if err != nil {
+		msLog.Warn("could not get cluster for machine set", err)
+		return false
+	}
+	if !cluster.Status.ControlPlaneInstalled {
 		msLog.Debug("control plane not installed, returning false")
 		return false
 	}
@@ -347,7 +401,11 @@ func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object, deleting bool) (con
 		if err != nil {
 			return nil, nil, err
 		}
-		vars, err := ansible.GenerateClusterWideVarsForMachineSet(machineSet, cv)
+		clusterRef := metav1.GetControllerOf(machineSet)
+		if clusterRef == nil {
+			return nil, nil, fmt.Errorf("machineset not owned by a cluster")
+		}
+		vars, err := ansible.GenerateClusterWideVarsForMachineSet(true /*isMaster*/, clusterRef.Name, &machineSet.Spec.ClusterHardware, cv)
 		if err != nil {
 			return nil, nil, err
 		}
