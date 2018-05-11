@@ -21,6 +21,7 @@ import (
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	kubeinformers "k8s.io/client-go/informers"
 	clientgofake "k8s.io/client-go/kubernetes/fake"
@@ -28,8 +29,11 @@ import (
 
 	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	clusteroperatorclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset/fake"
-	informers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions"
+	clusteroperatorinformers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions"
 	"github.com/openshift/cluster-operator/pkg/controller"
+	clusterapi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	clusterapiclientset "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset/fake"
+	clusterapiinformers "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -40,21 +44,22 @@ const (
 	testClusterUUID = types.UID("test-cluster-uuid")
 )
 
-// newTestController creates a test Controller with fake
-// clients and informers.
-func newTestController() (
+// newTestClusterOperatorController creates a test Controller for
+// cluster-operator resources with fake clients and informers.
+func newTestClusterOperatorController() (
 	*Controller,
 	cache.Store, // cluster store
 	cache.Store, // jobs store
 	*clientgofake.Clientset,
 	*clusteroperatorclientset.Clientset,
+
 ) {
 	kubeClient := &clientgofake.Clientset{}
 	kubeInformers := kubeinformers.NewSharedInformerFactory(kubeClient, 10*time.Minute)
 	clusterOperatorClient := &clusteroperatorclientset.Clientset{}
-	clusterOperatorInformers := informers.NewSharedInformerFactory(clusterOperatorClient, 0)
+	clusterOperatorInformers := clusteroperatorinformers.NewSharedInformerFactory(clusterOperatorClient, 0)
 
-	controller := NewController(
+	controller := NewClusterOperatorController(
 		clusterOperatorInformers.Clusteroperator().V1alpha1().Clusters(),
 		kubeInformers.Batch().V1().Jobs(),
 		kubeClient,
@@ -68,6 +73,41 @@ func newTestController() (
 		kubeInformers.Batch().V1().Jobs().Informer().GetStore(),
 		kubeClient,
 		clusterOperatorClient
+}
+
+// newTestClusterAPIController creates a test Controller for
+// cluster-api resources with fake clients and informers.
+func newTestClusterAPIController() (
+	*Controller,
+	cache.Store, // cluster store
+	cache.Store, // jobs store
+	*clientgofake.Clientset,
+	*clusteroperatorclientset.Clientset,
+	*clusterapiclientset.Clientset,
+
+) {
+	kubeClient := &clientgofake.Clientset{}
+	kubeInformers := kubeinformers.NewSharedInformerFactory(kubeClient, 10*time.Minute)
+	clusterOperatorClient := &clusteroperatorclientset.Clientset{}
+	clusterAPIClient := &clusterapiclientset.Clientset{}
+	clusterAPIInformers := clusterapiinformers.NewSharedInformerFactory(clusterAPIClient, 0)
+
+	controller := NewClusterAPIController(
+		clusterAPIInformers.Cluster().V1alpha1().Clusters(),
+		kubeInformers.Batch().V1().Jobs(),
+		kubeClient,
+		clusterOperatorClient,
+		clusterAPIClient,
+	)
+
+	controller.clustersSynced = alwaysReady
+
+	return controller,
+		clusterAPIInformers.Cluster().V1alpha1().Clusters().Informer().GetStore(),
+		kubeInformers.Batch().V1().Jobs().Informer().GetStore(),
+		kubeClient,
+		clusterOperatorClient,
+		clusterAPIClient
 }
 
 // alwaysReady is a function that can be used as a sync function that will
@@ -92,16 +132,16 @@ func (r *fakeAnsibleRunner) RunPlaybook(namespace, clusterName, jobPrefix, playb
 
 // getKey gets the key for the cluster to use when checking expectations
 // set on a cluster.
-func getKey(cluster *clusteroperator.Cluster, t *testing.T) string {
+func getKey(cluster metav1.Object, t *testing.T) string {
 	key, err := controller.KeyFunc(cluster)
 	if err != nil {
-		t.Errorf("Unexpected error getting key for Cluster %v: %v", cluster.Name, err)
+		t.Errorf("Unexpected error getting key for Cluster %v: %v", cluster.GetName(), err)
 		return ""
 	}
 	return key
 }
 
-func newCluster() *clusteroperator.Cluster {
+func newClusterOperatorCluster() *clusteroperator.Cluster {
 	cluster := &clusteroperator.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
 			UID:       testClusterUUID,
@@ -124,26 +164,70 @@ func newCluster() *clusteroperator.Cluster {
 	return cluster
 }
 
+func newClusterAPICluster() *clusterapi.Cluster {
+	encodedClusterProviderConfigSpec := `
+apiVersion: "clusteroperator.openshift.io/v1alpha1"
+kind: "ClusterProviderConfigSpec"
+machineSets:
+- shortName: master
+  masterSetConfig:
+    nodeType: master
+    infra: true
+    size: 3
+`
+	cluster := &clusterapi.Cluster{
+		ObjectMeta: metav1.ObjectMeta{
+			UID:       testClusterUUID,
+			Name:      testClusterName,
+			Namespace: testNamespace,
+		},
+		Spec: clusterapi.ClusterSpec{
+			ProviderConfig: clusterapi.ProviderConfig{
+				Value: &runtime.RawExtension{
+					Raw: []byte(encodedClusterProviderConfigSpec),
+				},
+			},
+		},
+	}
+	return cluster
+}
+
 // TestController performs basic unit tests on the infra controller to ensure it
 // interacts with the AnsibleRunner correctly.
 func TestController(t *testing.T) {
 	cases := []struct {
-		name             string
-		clusterName      string
-		clusterNamespace string
-		expectedErr      bool
+		name               string
+		useClusterOperator bool
+		clusterName        string
+		clusterNamespace   string
+		expectedErr        bool
 	}{
 		{
-			name:             "new cluster creation",
-			clusterName:      testClusterName,
-			clusterNamespace: testNamespace,
+			name:               "new cluster-operator cluster creation",
+			useClusterOperator: true,
+			clusterName:        testClusterName,
+			clusterNamespace:   testNamespace,
+		},
+		{
+			name:               "new cluster-api cluster creation",
+			useClusterOperator: false,
+			clusterName:        testClusterName,
+			clusterNamespace:   testNamespace,
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			controller, clusterStore, _, _, _ := newTestController()
+			var controller *Controller
+			var clusterStore cache.Store
+			var cluster metav1.Object
+			if tc.useClusterOperator {
+				controller, clusterStore, _, _, _ = newTestClusterOperatorController()
+				cluster = newClusterOperatorCluster()
+			} else {
+				controller, clusterStore, _, _, _, _ = newTestClusterAPIController()
+				cluster = newClusterAPICluster()
+			}
 
-			cluster := newCluster()
 			clusterStore.Add(cluster)
 
 			err := controller.syncHandler(getKey(cluster, t))

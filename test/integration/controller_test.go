@@ -333,7 +333,7 @@ func startServerAndControllers(t *testing.T) (
 			return func() { controller.Run(1, stopCh) }
 		}(),
 		func() func() {
-			controller := infracontroller.NewController(
+			controller := infracontroller.NewClusterOperatorController(
 				coSharedInformers.Clusters(),
 				batchSharedInformers.Jobs(),
 				fakeKubeClient,
