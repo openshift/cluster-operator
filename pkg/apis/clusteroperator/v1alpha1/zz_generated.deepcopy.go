@@ -336,6 +336,24 @@ func (in *ClusterStatus) DeepCopyInto(out *ClusterStatus) {
 			**out = **in
 		}
 	}
+	if in.NodeConfigInstalledTime != nil {
+		in, out := &in.NodeConfigInstalledTime, &out.NodeConfigInstalledTime
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(meta_v1.Time)
+			(*in).DeepCopyInto(*out)
+		}
+	}
+	if in.ClusterAPIInstalledTime != nil {
+		in, out := &in.ClusterAPIInstalledTime, &out.ClusterAPIInstalledTime
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(meta_v1.Time)
+			(*in).DeepCopyInto(*out)
+		}
+	}
 	if in.Conditions != nil {
 		in, out := &in.Conditions, &out.Conditions
 		*out = make([]ClusterCondition, len(*in))
@@ -831,24 +849,6 @@ func (in *MachineSetStatus) DeepCopyInto(out *MachineSetStatus) {
 		*out = make([]MachineSetCondition, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
-		}
-	}
-	if in.NodeConfigInstalledTime != nil {
-		in, out := &in.NodeConfigInstalledTime, &out.NodeConfigInstalledTime
-		if *in == nil {
-			*out = nil
-		} else {
-			*out = new(meta_v1.Time)
-			(*in).DeepCopyInto(*out)
-		}
-	}
-	if in.ClusterAPIInstalledTime != nil {
-		in, out := &in.ClusterAPIInstalledTime, &out.ClusterAPIInstalledTime
-		if *in == nil {
-			*out = nil
-		} else {
-			*out = new(meta_v1.Time)
-			(*in).DeepCopyInto(*out)
 		}
 	}
 	return

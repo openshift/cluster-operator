@@ -134,8 +134,18 @@ func (s *jobSync) Sync(key string) error {
 		return err
 	}
 
+	var (
+		reprocessInterval *time.Duration
+		lastJobSuccess    *time.Time
+	)
+	if reprocessStrategy, shouldReprocess := s.strategy.(JobSyncReprocessStrategy); shouldReprocess {
+		ri := reprocessStrategy.GetReprocessInterval()
+		reprocessInterval = &ri
+		lastJobSuccess = reprocessStrategy.GetLastJobSuccess(owner)
+	}
+
 	jobControlResult, job, err := s.jobControl.ControlJobs(key, owner, needsProcessing,
-		s.strategy.GetReprocessInterval(), s.strategy.GetLastJobSuccess(owner), jobFactory)
+		reprocessInterval, lastJobSuccess, jobFactory)
 	if err != nil {
 		return err
 	}

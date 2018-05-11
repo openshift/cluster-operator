@@ -303,6 +303,10 @@ func (c *Controller) checkClusterReady(syncFunc func(string) error) func(string)
 			logger.Debugf("cluster is not provisioned yet, skipping")
 			return nil
 		}
+		if !cluster.Status.ControlPlaneInstalled || !cluster.Status.ComponentsInstalled || !cluster.Status.NodeConfigInstalled {
+			logger.Debugf("cluster software is not fully installed yet")
+			return nil
+		}
 		machineSets, err := controller.MachineSetsForCluster(cluster, c.machineSetsLister)
 		if err != nil {
 			return nil
@@ -313,13 +317,13 @@ func (c *Controller) checkClusterReady(syncFunc func(string) error) func(string)
 		for _, ms := range machineSets {
 			msLogger := colog.WithMachineSet(logger, ms)
 			if ms.Spec.NodeType == clusteroperator.NodeTypeMaster {
-				if !ms.Status.Provisioned || !ms.Status.Installed || !ms.Status.ComponentsInstalled || !ms.Status.NodeConfigInstalled {
+				if !ms.Status.Provisioned {
 					msLogger.Debugf("master machineset is not ready yet")
 					return nil
 				}
 				msLogger.Debugf("master machineset is ready")
 			} else {
-				if !ms.Status.Provisioned || !ms.Status.Accepted {
+				if !ms.Status.Provisioned {
 					msLogger.Debugf("compute machineset is not ready yet")
 					return nil
 				}
@@ -392,13 +396,17 @@ func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object, deleting bool) (con
 		return nil, fmt.Errorf("could not convert owner from JobSync into a machineset")
 	}
 	return jobFactory(func(name string) (*v1batch.Job, *kapi.ConfigMap, error) {
+		cluster, err := controller.ClusterForMachineSet(machineSet, s.controller.clustersLister)
+		if err != nil {
+			return nil, nil, err
+		}
 		cvRef := machineSet.Spec.ClusterVersionRef
 		cv, err := s.controller.client.Clusteroperator().ClusterVersions(cvRef.Namespace).Get(cvRef.Name, metav1.GetOptions{})
 		if err != nil {
 			return nil, nil, err
 		}
 
-		vars, err := ansible.GenerateMachineSetVars(machineSet, cv)
+		vars, err := ansible.GenerateMachineSetVars(cluster, machineSet, cv)
 		if err != nil {
 			return nil, nil, err
 		}

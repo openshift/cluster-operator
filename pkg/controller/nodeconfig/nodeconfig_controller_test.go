@@ -17,8 +17,9 @@ limitations under the License.
 package nodeconfig
 
 import (
-	"fmt"
 	"testing"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	co "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 
@@ -30,47 +31,87 @@ func init() {
 	log.SetLevel(log.DebugLevel)
 }
 
-func TestStrategyDoesOwnerNeedProcessing(t *testing.T) {
+func TestStrategyReadyToInstall(t *testing.T) {
 	cases := []struct {
-		name                          string
-		machineSetInstalled           bool
-		machineSetGeneration          int64
-		nodeConfigInstalledGeneration int64
-		needsProcessing               bool
+		name                                    string
+		controlPlaneInstalled                   bool
+		clusterGeneration                       int64
+		machineSetGeneration                    int64
+		nodeConfigInstalledClusterGeneration    int64
+		nodeConfigInstalledMachineSetGeneration int64
+		needsProcessing                         bool
 	}{
 		{
-			name:                "control plane not installed",
-			machineSetInstalled: false,
-			needsProcessing:     false,
+			name: "control plane not installed",
+			controlPlaneInstalled: false,
+			needsProcessing:       false,
 		},
 		{
-			name:                 "node config not installed",
-			machineSetInstalled:  true,
-			machineSetGeneration: 1,
-			needsProcessing:      true,
+			name: "node config not installed",
+			controlPlaneInstalled: true,
+			clusterGeneration:     1,
+			machineSetGeneration:  1,
+			needsProcessing:       true,
 		},
 		{
-			name:                          "node config installed",
-			machineSetInstalled:           true,
-			machineSetGeneration:          1,
-			nodeConfigInstalledGeneration: 1,
-			needsProcessing:               false,
+			name: "node config installed",
+			controlPlaneInstalled:                   true,
+			clusterGeneration:                       1,
+			machineSetGeneration:                    1,
+			nodeConfigInstalledClusterGeneration:    1,
+			nodeConfigInstalledMachineSetGeneration: 1,
+			needsProcessing:                         false,
+		},
+		{
+			name: "updated cluster",
+			controlPlaneInstalled:                   true,
+			clusterGeneration:                       2,
+			machineSetGeneration:                    1,
+			nodeConfigInstalledClusterGeneration:    1,
+			nodeConfigInstalledMachineSetGeneration: 1,
+			needsProcessing:                         true,
+		},
+		{
+			name: "updated machine set",
+			controlPlaneInstalled:                   true,
+			clusterGeneration:                       1,
+			machineSetGeneration:                    2,
+			nodeConfigInstalledClusterGeneration:    1,
+			nodeConfigInstalledMachineSetGeneration: 1,
+			needsProcessing:                         true,
+		},
+		{
+			name: "updated cluster and machine set",
+			controlPlaneInstalled:                   true,
+			clusterGeneration:                       2,
+			machineSetGeneration:                    2,
+			nodeConfigInstalledClusterGeneration:    1,
+			nodeConfigInstalledMachineSetGeneration: 1,
+			needsProcessing:                         true,
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			ncController := Controller{
-				logger: log.WithField("test", fmt.Sprintf("TestStrategyDoesOwnerNeedProcessing/%s", tc.name)),
+			strat := &installStrategy{}
+
+			cluster := &co.CombinedCluster{
+				ObjectMeta: metav1.ObjectMeta{
+					Generation: tc.clusterGeneration,
+				},
+				ClusterOperatorStatus: &co.ClusterStatus{
+					ControlPlaneInstalled:                      tc.controlPlaneInstalled,
+					NodeConfigInstalledJobClusterGeneration:    tc.nodeConfigInstalledClusterGeneration,
+					NodeConfigInstalledJobMachineSetGeneration: tc.nodeConfigInstalledMachineSetGeneration,
+				},
 			}
-			strat := jobSyncStrategy{controller: &ncController}
-			ms := &co.MachineSet{}
-			ms.Generation = tc.machineSetGeneration
-			ms.Status.Installed = tc.machineSetInstalled
-			if tc.nodeConfigInstalledGeneration > 0 {
-				ms.Status.NodeConfigInstalledJobGeneration = tc.nodeConfigInstalledGeneration
-				ms.Status.NodeConfigInstalled = true
+
+			ms := &co.MachineSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Generation: tc.machineSetGeneration,
+				},
 			}
-			assert.Equal(t, tc.needsProcessing, strat.DoesOwnerNeedProcessing(ms), "unexpected DoesOwnerNeedProcessing")
+
+			assert.Equal(t, tc.needsProcessing, strat.ReadyToInstall(cluster, ms), "unexpected ReadToInstall")
 		})
 	}
 }
