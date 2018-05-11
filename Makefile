@@ -269,6 +269,9 @@ test-unit: .init build .generate_mocks
 
 .generate_mocks:
 	$(DOCKER_CMD) go generate ./pkg/controller
+	$(DOCKER_CMD) mockgen -package=fake github.com/openshift/cluster-operator/pkg/client/listers_generated/clusteroperator/v1alpha1 ClusterLister,ClusterNamespaceLister \
+          | sed "s|github.com/openshift/cluster-operator/vendor/||g" - \
+	  | install -D /dev/stdin ./pkg/controller/fake/clusterlister_generated.go
 
 test-integration: .init build
 	@echo Running integration tests:

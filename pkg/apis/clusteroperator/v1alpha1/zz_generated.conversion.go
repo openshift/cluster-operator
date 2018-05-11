@@ -433,6 +433,9 @@ func autoConvert_v1alpha1_ClusterStatus_To_clusteroperator_ClusterStatus(in *Clu
 	out.AdminKubeconfig = (*v1.LocalObjectReference)(unsafe.Pointer(in.AdminKubeconfig))
 	out.Provisioned = in.Provisioned
 	out.ProvisionedJobGeneration = in.ProvisionedJobGeneration
+	out.ControlPlaneInstalled = in.ControlPlaneInstalled
+	out.ControlPlaneInstalledJobClusterGeneration = in.ControlPlaneInstalledJobClusterGeneration
+	out.ControlPlaneInstalledJobMachineSetGeneration = in.ControlPlaneInstalledJobMachineSetGeneration
 	out.Ready = in.Ready
 	out.Conditions = *(*[]clusteroperator.ClusterCondition)(unsafe.Pointer(&in.Conditions))
 	out.ClusterVersionRef = (*v1.ObjectReference)(unsafe.Pointer(in.ClusterVersionRef))
@@ -452,6 +455,9 @@ func autoConvert_clusteroperator_ClusterStatus_To_v1alpha1_ClusterStatus(in *clu
 	out.AdminKubeconfig = (*v1.LocalObjectReference)(unsafe.Pointer(in.AdminKubeconfig))
 	out.Provisioned = in.Provisioned
 	out.ProvisionedJobGeneration = in.ProvisionedJobGeneration
+	out.ControlPlaneInstalled = in.ControlPlaneInstalled
+	out.ControlPlaneInstalledJobClusterGeneration = in.ControlPlaneInstalledJobClusterGeneration
+	out.ControlPlaneInstalledJobMachineSetGeneration = in.ControlPlaneInstalledJobMachineSetGeneration
 	out.Ready = in.Ready
 	out.Conditions = *(*[]ClusterCondition)(unsafe.Pointer(&in.Conditions))
 	out.ClusterVersionRef = (*v1.ObjectReference)(unsafe.Pointer(in.ClusterVersionRef))
@@ -842,8 +848,6 @@ func autoConvert_v1alpha1_MachineSetStatus_To_clusteroperator_MachineSetStatus(i
 	out.ClusterAPIInstalled = in.ClusterAPIInstalled
 	out.ClusterAPIInstalledJobGeneration = in.ClusterAPIInstalledJobGeneration
 	out.ClusterAPIInstalledTime = (*meta_v1.Time)(unsafe.Pointer(in.ClusterAPIInstalledTime))
-	out.Installed = in.Installed
-	out.InstalledJobGeneration = in.InstalledJobGeneration
 	out.Provisioned = in.Provisioned
 	out.ProvisionedJobGeneration = in.ProvisionedJobGeneration
 	out.Accepted = in.Accepted
@@ -868,8 +872,6 @@ func autoConvert_clusteroperator_MachineSetStatus_To_v1alpha1_MachineSetStatus(i
 	out.ClusterAPIInstalled = in.ClusterAPIInstalled
 	out.ClusterAPIInstalledJobGeneration = in.ClusterAPIInstalledJobGeneration
 	out.ClusterAPIInstalledTime = (*meta_v1.Time)(unsafe.Pointer(in.ClusterAPIInstalledTime))
-	out.Installed = in.Installed
-	out.InstalledJobGeneration = in.InstalledJobGeneration
 	out.Provisioned = in.Provisioned
 	out.ProvisionedJobGeneration = in.ProvisionedJobGeneration
 	out.Accepted = in.Accepted
