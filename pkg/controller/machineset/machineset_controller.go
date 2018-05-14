@@ -22,6 +22,7 @@ import (
 
 	v1batch "k8s.io/api/batch/v1"
 	kapi "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -280,6 +281,10 @@ func (c *Controller) checkClusterReady(syncFunc func(string) error) func(string)
 			return err
 		}
 		machineSet, err := c.getMachineSet(key)
+		if errors.IsNotFound(err) {
+			// machineset has been deleted.
+			return nil
+		}
 		if err != nil {
 			return err
 		}
