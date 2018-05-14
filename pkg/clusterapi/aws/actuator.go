@@ -90,6 +90,7 @@ func (a *Actuator) Create(cluster *clusterv1.Cluster, machine *clusterv1.Machine
 	a.logger.Debugf("Create %s/%s", machine.Namespace, machine.Name)
 	result, err := a.CreateMachine(cluster, machine)
 	if err != nil {
+		a.logger.Errorf("error creating machine: %v", err)
 		return err
 	}
 	machineCopy := machine.DeepCopy()
@@ -98,22 +99,26 @@ func (a *Actuator) Create(cluster *clusterv1.Cluster, machine *clusterv1.Machine
 	}
 	machineCopy.Annotations[instanceIDAnnotation] = *(result.Instances[0].InstanceId)
 	_, err = a.clusterClient.ClusterV1alpha1().Machines(machineCopy.Namespace).Update(machineCopy)
+	if err != nil {
+		a.logger.Errorf("error annotating new machine with instance ID: %v", err)
+		return err
+	}
 	return err
 }
 
 // CreateMachine starts a new AWS instance as described by the cluster and machine resources
 func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.Machine) (*ec2.Reservation, error) {
 	// Extract cluster operator cluster
-	coCluster, err := a.clusterOperatorCluster(cluster)
+	clusterSpec, err := a.clusterOperatorClusterSpec(cluster)
 	if err != nil {
 		return nil, err
 	}
 
-	if coCluster.Spec.Hardware.AWS == nil {
+	if clusterSpec.Hardware.AWS == nil {
 		return nil, fmt.Errorf("Cluster does not contain an AWS hardware spec")
 	}
 
-	region := coCluster.Spec.Hardware.AWS.Region
+	region := clusterSpec.Hardware.AWS.Region
 	a.logger.Debugf("Obtaining EC2 client for region %q", region)
 	client, err := a.ec2Client(region)
 	if err != nil {
@@ -154,7 +159,7 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 	}
 
 	// Describe VPC
-	vpcName := coCluster.Name
+	vpcName := cluster.Name
 	vpcNameFilter := "tag:Name"
 	describeVpcsRequest := ec2.DescribeVpcsInput{
 		Filters: []*ec2.Filter{{Name: &vpcNameFilter, Values: []*string{&vpcName}}},
@@ -230,8 +235,8 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 
 	// Add tags to the created machine
 	tagList := []*ec2.Tag{
-		{Key: aws.String("clusterid"), Value: aws.String(coCluster.Name)},
-		{Key: aws.String("kubernetes.io/cluster/" + coCluster.Name), Value: aws.String(coCluster.Name)},
+		{Key: aws.String("clusterid"), Value: aws.String(cluster.Name)},
+		{Key: aws.String("kubernetes.io/cluster/" + cluster.Name), Value: aws.String(cluster.Name)},
 		{Key: aws.String("Name"), Value: aws.String(machine.Name)},
 	}
 	tagInstance := &ec2.TagSpecification{
@@ -276,9 +281,9 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 		MinCount:     aws.Int64(1),
 		MaxCount:     aws.Int64(1),
 		UserData:     &userDataEnc,
-		KeyName:      aws.String(coCluster.Spec.Hardware.AWS.KeyPairName),
+		KeyName:      aws.String(clusterSpec.Hardware.AWS.KeyPairName),
 		IamInstanceProfile: &ec2.IamInstanceProfileSpecification{
-			Name: aws.String(iamRole(coCluster)),
+			Name: aws.String(iamRole(cluster)),
 		},
 		BlockDeviceMappings: blkDeviceMappings,
 		TagSpecifications:   []*ec2.TagSpecification{tagInstance, tagVolume},
@@ -298,6 +303,7 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 func (a *Actuator) Delete(machine *clusterv1.Machine) error {
 	a.logger.Debugf("Delete %s/%s", machine.Namespace, machine.Name)
 	if err := a.DeleteMachine(machine); err != nil {
+		a.logger.Errorf("error deleting machine: %v", err)
 		return err
 	}
 
@@ -305,6 +311,9 @@ func (a *Actuator) Delete(machine *clusterv1.Machine) error {
 	machineCopy := machine.DeepCopy()
 	machineCopy.ObjectMeta.Finalizers = util.Filter(machineCopy.ObjectMeta.Finalizers, clusterv1.MachineFinalizer)
 	_, err := a.clusterClient.ClusterV1alpha1().Machines(machineCopy.Namespace).Update(machineCopy)
+	if err != nil {
+		a.logger.Errorf("error removing finalizer from deleted machine: %v", err)
+	}
 	return err
 }
 
@@ -404,19 +413,22 @@ func (a *Actuator) ec2Client(region string) (*ec2.EC2, error) {
 	return ec2.New(s), nil
 }
 
-func (a *Actuator) clusterOperatorCluster(c *clusterv1.Cluster) (*cov1.Cluster, error) {
+func (a *Actuator) clusterOperatorClusterSpec(c *clusterv1.Cluster) (*cov1.ClusterProviderConfigSpec, error) {
 	obj, _, err := a.codecFactory.UniversalDecoder(cov1.SchemeGroupVersion).Decode([]byte(c.Spec.ProviderConfig.Value.Raw), nil, nil)
 	if err != nil {
 		return nil, err
 	}
-	coCluster, ok := obj.(*cov1.Cluster)
+	coProviderConfig, ok := obj.(*cov1.ClusterProviderConfigSpec)
 	if !ok {
 		return nil, fmt.Errorf("Unexpected object: %#v", obj)
 	}
-	return coCluster, nil
+	return coProviderConfig, nil
 }
 
 func (a *Actuator) clusterOperatorMachineSet(m *clusterv1.Machine) (*cov1.MachineSet, *cov1.ClusterVersion, error) {
+	if m.Spec.ProviderConfig.Value == nil || m.Spec.ProviderConfig.ValueFrom == nil {
+		return nil, nil, fmt.Errorf("No providerConfig specified for machine")
+	}
 	obj, _, err := a.codecFactory.UniversalDecoder(cov1.SchemeGroupVersion).Decode(m.Spec.ProviderConfig.Value.Raw, nil, nil)
 	if err != nil {
 		return nil, nil, err
@@ -501,6 +513,6 @@ func getInstanceID(machine *clusterv1.Machine) string {
 	return ""
 }
 
-func iamRole(cluster *cov1.Cluster) string {
+func iamRole(cluster *clusterv1.Cluster) string {
 	return fmt.Sprintf("%s_%s", defaultIAMRole, cluster.Name)
 }

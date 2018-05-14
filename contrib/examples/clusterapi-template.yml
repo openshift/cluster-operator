@@ -128,7 +128,7 @@ objects:
 - apiVersion: cluster.k8s.io/v1alpha1
   kind: MachineSet
   metadata:
-    name: master
+    name: ${CLUSTER_NAME}-master
     namespace: ${CLUSTER_NAMESPACE}
   spec:
     replicas: 1
@@ -148,7 +148,7 @@ objects:
 - apiVersion: cluster.k8s.io/v1alpha1
   kind: MachineSet
   metadata:
-    name: infra
+    name: ${CLUSTER_NAME}-infra
     namespace: ${CLUSTER_NAMESPACE}
   spec:
     replicas: 1
@@ -167,7 +167,7 @@ objects:
 - apiVersion: cluster.k8s.io/v1alpha1
   kind: MachineSet
   metadata:
-    name: compute
+    name: ${CLUSTER_NAME}-compute
     namespace: ${CLUSTER_NAMESPACE}
   spec:
     replicas: 1
