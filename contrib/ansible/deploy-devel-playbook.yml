@@ -21,7 +21,7 @@
   tasks:
 
   - name: build images off latest source
-    command: make images
+    shell: make images
     args:
       chdir: "{{ playbook_dir }}/../../"
     when: push_images | bool
