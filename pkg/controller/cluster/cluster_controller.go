@@ -34,6 +34,7 @@ import (
 	kubeclientset "k8s.io/client-go/kubernetes"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 
@@ -41,6 +42,8 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/openshift/cluster-operator/pkg/kubernetes/pkg/util/metrics"
+
+	clusterapiclient "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 
 	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	clusteroperatorclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
@@ -55,6 +58,10 @@ type machineSetChange string
 
 // controllerKind contains the schema.GroupVersionKind for this controller type.
 var controllerKind = clusteroperator.SchemeGroupVersion.WithKind("Cluster")
+
+// deleteRemoteInterval the time to wait between requeues of a cluster
+// when checking whether its remote machinesets have been deleted
+var deleteRemoteInterval = 10 * time.Second
 
 const (
 	controllerLogName = "cluster"
@@ -78,6 +85,7 @@ const (
 	clusterUIDLabel          = "cluster-uid"
 	clusterNameLabel         = "cluster"
 	machineSetShortNameLabel = "machine-set-short-name"
+	remoteClusterNamespace   = "kube-cluster"
 )
 
 // NewController returns a new controller.
@@ -94,6 +102,7 @@ func NewController(clusterInformer informers.ClusterInformer, machineSetInformer
 	logger := log.WithField("controller", controllerLogName)
 	c := &Controller{
 		client:       clusteroperatorClient,
+		kubeClient:   kubeClient,
 		expectations: controller.NewUIDTrackingExpectations(controller.NewExpectations()),
 		queue:        workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "cluster"),
 		logger:       logger,
@@ -125,7 +134,8 @@ func NewController(clusterInformer informers.ClusterInformer, machineSetInformer
 
 // Controller manages clusters.
 type Controller struct {
-	client clusteroperatorclientset.Interface
+	client     clusteroperatorclientset.Interface
+	kubeClient kubeclientset.Interface
 
 	// To allow injection of syncCluster for testing.
 	syncHandler func(hKey string) error
@@ -356,7 +366,103 @@ func (c *Controller) processNextWorkItem() bool {
 	return true
 }
 
+func (c *Controller) buildRemoteClusterClient(cluster *clusteroperator.Cluster) (clusterapiclient.Interface, error) {
+
+	secretName := cluster.Name + "-kubeconfig"
+
+	secret, err := c.kubeClient.CoreV1().Secrets(cluster.Namespace).Get(secretName, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+	secretData := secret.Data["kubeconfig"]
+
+	config, err := clientcmd.Load(secretData)
+	if err != nil {
+		return nil, err
+	}
+
+	kubeConfig := clientcmd.NewDefaultClientConfig(*config, &clientcmd.ConfigOverrides{})
+	restConfig, err := kubeConfig.ClientConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	remoteClusterAPIClient, err := clusterapiclient.NewForConfig(restConfig)
+	if err != nil {
+		return nil, err
+	}
+	return remoteClusterAPIClient, nil
+}
+
+func (c *Controller) setDeprovisionedComputeMachinesets(cluster *clusteroperator.Cluster) error {
+	original := cluster
+	cluster = cluster.DeepCopy()
+	cluster.Status.DeprovisionedComputeMachinesets = true
+	return controller.PatchClusterStatus(c.client, original, cluster)
+}
+
+func (c *Controller) ensureRemoteMachineSetsAreDeleted(cluster *clusteroperator.Cluster) error {
+	remoteClusterAPIClient, err := c.buildRemoteClusterClient(cluster)
+	if err != nil {
+		return err
+	}
+	machineSets, err := remoteClusterAPIClient.ClusterV1alpha1().MachineSets(remoteClusterNamespace).List(metav1.ListOptions{})
+	if err != nil {
+		return err
+	}
+	// If all remote machinesets are gone, then we should update the cluster status
+	if len(machineSets.Items) == 0 {
+		return c.setDeprovisionedComputeMachinesets(cluster)
+	}
+
+	if err = remoteClusterAPIClient.ClusterV1alpha1().MachineSets(remoteClusterNamespace).DeleteCollection(&metav1.DeleteOptions{}, metav1.ListOptions{}); err != nil {
+		return err
+	}
+
+	// Ensure that the cluster is enqueued again so we can continue to monitor machinesets
+	c.enqueueAfter(cluster, deleteRemoteInterval)
+	return nil
+}
+
+func (c *Controller) shouldDeleteRemoteMachineSets(cluster *clusteroperator.Cluster) (shouldDelete bool, continueTrying bool, err error) {
+	if cluster.Status.DeprovisionedComputeMachinesets {
+		return false, false, nil
+	}
+	if len(cluster.Status.MasterMachineSetName) == 0 {
+		return false, false, nil
+	}
+	masterMachineSet, err := c.machineSetsLister.MachineSets(cluster.Namespace).Get(cluster.Status.MasterMachineSetName)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			return false, false, nil
+		}
+		return false, false, err
+	}
+	clusterAPIInstalling := controller.FindMachineSetCondition(masterMachineSet, clusteroperator.MachineSetClusterAPIInstalling)
+	if clusterAPIInstalling != nil && clusterAPIInstalling.Status == corev1.ConditionTrue {
+		return false, true, nil
+	}
+	if !masterMachineSet.Status.ClusterAPIInstalled {
+		return false, false, nil
+	}
+	return true, false, nil
+}
+
 func (c *Controller) ensureMachineSetsAreDeleted(cluster *clusteroperator.Cluster) error {
+	shouldDeleteRemote, continueTrying, err := c.shouldDeleteRemoteMachineSets(cluster)
+	if err != nil {
+		return err
+	}
+	if shouldDeleteRemote {
+		return c.ensureRemoteMachineSetsAreDeleted(cluster)
+	}
+	if continueTrying {
+		return nil
+	}
+	if !cluster.Status.DeprovisionedComputeMachinesets {
+		return c.setDeprovisionedComputeMachinesets(cluster)
+	}
+
 	machineSets, err := controller.MachineSetsForCluster(cluster, c.machineSetsLister)
 	if err != nil {
 		return err

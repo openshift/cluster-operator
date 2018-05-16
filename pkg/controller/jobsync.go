@@ -116,6 +116,13 @@ func (s *jobSync) Sync(key string) error {
 		if !s.hasFinalizer(owner) {
 			return nil
 		}
+		// If the strategy implements CheckBeforeUndo and it returns false for CanUndo, then we should
+		// return and try again later.
+		if checkBeforeUndo, hasDeprovisionCheck := s.strategy.(CheckBeforeUndo); hasDeprovisionCheck {
+			if !checkBeforeUndo.CanUndo(owner) {
+				return nil
+			}
+		}
 		logger.Debugf("Undoing job processing on delete")
 		deleting = true
 	}
