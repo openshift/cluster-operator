@@ -247,8 +247,8 @@ openshift_aws_master_group_max_size: [[ .Size ]]
 openshift_aws_master_group_desired_size: [[ .Size ]]
 openshift_aws_master_group_instance_type: [[ .InstanceType ]]
 
-openshift_aws_iam_master_role_name: "openshift_master_launch_instances_{{ openshift_aws_clusterid }}"
-openshift_aws_iam_master_role_policy_name: "launch_instances_{{ openshift_aws_clusterid }}"
+openshift_aws_iam_master_role_name: "openshift_master_launch_instances"
+openshift_aws_iam_master_role_policy_name: "launch_instances"
 openshift_aws_iam_master_role_policy_json: "{{ lookup('template', 'launchinstances.json.j2') }}"
 
 openshift_aws_master_group:
@@ -277,6 +277,10 @@ openshift_aws_node_groups:
     sub-host-type: infra
     runtime: docker
     Name: "{{ openshift_aws_clusterid }}-infra"
+
+openshift_aws_iam_role_name: "openshift_node_describe_instances"
+openshift_aws_iam_role_policy_json: "{{ lookup('file', 'describeinstances.json') }}"
+openshift_aws_iam_role_policy_name: "describe_instances"
 `
 
 	computeVarsTemplate = `
@@ -296,6 +300,10 @@ openshift_aws_compute_group_min_size: [[ .Size ]]
 openshift_aws_compute_group_max_size: [[ .Size ]]
 openshift_aws_compute_group_desired_size: [[ .Size ]]
 openshift_aws_compute_group_instance_type: [[ .InstanceType ]]
+
+openshift_aws_iam_role_name: "openshift_node_describe_instances"
+openshift_aws_iam_role_policy_json: "{{ lookup('file', 'describeinstances.json') }}"
+openshift_aws_iam_role_policy_name: "describe_instances"
 `
 	clusterVersionVarsTemplate = `
 
