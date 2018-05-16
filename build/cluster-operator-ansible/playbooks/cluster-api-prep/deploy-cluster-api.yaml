@@ -99,3 +99,14 @@
     file:
       state: absent
       path: "{{ temp_file.path }}"
+
+  - name: Wait for cluster api deployment to complete
+    oc_obj:
+      state: list
+      kind: Deployment
+      namespace: kube-cluster
+      selector: "app=cluster-api-apiserver"
+    register: cluster_api_deployment
+    until: cluster_api_deployment.results.results[0]['items'][0]['status']['readyReplicas'] | default(0) > 0
+    retries: 60
+    delay: 5
