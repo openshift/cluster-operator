@@ -17,6 +17,8 @@
     * `sudo systemctl start docker`
   * Install the OpenShift and Kubernetes Python clients:
     * `sudo pip install kubernetes openshift`
+  * Install python SELinux libraries
+    * `dnf install python2-libselinux`
   * Clone this repo to `$HOME/go/src/github.com/openshift/cluster-operator`
   * Get cfssl:
     * `go get -u github.com/cloudflare/cfssl/cmd/...`
