@@ -17,6 +17,10 @@ limitations under the License.
 package controller
 
 import (
+	"fmt"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	clusterapi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 )
@@ -86,4 +90,20 @@ func ClusterAPIClusterForCombinedCluster(cluster *clusteroperator.CombinedCluste
 		newCluster.Status.ProviderStatus = providerStatus
 	}
 	return newCluster, nil
+}
+
+// ConvertToCombinedCluster converts a Cluster object, that is either a
+// cluster-operator Cluster, a cluster-api Cluster, or a CombinedCluster, into
+// a CombinedCluster object.
+func ConvertToCombinedCluster(cluster metav1.Object) (*clusteroperator.CombinedCluster, error) {
+	switch c := cluster.(type) {
+	case *clusteroperator.CombinedCluster:
+		return c, nil
+	case *clusteroperator.Cluster:
+		return CombinedClusterForClusterOperatorCluster(c), nil
+	case *clusterapi.Cluster:
+		return CombinedClusterForClusterAPICluster(c)
+	default:
+		return nil, fmt.Errorf("unknown type %T", c)
+	}
 }

@@ -525,6 +525,27 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Format:      "int64",
 							},
 						},
+						"controlPlaneInstalled": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ControlPlaneInstalled is true if the control plane is installed and running in the cluster.",
+								Type:        []string{"boolean"},
+								Format:      "",
+							},
+						},
+						"controlPlaneInstalledJobClusterGeneration": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ControlPlaneInstalledJobClusterGeneration is the generation of the cluster resource used to generate the latest completed control-plane installation job.",
+								Type:        []string{"integer"},
+								Format:      "int64",
+							},
+						},
+						"controlPlaneInstalledJobMachineSetGeneration": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ControlPlaneInstalledJobMachineSetGeneration is the generation of the master machine set resource used to generate the latest completed control-plane installation job.",
+								Type:        []string{"integer"},
+								Format:      "int64",
+							},
+						},
 						"ready": {
 							SchemaProps: spec.SchemaProps{
 								Description: "Ready is true if the master of the cluster is ready to be used and can be accessed using the KubeconfigSecret",
@@ -559,7 +580,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 							},
 						},
 					},
-					Required: []string{"machineSetCount", "provisioned", "provisionedJobGeneration", "ready", "conditions", "deprovisionedComputeMachineSets"},
+					Required: []string{"machineSetCount", "provisioned", "provisionedJobGeneration", "controlPlaneInstalled", "controlPlaneInstalledJobClusterGeneration", "controlPlaneInstalledJobMachineSetGeneration", "ready", "conditions", "deprovisionedComputeMachineSets"},
 				},
 			},
 			Dependencies: []string{
@@ -660,6 +681,27 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Format:      "int64",
 							},
 						},
+						"controlPlaneInstalled": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ControlPlaneInstalled is true if the control plane is installed and running in the cluster.",
+								Type:        []string{"boolean"},
+								Format:      "",
+							},
+						},
+						"controlPlaneInstalledJobClusterGeneration": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ControlPlaneInstalledJobClusterGeneration is the generation of the cluster resource used to generate the latest completed control-plane installation job.",
+								Type:        []string{"integer"},
+								Format:      "int64",
+							},
+						},
+						"controlPlaneInstalledJobMachineSetGeneration": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ControlPlaneInstalledJobMachineSetGeneration is the generation of the master machine set resource used to generate the latest completed control-plane installation job.",
+								Type:        []string{"integer"},
+								Format:      "int64",
+							},
+						},
 						"ready": {
 							SchemaProps: spec.SchemaProps{
 								Description: "Ready is true if the master of the cluster is ready to be used and can be accessed using the KubeconfigSecret",
@@ -694,7 +736,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 							},
 						},
 					},
-					Required: []string{"machineSetCount", "provisioned", "provisionedJobGeneration", "ready", "conditions", "deprovisionedComputeMachineSets"},
+					Required: []string{"machineSetCount", "provisioned", "provisionedJobGeneration", "controlPlaneInstalled", "controlPlaneInstalledJobClusterGeneration", "controlPlaneInstalledJobMachineSetGeneration", "ready", "conditions", "deprovisionedComputeMachineSets"},
 				},
 			},
 			Dependencies: []string{
@@ -1369,20 +1411,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
 							},
 						},
-						"installed": {
-							SchemaProps: spec.SchemaProps{
-								Description: "Installed is true if the software required for this machine set is installed and running.",
-								Type:        []string{"boolean"},
-								Format:      "",
-							},
-						},
-						"installedJobGeneration": {
-							SchemaProps: spec.SchemaProps{
-								Description: "InstalledJobGeneration is the generation of the machine set resource used to generate the latest completed installation job.",
-								Type:        []string{"integer"},
-								Format:      "int64",
-							},
-						},
 						"provisioned": {
 							SchemaProps: spec.SchemaProps{
 								Description: "Provisioned is true if the hardware that corresponds to this MachineSet has been provisioned",
@@ -1412,7 +1440,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 							},
 						},
 					},
-					Required: []string{"machineCount", "machinesReady", "conditions", "componentsInstalled", "componentsInstalledJobGeneration", "nodeConfigInstalled", "nodeConfigInstalledJobGeneration", "nodeConfigLastInstalled", "clusterAPIInstalled", "clusterAPIInstalledJobGeneration", "clusterAPIInstalledTime", "installed", "installedJobGeneration", "provisioned", "provisionedJobGeneration", "accepted", "acceptedJobGeneration"},
+					Required: []string{"machineCount", "machinesReady", "conditions", "componentsInstalled", "componentsInstalledJobGeneration", "nodeConfigInstalled", "nodeConfigInstalledJobGeneration", "nodeConfigLastInstalled", "clusterAPIInstalled", "clusterAPIInstalledJobGeneration", "clusterAPIInstalledTime", "provisioned", "provisionedJobGeneration", "accepted", "acceptedJobGeneration"},
 				},
 			},
 			Dependencies: []string{

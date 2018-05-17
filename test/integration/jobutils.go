@@ -365,23 +365,23 @@ func completeMachineSetsDeprovision(t *testing.T, kubeClient *kubefake.Clientset
 	)
 }
 
-// completeMachineSetInstall waits for the machine set to be
-// installing, completes the install job, and waits for the machine set
+// completeControlPlaneInstall waits for the control plane to be
+// installing, completes the install job, and waits for the control plane
 // to be installed.
-func completeMachineSetInstall(t *testing.T, kubeClient *kubefake.Clientset, clusterOperatorClient clientset.Interface, machineSet *v1alpha1.MachineSet) bool {
-	return completeMachineSetProcessingJob(
+func completeControlPlaneInstall(t *testing.T, kubeClient *kubefake.Clientset, clusterOperatorClient clientset.Interface, cluster *v1alpha1.Cluster) bool {
+	return completeClusterProcessingJob(
 		t,
-		"install",
+		"control plane install",
 		kubeClient,
 		clusterOperatorClient,
-		machineSet.Namespace, machineSet.Name,
-		machineSetJobRef(t, kubeClient, "master"),
+		cluster.Namespace, cluster.Name,
+		clusterJobRef(t, kubeClient, "master"),
 		func(client clientset.Interface, namespace, name string) error {
-			return waitForMachineSetStatus(
+			return waitForClusterStatus(
 				client,
 				namespace, name,
-				func(machineSet *v1alpha1.MachineSet) bool {
-					return machineSet.Status.Installed
+				func(cluster *v1alpha1.Cluster) bool {
+					return cluster.Status.ControlPlaneInstalled
 				},
 			)
 		},

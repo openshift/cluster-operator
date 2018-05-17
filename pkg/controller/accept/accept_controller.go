@@ -310,10 +310,20 @@ func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object, deleting bool) (con
 			return nil, nil, err
 		}
 
+		clusterRef := metav1.GetControllerOf(machineSet)
+		if clusterRef == nil {
+			return nil, nil, fmt.Errorf("machineset not owned by a cluster")
+		}
+
 		// TODO: use machine set vars once we remove structs from machine set
 		// vars and playbooks support simple values for things like instance type
 		// and size.
-		vars, err := ansible.GenerateClusterWideVarsForMachineSet(machineSet, cv)
+		vars, err := ansible.GenerateClusterWideVarsForMachineSet(
+			machineSet.Spec.NodeType == clusteroperator.NodeTypeMaster,
+			clusterRef.Name,
+			&machineSet.Spec.ClusterHardware,
+			cv,
+		)
 		if err != nil {
 			return nil, nil, err
 		}

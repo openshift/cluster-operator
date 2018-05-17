@@ -77,6 +77,7 @@ var machineSetKind = clusteroperator.SchemeGroupVersion.WithKind("MachineSet")
 
 // NewController returns a new *Controller.
 func NewController(
+	clusterInformer informers.ClusterInformer,
 	machineSetInformer informers.MachineSetInformer,
 	jobInformer batchinformers.JobInformer,
 	kubeClient kubeclientset.Interface,
@@ -99,6 +100,13 @@ func NewController(
 		queue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "components"),
 		logger:     logger,
 	}
+
+	clusterInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    c.addCluster,
+		UpdateFunc: c.updateCluster,
+	})
+	c.clustersLister = clusterInformer.Lister()
+	c.clustersSynced = clusterInformer.Informer().HasSynced
 
 	machineSetInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.addMachineSet,
@@ -140,6 +148,13 @@ type Controller struct {
 	// used for unit testing
 	enqueueMachineSet func(machineSet *clusteroperator.MachineSet)
 
+	// clustersLister is able to list/get clusters and is populated by the shared informer passed to
+	// NewController.
+	clustersLister lister.ClusterLister
+	// clustersSynced returns true if the cluster shared informer has been synced at least once.
+	// Added as a member to the struct to allow injection for testing.
+	clustersSynced cache.InformerSynced
+
 	// machineSetsLister is able to list/get machine sets and is populated by the shared informer passed to
 	// NewController.
 	machineSetsLister lister.MachineSetLister
@@ -154,6 +169,40 @@ type Controller struct {
 	queue workqueue.RateLimitingInterface
 
 	logger log.FieldLogger
+}
+
+func (c *Controller) addCluster(obj interface{}) {
+	cluster := obj.(*clusteroperator.Cluster)
+	clusterLogger := logging.WithCluster(c.logger, cluster)
+	clusterLogger.Debugf("Adding cluster")
+	masterMachineSetName := cluster.Status.MasterMachineSetName
+	if masterMachineSetName == "" {
+		clusterLogger.Debug("No master machineset yet")
+		return
+	}
+	machineSet, err := c.machineSetsLister.MachineSets(cluster.Namespace).Get(masterMachineSetName)
+	if err != nil {
+		clusterLogger.Warnf("Could not retrieve master machineset")
+		return
+	}
+	c.enqueueMachineSet(machineSet)
+}
+
+func (c *Controller) updateCluster(old, cur interface{}) {
+	cluster := cur.(*clusteroperator.Cluster)
+	clusterLogger := logging.WithCluster(c.logger, cluster)
+	clusterLogger.Debugf("Updating cluster")
+	masterMachineSetName := cluster.Status.MasterMachineSetName
+	if masterMachineSetName == "" {
+		clusterLogger.Debug("No master machineset yet")
+		return
+	}
+	machineSet, err := c.machineSetsLister.MachineSets(cluster.Namespace).Get(masterMachineSetName)
+	if err != nil {
+		clusterLogger.Warnf("Could not retrieve master machineset")
+		return
+	}
+	c.enqueueMachineSet(machineSet)
 }
 
 func (c *Controller) addMachineSet(obj interface{}) {
@@ -297,7 +346,12 @@ func (s *jobSyncStrategy) DoesOwnerNeedProcessing(owner metav1.Object) bool {
 		s.controller.logger.Warn("could not convert owner from JobSync into a machineset: %#v", owner)
 		return false
 	}
-	if !machineSet.Status.Installed {
+	cluster, err := controller.ClusterForMachineSet(machineSet, s.controller.clustersLister)
+	if err != nil {
+		s.controller.logger.Warn("could not get cluster for machine set", err)
+		return false
+	}
+	if !cluster.Status.ControlPlaneInstalled {
 		return false
 	}
 	return machineSet.Status.ComponentsInstalledJobGeneration != machineSet.Generation
@@ -312,9 +366,17 @@ func (s *jobSyncStrategy) GetLastJobSuccess(owner metav1.Object) *time.Time {
 }
 
 func (s *jobSyncStrategy) getInfraCount(machineSet *clusteroperator.MachineSet) (int, error) {
+	clusterRef := metav1.GetControllerOf(machineSet)
+	if clusterRef == nil {
+		return 0, fmt.Errorf("machineset not owned by a cluster")
+	}
 	msList, _ := s.controller.machineSetsLister.MachineSets(machineSet.Namespace).List(labels.Everything())
 	for _, ms := range msList {
-		if ms.Spec.Infra && ms.ClusterName == machineSet.ClusterName {
+		msClusterRef := metav1.GetControllerOf(ms)
+		if msClusterRef == nil {
+			continue
+		}
+		if ms.Spec.Infra && clusterRef.UID == msClusterRef.UID {
 			return ms.Spec.Size, nil
 		}
 	}
@@ -339,7 +401,11 @@ func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object, deleting bool) (con
 		if err != nil {
 			return nil, nil, err
 		}
-		vars, err := ansible.GenerateClusterWideVarsForMachineSetWithInfraSize(machineSet, cv, infraSize)
+		clusterRef := metav1.GetControllerOf(machineSet)
+		if clusterRef == nil {
+			return nil, nil, fmt.Errorf("machineset not owned by a cluster")
+		}
+		vars, err := ansible.GenerateClusterWideVarsForMachineSetWithInfraSize(true /*isMaster*/, clusterRef.Name, &machineSet.Spec.ClusterHardware, cv, infraSize)
 		if err != nil {
 			return nil, nil, err
 		}

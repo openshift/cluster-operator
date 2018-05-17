@@ -22,8 +22,6 @@ import (
 	"strings"
 	"text/template"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	coapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 )
 
@@ -412,16 +410,16 @@ func GenerateClusterWideVars(name string,
 	return buf.String(), nil
 }
 
-func lookupAMIForMachineSet(machineSet *coapi.MachineSet, clusterVersion *coapi.ClusterVersion) (string, error) {
+func lookupAMIForMachineSet(isMaster bool, clusterHardware *coapi.ClusterHardwareSpec, clusterVersion *coapi.ClusterVersion) (string, error) {
 	for _, regionAMI := range clusterVersion.Spec.VMImages.AWSImages.RegionAMIs {
-		if regionAMI.Region == machineSet.Spec.ClusterHardware.AWS.Region {
-			if machineSet.Spec.MachineSetConfig.NodeType == coapi.NodeTypeMaster && regionAMI.MasterAMI != nil {
+		if regionAMI.Region == clusterHardware.AWS.Region {
+			if isMaster && regionAMI.MasterAMI != nil {
 				return *regionAMI.MasterAMI, nil
 			}
 			return regionAMI.AMI, nil
 		}
 	}
-	return "", fmt.Errorf("no AMI defined for cluster version %s/%s in region %v", clusterVersion.Namespace, clusterVersion.Name, machineSet.Spec.ClusterHardware.AWS.Region)
+	return "", fmt.Errorf("no AMI defined for cluster version %s/%s in region %v", clusterVersion.Namespace, clusterVersion.Name, clusterHardware.AWS.Region)
 }
 
 // convertVersionToRelease converts an OpenShift version string to it's major release. (i.e. 3.9.0 -> 3.9)
@@ -440,22 +438,22 @@ func convertVersionToRelease(version string) (string, error) {
 // GenerateClusterWideVarsForMachineSet generates the vars to pass to the
 // ansible playbook that are set at the cluster level for a machine set in
 // that cluster.
-func GenerateClusterWideVarsForMachineSet(machineSet *coapi.MachineSet, clusterVersion *coapi.ClusterVersion) (string, error) {
+func GenerateClusterWideVarsForMachineSet(isMaster bool, clusterName string, clusterHardware *coapi.ClusterHardwareSpec, clusterVersion *coapi.ClusterVersion) (string, error) {
 	// since we haven't been passed an infraSize, just assume minimum size of 1
-	return GenerateClusterWideVarsForMachineSetWithInfraSize(machineSet, clusterVersion, 1)
+	return GenerateClusterWideVarsForMachineSetWithInfraSize(isMaster, clusterName, clusterHardware, clusterVersion, 1)
 }
 
 // GenerateClusterWideVarsForMachineSetWithInfraSize generates the vars to pass to the
 // ansible playbook that are set at the cluster level for a machine set in
 // that cluster taking into account the size/count of infra nodes.
-func GenerateClusterWideVarsForMachineSetWithInfraSize(machineSet *coapi.MachineSet,
+func GenerateClusterWideVarsForMachineSetWithInfraSize(
+	isMaster bool,
+	clusterName string,
+	clusterHardware *coapi.ClusterHardwareSpec,
 	clusterVersion *coapi.ClusterVersion,
-	infraSize int) (string, error) {
-	controllerRef := metav1.GetControllerOf(machineSet)
-	if controllerRef == nil {
-		return "", fmt.Errorf("machineset does not have a controller")
-	}
-	commonVars, err := GenerateClusterWideVars(controllerRef.Name, &machineSet.Spec.ClusterHardware, &clusterVersion.Spec, infraSize)
+	infraSize int,
+) (string, error) {
+	commonVars, err := GenerateClusterWideVars(clusterName, clusterHardware, &clusterVersion.Spec, infraSize)
 
 	// Layer in the vars that depend on the ClusterVersion:
 	var buf bytes.Buffer
@@ -471,7 +469,7 @@ func GenerateClusterWideVarsForMachineSetWithInfraSize(machineSet *coapi.Machine
 		return "", err
 	}
 
-	amiID, err := lookupAMIForMachineSet(machineSet, clusterVersion)
+	amiID, err := lookupAMIForMachineSet(isMaster, clusterHardware, clusterVersion)
 	if err != nil {
 		return "", err
 	}
@@ -491,8 +489,9 @@ func GenerateClusterWideVarsForMachineSetWithInfraSize(machineSet *coapi.Machine
 
 // GenerateMachineSetVars generates the vars to pass to the ansible playbook
 // for the machine set. The machine set must belong to the cluster.
-func GenerateMachineSetVars(machineSet *coapi.MachineSet, clusterVersion *coapi.ClusterVersion) (string, error) {
-	commonVars, err := GenerateClusterWideVarsForMachineSet(machineSet, clusterVersion)
+func GenerateMachineSetVars(cluster *coapi.Cluster, machineSet *coapi.MachineSet, clusterVersion *coapi.ClusterVersion) (string, error) {
+	isMaster := machineSet.Spec.NodeType == coapi.NodeTypeMaster
+	commonVars, err := GenerateClusterWideVarsForMachineSet(isMaster, cluster.Name, &cluster.Spec.Hardware, clusterVersion)
 	if err != nil {
 		return "", err
 	}
@@ -522,7 +521,7 @@ func GenerateMachineSetVars(machineSet *coapi.MachineSet, clusterVersion *coapi.
 		return "", err
 	}
 
-	amiID, err := lookupAMIForMachineSet(machineSet, clusterVersion)
+	amiID, err := lookupAMIForMachineSet(isMaster, &cluster.Spec.Hardware, clusterVersion)
 	if err != nil {
 		return "", err
 	}

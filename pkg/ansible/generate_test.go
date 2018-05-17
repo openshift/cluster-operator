@@ -169,52 +169,52 @@ func TestGenerateClusterVars(t *testing.T) {
 
 func TestLookupAMIForMachineSet(t *testing.T) {
 	tests := []struct {
-		name           string
-		clusterVersion *coapi.ClusterVersion
-		machineSet     *coapi.MachineSet
-		expectedAMI    string // empty string for expected error
+		name            string
+		isMaster        bool
+		clusterVersion  *coapi.ClusterVersion
+		clusterHardware *coapi.ClusterHardwareSpec
+		expectedAMI     string // empty string for expected error
 	}{
 		{
-			name:           "default AMI returned for compute node",
-			clusterVersion: testClusterVersion(),
-			machineSet:     testMachineSet(),
-			expectedAMI:    "compute-AMI-east",
+			name:            "default AMI returned for compute node",
+			isMaster:        false,
+			clusterVersion:  testClusterVersion(),
+			clusterHardware: &testCluster().Spec.Hardware,
+			expectedAMI:     "compute-AMI-east",
 		},
 		{
-			name:           "default AMI returned for master node when no master AMI set",
-			clusterVersion: testClusterVersion(),
-			machineSet: func() *coapi.MachineSet {
-				ms := testMachineSet()
-				ms.Spec.NodeType = coapi.NodeTypeMaster
-				return ms
-			}(),
-			expectedAMI: "compute-AMI-east",
+			name:            "default AMI returned for master node when no master AMI set",
+			isMaster:        true,
+			clusterVersion:  testClusterVersion(),
+			clusterHardware: &testCluster().Spec.Hardware,
+			expectedAMI:     "compute-AMI-east",
 		},
 		{
 			name:           "master AMI returned for master node",
+			isMaster:       true,
 			clusterVersion: testClusterVersion(),
-			machineSet: func() *coapi.MachineSet {
-				ms := testMachineSet()
-				ms.Spec.NodeType = coapi.NodeTypeMaster
-				ms.Spec.ClusterHardware.AWS.Region = "us-west-1"
-				return ms
+			clusterHardware: func() *coapi.ClusterHardwareSpec {
+				h := &testCluster().Spec.Hardware
+				h.AWS.Region = "us-west-1"
+				return h
 			}(),
 			expectedAMI: "master-AMI-west",
 		},
 		{
 			name:           "error on no AMI for region",
+			isMaster:       false,
 			clusterVersion: testClusterVersion(),
-			machineSet: func() *coapi.MachineSet {
-				ms := testMachineSet()
-				ms.Spec.ClusterHardware.AWS.Region = "ca-central-1"
-				return ms
+			clusterHardware: func() *coapi.ClusterHardwareSpec {
+				h := &testCluster().Spec.Hardware
+				h.AWS.Region = "ca-central-1"
+				return h
 			}(),
 			expectedAMI: "",
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			amiID, err := lookupAMIForMachineSet(tc.machineSet, tc.clusterVersion)
+			amiID, err := lookupAMIForMachineSet(tc.isMaster, tc.clusterHardware, tc.clusterVersion)
 			assert.Equal(t, tc.expectedAMI, amiID)
 			if tc.expectedAMI != "" {
 				assert.NoError(t, err)
@@ -267,12 +267,14 @@ func TestConvertVersionToRelease(t *testing.T) {
 func TestGenerateMachineSetVars(t *testing.T) {
 	tests := []struct {
 		name             string
+		cluster          *coapi.Cluster
 		machineSet       *coapi.MachineSet
 		shouldInclude    []string
 		shouldNotInclude []string
 	}{
 		{
-			name: "master machineset",
+			name:    "master machineset",
+			cluster: testCluster(),
 			machineSet: func() *coapi.MachineSet {
 				ms := testMachineSet()
 				ms.Spec.NodeType = coapi.NodeTypeMaster
@@ -289,7 +291,8 @@ func TestGenerateMachineSetVars(t *testing.T) {
 			},
 		},
 		{
-			name: "infra machineset",
+			name:    "infra machineset",
+			cluster: testCluster(),
 			machineSet: func() *coapi.MachineSet {
 				ms := testMachineSet()
 				ms.Spec.Infra = true
@@ -309,6 +312,7 @@ func TestGenerateMachineSetVars(t *testing.T) {
 		},
 		{
 			name:       "compute machineset",
+			cluster:    testCluster(),
 			machineSet: testMachineSet(),
 			shouldInclude: []string{
 				"compute: compute-AMI-east",
@@ -326,7 +330,7 @@ func TestGenerateMachineSetVars(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			cv := testClusterVersion()
-			result, err := GenerateMachineSetVars(tc.machineSet, cv)
+			result, err := GenerateMachineSetVars(tc.cluster, tc.machineSet, cv)
 			assert.Nil(t, err, "%s: unexpected: %v", tc.name, err)
 			for _, str := range tc.shouldInclude {
 				assert.Contains(t, result, str, "%s: result does not contain %q", tc.name, str)
