@@ -60,6 +60,7 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&MachineList{},
 		&ClusterProviderConfigSpec{},
 		&ClusterProviderStatus{},
+		&MachineSetProviderConfigSpec{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	scheme.AddKnownTypes(schema.GroupVersion{Version: "v1"}, &metav1.Status{})

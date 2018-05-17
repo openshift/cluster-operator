@@ -65,6 +65,7 @@ import (
 	"github.com/openshift/cluster-operator/pkg/controller"
 	"github.com/openshift/cluster-operator/pkg/controller/accept"
 	"github.com/openshift/cluster-operator/pkg/controller/cluster"
+	machineapi "github.com/openshift/cluster-operator/pkg/controller/clusterapimachine"
 	"github.com/openshift/cluster-operator/pkg/controller/components"
 	"github.com/openshift/cluster-operator/pkg/controller/deployclusterapi"
 	"github.com/openshift/cluster-operator/pkg/controller/infra"
@@ -339,6 +340,7 @@ func NewControllerInitializers() map[string]InitFunc {
 	controllers["deployclusterapi"] = startDeployClusterAPIController
 
 	controllers["capi-infra"] = startClusterAPIInfraController
+	controllers["capi-machine"] = startMachineAPIController
 
 	return controllers
 }
@@ -536,6 +538,20 @@ func startClusterController(ctx ControllerContext) (bool, error) {
 	return true, nil
 }
 
+func startMachineAPIController(ctx ControllerContext) (bool, error) {
+	if !clusterAPIResourcesAvailable(ctx) || !clusterOperatorResourcesAvailable(ctx) {
+		return false, nil
+	}
+	go machineapi.NewController(
+		ctx.ClusterAPIInformerFactory.Cluster().V1alpha1().Clusters(),
+		ctx.ClusterAPIInformerFactory.Cluster().V1alpha1().Machines(),
+		ctx.InformerFactory.Clusteroperator().V1alpha1().ClusterVersions(),
+		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-capi-machine-controller"),
+		ctx.ClientBuilder.ClusterAPIClientOrDie("clusteroperator-capi-machine-controller"),
+	).Run(int(ctx.Options.ConcurrentMachineSyncs), ctx.Stop)
+	return true, nil
+}
+
 func startInfraController(ctx ControllerContext) (bool, error) {
 	if !clusterOperatorResourcesAvailable(ctx) {
 		return false, nil
@@ -665,6 +681,7 @@ func clusterAPIResourcesAvailable(ctx ControllerContext) bool {
 	return resourcesAvailable(ctx,
 		schema.GroupVersionResource{Group: "cluster.k8s.io", Version: "v1alpha1", Resource: "clusters"},
 		schema.GroupVersionResource{Group: "cluster.k8s.io", Version: "v1alpha1", Resource: "machinesets"},
+		schema.GroupVersionResource{Group: "cluster.k8s.io", Version: "v1alpha1", Resource: "machines"},
 	)
 }
 

@@ -34,7 +34,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 
 	coapi "github.com/openshift/cluster-operator/pkg/api"
-	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	"github.com/openshift/cluster-operator/pkg/controller"
 )
 
 const (
@@ -44,9 +44,6 @@ const (
 
 	// Hardcode IAM role for infra/compute for now
 	defaultIAMRole = "openshift_node_describe_instances"
-
-	// Annotation used to store serialized ClusterVersion resource in MachineSet
-	clusterVersionAnnotation = "cluster-operator.openshift.io/cluster-version"
 
 	// Instance ID annotation
 	instanceIDAnnotation = "cluster-operator.openshift.io/aws-instance-id"
@@ -109,7 +106,7 @@ func (a *Actuator) Create(cluster *clusterv1.Cluster, machine *clusterv1.Machine
 // CreateMachine starts a new AWS instance as described by the cluster and machine resources
 func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.Machine) (*ec2.Reservation, error) {
 	// Extract cluster operator cluster
-	clusterSpec, err := a.clusterOperatorClusterSpec(cluster)
+	clusterSpec, err := controller.ClusterSpecFromClusterAPI(cluster)
 	if err != nil {
 		return nil, err
 	}
@@ -125,26 +122,20 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 		return nil, fmt.Errorf("unable to obtain EC2 client: %v", err)
 	}
 
-	// For now, we store the machineSet resource in the machine.
-	// It really should be the machine resource, but it's not yet
-	// fleshed out in the Cluster Operator API
-	coMachineSet, coClusterVersion, err := a.clusterOperatorMachineSet(machine)
+	coMachineSetSpec, err := controller.MachineSetSpecFromClusterAPIMachineSpec(&machine.Spec)
 	if err != nil {
 		return nil, err
 	}
-	a.logger.Debugf("Creating a machine for machineset %q and cluster version %q", coMachineSet.Name, coClusterVersion.Name)
+	a.logger.Debugf("Creating machine %q", machine.Name)
 
-	if coClusterVersion.Spec.VMImages.AWSImages == nil {
-		return nil, fmt.Errorf("cluster version does not contain AWS images")
+	if coMachineSetSpec.VMImage.AWSImage == nil {
+		return nil, fmt.Errorf("machine does not have an AWS image set")
 	}
 
 	// Get AMI to use
-	amiName := amiForRegion(coClusterVersion.Spec.VMImages.AWSImages.RegionAMIs, region)
-	if len(amiName) == 0 {
-		return nil, fmt.Errorf("cannot determine AMI name from cluster version %q and region %s", coClusterVersion.Name, region)
-	}
+	amiName := *coMachineSetSpec.VMImage.AWSImage
 
-	a.logger.Debugf("Describing AMI %q", amiName)
+	a.logger.Debugf("Describing AMI %s", amiName)
 	imageIds := []*string{aws.String(amiName)}
 	describeImagesRequest := ec2.DescribeImagesInput{
 		ImageIds: imageIds,
@@ -196,7 +187,7 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 
 	// Determine security groups
 	var groupName, groupNameK8s string
-	if coMachineSet.Spec.Infra {
+	if coMachineSetSpec.Infra {
 		groupName = vpcName + "_infra"
 		groupNameK8s = vpcName + "_infra_k8s"
 	} else {
@@ -272,12 +263,12 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 	if err != nil {
 		return nil, fmt.Errorf("cannot get bootstrap kubeconfig: %v", err)
 	}
-	userData := getUserData(bootstrapKubeConfig, coMachineSet.Spec.Infra)
+	userData := getUserData(bootstrapKubeConfig, coMachineSetSpec.Infra)
 	userDataEnc := base64.StdEncoding.EncodeToString([]byte(userData))
 
 	inputConfig := ec2.RunInstancesInput{
 		ImageId:      describeAMIResult.Images[0].ImageId,
-		InstanceType: aws.String(coMachineSet.Spec.Hardware.AWS.InstanceType),
+		InstanceType: aws.String(coMachineSetSpec.Hardware.AWS.InstanceType),
 		MinCount:     aws.Int64(1),
 		MaxCount:     aws.Int64(1),
 		UserData:     &userDataEnc,
@@ -325,15 +316,15 @@ func (a *Actuator) DeleteMachine(machine *clusterv1.Machine) error {
 		return nil
 	}
 
-	coMachineSet, _, err := a.clusterOperatorMachineSet(machine)
+	coMachineSetSpec, err := controller.MachineSetSpecFromClusterAPIMachineSpec(&machine.Spec)
 	if err != nil {
 		return err
 	}
 
-	if coMachineSet.Spec.ClusterHardware.AWS == nil {
-		return fmt.Errorf("machineSet does not contain AWS hardware spec")
+	if coMachineSetSpec.ClusterHardware.AWS == nil {
+		return fmt.Errorf("machine does not contain AWS hardware spec")
 	}
-	region := coMachineSet.Spec.ClusterHardware.AWS.Region
+	region := coMachineSetSpec.ClusterHardware.AWS.Region
 	client, err := a.ec2Client(region)
 	if err != nil {
 		return fmt.Errorf("error getting EC2 client: %v", err)
@@ -367,15 +358,15 @@ func (a *Actuator) Exists(machine *clusterv1.Machine) (bool, error) {
 		return false, nil
 	}
 
-	coMachineSet, _, err := a.clusterOperatorMachineSet(machine)
+	coMachineSetSpec, err := controller.MachineSetSpecFromClusterAPIMachineSpec(&machine.Spec)
 	if err != nil {
 		return false, err
 	}
 
-	if coMachineSet.Spec.ClusterHardware.AWS == nil {
+	if coMachineSetSpec.ClusterHardware.AWS == nil {
 		return false, fmt.Errorf("machineSet does not contain AWS hardware spec")
 	}
-	region := coMachineSet.Spec.ClusterHardware.AWS.Region
+	region := coMachineSetSpec.ClusterHardware.AWS.Region
 	client, err := a.ec2Client(region)
 	if err != nil {
 		return false, fmt.Errorf("error getting EC2 client: %v", err)
@@ -411,55 +402,6 @@ func (a *Actuator) ec2Client(region string) (*ec2.EC2, error) {
 		return nil, err
 	}
 	return ec2.New(s), nil
-}
-
-func (a *Actuator) clusterOperatorClusterSpec(c *clusterv1.Cluster) (*cov1.ClusterProviderConfigSpec, error) {
-	obj, _, err := a.codecFactory.UniversalDecoder(cov1.SchemeGroupVersion).Decode([]byte(c.Spec.ProviderConfig.Value.Raw), nil, nil)
-	if err != nil {
-		return nil, err
-	}
-	coProviderConfig, ok := obj.(*cov1.ClusterProviderConfigSpec)
-	if !ok {
-		return nil, fmt.Errorf("Unexpected object: %#v", obj)
-	}
-	return coProviderConfig, nil
-}
-
-func (a *Actuator) clusterOperatorMachineSet(m *clusterv1.Machine) (*cov1.MachineSet, *cov1.ClusterVersion, error) {
-	if m.Spec.ProviderConfig.Value == nil || m.Spec.ProviderConfig.ValueFrom == nil {
-		return nil, nil, fmt.Errorf("No providerConfig specified for machine")
-	}
-	obj, _, err := a.codecFactory.UniversalDecoder(cov1.SchemeGroupVersion).Decode(m.Spec.ProviderConfig.Value.Raw, nil, nil)
-	if err != nil {
-		return nil, nil, err
-	}
-	coMachineSet, ok := obj.(*cov1.MachineSet)
-	if !ok {
-		return nil, nil, fmt.Errorf("Unexpected machine set object: %#v", obj)
-	}
-	rawClusterVersion, ok := coMachineSet.Annotations[clusterVersionAnnotation]
-	if !ok {
-		return nil, nil, fmt.Errorf("Missing ClusterVersion resource annotation in MachineSet %#v", coMachineSet)
-	}
-	obj, _, err = a.codecFactory.UniversalDecoder(cov1.SchemeGroupVersion).Decode([]byte(rawClusterVersion), nil, nil)
-	if err != nil {
-		return nil, nil, err
-	}
-	coClusterVersion, ok := obj.(*cov1.ClusterVersion)
-	if !ok {
-		return nil, nil, fmt.Errorf("Unexpected cluster version object: %#v", obj)
-	}
-
-	return coMachineSet, coClusterVersion, nil
-}
-
-func amiForRegion(amis []cov1.AWSRegionAMIs, region string) string {
-	for _, a := range amis {
-		if a.Region == region {
-			return a.AMI
-		}
-	}
-	return ""
 }
 
 // template for user data

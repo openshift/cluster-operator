@@ -18,9 +18,11 @@ package controller
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 
 	"github.com/golang/glog"
+	log "github.com/sirupsen/logrus"
 
 	lister "github.com/openshift/cluster-operator/pkg/client/listers_generated/clusteroperator/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
@@ -28,8 +30,9 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/runtime/serializer/json"
+	jsonserializer "k8s.io/apimachinery/pkg/runtime/serializer/json"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/openshift/cluster-operator/pkg/api"
@@ -354,13 +357,13 @@ func ClusterSpecFromClusterAPI(cluster *clusterapi.Cluster) (*clusteroperator.Cl
 	if cluster.Spec.ProviderConfig.Value == nil {
 		return nil, fmt.Errorf("No Value in ProviderConfig")
 	}
-	obj, _, err := api.Codecs.UniversalDecoder(clusteroperator.SchemeGroupVersion).Decode([]byte(cluster.Spec.ProviderConfig.Value.Raw), nil, nil)
+	obj, gvk, err := api.Codecs.UniversalDecoder(clusteroperator.SchemeGroupVersion).Decode([]byte(cluster.Spec.ProviderConfig.Value.Raw), nil, nil)
 	if err != nil {
 		return nil, err
 	}
 	spec, ok := obj.(*clusteroperator.ClusterProviderConfigSpec)
 	if !ok {
-		return nil, fmt.Errorf("Unexpected object: %#v", obj)
+		return nil, fmt.Errorf("Unexpected object: %#v", gvk)
 	}
 	return &spec.ClusterSpec, nil
 }
@@ -371,13 +374,13 @@ func ClusterStatusFromClusterAPI(cluster *clusterapi.Cluster) (*clusteroperator.
 	if cluster.Status.ProviderStatus == nil {
 		return &clusteroperator.ClusterStatus{}, nil
 	}
-	obj, _, err := api.Codecs.UniversalDecoder(clusteroperator.SchemeGroupVersion).Decode([]byte(cluster.Status.ProviderStatus.Raw), nil, nil)
+	obj, gvk, err := api.Codecs.UniversalDecoder(clusteroperator.SchemeGroupVersion).Decode([]byte(cluster.Status.ProviderStatus.Raw), nil, nil)
 	if err != nil {
 		return nil, err
 	}
 	status, ok := obj.(*clusteroperator.ClusterProviderStatus)
 	if !ok {
-		return nil, fmt.Errorf("Unexpected object: %#v", obj)
+		return nil, fmt.Errorf("Unexpected object: %#v", gvk)
 	}
 	return &status.ClusterStatus, nil
 }
@@ -392,7 +395,7 @@ func ClusterAPIProviderStatusFromClusterStatus(clusterStatus *clusteroperator.Cl
 		},
 		ClusterStatus: *clusterStatus,
 	}
-	serializer := json.NewSerializer(json.DefaultMetaFactory, api.Scheme, api.Scheme, false)
+	serializer := jsonserializer.NewSerializer(jsonserializer.DefaultMetaFactory, api.Scheme, api.Scheme, false)
 	var buffer bytes.Buffer
 	err := serializer.Encode(clusterProviderStatus, &buffer)
 	if err != nil {
@@ -401,4 +404,131 @@ func ClusterAPIProviderStatusFromClusterStatus(clusterStatus *clusteroperator.Cl
 	return &runtime.RawExtension{
 		Raw: buffer.Bytes(),
 	}, nil
+}
+
+// MachineSetSpecFromClusterAPIMachineSpec gets the cluster-operator MachineSetSpec from the
+// specified cluster-api MachineSet.
+func MachineSetSpecFromClusterAPIMachineSpec(ms *clusterapi.MachineSpec) (*clusteroperator.MachineSetSpec, error) {
+	if ms.ProviderConfig.Value == nil {
+		return nil, fmt.Errorf("No Value in ProviderConfig")
+	}
+	obj, gvk, err := api.Codecs.UniversalDecoder(clusteroperator.SchemeGroupVersion).Decode([]byte(ms.ProviderConfig.Value.Raw), nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	spec, ok := obj.(*clusteroperator.MachineSetProviderConfigSpec)
+	if !ok {
+		return nil, fmt.Errorf("Unexpected object: %#v", gvk)
+	}
+	return &spec.MachineSetSpec, nil
+}
+
+// ClusterAPIMachineProviderConfigFromMachineSetSpec gets the cluster-api ProviderConfig for a Machine template
+// to store the cluster-operator MachineSetSpec.
+func ClusterAPIMachineProviderConfigFromMachineSetSpec(machineSetSpec *clusteroperator.MachineSetSpec) (*runtime.RawExtension, error) {
+	msProviderConfigSpec := &clusteroperator.MachineSetProviderConfigSpec{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: clusteroperator.SchemeGroupVersion.String(),
+			Kind:       "MachineSetProviderConfigSpec",
+		},
+		MachineSetSpec: *machineSetSpec,
+	}
+	serializer := jsonserializer.NewSerializer(jsonserializer.DefaultMetaFactory, api.Scheme, api.Scheme, false)
+	var buffer bytes.Buffer
+	err := serializer.Encode(msProviderConfigSpec, &buffer)
+	if err != nil {
+		return nil, err
+	}
+	return &runtime.RawExtension{
+		Raw: buffer.Bytes(),
+	}, nil
+}
+
+// PopulateMachineSpec ensures that the MachineSetSpec we use for the machine spec provider config is fully populated with defaults and calculated values based on Cluster Operator specific logic. This can be used both on individual machines, as well as on the MachineTemplateSpec used in MachineSets and MachineDeployments.
+func PopulateMachineSpec(machineSpec *clusterapi.MachineSpec, clusterSpec *clusteroperator.ClusterSpec, clusterVersion *clusteroperator.ClusterVersion, mLog log.FieldLogger) error {
+	var msSpec *clusteroperator.MachineSetSpec
+	var err error
+	if machineSpec.ProviderConfig.Value == nil {
+		msSpec = &clusteroperator.MachineSetSpec{}
+	} else {
+		msSpec, err = MachineSetSpecFromClusterAPIMachineSpec(machineSpec)
+		if err != nil {
+			return err
+		}
+	}
+
+	if msSpec.VMImage.AWSImage == nil {
+		mLog.Debugf("no VMImage set, using cluster version")
+
+		vmImage, err := getImage(clusterSpec, clusterVersion)
+		if err != nil {
+			return err
+		}
+		msSpec.VMImage = *vmImage
+		mLog.Debugf("machine spec VMImage set to: %s", *vmImage)
+	}
+
+	// use cluster defaults for hardware spec if unset:
+	hwSpec, err := ApplyDefaultMachineSetHardwareSpec(msSpec.Hardware, clusterSpec.DefaultHardwareSpec)
+	if err != nil {
+		return err
+	}
+	msSpec.Hardware = hwSpec
+	mLog.Debugf("machine spec hardware set to: %v", msSpec.Hardware.AWS)
+
+	// Copy cluster hardware onto the provider config as well. Needed when deleting a cluster in the actuator.
+	if (msSpec.ClusterHardware == clusteroperator.ClusterHardwareSpec{}) {
+		mLog.Debugf("cluster hardware not set, copying: %v", clusterSpec.Hardware)
+		msSpec.ClusterHardware = clusterSpec.Hardware
+	}
+
+	providerConfig, err := ClusterAPIMachineProviderConfigFromMachineSetSpec(msSpec)
+	if err != nil {
+		return err
+	}
+	machineSpec.ProviderConfig.Value = providerConfig
+	return nil
+}
+
+// getImage returns a specific image for the given machine and cluster version.
+func getImage(clusterSpec *clusteroperator.ClusterSpec, clusterVersion *clusteroperator.ClusterVersion) (*clusteroperator.VMImage, error) {
+	if clusterSpec.Hardware.AWS == nil {
+		return nil, fmt.Errorf("no AWS hardware defined for cluster")
+	}
+
+	if clusterVersion.Spec.VMImages.AWSImages == nil {
+		return nil, fmt.Errorf("no AWS images defined for cluster version")
+	}
+
+	for _, regionAMI := range clusterVersion.Spec.VMImages.AWSImages.RegionAMIs {
+		if regionAMI.Region == clusterSpec.Hardware.AWS.Region {
+			ami := regionAMI.AMI
+			return &clusteroperator.VMImage{
+				AWSImage: &ami,
+			}, nil
+		}
+	}
+
+	return nil, fmt.Errorf("no AWS image defined for region %s", clusterSpec.Hardware.AWS.Region)
+}
+
+// ApplyDefaultMachineSetHardwareSpec merges the cluster-wide hardware defaults with the machineset specific hardware specified.
+func ApplyDefaultMachineSetHardwareSpec(machineSetHardwareSpec, defaultHardwareSpec *clusteroperator.MachineSetHardwareSpec) (*clusteroperator.MachineSetHardwareSpec, error) {
+	if defaultHardwareSpec == nil {
+		return machineSetHardwareSpec, nil
+	}
+	defaultHwSpecJSON, err := json.Marshal(defaultHardwareSpec)
+	if err != nil {
+		return nil, err
+	}
+	specificHwSpecJSON, err := json.Marshal(machineSetHardwareSpec)
+	if err != nil {
+		return nil, err
+	}
+	merged, err := strategicpatch.StrategicMergePatch(defaultHwSpecJSON, specificHwSpecJSON, machineSetHardwareSpec)
+	mergedSpec := &clusteroperator.MachineSetHardwareSpec{}
+	if err = json.Unmarshal(merged, mergedSpec); err != nil {
+		return nil, err
+	}
+	return mergedSpec, nil
 }

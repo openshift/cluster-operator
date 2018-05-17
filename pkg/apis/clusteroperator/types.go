@@ -398,16 +398,32 @@ type ClusterMachineSet struct {
 	MachineSetConfig
 }
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// MachineSetProviderConfigSpec is the machine set specification stored in the
+// ProviderConfig of a cluster.k8s.io MachineSpec.
+type MachineSetProviderConfigSpec struct {
+	// +optional
+	metav1.TypeMeta
+	// +optional
+	metav1.ObjectMeta
+
+	MachineSetSpec
+}
+
 // MachineSetConfig contains configuration for a MachineSet
 type MachineSetConfig struct {
 	// NodeType is the type of nodes that comprise the MachineSet
+	// TODO: remove in favor of upstream MachineTemplateSpec roles.
 	NodeType NodeType
 
 	// Infra indicates whether this machine set should contain infrastructure
 	// pods
+	// TODO: remove in favor of upstream MachineTemplateSpec roles.
 	Infra bool
 
 	// Size is the number of nodes that the node group should contain
+	// TODO: remove in favor of upstream MachineSet and MachineDeployment replicas.
 	Size int
 
 	// Hardware defines what the hardware should look like for this
@@ -420,16 +436,32 @@ type MachineSetConfig struct {
 	NodeLabels map[string]string
 }
 
-// MachineSetSpec is the specification for a MachineSet
+// MachineSetSpec is the Cluster Operator specification for a Cluster API machine template provider config.
+// TODO: This should be renamed, it is now used on MachineTemplate.Spec.ProviderConfig.
+// TODO: most fields here are set automatically, typically a user should not be setting directly. Should
+// we break this down into two sections similar to spec/status, one for things we expect the user to set
+// (namely the Hardware, which is optional), and the rest to a sub-struct that more clearly indicates
+// those fields are set automatically. (cluster hardware, vmimage)
 type MachineSetSpec struct {
 	// MachineSetConfig is the configuration for the MachineSet
 	MachineSetConfig
 
-	// ClusterHardware specifies the hardware that the cluster will run on
+	// ClusterHardware specifies the hardware that the cluster will run on. It is typically a copy of
+	// the clusters data and set automatically by controllers.
 	ClusterHardware ClusterHardwareSpec
 
 	// ClusterVersionRef references the clusterversion the machine set is running.
 	ClusterVersionRef corev1.ObjectReference
+
+	// VMImage contains a single cloud provider specific image to use for this machine set. It will typically
+	// be set automatically by controllers based on the cluster version.
+	VMImage VMImage
+}
+
+// VMImage contains a specified single image to use for a supported cloud provider.
+type VMImage struct {
+	// +optional
+	AWSImage *string
 }
 
 // MachineSetHardwareSpec specifies the hardware for a MachineSet

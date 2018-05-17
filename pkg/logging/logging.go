@@ -21,6 +21,8 @@ import (
 
 	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 
+	clusterv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+
 	log "github.com/sirupsen/logrus"
 )
 
@@ -32,4 +34,19 @@ func WithMachineSet(logger log.FieldLogger, machineSet *clusteroperator.MachineS
 // WithCluster expands a logger's context to include info about the given cluster.
 func WithCluster(logger log.FieldLogger, cluster *clusteroperator.Cluster) log.FieldLogger {
 	return logger.WithField("cluster", fmt.Sprintf("%s/%s", cluster.Namespace, cluster.Name))
+}
+
+// WithClusterAPICluster expands a logger's context to include info about the given cluster.
+func WithClusterAPICluster(logger log.FieldLogger, cluster *clusterv1.Cluster) log.FieldLogger {
+	return logger.WithField("cluster", fmt.Sprintf("%s/%s", cluster.Namespace, cluster.Name))
+}
+
+// WithClusterAPIMachineSet expands a logger's context to include info about the given machineset.
+func WithClusterAPIMachineSet(logger log.FieldLogger, machineSet *clusterv1.MachineSet) log.FieldLogger {
+	return logger.WithField("machineset", fmt.Sprintf("%s/%s", machineSet.Namespace, machineSet.Name))
+}
+
+// WithClusterAPIMachine expands a logger's context to include info about the given machine.
+func WithClusterAPIMachine(logger log.FieldLogger, machine *clusterv1.Machine) log.FieldLogger {
+	return logger.WithField("machine", fmt.Sprintf("%s/%s", machine.Namespace, machine.Name))
 }
