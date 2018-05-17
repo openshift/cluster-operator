@@ -465,7 +465,7 @@ func PopulateMachineSpec(machineSpec *clusterapi.MachineSpec, clusterSpec *clust
 			return err
 		}
 		msSpec.VMImage = *vmImage
-		mLog.Debugf("machine spec VMImage set to: %s", *vmImage)
+		mLog.Debugf("machine spec VMImage set to: %s", *vmImage.AWSImage)
 	}
 
 	// use cluster defaults for hardware spec if unset:
@@ -474,11 +474,10 @@ func PopulateMachineSpec(machineSpec *clusterapi.MachineSpec, clusterSpec *clust
 		return err
 	}
 	msSpec.Hardware = hwSpec
-	mLog.Debugf("machine spec hardware set to: %v", msSpec.Hardware.AWS)
 
 	// Copy cluster hardware onto the provider config as well. Needed when deleting a cluster in the actuator.
 	if (msSpec.ClusterHardware == clusteroperator.ClusterHardwareSpec{}) {
-		mLog.Debugf("cluster hardware not set, copying: %v", clusterSpec.Hardware)
+		mLog.Debugf("cluster hardware not set, copying")
 		msSpec.ClusterHardware = clusterSpec.Hardware
 	}
 

@@ -23,17 +23,19 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/client-go/kubernetes"
 	clusterv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	clusterclient "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
-	"sigs.k8s.io/cluster-api/util"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 
 	coapi "github.com/openshift/cluster-operator/pkg/api"
+	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	"github.com/openshift/cluster-operator/pkg/controller"
 )
 
@@ -47,6 +49,9 @@ const (
 
 	// Instance ID annotation
 	instanceIDAnnotation = "cluster-operator.openshift.io/aws-instance-id"
+
+	awsCredsSecretIDKey     = "awsAccessKeyId"
+	awsCredsSecretAccessKey = "awsSecretAccessKey"
 )
 
 // Instance state constants
@@ -115,18 +120,18 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 		return nil, fmt.Errorf("Cluster does not contain an AWS hardware spec")
 	}
 
-	region := clusterSpec.Hardware.AWS.Region
-	a.logger.Debugf("Obtaining EC2 client for region %q", region)
-	client, err := a.ec2Client(region)
-	if err != nil {
-		return nil, fmt.Errorf("unable to obtain EC2 client: %v", err)
-	}
-
 	coMachineSetSpec, err := controller.MachineSetSpecFromClusterAPIMachineSpec(&machine.Spec)
 	if err != nil {
 		return nil, err
 	}
 	a.logger.Debugf("Creating machine %q", machine.Name)
+
+	region := clusterSpec.Hardware.AWS.Region
+	a.logger.Debugf("Obtaining EC2 client for region %q", region)
+	client, err := a.ec2Client(coMachineSetSpec, machine.Namespace, region)
+	if err != nil {
+		return nil, fmt.Errorf("unable to obtain EC2 client: %v", err)
+	}
 
 	if coMachineSetSpec.VMImage.AWSImage == nil {
 		return nil, fmt.Errorf("machine does not have an AWS image set")
@@ -297,15 +302,7 @@ func (a *Actuator) Delete(machine *clusterv1.Machine) error {
 		a.logger.Errorf("error deleting machine: %v", err)
 		return err
 	}
-
-	// Deleting the machine was successful, remove the finalizer from the machine resource
-	machineCopy := machine.DeepCopy()
-	machineCopy.ObjectMeta.Finalizers = util.Filter(machineCopy.ObjectMeta.Finalizers, clusterv1.MachineFinalizer)
-	_, err := a.clusterClient.ClusterV1alpha1().Machines(machineCopy.Namespace).Update(machineCopy)
-	if err != nil {
-		a.logger.Errorf("error removing finalizer from deleted machine: %v", err)
-	}
-	return err
+	return nil
 }
 
 // DeleteMachine deletes an AWS instance
@@ -325,7 +322,7 @@ func (a *Actuator) DeleteMachine(machine *clusterv1.Machine) error {
 		return fmt.Errorf("machine does not contain AWS hardware spec")
 	}
 	region := coMachineSetSpec.ClusterHardware.AWS.Region
-	client, err := a.ec2Client(region)
+	client, err := a.ec2Client(coMachineSetSpec, machine.Namespace, region)
 	if err != nil {
 		return fmt.Errorf("error getting EC2 client: %v", err)
 	}
@@ -367,7 +364,7 @@ func (a *Actuator) Exists(machine *clusterv1.Machine) (bool, error) {
 		return false, fmt.Errorf("machineSet does not contain AWS hardware spec")
 	}
 	region := coMachineSetSpec.ClusterHardware.AWS.Region
-	client, err := a.ec2Client(region)
+	client, err := a.ec2Client(coMachineSetSpec, machine.Namespace, region)
 	if err != nil {
 		return false, fmt.Errorf("error getting EC2 client: %v", err)
 	}
@@ -395,9 +392,41 @@ func (a *Actuator) Exists(machine *clusterv1.Machine) (bool, error) {
 	return false, nil
 }
 
-// Helper function to create an ec2 client
-func (a *Actuator) ec2Client(region string) (*ec2.EC2, error) {
-	s, err := session.NewSession(&aws.Config{Region: aws.String(region)})
+// ec2Client creates an EC2 client using either the cluster AWS credentials secret
+// if defined (i.e. in the root cluster), otherwise the IAM profile of the master where the
+// actuator will run. (target clusters)
+func (a *Actuator) ec2Client(mSpec *cov1.MachineSetSpec, namespace, region string) (*ec2.EC2, error) {
+	awsConfig := &aws.Config{Region: aws.String(region)}
+
+	if mSpec.ClusterHardware.AWS == nil {
+		return nil, fmt.Errorf("no AWS cluster hardware set on machine spec")
+	}
+
+	// If the cluster specifies an AWS credentials secret and it exists, use it for our client credentials:
+	if mSpec.ClusterHardware.AWS.AccountSecret.Name != "" {
+		a.logger.Debugf("loading AWS credentials secret")
+		secret, err := a.kubeClient.CoreV1().Secrets(namespace).Get(
+			mSpec.ClusterHardware.AWS.AccountSecret.Name, metav1.GetOptions{})
+		if err != nil {
+			return nil, err
+		}
+		accessKeyID, ok := secret.Data[awsCredsSecretIDKey]
+		if !ok {
+			return nil, fmt.Errorf("AWS credentials secret %v did not contain key %v",
+				mSpec.ClusterHardware.AWS.AccountSecret.Name, awsCredsSecretIDKey)
+		}
+		secretAccessKey, ok := secret.Data[awsCredsSecretAccessKey]
+		if !ok {
+			return nil, fmt.Errorf("AWS credentials secret %v did not contain key %v",
+				mSpec.ClusterHardware.AWS.AccountSecret.Name, awsCredsSecretAccessKey)
+		}
+
+		awsConfig.Credentials = credentials.NewStaticCredentials(
+			string(accessKeyID), string(secretAccessKey), "")
+	}
+
+	// Otherwise default to relying on the IAM role of the masters where the actuator is running:
+	s, err := session.NewSession(awsConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -456,5 +485,5 @@ func getInstanceID(machine *clusterv1.Machine) string {
 }
 
 func iamRole(cluster *clusterv1.Cluster) string {
-	return fmt.Sprintf("%s_%s", defaultIAMRole, cluster.Name)
+	return fmt.Sprintf("%s", defaultIAMRole)
 }
