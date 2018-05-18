@@ -79,6 +79,11 @@ type ControllerManagerConfiguration struct {
 	// but more CPU (and network) load.
 	ConcurrentClusterSyncs int32
 
+	// concurrentClusterAPIClusterSyncs is the number of cluster objects that are
+	// allowed to sync concurrently. Larger number = more responsive clusters,
+	// but more CPU (and network) load.
+	ConcurrentClusterAPIClusterSyncs int32
+
 	// concurrentMachineSetSyncs is the number of machine set objects that are
 	// allowed to sync concurrently. Larger number = more responsive machine sets,
 	// but more CPU (and network) load.

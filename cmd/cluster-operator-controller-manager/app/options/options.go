@@ -58,26 +58,27 @@ const (
 func NewCMServer() *CMServer {
 	s := CMServer{
 		ControllerManagerConfiguration: componentconfig.ControllerManagerConfiguration{
-			Controllers:                     []string{"*"},
-			Address:                         defaultBindAddress,
-			Port:                            defaultPort,
-			ContentType:                     defaultContentType,
-			K8sKubeconfigPath:               defaultK8sKubeconfigPath,
-			ClusterOperatorKubeconfigPath:   defaultClusterOperatorKubeconfigPath,
-			MinResyncPeriod:                 metav1.Duration{Duration: 12 * time.Hour},
-			ConcurrentClusterSyncs:          defaultConcurrentSyncs,
-			ConcurrentMachineSetSyncs:       defaultConcurrentSyncs,
-			ConcurrentMachineSyncs:          defaultConcurrentSyncs,
-			ConcurrentMasterSyncs:           defaultConcurrentSyncs,
-			ConcurrentAcceptSyncs:           defaultConcurrentSyncs,
-			ConcurrentComponentSyncs:        defaultConcurrentSyncs,
-			ConcurrentNodeConfigSyncs:       defaultConcurrentSyncs,
-			ConcurrentDeployClusterAPISyncs: defaultConcurrentSyncs,
-			LeaderElection:                  leaderelectionconfig.DefaultLeaderElectionConfiguration(),
-			LeaderElectionNamespace:         defaultLeaderElectionNamespace,
-			ControllerStartInterval:         metav1.Duration{Duration: 0 * time.Second},
-			EnableProfiling:                 true,
-			EnableContentionProfiling:       false,
+			Controllers:                      []string{"*"},
+			Address:                          defaultBindAddress,
+			Port:                             defaultPort,
+			ContentType:                      defaultContentType,
+			K8sKubeconfigPath:                defaultK8sKubeconfigPath,
+			ClusterOperatorKubeconfigPath:    defaultClusterOperatorKubeconfigPath,
+			MinResyncPeriod:                  metav1.Duration{Duration: 12 * time.Hour},
+			ConcurrentClusterSyncs:           defaultConcurrentSyncs,
+			ConcurrentClusterAPIClusterSyncs: defaultConcurrentSyncs,
+			ConcurrentMachineSetSyncs:        defaultConcurrentSyncs,
+			ConcurrentMachineSyncs:           defaultConcurrentSyncs,
+			ConcurrentMasterSyncs:            defaultConcurrentSyncs,
+			ConcurrentAcceptSyncs:            defaultConcurrentSyncs,
+			ConcurrentComponentSyncs:         defaultConcurrentSyncs,
+			ConcurrentNodeConfigSyncs:        defaultConcurrentSyncs,
+			ConcurrentDeployClusterAPISyncs:  defaultConcurrentSyncs,
+			LeaderElection:                   leaderelectionconfig.DefaultLeaderElectionConfiguration(),
+			LeaderElectionNamespace:          defaultLeaderElectionNamespace,
+			ControllerStartInterval:          metav1.Duration{Duration: 0 * time.Second},
+			EnableProfiling:                  true,
+			EnableContentionProfiling:        false,
 		},
 	}
 	s.LeaderElection.LeaderElect = true
@@ -101,6 +102,7 @@ func (s *CMServer) AddFlags(fs *pflag.FlagSet, allControllers []string, disabled
 	fs.BoolVar(&s.ClusterOperatorInsecureSkipVerify, "clusteroperator-insecure-skip-verify", s.ClusterOperatorInsecureSkipVerify, "Skip verification of the TLS certificate for the clusteroperator API server")
 	fs.DurationVar(&s.MinResyncPeriod.Duration, "min-resync-period", s.MinResyncPeriod.Duration, "The resync period in reflectors will be random between MinResyncPeriod and 2*MinResyncPeriod")
 	fs.Int32Var(&s.ConcurrentClusterSyncs, "concurrent-cluster-syncs", s.ConcurrentClusterSyncs, "The number of cluster objects that are allowed to sync concurrently. Larger number = more responsive clusters, but more CPU (and network) load")
+	fs.Int32Var(&s.ConcurrentClusterAPIClusterSyncs, "concurrent-clusterapi-cluster-syncs", s.ConcurrentClusterAPIClusterSyncs, "The number of cluster API cluster objects that are allowed to sync concurrently. Larger number = more responsive clusters, but more CPU (and network) load")
 	fs.Int32Var(&s.ConcurrentMachineSetSyncs, "concurrent-machine-set-syncs", s.ConcurrentMachineSetSyncs, "The number of machine set objects that are allowed to sync concurrently. Larger number = more responsive machine sets, but more CPU (and network) load")
 	fs.Int32Var(&s.ConcurrentMachineSyncs, "concurrent-machine-syncs", s.ConcurrentMachineSyncs, "The number of machine objects that are allowed to sync concurrently. Larger number = more responsive machines, but more CPU (and network) load")
 	fs.Int32Var(&s.ConcurrentMasterSyncs, "concurrent-master-syncs", s.ConcurrentMasterSyncs, "The number of master machine objects that are allowed to sync concurrently. Larger number = more responsive master machines, but more CPU (and network) load")
