@@ -330,6 +330,7 @@ func NewControllerInitializers() map[string]InitFunc {
 	controllers := map[string]InitFunc{}
 
 	controllers["cluster"] = startClusterController
+	controllers["clusterapicluster"] = startClusterAPIClusterController
 	controllers["infra"] = startInfraController
 	controllers["machineset"] = startMachineSetController
 	controllers["machine"] = startMachineController
@@ -535,6 +536,19 @@ func startClusterController(ctx ControllerContext) (bool, error) {
 		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-cluster-controller"),
 		ctx.ClientBuilder.ClientOrDie("clusteroperator-cluster-controller"),
 	).Run(int(ctx.Options.ConcurrentClusterSyncs), ctx.Stop)
+	return true, nil
+}
+
+func startClusterAPIClusterController(ctx ControllerContext) (bool, error) {
+	if !clusterOperatorResourcesAvailable(ctx) {
+		return false, nil
+	}
+	go cluster.NewClusterAPIController(
+		ctx.ClusterAPIInformerFactory.Cluster().V1alpha1().Clusters(),
+		ctx.ClusterAPIInformerFactory.Cluster().V1alpha1().MachineSets(),
+		ctx.ClientBuilder.KubeClientOrDie("clusterapi-cluster-controller"),
+		ctx.ClientBuilder.ClusterAPIClientOrDie("clusterapi-cluster-controller"),
+	).Run(int(ctx.Options.ConcurrentClusterAPIClusterSyncs), ctx.Stop)
 	return true, nil
 }
 

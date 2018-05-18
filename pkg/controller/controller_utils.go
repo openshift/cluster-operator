@@ -35,9 +35,11 @@ import (
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/client-go/tools/cache"
 
+	clusterapi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	clusterapilister "sigs.k8s.io/cluster-api/pkg/client/listers_generated/cluster/v1alpha1"
+
 	"github.com/openshift/cluster-operator/pkg/api"
 	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
-	clusterapi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 )
 
 var (
@@ -45,6 +47,8 @@ var (
 	KeyFunc = cache.DeletionHandlingMetaNamespaceKeyFunc
 
 	clusterKind = clusteroperator.SchemeGroupVersion.WithKind("Cluster")
+
+	clusterAPIClusterKind = clusterapi.SchemeGroupVersion.WithKind("Cluster")
 
 	// ClusterUIDLabel is the label to apply to objects that belong to the cluster
 	// with the UID.
@@ -282,6 +286,28 @@ func ClusterForMachineSet(machineSet *clusteroperator.MachineSet, clustersLister
 		return nil, nil
 	}
 	cluster, ok := controller.(*clusteroperator.Cluster)
+	if !ok {
+		return nil, fmt.Errorf("Could not convert controller into a Cluster")
+	}
+	return cluster, nil
+}
+
+// ClusterForClusterAPIMachineSet retrieves the cluster to which a cluster API machine set belongs.
+func ClusterForClusterAPIMachineSet(machineSet *clusterapi.MachineSet, clustersLister clusterapilister.ClusterLister) (*clusterapi.Cluster, error) {
+	controller, err := GetObjectController(
+		machineSet,
+		clusterAPIClusterKind,
+		func(name string) (metav1.Object, error) {
+			return clustersLister.Clusters(machineSet.Namespace).Get(name)
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	if controller == nil {
+		return nil, nil
+	}
+	cluster, ok := controller.(*clusterapi.Cluster)
 	if !ok {
 		return nil, fmt.Errorf("Could not convert controller into a Cluster")
 	}
