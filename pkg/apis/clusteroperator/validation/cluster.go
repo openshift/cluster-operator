@@ -34,14 +34,14 @@ func ValidateCluster(cluster *clusteroperator.Cluster) field.ErrorList {
 	for _, msg := range ValidateClusterName(cluster.Name, false) {
 		allErrs = append(allErrs, field.Invalid(field.NewPath("spec").Child("name"), cluster.Name, msg))
 	}
-	allErrs = append(allErrs, validateClusterSpec(&cluster.Spec, field.NewPath("spec"))...)
+	allErrs = append(allErrs, ValidateClusterSpec(&cluster.Spec, field.NewPath("spec"))...)
 	allErrs = append(allErrs, validateClusterStatus(&cluster.Status, field.NewPath("status"))...)
 
 	return allErrs
 }
 
-// validateClusterSpec validates the spec of a cluster.
-func validateClusterSpec(spec *clusteroperator.ClusterSpec, fldPath *field.Path) field.ErrorList {
+// ValidateClusterSpec validates the spec of a cluster.
+func ValidateClusterSpec(spec *clusteroperator.ClusterSpec, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 	machineSetsPath := fldPath.Child("machineSets")
 	versionPath := fldPath.Child("clusterVersionRef")
@@ -120,7 +120,7 @@ func validateSecretRef(ref *corev1.LocalObjectReference, fldPath *field.Path) fi
 func ValidateClusterUpdate(new *clusteroperator.Cluster, old *clusteroperator.Cluster) field.ErrorList {
 	allErrs := field.ErrorList{}
 
-	allErrs = append(allErrs, validateClusterSpec(&new.Spec, field.NewPath("spec"))...)
+	allErrs = append(allErrs, ValidateClusterSpec(&new.Spec, field.NewPath("spec"))...)
 
 	return allErrs
 }

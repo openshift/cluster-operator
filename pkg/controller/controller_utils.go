@@ -36,7 +36,9 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/openshift/cluster-operator/pkg/api"
+	clusteroperatorInternal "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
 	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	clusterapiInternal "sigs.k8s.io/cluster-api/pkg/apis/cluster"
 	clusterapi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 )
 
@@ -370,21 +372,59 @@ func AddLabels(obj metav1.Object, additionalLabels map[string]string) {
 	}
 }
 
+// take raw providerconfig and return v1alpha1ClusterProviderConfigSpec
+func clusterProviderConfigSpecFromProviderConfigValue(rawExtension *runtime.RawExtension) (*clusteroperator.ClusterProviderConfigSpec, error) {
+
+	obj, _, err := api.Codecs.UniversalDecoder(clusteroperator.SchemeGroupVersion).Decode(rawExtension.Raw, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	spec, ok := obj.(*clusteroperator.ClusterProviderConfigSpec)
+	if !ok {
+		return nil, fmt.Errorf("Unexpected object: %+v", obj)
+	}
+
+	return spec, nil
+}
+
 // ClusterSpecFromClusterAPI gets the cluster-operator ClusterSpec from the
 // specified cluster-api Cluster.
 func ClusterSpecFromClusterAPI(cluster *clusterapi.Cluster) (*clusteroperator.ClusterSpec, error) {
 	if cluster.Spec.ProviderConfig.Value == nil {
 		return nil, fmt.Errorf("No Value in ProviderConfig")
 	}
-	obj, gvk, err := api.Codecs.UniversalDecoder(clusteroperator.SchemeGroupVersion).Decode([]byte(cluster.Spec.ProviderConfig.Value.Raw), nil, nil)
+
+	v1ClusterProviderConfigSpec, err := clusterProviderConfigSpecFromProviderConfigValue(cluster.Spec.ProviderConfig.Value)
 	if err != nil {
 		return nil, err
 	}
-	spec, ok := obj.(*clusteroperator.ClusterProviderConfigSpec)
-	if !ok {
-		return nil, fmt.Errorf("Unexpected object: %#v", gvk)
+	return &v1ClusterProviderConfigSpec.ClusterSpec, nil
+}
+
+// InternalClusterSpecFromInternalClusterAPI takes a internal clusterapi.Cluster object and returns
+// a clusteroperator.Cluster.Spec from the contents of clusterapi.Cluster.Spec.ProviderConfig
+func InternalClusterSpecFromInternalClusterAPI(cluster *clusterapiInternal.Cluster) (*clusteroperatorInternal.ClusterSpec, error) {
+	if cluster.Spec.ProviderConfig.Value == nil {
+		return nil, fmt.Errorf("No value in providerconfig")
 	}
-	return &spec.ClusterSpec, nil
+
+	v1ClusterProviderConfigSpec, err := clusterProviderConfigSpecFromProviderConfigValue(cluster.Spec.ProviderConfig.Value)
+	if err != nil {
+		return nil, err
+	}
+
+	internalClusterProviderConfigSpecObj, err := api.Scheme.ConvertToVersion(v1ClusterProviderConfigSpec, clusteroperatorInternal.SchemeGroupVersion)
+	if err != nil {
+		return nil, fmt.Errorf("error converting to internal type %+v", err)
+	}
+
+	internalClusterProviderConfigSpec, ok := internalClusterProviderConfigSpecObj.(*clusteroperatorInternal.ClusterProviderConfigSpec)
+	if !ok {
+		return nil, fmt.Errorf("error casting to internal clusterproviderconfigspec")
+	}
+
+	return &internalClusterProviderConfigSpec.ClusterSpec, nil
 }
 
 // ClusterStatusFromClusterAPI gets the cluster-operator ClusterStatus from the
