@@ -353,32 +353,11 @@ type clusterVersionParams struct {
 	ImageFormat string
 }
 
-func getInfraSize(clusterSpec *coapi.ClusterSpec) (int, error) {
-	// find the 'infra' machineset and return its size
-	for _, ms := range clusterSpec.MachineSets {
-		if ms.Infra {
-			return ms.Size, nil
-		}
-	}
-
-	return 0, fmt.Errorf("no machineset of type Infra found")
-}
-
-// GenerateClusterVars generates the vars to pass to the ansible playbook
-// for the cluster.
-func GenerateClusterVars(clusterName string, clusterSpec *coapi.ClusterSpec, clusterVersionSpec *coapi.ClusterVersionSpec) (string, error) {
-	infraSize, err := getInfraSize(clusterSpec)
-	if err != nil {
-		return "", err
-	}
-	return GenerateClusterWideVars(clusterName, &clusterSpec.Hardware, clusterVersionSpec, infraSize)
-}
-
 // GenerateClusterWideVars generates the vars to pass to the ansible playbook
 // that are set at the cluster level.
 func GenerateClusterWideVars(name string,
 	hardwareSpec *coapi.ClusterHardwareSpec,
-	clusterVersionSpec *coapi.ClusterVersionSpec,
+	clusterVersion *coapi.ClusterVersion,
 	infraSize int) (string, error) {
 
 	// Currently only AWS is supported. If we don't have an AWS cluster spec, return an error
@@ -398,7 +377,7 @@ func GenerateClusterWideVars(name string,
 		SSHKeyName:     hardwareSpec.AWS.KeyPairName,
 		SSHUser:        hardwareSpec.AWS.SSHUser,
 		VPCDefaults:    vpcDefaults,
-		DeploymentType: clusterVersionSpec.DeploymentType,
+		DeploymentType: clusterVersion.Spec.DeploymentType,
 		InfraSize:      infraSize,
 	}
 
@@ -453,7 +432,7 @@ func GenerateClusterWideVarsForMachineSetWithInfraSize(
 	clusterVersion *coapi.ClusterVersion,
 	infraSize int,
 ) (string, error) {
-	commonVars, err := GenerateClusterWideVars(clusterName, clusterHardware, &clusterVersion.Spec, infraSize)
+	commonVars, err := GenerateClusterWideVars(clusterName, clusterHardware, clusterVersion, infraSize)
 
 	// Layer in the vars that depend on the ClusterVersion:
 	var buf bytes.Buffer

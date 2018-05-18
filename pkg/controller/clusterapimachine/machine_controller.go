@@ -36,6 +36,7 @@ import (
 
 	"github.com/openshift/cluster-operator/pkg/kubernetes/pkg/util/metrics"
 
+	clustopv1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	clustopinformers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions/clusteroperator/v1alpha1"
 	clustoplisters "github.com/openshift/cluster-operator/pkg/client/listers_generated/clusteroperator/v1alpha1"
 	"github.com/openshift/cluster-operator/pkg/controller"
@@ -49,8 +50,6 @@ import (
 
 const (
 	controllerLogName = "capi-machine"
-
-	clusterNameLabel = "clusteroperator.openshift.io/cluster"
 )
 
 // NewController returns a new controller.
@@ -168,7 +167,7 @@ func (c *Controller) deleteMachine(obj interface{}) {
 // upstream convention soon.
 func (c *Controller) enqueueMachinesForCluster(cluster *capiv1.Cluster) {
 	nsMachines, err := c.machinesLister.Machines(cluster.Namespace).List(labels.SelectorFromSet(
-		labels.Set{clusterNameLabel: cluster.Name}))
+		labels.Set{clustopv1.ClusterNameLabel: cluster.Name}))
 	if err != nil {
 		utilruntime.HandleError(err)
 		return
@@ -297,7 +296,7 @@ func (c *Controller) syncMachine(key string) error {
 	mLog.Debugf("found machine")
 
 	// Lookup the cluster for this machine:
-	clusterName, ok := machine.Labels[clusterNameLabel]
+	clusterName, ok := machine.Labels[clustopv1.ClusterNameLabel]
 	if !ok {
 		return fmt.Errorf("no cluster label set on machine")
 	}

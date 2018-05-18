@@ -575,6 +575,7 @@ func startClusterAPIInfraController(ctx ControllerContext) (bool, error) {
 	}
 	go infra.NewClusterAPIController(
 		ctx.ClusterAPIInformerFactory.Cluster().V1alpha1().Clusters(),
+		ctx.ClusterAPIInformerFactory.Cluster().V1alpha1().MachineSets(),
 		ctx.KubeInformerFactory.Batch().V1().Jobs(),
 		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-capi-infra-controller"),
 		ctx.ClientBuilder.ClientOrDie("clusteroperator-capi-infra-controller"),

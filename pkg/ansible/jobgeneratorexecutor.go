@@ -30,9 +30,23 @@ type JobGeneratorExecutor struct {
 	playbooks           []string
 	cluster             *clustop.CombinedCluster
 	clusterVersion      *clustop.ClusterVersion
+	forCluster          bool
 	forMasterMachineSet bool
 	infraSize           *int
 	serviceAccount      *kapi.ServiceAccount
+}
+
+// NewJobGeneratorExecutorForCluster creates a JobGeneratorExecutor
+// that creates a job for the cluster.
+func NewJobGeneratorExecutorForCluster(jobGenerator JobGenerator, playbooks []string, cluster *clustop.CombinedCluster, clusterVersion *clustop.ClusterVersion, infraSize int) *JobGeneratorExecutor {
+	return &JobGeneratorExecutor{
+		jobGenerator:   jobGenerator,
+		playbooks:      playbooks,
+		cluster:        cluster,
+		clusterVersion: clusterVersion,
+		forCluster:     true,
+		infraSize:      &infraSize,
+	}
 }
 
 // NewJobGeneratorExecutorForMasterMachineSet creates a JobGeneratorExecutor
@@ -65,9 +79,12 @@ func (e *JobGeneratorExecutor) Execute(name string) (*kbatch.Job, *kapi.ConfigMa
 		vars string
 		err  error
 	)
-	if e.infraSize == nil {
+	switch {
+	case e.forCluster:
+		vars, err = GenerateClusterWideVars(e.cluster.Name, &e.cluster.ClusterOperatorSpec.Hardware, e.clusterVersion, *e.infraSize)
+	case e.infraSize == nil:
 		vars, err = GenerateClusterWideVarsForMachineSet(e.forMasterMachineSet, e.cluster.Name, &e.cluster.ClusterOperatorSpec.Hardware, e.clusterVersion)
-	} else {
+	default:
 		vars, err = GenerateClusterWideVarsForMachineSetWithInfraSize(e.forMasterMachineSet, e.cluster.Name, &e.cluster.ClusterOperatorSpec.Hardware, e.clusterVersion, *e.infraSize)
 	}
 	if err != nil {
@@ -105,9 +122,8 @@ func (e *JobGeneratorExecutor) Execute(name string) (*kbatch.Job, *kapi.ConfigMa
 
 // WithInfraSize modifies the JobGeneratorExecutor so that the job that it creates
 // includes infra size in its ansible variables.
-func (e *JobGeneratorExecutor) WithInfraSize(cluster *clustop.CombinedCluster) *JobGeneratorExecutor {
-	infraSize, _ := getInfraSize(cluster.ClusterOperatorSpec)
-	e.infraSize = &infraSize
+func (e *JobGeneratorExecutor) WithInfraSize(size int) *JobGeneratorExecutor {
+	e.infraSize = &size
 	return e
 }
 

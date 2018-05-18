@@ -86,8 +86,12 @@ func NewClustopController(
 		func(namespace, name string) (metav1.Object, error) {
 			return clusterLister.Clusters(namespace).Get(name)
 		},
-		func(namespace, name string) (metav1.Object, error) {
-			return machineSetLister.MachineSets(namespace).Get(name)
+		func(cluster *clustop.CombinedCluster) (metav1.Object, error) {
+			masterMachineSetName := cluster.ClusterOperatorStatus.MasterMachineSetName
+			if masterMachineSetName == "" {
+				return nil, fmt.Errorf("no master machine set established")
+			}
+			return machineSetLister.MachineSets(cluster.Namespace).Get(masterMachineSetName)
 		},
 		clusterInformer.Informer().HasSynced,
 		machineSetInformer.Informer().HasSynced,
@@ -122,8 +126,8 @@ func NewCAPIController(
 		func(namespace, name string) (metav1.Object, error) {
 			return clusterLister.Clusters(namespace).Get(name)
 		},
-		func(namespace, name string) (metav1.Object, error) {
-			return machineSetLister.MachineSets(namespace).Get(name)
+		func(cluster *clustop.CombinedCluster) (metav1.Object, error) {
+			return controller.GetCAPIMasterMachineSet(cluster, machineSetLister)
 		},
 		clusterInformer.Informer().HasSynced,
 		machineSetInformer.Informer().HasSynced,
@@ -143,7 +147,7 @@ func newController(
 	addClusterInformerEventHandler func(cache.ResourceEventHandler),
 	addMachineSetInformerEventHandler func(cache.ResourceEventHandler),
 	getCluster func(namespace, name string) (metav1.Object, error),
-	getMachineSet func(namespace, name string) (metav1.Object, error),
+	getMasterMachineSet func(*clustop.CombinedCluster) (metav1.Object, error),
 	clustersSynced cache.InformerSynced,
 	machineSetsSynced cache.InformerSynced,
 ) *Controller {
@@ -162,19 +166,19 @@ func newController(
 	logger := log.WithField("controller", controllerName)
 
 	c := &Controller{
-		clusterKind:       clusterKind,
-		controllerName:    controllerName,
-		installStrategy:   installStrategy,
-		playbooks:         playbooks,
-		clustopClient:     clustopClient,
-		capiClient:        capiClient,
-		kubeClient:        kubeClient,
-		queue:             workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), controllerName),
-		Logger:            logger,
-		getCluster:        getCluster,
-		getMachineSet:     getMachineSet,
-		clustersSynced:    clustersSynced,
-		machineSetsSynced: machineSetsSynced,
+		clusterKind:         clusterKind,
+		controllerName:      controllerName,
+		installStrategy:     installStrategy,
+		playbooks:           playbooks,
+		clustopClient:       clustopClient,
+		capiClient:          capiClient,
+		kubeClient:          kubeClient,
+		queue:               workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), controllerName),
+		Logger:              logger,
+		getCluster:          getCluster,
+		getMasterMachineSet: getMasterMachineSet,
+		clustersSynced:      clustersSynced,
+		machineSetsSynced:   machineSetsSynced,
 	}
 
 	addClusterInformerEventHandler(cache.ResourceEventHandlerFuncs{
@@ -235,9 +239,9 @@ type Controller struct {
 	// getCluster gets the cluster with the specified namespace and name from
 	// the lister
 	getCluster func(namespace, name string) (metav1.Object, error)
-	// getMachineSet gets the machineset with the specified namespace and name
-	// from the lister
-	getMachineSet func(namespace, name string) (metav1.Object, error)
+	// getMasterMachineSet gets the master machineset associated with the
+	// specified cluster
+	getMasterMachineSet func(*clustop.CombinedCluster) (metav1.Object, error)
 	// clustersSynced returns true if the cluster shared informer has been synced at least once.
 	// Added as a member to the struct to allow injection for testing.
 	clustersSynced cache.InformerSynced
@@ -441,14 +445,6 @@ func isMasterMachineSet(obj metav1.Object) bool {
 	}
 }
 
-func (c *Controller) getMasterMachineSet(cluster *clustop.CombinedCluster) (metav1.Object, error) {
-	masterMachineSetName := cluster.ClusterOperatorStatus.MasterMachineSetName
-	if masterMachineSetName == "" {
-		return nil, fmt.Errorf("no master machine set established")
-	}
-	return c.getMachineSet(cluster.Namespace, masterMachineSetName)
-}
-
 type jobFactory func(string) (*v1batch.Job, *kapi.ConfigMap, error)
 
 func (f jobFactory) BuildJob(name string) (*v1batch.Job, *kapi.ConfigMap, error) {
@@ -628,15 +624,11 @@ func (s *jobSyncStrategy) UpdateOwnerStatus(original, owner metav1.Object) error
 		cluster := controller.ClusterOperatorClusterForCombinedCluster(combinedCluster)
 		return controller.PatchClusterStatus(s.controller.clustopClient, originalCluster, cluster)
 	case capi.SchemeGroupVersion.Group:
-		originalCluster, err := controller.ClusterAPIClusterForCombinedCluster(originalCombinedCluster, true /*ignoreChanges*/)
-		if err != nil {
-			return err
-		}
 		cluster, err := controller.ClusterAPIClusterForCombinedCluster(combinedCluster, false /*ignoreChanges*/)
 		if err != nil {
 			return err
 		}
-		return controller.PatchClusterAPIStatus(s.controller.capiClient, originalCluster, cluster)
+		return controller.UpdateClusterAPIStatus(s.controller.capiClient, cluster)
 	default:
 		return fmt.Errorf("unknown cluster kind %+v", s.controller.clusterKind)
 	}

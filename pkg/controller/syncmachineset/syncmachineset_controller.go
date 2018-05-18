@@ -107,7 +107,7 @@ func NewController(
 
 	c.syncHandler = c.syncMachineSet
 	c.enqueueMachineSet = c.enqueue
-	c.buildClients = c.buildRemoteClusterClients
+	c.BuildRemoteClient = c.buildRemoteClusterClients
 
 	return c
 }
@@ -124,7 +124,7 @@ type Controller struct {
 	// Used for unit testing
 	enqueueMachineSet func(machineSet *cov1.MachineSet)
 
-	buildClients func(*cov1.Cluster) (clusterapiclient.Interface, error)
+	BuildRemoteClient func(*cov1.Cluster) (clusterapiclient.Interface, error)
 
 	// machineSetsLister is able to list/get machine sets and is
 	// populated by the shared informer passed to NewController.
@@ -377,7 +377,7 @@ func (c *Controller) syncMasterMachineSet(ms *cov1.MachineSet) error {
 	}
 
 	// Create the Cluster object if it does not already exist:
-	remoteClusterAPIClient, err := c.buildClients(coCluster)
+	remoteClusterAPIClient, err := c.BuildRemoteClient(coCluster)
 	if err != nil {
 		return err
 	}
@@ -425,7 +425,7 @@ func (c *Controller) syncComputeMachineSet(ms *cov1.MachineSet) error {
 		return nil
 	}
 
-	remoteClusterAPIClient, err := c.buildClients(coCluster)
+	remoteClusterAPIClient, err := c.BuildRemoteClient(coCluster)
 	if err != nil {
 		return err
 	}

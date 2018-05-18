@@ -30,11 +30,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubefake "k8s.io/client-go/kubernetes/fake"
 
-	// avoid error `clusteroperator/v1alpha1 is not enabled`
-	_ "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/install"
-
 	clustopv1alpha1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	clustopclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
+	"github.com/openshift/cluster-operator/pkg/controller"
+	capiv1alpha1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	capiclientset "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 )
 
 // completeProcessingJob completes a processing job for the object with the
@@ -54,7 +54,22 @@ func completeProcessingJob(
 	if err := waitForObjectStatus(
 		namespace, name,
 		getFromStore,
-		func(obj metav1.Object) bool { return getJobRef(obj) != nil },
+		func(obj metav1.Object) bool {
+			// Wait for a reference to a job that has not been completed.
+			// If the job has been completed already, then it is a job for a
+			// previous processing. For example, when deprovisioning the job
+			// reference may temporarily refer to the provisioning job until the
+			// controller creates the deprovisioning job.
+			jobRef := getJobRef(obj)
+			if jobRef == nil {
+				return false
+			}
+			job, err := kubeClient.BatchV1().Jobs(namespace).Get(jobRef.Name, metav1.GetOptions{})
+			if err != nil {
+				return false
+			}
+			return !isJobComplete(job)
+		},
 	); err != nil {
 		t.Fatalf("error waiting for %s job creation for object %s/%s: %v", jobLabel, namespace, name, err)
 	}
@@ -116,6 +131,37 @@ func completeClusterProcessingJob(
 		},
 		func(namespace, name string) error {
 			return verifyJobCompleted(clustopClient, namespace, name)
+		},
+	)
+}
+
+// completeCAPIClusterProcessingJob completes a processing job for the cluster
+// with the specified namespace and name. Verification is performed to wait
+// for the cluster to be in a state where the job is running before completing
+// the job and to wait for the cluster to be in a state where the job has been
+// completed successfully after the job is completed.
+func completeCAPIClusterProcessingJob(
+	t *testing.T,
+	jobLabel string,
+	kubeClient *kubefake.Clientset,
+	capiClient capiclientset.Interface,
+	namespace, name string,
+	getJobRef func(*capiv1alpha1.Cluster) *corev1.LocalObjectReference,
+	verifyJobCompleted func(capiclientset.Interface /*namespace*/, string /*name*/, string) error,
+) bool {
+	return completeProcessingJob(
+		t,
+		jobLabel,
+		kubeClient,
+		namespace, name,
+		func(namespace, name string) (metav1.Object, error) {
+			return getCAPICluster(capiClient, namespace, name)
+		},
+		func(obj metav1.Object) *corev1.LocalObjectReference {
+			return getJobRef(obj.(*capiv1alpha1.Cluster))
+		},
+		func(namespace, name string) error {
+			return verifyJobCompleted(capiClient, namespace, name)
 		},
 	)
 }
@@ -210,8 +256,55 @@ func completeInfraProvision(t *testing.T, kubeClient *kubefake.Clientset, clusto
 	return true
 }
 
+// completeCAPIInfraProvision waits for the cluster to be provisioning,
+// completes the provision job, and waits for the cluster to be provisioned.
+func completeCAPIInfraProvision(t *testing.T, kubeClient *kubefake.Clientset, capiClient capiclientset.Interface, cluster *capiv1alpha1.Cluster) bool {
+	if !completeCAPIClusterProcessingJob(
+		t,
+		"provision",
+		kubeClient,
+		capiClient,
+		cluster.Namespace, cluster.Name,
+		capiClusterJobRef(t, kubeClient, "capi-infra"),
+		waitForCAPIClusterProvisioned,
+	) {
+		return false
+	}
+
+	storedCluster, err := getCAPICluster(capiClient, cluster.Namespace, cluster.Name)
+	if !assert.NoError(t, err, "error getting stored cluster") {
+		return false
+	}
+	if !assert.NotEmpty(t, storedCluster.Finalizers, "cluster should have a finalizer for infra provisioning") {
+		return false
+	}
+
+	return true
+}
+
 func clusterJobRef(t *testing.T, kubeClient *kubefake.Clientset, jobPrefix string) func(*clustopv1alpha1.Cluster) *corev1.LocalObjectReference {
 	return func(cluster *clustopv1alpha1.Cluster) *corev1.LocalObjectReference {
+		list, err := kubeClient.BatchV1().Jobs(cluster.Namespace).List(metav1.ListOptions{})
+		if err != nil {
+			t.Errorf("error retrieving jobs")
+			return nil
+		}
+		for _, job := range list.Items {
+			if !metav1.IsControlledBy(&job, cluster) {
+				continue
+			}
+			if strings.HasPrefix(job.Name, jobPrefix) {
+				return &corev1.LocalObjectReference{
+					Name: job.Name,
+				}
+			}
+		}
+		return nil
+	}
+}
+
+func capiClusterJobRef(t *testing.T, kubeClient *kubefake.Clientset, jobPrefix string) func(*capiv1alpha1.Cluster) *corev1.LocalObjectReference {
+	return func(cluster *capiv1alpha1.Cluster) *corev1.LocalObjectReference {
 		list, err := kubeClient.BatchV1().Jobs(cluster.Namespace).List(metav1.ListOptions{})
 		if err != nil {
 			t.Errorf("error retrieving jobs")
@@ -269,6 +362,29 @@ func completeInfraDeprovision(t *testing.T, kubeClient *kubefake.Clientset, clus
 				"openshift/cluster-operator-infra",
 				func(namespace, name string) (metav1.Object, error) {
 					return getCluster(client, namespace, name)
+				},
+			)
+		},
+	)
+}
+
+// completeCAPIInfraDeprovision waits for the cluster to be deprovisioning,
+// completes the deprovision job, and waits for the cluster to have its
+// provision finalizer removed.
+func completeCAPIInfraDeprovision(t *testing.T, kubeClient *kubefake.Clientset, capiClient capiclientset.Interface, cluster *capiv1alpha1.Cluster) bool {
+	return completeCAPIClusterProcessingJob(
+		t,
+		"deprovision",
+		kubeClient,
+		capiClient,
+		cluster.Namespace, cluster.Name,
+		capiClusterJobRef(t, kubeClient, "capi-infra"),
+		func(client capiclientset.Interface, namespace, name string) error {
+			return waitForObjectToNotExistOrNotHaveFinalizer(
+				namespace, name,
+				"openshift/cluster-operator-infra",
+				func(namespace, name string) (metav1.Object, error) {
+					return getCAPICluster(client, namespace, name)
 				},
 			)
 		},
@@ -388,6 +504,33 @@ func completeControlPlaneInstall(t *testing.T, kubeClient *kubefake.Clientset, c
 	)
 }
 
+// completeCAPIControlPlaneInstall waits for the control plane to be
+// installing, completes the install job, and waits for the control plane
+// to be installed.
+func completeCAPIControlPlaneInstall(t *testing.T, kubeClient *kubefake.Clientset, capiClient capiclientset.Interface, cluster *capiv1alpha1.Cluster) bool {
+	return completeCAPIClusterProcessingJob(
+		t,
+		"control plane install",
+		kubeClient,
+		capiClient,
+		cluster.Namespace, cluster.Name,
+		capiClusterJobRef(t, kubeClient, "capi-master"),
+		func(client capiclientset.Interface, namespace, name string) error {
+			return waitForCAPIClusterStatus(
+				client,
+				namespace, name,
+				func(cluster *capiv1alpha1.Cluster) bool {
+					status, err := controller.ClusterStatusFromClusterAPI(cluster)
+					if err != nil {
+						return false
+					}
+					return status.ControlPlaneInstalled
+				},
+			)
+		},
+	)
+}
+
 // completeComponentsInstall waits for the OpenShift components to be
 // installing, completes the install job, and waits for the components
 // to be installed.
@@ -405,6 +548,33 @@ func completeComponentsInstall(t *testing.T, kubeClient *kubefake.Clientset, clu
 				namespace, name,
 				func(cluster *clustopv1alpha1.Cluster) bool {
 					return cluster.Status.ComponentsInstalled
+				},
+			)
+		},
+	)
+}
+
+// completeCAPIComponentsInstall waits for the OpenShift components to be
+// installing, completes the install job, and waits for the components
+// to be installed.
+func completeCAPIComponentsInstall(t *testing.T, kubeClient *kubefake.Clientset, capiClient capiclientset.Interface, cluster *capiv1alpha1.Cluster) bool {
+	return completeCAPIClusterProcessingJob(
+		t,
+		"components install",
+		kubeClient,
+		capiClient,
+		cluster.Namespace, cluster.Name,
+		capiClusterJobRef(t, kubeClient, "capi-components"),
+		func(client capiclientset.Interface, namespace, name string) error {
+			return waitForCAPIClusterStatus(
+				client,
+				namespace, name,
+				func(cluster *capiv1alpha1.Cluster) bool {
+					status, err := controller.ClusterStatusFromClusterAPI(cluster)
+					if err != nil {
+						return false
+					}
+					return status.ComponentsInstalled
 				},
 			)
 		},
@@ -434,6 +604,33 @@ func completeNodeConfigInstall(t *testing.T, kubeClient *kubefake.Clientset, clu
 	)
 }
 
+// completeCAPINodeConfigInstall waits for the node config to be
+// installing, completes the install job, and waits for the node config
+// to be installed.
+func completeCAPINodeConfigInstall(t *testing.T, kubeClient *kubefake.Clientset, capiClient capiclientset.Interface, cluster *capiv1alpha1.Cluster) bool {
+	return completeCAPIClusterProcessingJob(
+		t,
+		"node config install",
+		kubeClient,
+		capiClient,
+		cluster.Namespace, cluster.Name,
+		capiClusterJobRef(t, kubeClient, "capi-nodeconfig"),
+		func(client capiclientset.Interface, namespace, name string) error {
+			return waitForCAPIClusterStatus(
+				client,
+				namespace, name,
+				func(cluster *capiv1alpha1.Cluster) bool {
+					status, err := controller.ClusterStatusFromClusterAPI(cluster)
+					if err != nil {
+						return false
+					}
+					return status.NodeConfigInstalled
+				},
+			)
+		},
+	)
+}
+
 // completeDeployClusterAPIInstall waits for the cluster-api-deploy to be
 // installing, completes the install job, and waits for the cluster-api-deploy
 // to be installed.
@@ -457,6 +654,33 @@ func completeDeployClusterAPIInstall(t *testing.T, kubeClient *kubefake.Clientse
 	)
 }
 
+// completeCAPIDeployClusterAPIInstall waits for the cluster-api-deploy to be
+// installing, completes the install job, and waits for the cluster-api-deploy
+// to be installed.
+func completeCAPIDeployClusterAPIInstall(t *testing.T, kubeClient *kubefake.Clientset, capiClient capiclientset.Interface, cluster *capiv1alpha1.Cluster) bool {
+	return completeCAPIClusterProcessingJob(
+		t,
+		"deploy cluster api install",
+		kubeClient,
+		capiClient,
+		cluster.Namespace, cluster.Name,
+		capiClusterJobRef(t, kubeClient, "capi-deployclusterapi"),
+		func(client capiclientset.Interface, namespace, name string) error {
+			return waitForCAPIClusterStatus(
+				client,
+				namespace, name,
+				func(cluster *capiv1alpha1.Cluster) bool {
+					status, err := controller.ClusterStatusFromClusterAPI(cluster)
+					if err != nil {
+						return false
+					}
+					return status.ClusterAPIInstalled
+				},
+			)
+		},
+	)
+}
+
 func completeJob(kubeClient *kubefake.Clientset, job *kbatch.Job) error {
 	job.Status.Conditions = []kbatch.JobCondition{
 		{
@@ -466,4 +690,17 @@ func completeJob(kubeClient *kubefake.Clientset, job *kbatch.Job) error {
 	}
 	_, err := kubeClient.Batch().Jobs(job.Namespace).Update(job)
 	return err
+}
+
+func isJobComplete(job *kbatch.Job) bool {
+	if job.Status.Conditions == nil {
+		return false
+	}
+	for _, condition := range job.Status.Conditions {
+		if condition.Type == kbatch.JobComplete &&
+			condition.Status == kapi.ConditionTrue {
+			return true
+		}
+	}
+	return false
 }

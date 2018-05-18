@@ -23,9 +23,13 @@ import (
 
 // Annotation constants
 const (
-	// ClusterGenerationAnnotation contains the generation of a cluster spec used to create
-	// a provisioning job
-	ClusterGenerationAnnotation = GroupName + "/cluster.generation"
+	// OwnerGenerationAnnotation contains the generation of the spec of the
+	// owner of a job
+	OwnerGenerationAnnotation = GroupName + "/owner.generation"
+
+	// ClusterNameLabel is the label that a machineset must have to identify the
+	// cluster to which it belongs.
+	ClusterNameLabel = "clusteroperator.openshift.io/cluster"
 )
 
 // +genclient
