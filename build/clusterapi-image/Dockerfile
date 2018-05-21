@@ -19,3 +19,5 @@ RUN apt-get install -y ca-certificates
 
 ADD apiserver .
 ADD controller-manager .
+
+RUN chmod +x apiserver controller-manager
