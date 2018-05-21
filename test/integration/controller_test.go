@@ -39,15 +39,22 @@ import (
 	_ "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/install"
 
 	servertesting "github.com/openshift/cluster-operator/cmd/cluster-operator-apiserver/app/testing"
-	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
-	"github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
-	coinformers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions"
-	acceptcontroller "github.com/openshift/cluster-operator/pkg/controller/accept"
+	clustopv1alpha1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	clustopclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
+	clustopinformers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions"
 	clustercontroller "github.com/openshift/cluster-operator/pkg/controller/cluster"
+	capimachinecontroller "github.com/openshift/cluster-operator/pkg/controller/clusterapimachine"
+	componentscontroller "github.com/openshift/cluster-operator/pkg/controller/components"
+	deployclusterapicontroller "github.com/openshift/cluster-operator/pkg/controller/deployclusterapi"
 	infracontroller "github.com/openshift/cluster-operator/pkg/controller/infra"
 	machinecontroller "github.com/openshift/cluster-operator/pkg/controller/machine"
 	machinesetcontroller "github.com/openshift/cluster-operator/pkg/controller/machineset"
 	mastercontroller "github.com/openshift/cluster-operator/pkg/controller/master"
+	nodeconfigcontroller "github.com/openshift/cluster-operator/pkg/controller/nodeconfig"
+	//	capiv1alpha1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	capiclientset "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
+	capifakeclientset "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset/fake"
+	capiinformers "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions"
 )
 
 const (
@@ -61,15 +68,15 @@ const (
 func TestClusterCreate(t *testing.T) {
 	cases := []struct {
 		name        string
-		machineSets []v1alpha1.ClusterMachineSet
+		machineSets []clustopv1alpha1.ClusterMachineSet
 	}{
 		{
 			name: "no compute machine sets",
-			machineSets: []v1alpha1.ClusterMachineSet{
+			machineSets: []clustopv1alpha1.ClusterMachineSet{
 				{
 					ShortName: "master",
-					MachineSetConfig: v1alpha1.MachineSetConfig{
-						NodeType: v1alpha1.NodeTypeMaster,
+					MachineSetConfig: clustopv1alpha1.MachineSetConfig{
+						NodeType: clustopv1alpha1.NodeTypeMaster,
 						Infra:    true,
 						Size:     3,
 					},
@@ -78,19 +85,19 @@ func TestClusterCreate(t *testing.T) {
 		},
 		{
 			name: "single compute machine sets",
-			machineSets: []v1alpha1.ClusterMachineSet{
+			machineSets: []clustopv1alpha1.ClusterMachineSet{
 				{
 					ShortName: "master",
-					MachineSetConfig: v1alpha1.MachineSetConfig{
-						NodeType: v1alpha1.NodeTypeMaster,
+					MachineSetConfig: clustopv1alpha1.MachineSetConfig{
+						NodeType: clustopv1alpha1.NodeTypeMaster,
 						Infra:    true,
 						Size:     3,
 					},
 				},
 				{
 					ShortName: "first",
-					MachineSetConfig: v1alpha1.MachineSetConfig{
-						NodeType: v1alpha1.NodeTypeCompute,
+					MachineSetConfig: clustopv1alpha1.MachineSetConfig{
+						NodeType: clustopv1alpha1.NodeTypeCompute,
 						Infra:    false,
 						Size:     5,
 					},
@@ -99,35 +106,35 @@ func TestClusterCreate(t *testing.T) {
 		},
 		{
 			name: "multiple compute machine sets",
-			machineSets: []v1alpha1.ClusterMachineSet{
+			machineSets: []clustopv1alpha1.ClusterMachineSet{
 				{
 					ShortName: "master",
-					MachineSetConfig: v1alpha1.MachineSetConfig{
-						NodeType: v1alpha1.NodeTypeMaster,
+					MachineSetConfig: clustopv1alpha1.MachineSetConfig{
+						NodeType: clustopv1alpha1.NodeTypeMaster,
 						Infra:    true,
 						Size:     3,
 					},
 				},
 				{
 					ShortName: "first",
-					MachineSetConfig: v1alpha1.MachineSetConfig{
-						NodeType: v1alpha1.NodeTypeCompute,
+					MachineSetConfig: clustopv1alpha1.MachineSetConfig{
+						NodeType: clustopv1alpha1.NodeTypeCompute,
 						Infra:    false,
 						Size:     5,
 					},
 				},
 				{
 					ShortName: "second",
-					MachineSetConfig: v1alpha1.MachineSetConfig{
-						NodeType: v1alpha1.NodeTypeCompute,
+					MachineSetConfig: clustopv1alpha1.MachineSetConfig{
+						NodeType: clustopv1alpha1.NodeTypeCompute,
 						Infra:    false,
 						Size:     6,
 					},
 				},
 				{
 					ShortName: "3rd",
-					MachineSetConfig: v1alpha1.MachineSetConfig{
-						NodeType: v1alpha1.NodeTypeCompute,
+					MachineSetConfig: clustopv1alpha1.MachineSetConfig{
+						NodeType: clustopv1alpha1.NodeTypeCompute,
 						Infra:    false,
 						Size:     3,
 					},
@@ -137,19 +144,19 @@ func TestClusterCreate(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			kubeClient, _, clusterOperatorClient, tearDown := startServerAndControllers(t)
+			kubeClient, _, clusterOperatorClient, _, _, tearDown := startServerAndControllers(t)
 			defer tearDown()
 
-			clusterVersion := &v1alpha1.ClusterVersion{
+			clusterVersion := &clustopv1alpha1.ClusterVersion{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: testNamespace,
 					Name:      testClusterVersionName,
 				},
-				Spec: v1alpha1.ClusterVersionSpec{
+				Spec: clustopv1alpha1.ClusterVersionSpec{
 					ImageFormat: "openshift/origin-${component}:${version}",
-					VMImages: v1alpha1.VMImages{
-						AWSImages: &v1alpha1.AWSVMImages{
-							RegionAMIs: []v1alpha1.AWSRegionAMIs{
+					VMImages: clustopv1alpha1.VMImages{
+						AWSImages: &clustopv1alpha1.AWSVMImages{
+							RegionAMIs: []clustopv1alpha1.AWSRegionAMIs{
 								{
 									Region: "us-east-1",
 									AMI:    "computeAMI_ID",
@@ -157,7 +164,7 @@ func TestClusterCreate(t *testing.T) {
 							},
 						},
 					},
-					DeploymentType:                  v1alpha1.ClusterDeploymentTypeOrigin,
+					DeploymentType:                  clustopv1alpha1.ClusterDeploymentTypeOrigin,
 					Version:                         "v3.7.0",
 					OpenshiftAnsibleImage:           func(s string) *string { return &s }("test-ansible-image"),
 					OpenshiftAnsibleImagePullPolicy: func(p kapi.PullPolicy) *kapi.PullPolicy { return &p }(kapi.PullNever),
@@ -165,23 +172,23 @@ func TestClusterCreate(t *testing.T) {
 			}
 			clusterOperatorClient.ClusteroperatorV1alpha1().ClusterVersions(testNamespace).Create(clusterVersion)
 
-			cluster := &v1alpha1.Cluster{
+			cluster := &clustopv1alpha1.Cluster{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: testNamespace,
 					Name:      testClusterName,
 				},
-				Spec: v1alpha1.ClusterSpec{
-					ClusterVersionRef: v1alpha1.ClusterVersionReference{
+				Spec: clustopv1alpha1.ClusterSpec{
+					ClusterVersionRef: clustopv1alpha1.ClusterVersionReference{
 						Namespace: clusterVersion.Namespace,
 						Name:      clusterVersion.Name,
 					},
-					Hardware: v1alpha1.ClusterHardwareSpec{
-						AWS: &v1alpha1.AWSClusterSpec{
+					Hardware: clustopv1alpha1.ClusterHardwareSpec{
+						AWS: &clustopv1alpha1.AWSClusterSpec{
 							Region: "us-east-1",
 						},
 					},
-					DefaultHardwareSpec: &v1alpha1.MachineSetHardwareSpec{
-						AWS: &v1alpha1.MachineSetAWSHardwareSpec{
+					DefaultHardwareSpec: &clustopv1alpha1.MachineSetHardwareSpec{
+						AWS: &clustopv1alpha1.MachineSetAWSHardwareSpec{
 							InstanceType: "instance-type",
 						},
 					},
@@ -218,7 +225,19 @@ func TestClusterCreate(t *testing.T) {
 				return
 			}
 
-			if !completeMachineSetInstall(t, kubeClient, clusterOperatorClient, masterMachineSet) {
+			if !completeControlPlaneInstall(t, kubeClient, clusterOperatorClient, cluster) {
+				return
+			}
+
+			if !completeComponentsInstall(t, kubeClient, clusterOperatorClient, cluster) {
+				return
+			}
+
+			if !completeNodeConfigInstall(t, kubeClient, clusterOperatorClient, cluster) {
+				return
+			}
+
+			if !completeDeployClusterAPIInstall(t, kubeClient, clusterOperatorClient, cluster) {
 				return
 			}
 
@@ -231,18 +250,15 @@ func TestClusterCreate(t *testing.T) {
 				if !completeMachineSetProvision(t, kubeClient, clusterOperatorClient, machineSet) {
 					return
 				}
+			}
 
-				if !completeMachineSetAccept(t, kubeClient, clusterOperatorClient, machineSet) {
-					return
-				}
+			if err := waitForClusterReady(clusterOperatorClient, cluster.Namespace, cluster.Name); err != nil {
+				t.Fatalf("timed out waiting for cluster to be ready: %v", err)
 			}
 
 			if err := clusterOperatorClient.ClusteroperatorV1alpha1().Clusters(cluster.Namespace).Delete(cluster.Name, &metav1.DeleteOptions{}); err != nil {
 				t.Fatalf("could not delete cluster: %v", err)
 			}
-
-			// There is no garbage collector controller running, so we need to clean up machine sets manually
-			deleteDependentMachineSets(clusterOperatorClient, cluster)
 
 			if !completeMachineSetsDeprovision(t, kubeClient, clusterOperatorClient, cluster) {
 				return
@@ -259,7 +275,10 @@ func TestClusterCreate(t *testing.T) {
 // fake clients and returns:
 //
 // - a fake kubernetes core api client
+// - a watch of kube resources
 // - a cluster-operator api client
+// - a cluster-api api client
+// - a fake remote cluster-api api client
 // - a function for shutting down the controller and API server
 //
 // If there is an error, startServerAndControllers calls 'Fatal' on the
@@ -267,7 +286,9 @@ func TestClusterCreate(t *testing.T) {
 func startServerAndControllers(t *testing.T) (
 	*kubefake.Clientset,
 	watch.Interface,
-	clientset.Interface,
+	clustopclientset.Interface,
+	capiclientset.Interface,
+	*capifakeclientset.Clientset,
 	func()) {
 
 	// create a fake kube client
@@ -302,18 +323,30 @@ func startServerAndControllers(t *testing.T) (
 	// Create actual fake kube client
 	fakeKubeClient := &kubefake.Clientset{Fake: fakePtr}
 
-	// create a cluster-operator client and running server
-	clusterOperatorClientConfig, shutdownServer := servertesting.StartTestServerOrDie(t)
-	clusterOperatorClient, err := clientset.NewForConfig(clusterOperatorClientConfig)
+	// start the cluster-operator api server
+	apiServerClientConfig, shutdownServer := servertesting.StartTestServerOrDie(t)
+
+	// create a cluster-operator client
+	clustopClient, err := clustopclientset.NewForConfig(apiServerClientConfig)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
+	// create a cluster-api client
+	capiClient, err := capiclientset.NewForConfig(apiServerClientConfig)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	fakeCAPIClient := &capifakeclientset.Clientset{}
+
 	// create informers
 	kubeInformerFactory := kubeinformers.NewSharedInformerFactory(fakeKubeClient, 10*time.Second)
 	batchSharedInformers := kubeInformerFactory.Batch().V1()
-	coInformerFactory := coinformers.NewSharedInformerFactory(clusterOperatorClient, 10*time.Second)
-	coSharedInformers := coInformerFactory.Clusteroperator().V1alpha1()
+	clustopInformerFactory := clustopinformers.NewSharedInformerFactory(clustopClient, 10*time.Second)
+	clustopSharedInformers := clustopInformerFactory.Clusteroperator().V1alpha1()
+	capiInformerFactory := capiinformers.NewSharedInformerFactory(capiClient, 10*time.Second)
+	capiSharedInformers := capiInformerFactory.Cluster().V1alpha1()
 
 	// create controllers
 	stopCh := make(chan struct{})
@@ -322,58 +355,161 @@ func startServerAndControllers(t *testing.T) (
 	// Otherwise, the controllers will not get the initial sync from the
 	// informer and will time out waiting to sync.
 	runControllers := []func(){
+		// cluster
 		func() func() {
 			controller := clustercontroller.NewController(
-				coSharedInformers.Clusters(),
-				coSharedInformers.MachineSets(),
-				coSharedInformers.ClusterVersions(),
+				clustopSharedInformers.Clusters(),
+				clustopSharedInformers.MachineSets(),
+				clustopSharedInformers.ClusterVersions(),
 				fakeKubeClient,
-				clusterOperatorClient,
+				clustopClient,
 			)
+			controller.BuildRemoteClient = func(*clustopv1alpha1.Cluster) (capiclientset.Interface, error) {
+				return fakeCAPIClient, nil
+			}
 			return func() { controller.Run(1, stopCh) }
 		}(),
+		// infra
 		func() func() {
 			controller := infracontroller.NewClusterOperatorController(
-				coSharedInformers.Clusters(),
+				clustopSharedInformers.Clusters(),
 				batchSharedInformers.Jobs(),
 				fakeKubeClient,
-				clusterOperatorClient,
+				clustopClient,
 			)
 			return func() { controller.Run(1, stopCh) }
 		}(),
+		// machineset
 		func() func() {
 			controller := machinesetcontroller.NewController(
-				coSharedInformers.MachineSets(),
-				coSharedInformers.Clusters(),
+				clustopSharedInformers.MachineSets(),
+				clustopSharedInformers.Clusters(),
 				batchSharedInformers.Jobs(),
 				fakeKubeClient,
-				clusterOperatorClient,
+				clustopClient,
 			)
 			return func() { controller.Run(1, stopCh) }
 		}(),
+		// master
 		func() func() {
-			controller := mastercontroller.NewController(
-				coSharedInformers.MachineSets(),
+			controller := mastercontroller.NewClustopController(
+				clustopSharedInformers.Clusters(),
+				clustopSharedInformers.MachineSets(),
 				batchSharedInformers.Jobs(),
 				fakeKubeClient,
-				clusterOperatorClient,
+				clustopClient,
 			)
 			return func() { controller.Run(1, stopCh) }
 		}(),
-		func() func() {
-			controller := acceptcontroller.NewController(
-				coSharedInformers.MachineSets(),
-				batchSharedInformers.Jobs(),
-				fakeKubeClient,
-				clusterOperatorClient,
-			)
-			return func() { controller.Run(1, stopCh) }
-		}(),
+		// machine
 		func() func() {
 			controller := machinecontroller.NewController(
-				coSharedInformers.Machines(),
+				clustopSharedInformers.Machines(),
 				fakeKubeClient,
-				clusterOperatorClient,
+				clustopClient,
+			)
+			return func() { controller.Run(1, stopCh) }
+		}(),
+		// components
+		func() func() {
+			controller := componentscontroller.NewClustopController(
+				clustopSharedInformers.Clusters(),
+				clustopSharedInformers.MachineSets(),
+				batchSharedInformers.Jobs(),
+				fakeKubeClient,
+				clustopClient,
+			)
+			return func() { controller.Run(1, stopCh) }
+		}(),
+		// nodeconfig
+		func() func() {
+			controller := nodeconfigcontroller.NewClustopController(
+				clustopSharedInformers.Clusters(),
+				clustopSharedInformers.MachineSets(),
+				batchSharedInformers.Jobs(),
+				fakeKubeClient,
+				clustopClient,
+			)
+			return func() { controller.Run(1, stopCh) }
+		}(),
+		// deployclusterapi
+		func() func() {
+			controller := deployclusterapicontroller.NewClustopController(
+				clustopSharedInformers.Clusters(),
+				clustopSharedInformers.MachineSets(),
+				batchSharedInformers.Jobs(),
+				fakeKubeClient,
+				clustopClient,
+			)
+			return func() { controller.Run(1, stopCh) }
+		}(),
+		// cpai-infra
+		func() func() {
+			controller := infracontroller.NewClusterAPIController(
+				capiSharedInformers.Clusters(),
+				batchSharedInformers.Jobs(),
+				fakeKubeClient,
+				clustopClient,
+				capiClient,
+			)
+			return func() { controller.Run(1, stopCh) }
+		}(),
+		// cpai-machine
+		func() func() {
+			controller := capimachinecontroller.NewController(
+				capiSharedInformers.Clusters(),
+				capiSharedInformers.Machines(),
+				clustopSharedInformers.ClusterVersions(),
+				fakeKubeClient,
+				capiClient,
+			)
+			return func() { controller.Run(1, stopCh) }
+		}(),
+		// capi-master
+		func() func() {
+			controller := mastercontroller.NewCAPIController(
+				capiSharedInformers.Clusters(),
+				capiSharedInformers.MachineSets(),
+				batchSharedInformers.Jobs(),
+				fakeKubeClient,
+				clustopClient,
+				capiClient,
+			)
+			return func() { controller.Run(1, stopCh) }
+		}(),
+		// capi-components
+		func() func() {
+			controller := componentscontroller.NewCAPIController(
+				capiSharedInformers.Clusters(),
+				capiSharedInformers.MachineSets(),
+				batchSharedInformers.Jobs(),
+				fakeKubeClient,
+				clustopClient,
+				capiClient,
+			)
+			return func() { controller.Run(1, stopCh) }
+		}(),
+		// capi-nodeconfig
+		func() func() {
+			controller := nodeconfigcontroller.NewCAPIController(
+				capiSharedInformers.Clusters(),
+				capiSharedInformers.MachineSets(),
+				batchSharedInformers.Jobs(),
+				fakeKubeClient,
+				clustopClient,
+				capiClient,
+			)
+			return func() { controller.Run(1, stopCh) }
+		}(),
+		// capi-deployclusterapi
+		func() func() {
+			controller := deployclusterapicontroller.NewCAPIController(
+				capiSharedInformers.Clusters(),
+				capiSharedInformers.MachineSets(),
+				batchSharedInformers.Jobs(),
+				fakeKubeClient,
+				clustopClient,
+				capiClient,
 			)
 			return func() { controller.Run(1, stopCh) }
 		}(),
@@ -389,7 +525,8 @@ func startServerAndControllers(t *testing.T) (
 
 	t.Log("informers start")
 	kubeInformerFactory.Start(stopCh)
-	coInformerFactory.Start(stopCh)
+	clustopInformerFactory.Start(stopCh)
+	capiInformerFactory.Start(stopCh)
 
 	shutdown := func() {
 		// Shut down controller
@@ -400,31 +537,31 @@ func startServerAndControllers(t *testing.T) (
 		shutdownServer()
 	}
 
-	return fakeKubeClient, kubeWatch, clusterOperatorClient, shutdown
+	return fakeKubeClient, kubeWatch, clustopClient, capiClient, fakeCAPIClient, shutdown
 }
 
-func getCluster(client clientset.Interface, namespace, name string) (*v1alpha1.Cluster, error) {
-	return client.ClusteroperatorV1alpha1().Clusters(namespace).Get(name, metav1.GetOptions{})
+func getCluster(clustopClient clustopclientset.Interface, namespace, name string) (*clustopv1alpha1.Cluster, error) {
+	return clustopClient.ClusteroperatorV1alpha1().Clusters(namespace).Get(name, metav1.GetOptions{})
 }
 
-func getMachineSet(client clientset.Interface, namespace, name string) (*v1alpha1.MachineSet, error) {
-	return client.ClusteroperatorV1alpha1().MachineSets(namespace).Get(name, metav1.GetOptions{})
+func getMachineSet(clustopClient clustopclientset.Interface, namespace, name string) (*clustopv1alpha1.MachineSet, error) {
+	return clustopClient.ClusteroperatorV1alpha1().MachineSets(namespace).Get(name, metav1.GetOptions{})
 }
 
-func getMasterMachineSet(client clientset.Interface, cluster *v1alpha1.Cluster) (*v1alpha1.MachineSet, error) {
-	storedCluster, err := getCluster(client, cluster.Namespace, cluster.Name)
+func getMasterMachineSet(clustopClient clustopclientset.Interface, cluster *clustopv1alpha1.Cluster) (*clustopv1alpha1.MachineSet, error) {
+	storedCluster, err := getCluster(clustopClient, cluster.Namespace, cluster.Name)
 	if err != nil {
 		return nil, err
 	}
-	return client.ClusteroperatorV1alpha1().MachineSets(cluster.Namespace).Get(storedCluster.Status.MasterMachineSetName, metav1.GetOptions{})
+	return clustopClient.ClusteroperatorV1alpha1().MachineSets(cluster.Namespace).Get(storedCluster.Status.MasterMachineSetName, metav1.GetOptions{})
 }
 
-func getMachineSetsForCluster(client clientset.Interface, cluster *v1alpha1.Cluster) ([]*v1alpha1.MachineSet, error) {
-	machineSetList, err := client.ClusteroperatorV1alpha1().MachineSets(cluster.Namespace).List(metav1.ListOptions{})
+func getMachineSetsForCluster(clustopClient clustopclientset.Interface, cluster *clustopv1alpha1.Cluster) ([]*clustopv1alpha1.MachineSet, error) {
+	machineSetList, err := clustopClient.ClusteroperatorV1alpha1().MachineSets(cluster.Namespace).List(metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
-	machineSets := []*v1alpha1.MachineSet{}
+	machineSets := []*clustopv1alpha1.MachineSet{}
 	for _, machineSet := range machineSetList.Items {
 		if metav1.IsControlledBy(&machineSet, cluster) {
 			machineSets = append(machineSets, machineSet.DeepCopy())
@@ -433,14 +570,14 @@ func getMachineSetsForCluster(client clientset.Interface, cluster *v1alpha1.Clus
 	return machineSets, nil
 }
 
-func getComputeMachineSets(client clientset.Interface, cluster *v1alpha1.Cluster) ([]*v1alpha1.MachineSet, error) {
-	allMachineSets, err := getMachineSetsForCluster(client, cluster)
+func getComputeMachineSets(clustopClient clustopclientset.Interface, cluster *clustopv1alpha1.Cluster) ([]*clustopv1alpha1.MachineSet, error) {
+	allMachineSets, err := getMachineSetsForCluster(clustopClient, cluster)
 	if err != nil {
 		return nil, err
 	}
-	computeMachineSets := []*v1alpha1.MachineSet{}
+	computeMachineSets := []*clustopv1alpha1.MachineSet{}
 	for _, machineSet := range allMachineSets {
-		if machineSet.Spec.NodeType == v1alpha1.NodeTypeCompute {
+		if machineSet.Spec.NodeType == clustopv1alpha1.NodeTypeCompute {
 			computeMachineSets = append(computeMachineSets, machineSet)
 		}
 	}
@@ -451,12 +588,12 @@ func getJob(kubeClient *kubefake.Clientset, namespace, name string) (*kbatch.Job
 	return kubeClient.Batch().Jobs(namespace).Get(name, metav1.GetOptions{})
 }
 
-func verifyMachineSetsCreated(t *testing.T, kubeClient *kubefake.Clientset, clusterOperatorClient clientset.Interface, cluster *v1alpha1.Cluster) bool {
-	if err := waitForClusterMachineSetCount(clusterOperatorClient, cluster.Namespace, cluster.Name); err != nil {
+func verifyMachineSetsCreated(t *testing.T, kubeClient *kubefake.Clientset, clustopClient clustopclientset.Interface, cluster *clustopv1alpha1.Cluster) bool {
+	if err := waitForClusterMachineSetCount(clustopClient, cluster.Namespace, cluster.Name); err != nil {
 		t.Fatalf("error waiting for machine sets to be created for cluster: %v", err)
 	}
 
-	machineSets, err := clusterOperatorClient.ClusteroperatorV1alpha1().MachineSets(cluster.Namespace).List(metav1.ListOptions{})
+	machineSets, err := clustopClient.ClusteroperatorV1alpha1().MachineSets(cluster.Namespace).List(metav1.ListOptions{})
 	if err != nil {
 		t.Fatalf("error getting the machine sets: %v", err)
 	}
@@ -468,7 +605,7 @@ func verifyMachineSetsCreated(t *testing.T, kubeClient *kubefake.Clientset, clus
 	type details struct {
 		clusterName string
 		shortName   string
-		nodeType    v1alpha1.NodeType
+		nodeType    clustopv1alpha1.NodeType
 		size        int
 	}
 
@@ -524,13 +661,13 @@ func verifyMachineSetsCreated(t *testing.T, kubeClient *kubefake.Clientset, clus
 	return true
 }
 
-func deleteDependentMachineSets(clusterOperatorClient clientset.Interface, cluster *v1alpha1.Cluster) error {
-	machineSets, err := getMachineSetsForCluster(clusterOperatorClient, cluster)
+func deleteDependentMachineSets(clustopClient clustopclientset.Interface, cluster *clustopv1alpha1.Cluster) error {
+	machineSets, err := getMachineSetsForCluster(clustopClient, cluster)
 	if err != nil {
 		return err
 	}
 	for _, machineSet := range machineSets {
-		if err := clusterOperatorClient.ClusteroperatorV1alpha1().MachineSets(machineSet.Namespace).Delete(machineSet.Name, &metav1.DeleteOptions{}); err != nil {
+		if err := clustopClient.ClusteroperatorV1alpha1().MachineSets(machineSet.Namespace).Delete(machineSet.Name, &metav1.DeleteOptions{}); err != nil {
 			return err
 		}
 	}

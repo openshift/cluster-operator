@@ -94,11 +94,6 @@ type ControllerManagerConfiguration struct {
 	// but more CPU (and network) load.
 	ConcurrentMasterSyncs int32
 
-	// concurrentAcceptSyncs is the number of machine set objects that are
-	// allowed to accept concurrently. Larger number = more responsive accept processing
-	// but more CPU (and network) load.
-	ConcurrentAcceptSyncs int32
-
 	// concurrentComponentSyncs is the number of master machine set objects that are
 	// allowed to install components concurrently. Larger number = more responsive processing
 	// but more CPU (and network) load.

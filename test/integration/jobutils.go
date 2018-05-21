@@ -33,8 +33,8 @@ import (
 	// avoid error `clusteroperator/v1alpha1 is not enabled`
 	_ "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/install"
 
-	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
-	"github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
+	clustopv1alpha1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	clustopclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
 )
 
 // completeProcessingJob completes a processing job for the object with the
@@ -98,10 +98,10 @@ func completeClusterProcessingJob(
 	t *testing.T,
 	jobLabel string,
 	kubeClient *kubefake.Clientset,
-	clusterOperatorClient clientset.Interface,
+	clustopClient clustopclientset.Interface,
 	namespace, name string,
-	getJobRef func(*v1alpha1.Cluster) *corev1.LocalObjectReference,
-	verifyJobCompleted func(clientset.Interface /*namespace*/, string /*name*/, string) error,
+	getJobRef func(*clustopv1alpha1.Cluster) *corev1.LocalObjectReference,
+	verifyJobCompleted func(clustopclientset.Interface /*namespace*/, string /*name*/, string) error,
 ) bool {
 	return completeProcessingJob(
 		t,
@@ -109,13 +109,13 @@ func completeClusterProcessingJob(
 		kubeClient,
 		namespace, name,
 		func(namespace, name string) (metav1.Object, error) {
-			return getCluster(clusterOperatorClient, namespace, name)
+			return getCluster(clustopClient, namespace, name)
 		},
 		func(obj metav1.Object) *corev1.LocalObjectReference {
-			return getJobRef(obj.(*v1alpha1.Cluster))
+			return getJobRef(obj.(*clustopv1alpha1.Cluster))
 		},
 		func(namespace, name string) error {
-			return verifyJobCompleted(clusterOperatorClient, namespace, name)
+			return verifyJobCompleted(clustopClient, namespace, name)
 		},
 	)
 }
@@ -129,10 +129,10 @@ func completeMachineSetProcessingJob(
 	t *testing.T,
 	jobLabel string,
 	kubeClient *kubefake.Clientset,
-	clusterOperatorClient clientset.Interface,
+	clustopClient clustopclientset.Interface,
 	namespace, name string,
-	getJobRef func(*v1alpha1.MachineSet) *corev1.LocalObjectReference,
-	verifyJobCompleted func(clientset.Interface /*namespace*/, string /*name*/, string) error,
+	getJobRef func(*clustopv1alpha1.MachineSet) *corev1.LocalObjectReference,
+	verifyJobCompleted func(clustopclientset.Interface /*namespace*/, string /*name*/, string) error,
 ) bool {
 	return completeProcessingJob(
 		t,
@@ -140,13 +140,13 @@ func completeMachineSetProcessingJob(
 		kubeClient,
 		namespace, name,
 		func(namespace, name string) (metav1.Object, error) {
-			return getMachineSet(clusterOperatorClient, namespace, name)
+			return getMachineSet(clustopClient, namespace, name)
 		},
 		func(obj metav1.Object) *corev1.LocalObjectReference {
-			return getJobRef(obj.(*v1alpha1.MachineSet))
+			return getJobRef(obj.(*clustopv1alpha1.MachineSet))
 		},
 		func(namespace, name string) error {
-			return verifyJobCompleted(clusterOperatorClient, namespace, name)
+			return verifyJobCompleted(clustopClient, namespace, name)
 		},
 	)
 }
@@ -157,15 +157,15 @@ func completeMachineSetProcessingJob(
 // completing the jobs and to wait for the machine sets to be in a state where
 // the job has been completed successfully after the jobs are completed.
 func completeMachineSetsProcessingJobs(
-	machineSets []*v1alpha1.MachineSet,
-	verification func(*v1alpha1.MachineSet) bool,
+	machineSets []*clustopv1alpha1.MachineSet,
+	verification func(*clustopv1alpha1.MachineSet) bool,
 ) bool {
 	errCh := make(chan error, len(machineSets))
 
 	var wg sync.WaitGroup
 	wg.Add(len(machineSets))
 	for i, ms := range machineSets {
-		go func(ix int, machineSet *v1alpha1.MachineSet) {
+		go func(ix int, machineSet *clustopv1alpha1.MachineSet) {
 			defer wg.Done()
 			if !verification(machineSet) {
 				errCh <- fmt.Errorf("verification of machine set %s/%s failed for job", machineSet.Namespace, machineSet.Name)
@@ -186,12 +186,12 @@ func completeMachineSetsProcessingJobs(
 
 // completeInfraProvision waits for the cluster to be provisioning,
 // completes the provision job, and waits for the cluster to be provisioned.
-func completeInfraProvision(t *testing.T, kubeClient *kubefake.Clientset, clusterOperatorClient clientset.Interface, cluster *v1alpha1.Cluster) bool {
+func completeInfraProvision(t *testing.T, kubeClient *kubefake.Clientset, clustopClient clustopclientset.Interface, cluster *clustopv1alpha1.Cluster) bool {
 	if !completeClusterProcessingJob(
 		t,
 		"provision",
 		kubeClient,
-		clusterOperatorClient,
+		clustopClient,
 		cluster.Namespace, cluster.Name,
 		clusterJobRef(t, kubeClient, "infra"),
 		waitForClusterProvisioned,
@@ -199,7 +199,7 @@ func completeInfraProvision(t *testing.T, kubeClient *kubefake.Clientset, cluste
 		return false
 	}
 
-	storedCluster, err := getCluster(clusterOperatorClient, cluster.Namespace, cluster.Name)
+	storedCluster, err := getCluster(clustopClient, cluster.Namespace, cluster.Name)
 	if !assert.NoError(t, err, "error getting stored cluster") {
 		return false
 	}
@@ -210,8 +210,8 @@ func completeInfraProvision(t *testing.T, kubeClient *kubefake.Clientset, cluste
 	return true
 }
 
-func clusterJobRef(t *testing.T, kubeClient *kubefake.Clientset, jobPrefix string) func(*v1alpha1.Cluster) *corev1.LocalObjectReference {
-	return func(cluster *v1alpha1.Cluster) *corev1.LocalObjectReference {
+func clusterJobRef(t *testing.T, kubeClient *kubefake.Clientset, jobPrefix string) func(*clustopv1alpha1.Cluster) *corev1.LocalObjectReference {
+	return func(cluster *clustopv1alpha1.Cluster) *corev1.LocalObjectReference {
 		list, err := kubeClient.BatchV1().Jobs(cluster.Namespace).List(metav1.ListOptions{})
 		if err != nil {
 			t.Errorf("error retrieving jobs")
@@ -231,8 +231,8 @@ func clusterJobRef(t *testing.T, kubeClient *kubefake.Clientset, jobPrefix strin
 	}
 }
 
-func machineSetJobRef(t *testing.T, kubeClient *kubefake.Clientset, jobPrefix string) func(*v1alpha1.MachineSet) *corev1.LocalObjectReference {
-	return func(machineSet *v1alpha1.MachineSet) *corev1.LocalObjectReference {
+func machineSetJobRef(t *testing.T, kubeClient *kubefake.Clientset, jobPrefix string) func(*clustopv1alpha1.MachineSet) *corev1.LocalObjectReference {
+	return func(machineSet *clustopv1alpha1.MachineSet) *corev1.LocalObjectReference {
 		list, err := kubeClient.BatchV1().Jobs(machineSet.Namespace).List(metav1.ListOptions{})
 		if err != nil {
 			t.Errorf("error retrieving jobs")
@@ -255,15 +255,15 @@ func machineSetJobRef(t *testing.T, kubeClient *kubefake.Clientset, jobPrefix st
 // completeInfraDeprovision waits for the cluster to be deprovisioning,
 // completes the deprovision job, and waits for the cluster to have its
 // provision finalizer removed.
-func completeInfraDeprovision(t *testing.T, kubeClient *kubefake.Clientset, clusterOperatorClient clientset.Interface, cluster *v1alpha1.Cluster) bool {
+func completeInfraDeprovision(t *testing.T, kubeClient *kubefake.Clientset, clustopClient clustopclientset.Interface, cluster *clustopv1alpha1.Cluster) bool {
 	return completeClusterProcessingJob(
 		t,
 		"deprovision",
 		kubeClient,
-		clusterOperatorClient,
+		clustopClient,
 		cluster.Namespace, cluster.Name,
 		clusterJobRef(t, kubeClient, "infra"),
-		func(client clientset.Interface, namespace, name string) error {
+		func(client clustopclientset.Interface, namespace, name string) error {
 			return waitForObjectToNotExistOrNotHaveFinalizer(
 				namespace, name,
 				"openshift/cluster-operator-infra",
@@ -278,19 +278,19 @@ func completeInfraDeprovision(t *testing.T, kubeClient *kubefake.Clientset, clus
 // completeMachineSetProvision waits for the machine set to be
 // provisioning, completes the provision job, and waits for the machine set
 // to be provisioned.
-func completeMachineSetProvision(t *testing.T, kubeClient *kubefake.Clientset, clusterOperatorClient clientset.Interface, machineSet *v1alpha1.MachineSet) bool {
+func completeMachineSetProvision(t *testing.T, kubeClient *kubefake.Clientset, clustopClient clustopclientset.Interface, machineSet *clustopv1alpha1.MachineSet) bool {
 	if !completeMachineSetProcessingJob(
 		t,
 		"provision",
 		kubeClient,
-		clusterOperatorClient,
+		clustopClient,
 		machineSet.Namespace, machineSet.Name,
 		machineSetJobRef(t, kubeClient, "provision"),
-		func(client clientset.Interface, namespace, name string) error {
+		func(client clustopclientset.Interface, namespace, name string) error {
 			return waitForMachineSetStatus(
 				client,
 				namespace, name,
-				func(machineSet *v1alpha1.MachineSet) bool {
+				func(machineSet *clustopv1alpha1.MachineSet) bool {
 					return machineSet.Status.Provisioned
 				},
 			)
@@ -299,7 +299,7 @@ func completeMachineSetProvision(t *testing.T, kubeClient *kubefake.Clientset, c
 		return false
 	}
 
-	storedMachineSet, err := getMachineSet(clusterOperatorClient, machineSet.Namespace, machineSet.Name)
+	storedMachineSet, err := getMachineSet(clustopClient, machineSet.Namespace, machineSet.Name)
 	if !assert.NoError(t, err, "error getting stored machine set") {
 		return false
 	}
@@ -313,15 +313,15 @@ func completeMachineSetProvision(t *testing.T, kubeClient *kubefake.Clientset, c
 // completeComputeMachineSetsProvision waits for the compute machine sets of
 // the cluster to be provisioning, completes the provision jobs, and waits for
 // the machine set to be provisioned.
-func completeComputeMachineSetsProvision(t *testing.T, kubeClient *kubefake.Clientset, clusterOperatorClient clientset.Interface, cluster *v1alpha1.Cluster) bool {
-	machineSets, err := getComputeMachineSets(clusterOperatorClient, cluster)
+func completeComputeMachineSetsProvision(t *testing.T, kubeClient *kubefake.Clientset, clustopClient clustopclientset.Interface, cluster *clustopv1alpha1.Cluster) bool {
+	machineSets, err := getComputeMachineSets(clustopClient, cluster)
 	if !assert.NoError(t, err, "could not get machine sets for cluster") {
 		return false
 	}
 	return completeMachineSetsProcessingJobs(
 		machineSets,
-		func(machineSet *v1alpha1.MachineSet) bool {
-			return completeMachineSetProvision(t, kubeClient, clusterOperatorClient, machineSet)
+		func(machineSet *clustopv1alpha1.MachineSet) bool {
+			return completeMachineSetProvision(t, kubeClient, clustopClient, machineSet)
 		},
 	)
 }
@@ -329,15 +329,15 @@ func completeComputeMachineSetsProvision(t *testing.T, kubeClient *kubefake.Clie
 // completeInfraDeprovisionJob waits for the cluster to be deprovisioning,
 // completes the deprovision job, and waits for the cluster to have its
 // provision finalizer removed.
-func completeMachineSetDeprovision(t *testing.T, kubeClient *kubefake.Clientset, clusterOperatorClient clientset.Interface, machineSet *v1alpha1.MachineSet) bool {
+func completeMachineSetDeprovision(t *testing.T, kubeClient *kubefake.Clientset, clustopClient clustopclientset.Interface, machineSet *clustopv1alpha1.MachineSet) bool {
 	return completeMachineSetProcessingJob(
 		t,
 		"deprovision",
 		kubeClient,
-		clusterOperatorClient,
+		clustopClient,
 		machineSet.Namespace, machineSet.Name,
 		machineSetJobRef(t, kubeClient, "provision"),
-		func(client clientset.Interface, namespace, name string) error {
+		func(client clustopclientset.Interface, namespace, name string) error {
 			return waitForObjectToNotExistOrNotHaveFinalizer(
 				namespace, name,
 				"openshift/cluster-operator-provision",
@@ -352,59 +352,105 @@ func completeMachineSetDeprovision(t *testing.T, kubeClient *kubefake.Clientset,
 // completeComputeMachineSetsProvision waits for the compute machine sets of
 // the cluster to be deprovisioning, completes the deprovision jobs, and waits
 // for the machine sets to have their provision finalizers removed.
-func completeMachineSetsDeprovision(t *testing.T, kubeClient *kubefake.Clientset, clusterOperatorClient clientset.Interface, cluster *v1alpha1.Cluster) bool {
-	machineSets, err := getMachineSetsForCluster(clusterOperatorClient, cluster)
+func completeMachineSetsDeprovision(t *testing.T, kubeClient *kubefake.Clientset, clustopClient clustopclientset.Interface, cluster *clustopv1alpha1.Cluster) bool {
+	machineSets, err := getMachineSetsForCluster(clustopClient, cluster)
 	if !assert.NoError(t, err, "could not get machine sets for cluster") {
 		return false
 	}
 	return completeMachineSetsProcessingJobs(
 		machineSets,
-		func(machineSet *v1alpha1.MachineSet) bool {
-			return completeMachineSetDeprovision(t, kubeClient, clusterOperatorClient, machineSet)
+		func(machineSet *clustopv1alpha1.MachineSet) bool {
+			return completeMachineSetDeprovision(t, kubeClient, clustopClient, machineSet)
 		},
 	)
 }
 
-// completeMachineSetInstall waits for the machine set to be
-// installing, completes the install job, and waits for the machine set
+// completeControlPlaneInstall waits for the control plane to be
+// installing, completes the install job, and waits for the control plane
 // to be installed.
-func completeMachineSetInstall(t *testing.T, kubeClient *kubefake.Clientset, clusterOperatorClient clientset.Interface, machineSet *v1alpha1.MachineSet) bool {
-	return completeMachineSetProcessingJob(
+func completeControlPlaneInstall(t *testing.T, kubeClient *kubefake.Clientset, clustopClient clustopclientset.Interface, cluster *clustopv1alpha1.Cluster) bool {
+	return completeClusterProcessingJob(
 		t,
-		"install",
+		"control plane install",
 		kubeClient,
-		clusterOperatorClient,
-		machineSet.Namespace, machineSet.Name,
-		machineSetJobRef(t, kubeClient, "master"),
-		func(client clientset.Interface, namespace, name string) error {
-			return waitForMachineSetStatus(
+		clustopClient,
+		cluster.Namespace, cluster.Name,
+		clusterJobRef(t, kubeClient, "master"),
+		func(client clustopclientset.Interface, namespace, name string) error {
+			return waitForClusterStatus(
 				client,
 				namespace, name,
-				func(machineSet *v1alpha1.MachineSet) bool {
-					return machineSet.Status.Installed
+				func(cluster *clustopv1alpha1.Cluster) bool {
+					return cluster.Status.ControlPlaneInstalled
 				},
 			)
 		},
 	)
 }
 
-// completeMachineSetProvision waits for the machine set to be
-// accepting, completes the accept job, and waits for the machine set
-// to be accepted.
-func completeMachineSetAccept(t *testing.T, kubeClient *kubefake.Clientset, clusterOperatorClient clientset.Interface, machineSet *v1alpha1.MachineSet) bool {
-	return completeMachineSetProcessingJob(
+// completeComponentsInstall waits for the OpenShift components to be
+// installing, completes the install job, and waits for the components
+// to be installed.
+func completeComponentsInstall(t *testing.T, kubeClient *kubefake.Clientset, clustopClient clustopclientset.Interface, cluster *clustopv1alpha1.Cluster) bool {
+	return completeClusterProcessingJob(
 		t,
-		"accept",
+		"components install",
 		kubeClient,
-		clusterOperatorClient,
-		machineSet.Namespace, machineSet.Name,
-		machineSetJobRef(t, kubeClient, "accept"),
-		func(client clientset.Interface, namespace, name string) error {
-			return waitForMachineSetStatus(
+		clustopClient,
+		cluster.Namespace, cluster.Name,
+		clusterJobRef(t, kubeClient, "components"),
+		func(client clustopclientset.Interface, namespace, name string) error {
+			return waitForClusterStatus(
 				client,
 				namespace, name,
-				func(machineSet *v1alpha1.MachineSet) bool {
-					return machineSet.Status.Accepted
+				func(cluster *clustopv1alpha1.Cluster) bool {
+					return cluster.Status.ComponentsInstalled
+				},
+			)
+		},
+	)
+}
+
+// completeNodeConfigInstall waits for the node config to be
+// installing, completes the install job, and waits for the node config
+// to be installed.
+func completeNodeConfigInstall(t *testing.T, kubeClient *kubefake.Clientset, clustopClient clustopclientset.Interface, cluster *clustopv1alpha1.Cluster) bool {
+	return completeClusterProcessingJob(
+		t,
+		"node config install",
+		kubeClient,
+		clustopClient,
+		cluster.Namespace, cluster.Name,
+		clusterJobRef(t, kubeClient, "nodeconfig"),
+		func(client clustopclientset.Interface, namespace, name string) error {
+			return waitForClusterStatus(
+				client,
+				namespace, name,
+				func(cluster *clustopv1alpha1.Cluster) bool {
+					return cluster.Status.NodeConfigInstalled
+				},
+			)
+		},
+	)
+}
+
+// completeDeployClusterAPIInstall waits for the cluster-api-deploy to be
+// installing, completes the install job, and waits for the cluster-api-deploy
+// to be installed.
+func completeDeployClusterAPIInstall(t *testing.T, kubeClient *kubefake.Clientset, clustopClient clustopclientset.Interface, cluster *clustopv1alpha1.Cluster) bool {
+	return completeClusterProcessingJob(
+		t,
+		"deploy cluster api install",
+		kubeClient,
+		clustopClient,
+		cluster.Namespace, cluster.Name,
+		clusterJobRef(t, kubeClient, "deployclusterapi"),
+		func(client clustopclientset.Interface, namespace, name string) error {
+			return waitForClusterStatus(
+				client,
+				namespace, name,
+				func(cluster *clustopv1alpha1.Cluster) bool {
+					return cluster.Status.ClusterAPIInstalled
 				},
 			)
 		},

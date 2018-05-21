@@ -126,6 +126,7 @@ func NewController(clusterInformer informers.ClusterInformer, machineSetInformer
 
 	c.syncHandler = c.syncCluster
 	c.enqueueCluster = c.enqueue
+	c.BuildRemoteClient = c.buildRemoteClusterClient
 
 	return c
 }
@@ -163,6 +164,8 @@ type Controller struct {
 
 	// Clusters that need to be synced
 	queue workqueue.RateLimitingInterface
+
+	BuildRemoteClient func(cluster *clusteroperator.Cluster) (clusterapiclient.Interface, error)
 
 	logger log.FieldLogger
 }
@@ -400,7 +403,7 @@ func (c *Controller) setDeprovisionedComputeMachinesets(cluster *clusteroperator
 }
 
 func (c *Controller) ensureRemoteMachineSetsAreDeleted(cluster *clusteroperator.Cluster) error {
-	remoteClusterAPIClient, err := c.buildRemoteClusterClient(cluster)
+	remoteClusterAPIClient, err := c.BuildRemoteClient(cluster)
 	if err != nil {
 		return err
 	}
@@ -426,21 +429,11 @@ func (c *Controller) shouldDeleteRemoteMachineSets(cluster *clusteroperator.Clus
 	if cluster.Status.DeprovisionedComputeMachinesets {
 		return false, false, nil
 	}
-	if len(cluster.Status.MasterMachineSetName) == 0 {
-		return false, false, nil
-	}
-	masterMachineSet, err := c.machineSetsLister.MachineSets(cluster.Namespace).Get(cluster.Status.MasterMachineSetName)
-	if err != nil {
-		if errors.IsNotFound(err) {
-			return false, false, nil
-		}
-		return false, false, err
-	}
-	clusterAPIInstalling := controller.FindMachineSetCondition(masterMachineSet, clusteroperator.MachineSetClusterAPIInstalling)
+	clusterAPIInstalling := controller.FindClusterCondition(&cluster.Status, clusteroperator.ClusterAPIInstalling)
 	if clusterAPIInstalling != nil && clusterAPIInstalling.Status == corev1.ConditionTrue {
 		return false, true, nil
 	}
-	if !masterMachineSet.Status.ClusterAPIInstalled {
+	if !cluster.Status.ClusterAPIInstalled {
 		return false, false, nil
 	}
 	return true, false, nil

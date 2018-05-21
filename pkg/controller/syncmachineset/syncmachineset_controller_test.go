@@ -165,9 +165,13 @@ func TestMasterMachineSets(t *testing.T) {
 
 			_, _, remoteClusterAPIClient := newTestRemoteClusterAPIClient()
 			cluster := newTestCluster()
+			if tc.controlPlaneReady {
+				cluster.Status.ControlPlaneInstalled = true
+				cluster.Status.ClusterAPIInstalled = true
+			}
 			cStore.Add(cluster)
 
-			c.buildClients = func(cluster *cov1.MachineSet) (clusterapiclient.Interface, error) {
+			c.buildClients = func(*cov1.Cluster) (clusterapiclient.Interface, error) {
 				return remoteClusterAPIClient, nil
 			}
 			if tc.clusterAPIExists {
@@ -183,10 +187,6 @@ func TestMasterMachineSets(t *testing.T) {
 			}
 
 			ms := newTestMachineSet(cluster, "master", cov1.NodeTypeMaster)
-			if tc.controlPlaneReady {
-				ms.Status.Installed = true
-				ms.Status.ClusterAPIInstalled = true
-			}
 			msStore.Add(ms)
 
 			err := c.syncMachineSet(getKey(ms, t))

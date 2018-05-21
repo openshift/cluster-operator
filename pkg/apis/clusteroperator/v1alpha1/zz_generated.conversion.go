@@ -437,6 +437,20 @@ func autoConvert_v1alpha1_ClusterStatus_To_clusteroperator_ClusterStatus(in *Clu
 	out.AdminKubeconfig = (*v1.LocalObjectReference)(unsafe.Pointer(in.AdminKubeconfig))
 	out.Provisioned = in.Provisioned
 	out.ProvisionedJobGeneration = in.ProvisionedJobGeneration
+	out.ControlPlaneInstalled = in.ControlPlaneInstalled
+	out.ControlPlaneInstalledJobClusterGeneration = in.ControlPlaneInstalledJobClusterGeneration
+	out.ControlPlaneInstalledJobMachineSetGeneration = in.ControlPlaneInstalledJobMachineSetGeneration
+	out.ComponentsInstalled = in.ComponentsInstalled
+	out.ComponentsInstalledJobClusterGeneration = in.ComponentsInstalledJobClusterGeneration
+	out.ComponentsInstalledJobMachineSetGeneration = in.ComponentsInstalledJobMachineSetGeneration
+	out.NodeConfigInstalled = in.NodeConfigInstalled
+	out.NodeConfigInstalledJobClusterGeneration = in.NodeConfigInstalledJobClusterGeneration
+	out.NodeConfigInstalledJobMachineSetGeneration = in.NodeConfigInstalledJobMachineSetGeneration
+	out.NodeConfigInstalledTime = (*meta_v1.Time)(unsafe.Pointer(in.NodeConfigInstalledTime))
+	out.ClusterAPIInstalled = in.ClusterAPIInstalled
+	out.ClusterAPIInstalledJobClusterGeneration = in.ClusterAPIInstalledJobClusterGeneration
+	out.ClusterAPIInstalledJobMachineSetGeneration = in.ClusterAPIInstalledJobMachineSetGeneration
+	out.ClusterAPIInstalledTime = (*meta_v1.Time)(unsafe.Pointer(in.ClusterAPIInstalledTime))
 	out.Ready = in.Ready
 	out.Conditions = *(*[]clusteroperator.ClusterCondition)(unsafe.Pointer(&in.Conditions))
 	out.ClusterVersionRef = (*v1.ObjectReference)(unsafe.Pointer(in.ClusterVersionRef))
@@ -456,6 +470,20 @@ func autoConvert_clusteroperator_ClusterStatus_To_v1alpha1_ClusterStatus(in *clu
 	out.AdminKubeconfig = (*v1.LocalObjectReference)(unsafe.Pointer(in.AdminKubeconfig))
 	out.Provisioned = in.Provisioned
 	out.ProvisionedJobGeneration = in.ProvisionedJobGeneration
+	out.ControlPlaneInstalled = in.ControlPlaneInstalled
+	out.ControlPlaneInstalledJobClusterGeneration = in.ControlPlaneInstalledJobClusterGeneration
+	out.ControlPlaneInstalledJobMachineSetGeneration = in.ControlPlaneInstalledJobMachineSetGeneration
+	out.ComponentsInstalled = in.ComponentsInstalled
+	out.ComponentsInstalledJobClusterGeneration = in.ComponentsInstalledJobClusterGeneration
+	out.ComponentsInstalledJobMachineSetGeneration = in.ComponentsInstalledJobMachineSetGeneration
+	out.NodeConfigInstalled = in.NodeConfigInstalled
+	out.NodeConfigInstalledJobClusterGeneration = in.NodeConfigInstalledJobClusterGeneration
+	out.NodeConfigInstalledJobMachineSetGeneration = in.NodeConfigInstalledJobMachineSetGeneration
+	out.NodeConfigInstalledTime = (*meta_v1.Time)(unsafe.Pointer(in.NodeConfigInstalledTime))
+	out.ClusterAPIInstalled = in.ClusterAPIInstalled
+	out.ClusterAPIInstalledJobClusterGeneration = in.ClusterAPIInstalledJobClusterGeneration
+	out.ClusterAPIInstalledJobMachineSetGeneration = in.ClusterAPIInstalledJobMachineSetGeneration
+	out.ClusterAPIInstalledTime = (*meta_v1.Time)(unsafe.Pointer(in.ClusterAPIInstalledTime))
 	out.Ready = in.Ready
 	out.Conditions = *(*[]ClusterCondition)(unsafe.Pointer(&in.Conditions))
 	out.ClusterVersionRef = (*v1.ObjectReference)(unsafe.Pointer(in.ClusterVersionRef))
@@ -878,20 +906,8 @@ func autoConvert_v1alpha1_MachineSetStatus_To_clusteroperator_MachineSetStatus(i
 	out.MachinesProvisioned = in.MachinesProvisioned
 	out.MachinesReady = in.MachinesReady
 	out.Conditions = *(*[]clusteroperator.MachineSetCondition)(unsafe.Pointer(&in.Conditions))
-	out.ComponentsInstalled = in.ComponentsInstalled
-	out.ComponentsInstalledJobGeneration = in.ComponentsInstalledJobGeneration
-	out.NodeConfigInstalled = in.NodeConfigInstalled
-	out.NodeConfigInstalledJobGeneration = in.NodeConfigInstalledJobGeneration
-	out.NodeConfigInstalledTime = (*meta_v1.Time)(unsafe.Pointer(in.NodeConfigInstalledTime))
-	out.ClusterAPIInstalled = in.ClusterAPIInstalled
-	out.ClusterAPIInstalledJobGeneration = in.ClusterAPIInstalledJobGeneration
-	out.ClusterAPIInstalledTime = (*meta_v1.Time)(unsafe.Pointer(in.ClusterAPIInstalledTime))
-	out.Installed = in.Installed
-	out.InstalledJobGeneration = in.InstalledJobGeneration
 	out.Provisioned = in.Provisioned
 	out.ProvisionedJobGeneration = in.ProvisionedJobGeneration
-	out.Accepted = in.Accepted
-	out.AcceptedJobGeneration = in.AcceptedJobGeneration
 	return nil
 }
 
@@ -904,20 +920,8 @@ func autoConvert_clusteroperator_MachineSetStatus_To_v1alpha1_MachineSetStatus(i
 	out.MachinesProvisioned = in.MachinesProvisioned
 	out.MachinesReady = in.MachinesReady
 	out.Conditions = *(*[]MachineSetCondition)(unsafe.Pointer(&in.Conditions))
-	out.ComponentsInstalled = in.ComponentsInstalled
-	out.ComponentsInstalledJobGeneration = in.ComponentsInstalledJobGeneration
-	out.NodeConfigInstalled = in.NodeConfigInstalled
-	out.NodeConfigInstalledJobGeneration = in.NodeConfigInstalledJobGeneration
-	out.NodeConfigInstalledTime = (*meta_v1.Time)(unsafe.Pointer(in.NodeConfigInstalledTime))
-	out.ClusterAPIInstalled = in.ClusterAPIInstalled
-	out.ClusterAPIInstalledJobGeneration = in.ClusterAPIInstalledJobGeneration
-	out.ClusterAPIInstalledTime = (*meta_v1.Time)(unsafe.Pointer(in.ClusterAPIInstalledTime))
-	out.Installed = in.Installed
-	out.InstalledJobGeneration = in.InstalledJobGeneration
 	out.Provisioned = in.Provisioned
 	out.ProvisionedJobGeneration = in.ProvisionedJobGeneration
-	out.Accepted = in.Accepted
-	out.AcceptedJobGeneration = in.AcceptedJobGeneration
 	return nil
 }
 

@@ -325,6 +325,68 @@ type ClusterStatus struct {
 	// generate the latest completed infra provisioning job.
 	ProvisionedJobGeneration int64 `json:"provisionedJobGeneration"`
 
+	// ControlPlaneInstalled is true if the control plane is installed
+	// and running in the cluster.
+	ControlPlaneInstalled bool `json:"controlPlaneInstalled"`
+
+	// ControlPlaneInstalledJobClusterGeneration is the generation of the cluster
+	// resource used to generate the latest completed control-plane installation
+	// job.
+	ControlPlaneInstalledJobClusterGeneration int64 `json:"controlPlaneInstalledJobClusterGeneration"`
+
+	// ControlPlaneInstalledJobMachineSetGeneration is the generation of the
+	// master machine set resource used to generate the latest completed
+	// control-plane installation job.
+	ControlPlaneInstalledJobMachineSetGeneration int64 `json:"controlPlaneInstalledJobMachineSetGeneration"`
+
+	// ComponentsInstalled is true if the additional components needed for the
+	// cluster have been installed
+	ComponentsInstalled bool `json:"componentsInstalled"`
+
+	// ComponentsInstalledJobGeneration is the generation of the cluster resource
+	// used to generate the latest completed components installation job.
+	ComponentsInstalledJobClusterGeneration int64 `json:"componentsInstalledJobClusterGeneration"`
+
+	// ComponentsInstalledJobMachineSetGeneration is the generation of the
+	// master machine set resource used to generate the latest completed
+	// components installation job.
+	ComponentsInstalledJobMachineSetGeneration int64 `json:"componentsInstalledJobMachineSetGeneration"`
+
+	// NodeConfigInstalled is true if the node config daemonset has been created
+	// in the cluster.
+	NodeConfigInstalled bool `json:"nodeConfigInstalled"`
+
+	// NodeConfigInstalledJobClusterGeneration is the generation of the cluster
+	// resource used to generate the latest successful node-config installation job.
+	NodeConfigInstalledJobClusterGeneration int64 `json:"nodeConfigInstalledJobClusterGeneration"`
+
+	// NodeConfigInstalledJobMachineSetGeneration is the generation of the
+	// master machine set resource used to generate the latest successful
+	// node-config installation job.
+	NodeConfigInstalledJobMachineSetGeneration int64 `json:"nodeConfigInstalledJobMachineSetGeneration"`
+
+	// NodeConfigInstalledTime is the time of the last successful installation of
+	// the node config daemonset in the cluster.
+	NodeConfigInstalledTime *metav1.Time `json:"nodeConfigLastInstalled"`
+
+	// ClusterAPIInstalled is true if the Kubernetes Cluster API controllers have
+	// been deployed onto the remote cluster.
+	ClusterAPIInstalled bool `json:"clusterAPIInstalled"`
+
+	// ClusterAPIInstalledJobClusterGeneration is the generation of the cluster
+	// resource used to generate the latest completed deployclusterapi
+	// installation job.
+	ClusterAPIInstalledJobClusterGeneration int64 `json:"clusterAPIInstalledJobClusterGeneration"`
+
+	// ClusterAPIInstalledJobMachineSetGeneration is the generation of the machine
+	// set resource used to generate the latest completed deployclusterapi
+	// installation job.
+	ClusterAPIInstalledJobMachineSetGeneration int64 `json:"clusterAPIInstalledJobMachineSetGeneration"`
+
+	// ClusterAPIInstalledTime is the time we last successfully deployed the
+	// Kubernetes Cluster API controllers on the cluster.
+	ClusterAPIInstalledTime *metav1.Time `json:"clusterAPIInstalledTime"`
+
 	// Ready is true if the master of the cluster is ready to be used and can be accessed using
 	// the KubeconfigSecret
 	Ready bool `json:"ready"`
@@ -376,6 +438,39 @@ const (
 	ClusterInfraDeprovisioning ClusterConditionType = "InfraDeprovisioning"
 	// ClusterInfraDeprovisioningFailed is true when the job to deprovision cluster infrastructure has failed.
 	ClusterInfraDeprovisioningFailed ClusterConditionType = "InfraDeprovisioningFailed"
+	// ControlPlaneInstalling is true if the control plane is being installed in
+	// the cluster.
+	ControlPlaneInstalling ClusterConditionType = "ControlPlaneInstalling"
+	// ControlPlaneInstallationFailed is true if the installation of
+	// the control plane failed.
+	ControlPlaneInstallationFailed ClusterConditionType = "ControlPlaneInstallationFailed"
+	// ControlPlaneInstalled is true if the control plane has been installed
+	// in the cluster.
+	ControlPlaneInstalled ClusterConditionType = "ControlPlaneInstalled"
+	// ComponentsInstalling is true if the OpenShift extra components are being
+	// installed in the cluster.
+	ComponentsInstalling ClusterConditionType = "ComponentsInstalling"
+	// ComponentsInstallationFailed is true if the installation of
+	// the OpenShift extra components failed.
+	ComponentsInstallationFailed ClusterConditionType = "ComponentsInstallationFailed"
+	// ControlPlaneInstalled is true if the OpenShift extra components have been
+	// installed in the cluster.
+	ComponentsInstalled ClusterConditionType = "ComponentsInstalled"
+	// NodeConfigInstalling is true if node config daemonset is being installed.
+	NodeConfigInstalling ClusterConditionType = "NodeConfigInstalling"
+	// NodeConfigInstallationFailed is true if the node config daemonset failed to be installed.
+	NodeConfigInstallationFailed ClusterConditionType = "NodeConfigInstallationFailed"
+	// NodeConfigInstalled is true if the node config daemonset has been installed.
+	NodeConfigInstalled ClusterConditionType = "NodeConfigInstalled"
+	// ClusterAPIInstalling is true if the Kubernetes Cluster API controllers are
+	// being installed on the remote cluster.
+	ClusterAPIInstalling ClusterConditionType = "ClusterAPIInstalling"
+	// ClusterAPIInstallationFailed is true if the installation of the Kubernetes
+	// Cluster API controllers failed.
+	ClusterAPIInstallationFailed ClusterConditionType = "ClusterAPIInstallationFailed"
+	// ClusterAPIInstalled is true if the Kubernetes Cluster API controllers have
+	// been successfully installed.
+	ClusterAPIInstalled ClusterConditionType = "ClusterAPIInstalled"
 	// ClusterVersionIncompatible is true when the cluster version does not have an AMI defined for the cluster's region.
 	ClusterVersionIncompatible ClusterConditionType = "VersionIncompatible"
 	// ClusterReady means the cluster is able to service requests
@@ -507,42 +602,6 @@ type MachineSetStatus struct {
 	// Conditions includes more detailed status of the MachineSet
 	Conditions []MachineSetCondition `json:"conditions"`
 
-	// ComponentsInstalled is true if the additional components needed for the cluster
-	// have been installed
-	ComponentsInstalled bool `json:"componentsInstalled"`
-
-	// ComponentsInstalledJobGeneration is the generation of the machine set resource used to
-	// generate the latest completed component installation job.
-	ComponentsInstalledJobGeneration int64 `json:"componentsInstalledJobGeneration"`
-
-	// NodeConfigInstalled is true if the node config daemonset has been created in the cluster.
-	NodeConfigInstalled bool `json:"nodeConfigInstalled"`
-
-	// NodeConfigInstalledJobGeneration is the generation of the machine set resource used to generate
-	// the latest successful node config installation job.
-	NodeConfigInstalledJobGeneration int64 `json:"nodeConfigInstalledJobGeneration"`
-
-	// NodeConfigInstalledTime is the time we last successfully installed the node config daemonset on the cluster.
-	NodeConfigInstalledTime *metav1.Time `json:"nodeConfigLastInstalled"`
-
-	// ClusterAPIInstalled is true if the Kubernetes Cluster API controllers have been deployed onto the remote cluster.
-	ClusterAPIInstalled bool `json:"clusterAPIInstalled"`
-
-	// ClusterAPIInstalledJobGeneration is the generation of the machine set resource used to
-	// generate the latest completed deployclusterapi installation job.
-	ClusterAPIInstalledJobGeneration int64 `json:"clusterAPIInstalledJobGeneration"`
-
-	// ClusterAPIInstalledTime is the time we last successfully deployed the Kubernetes Cluster API controllers on the cluster.
-	ClusterAPIInstalledTime *metav1.Time `json:"clusterAPIInstalledTime"`
-
-	// Installed is true if the software required for this machine set is installed
-	// and running.
-	Installed bool `json:"installed"`
-
-	// InstalledJobGeneration is the generation of the machine set resource used to
-	// generate the latest completed installation job.
-	InstalledJobGeneration int64 `json:"installedJobGeneration"`
-
 	// Provisioned is true if the hardware that corresponds to this MachineSet has
 	// been provisioned
 	Provisioned bool `json:"provisioned"`
@@ -550,13 +609,6 @@ type MachineSetStatus struct {
 	// ProvisionedJobGeneration is the generation of the machine set resource used to
 	// generate the latest completed hardware provisioning job.
 	ProvisionedJobGeneration int64 `json:"provisionedJobGeneration"`
-
-	// Accepted is true if machine set nodes have been accepted on the master
-	Accepted bool `json:"accepted"`
-
-	// AcceptedJobGeneration is the generation of the machine set resource used to
-	// run the latest completed accept job.
-	AcceptedJobGeneration int64 `json:"acceptedJobGeneration"`
 }
 
 // MachineSetCondition contains details for the current condition of a MachineSet
@@ -604,39 +656,6 @@ const (
 	// for this machine set failed.
 	MachineSetHardwareDeprovisioningFailed MachineSetConditionType = "HardwareDeprovisioningFailed"
 
-	// MachineSetInstalling is true if OpenShift is being installed on
-	// this machine set.
-	MachineSetInstalling MachineSetConditionType = "Installing"
-
-	// MachineSetInstallationFailed is true if the installation of
-	// OpenShift on this machine set failed.
-	MachineSetInstallationFailed MachineSetConditionType = "InstallationFailed"
-
-	// MachineSetInstalled is true if OpenShift has been installed
-	// on this machine set.
-	MachineSetInstalled MachineSetConditionType = "Installed"
-
-	// MachineSetComponentsInstalling is true if OpenShift components are being installed on
-	// this machine set.
-	MachineSetComponentsInstalling MachineSetConditionType = "ComponentsInstalling"
-
-	// MachineSetComponentsInstallationFailed is true if the installation of
-	// OpenShift components on this machine set failed.
-	MachineSetComponentsInstallationFailed MachineSetConditionType = "ComponentsInstallationFailed"
-
-	// MachineSetComponentsInstalled is true if OpenShift has been installed
-	// on this machine set.
-	MachineSetComponentsInstalled MachineSetConditionType = "ComponentsInstalled"
-
-	// MachineSetNodeConfigInstalling is true if node config daemonset is being installed.
-	MachineSetNodeConfigInstalling MachineSetConditionType = "NodeConfigInstalling"
-
-	// MachineSetNodeConfigInstallationFailed is true if the node config daemonset failed to be installed.
-	MachineSetNodeConfigInstallationFailed MachineSetConditionType = "NodeConfigInstallationFailed"
-
-	// MachineSetNodeConfigInstalled is true if the node config daemonset has been installed.
-	MachineSetNodeConfigInstalled MachineSetConditionType = "NodeConfigInstalled"
-
 	// MachineSetHardwareReady is true if the hardware for the nodegroup is in ready
 	// state (is started and healthy)
 	MachineSetHardwareReady MachineSetConditionType = "HardwareReady"
@@ -644,25 +663,6 @@ const (
 	// MachineSetReady is true if the nodes of this nodegroup are ready for work
 	// (have joined the cluster and have a healthy node status)
 	MachineSetReady MachineSetConditionType = "Ready"
-
-	// MachineSetAccepting is true if the cluster is in the process of accepting the nodes from this machine set.
-	MachineSetAccepting MachineSetConditionType = "Accepting"
-
-	// MachineSetAcceptFailed is true when the job to accept nodes from this machine set has failed.
-	MachineSetAcceptFailed MachineSetConditionType = "AcceptFailed"
-
-	// MachineSetAccepted is true when nodes from this machine set have been accepted by the master of the cluster.
-	MachineSetAccepted MachineSetConditionType = "Accepted"
-
-	// MachineSetClusterAPIInstalling is true if the Kubernetes Cluster API controllers are being installed on
-	// the remote cluster.
-	MachineSetClusterAPIInstalling MachineSetConditionType = "ClusterAPIInstalling"
-
-	// MachineSetClusterAPIInstallationFailed is true if the installation of the Kubernetes Cluster API controllers failed.
-	MachineSetClusterAPIInstallationFailed MachineSetConditionType = "ClusterAPIInstallationFailed"
-
-	// MachineSetClusterAPIInstalled is true if the Kubernetes Cluster API controllers have been successfully installed.
-	MachineSetClusterAPIInstalled MachineSetConditionType = "ClusterAPIInstalled"
 )
 
 // +genclient

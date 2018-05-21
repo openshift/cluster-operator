@@ -288,6 +288,25 @@ func ClusterForMachineSet(machineSet *clusteroperator.MachineSet, clustersLister
 	return cluster, nil
 }
 
+// ClusterForGenericMachineSet retrieves the cluster to which a machine set belongs.
+func ClusterForGenericMachineSet(
+	machineSet metav1.Object,
+	clusterKind schema.GroupVersionKind,
+	getCluster func(namespace, name string) (metav1.Object, error),
+) (metav1.Object, error) {
+	controller, err := GetObjectController(
+		machineSet,
+		clusterKind,
+		func(name string) (metav1.Object, error) {
+			return getCluster(machineSet.GetNamespace(), name)
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	return controller, nil
+}
+
 // MachineSetsForCluster retrieves the machinesets owned by a given cluster.
 func MachineSetsForCluster(cluster *clusteroperator.Cluster, machineSetsLister lister.MachineSetLister) ([]*clusteroperator.MachineSet, error) {
 	clusterMachineSets := []*clusteroperator.MachineSet{}

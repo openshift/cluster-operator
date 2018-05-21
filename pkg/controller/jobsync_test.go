@@ -150,8 +150,6 @@ func TestJobSyncForDeletedOwner(t *testing.T) {
 			if tc.expectControl {
 				mockJobSyncStrategy.EXPECT().GetJobFactory(owner, true).
 					Return(mockJobFactory, nil)
-				mockJobSyncStrategy.EXPECT().GetReprocessInterval().Return(nil)
-				mockJobSyncStrategy.EXPECT().GetLastJobSuccess(owner).Return(nil)
 				mockJobControl.EXPECT().ControlJobs(testKey, owner, true, nil, nil, mockJobFactory).
 					Return(JobControlNoWork, nil, nil)
 			}
@@ -216,8 +214,6 @@ func TestJobSyncWithErrorControllingJobs(t *testing.T) {
 		Return(needsProcessing)
 	mockJobSyncStrategy.EXPECT().GetJobFactory(owner, false).
 		Return(mockJobFactory, nil)
-	mockJobSyncStrategy.EXPECT().GetReprocessInterval().Return(nil)
-	mockJobSyncStrategy.EXPECT().GetLastJobSuccess(owner).Return(nil)
 	mockJobControl.EXPECT().ControlJobs(testKey, owner, needsProcessing, nil, nil, mockJobFactory).
 		Return(JobControlResult(""), nil, fmt.Errorf("error controlling jobs"))
 
@@ -250,8 +246,6 @@ func TestJobSyncWithPendingExpectationsResult(t *testing.T) {
 		Return(needsProcessing)
 	mockJobSyncStrategy.EXPECT().GetJobFactory(owner, false).
 		Return(mockJobFactory, nil)
-	mockJobSyncStrategy.EXPECT().GetReprocessInterval().Return(nil)
-	mockJobSyncStrategy.EXPECT().GetLastJobSuccess(owner).Return(nil)
 	mockJobControl.EXPECT().ControlJobs(testKey, owner, needsProcessing, nil, nil, mockJobFactory).
 		Return(JobControlPendingExpectations, nil, nil)
 
@@ -284,8 +278,6 @@ func TestJobSyncWithNoWorkResult(t *testing.T) {
 		Return(needsProcessing)
 	mockJobSyncStrategy.EXPECT().GetJobFactory(owner, false).
 		Return(mockJobFactory, nil)
-	mockJobSyncStrategy.EXPECT().GetReprocessInterval().Return(nil)
-	mockJobSyncStrategy.EXPECT().GetLastJobSuccess(owner).Return(nil)
 	mockJobControl.EXPECT().ControlJobs(testKey, owner, needsProcessing, nil, nil, mockJobFactory).
 		Return(JobControlNoWork, nil, nil)
 
@@ -361,8 +353,6 @@ func TestJobSyncForCompletedJob(t *testing.T) {
 			}
 			mockJobSyncStrategy.EXPECT().GetJobFactory(owner, tc.deleting).
 				Return(mockJobFactory, nil)
-			mockJobSyncStrategy.EXPECT().GetReprocessInterval().Return(nil)
-			mockJobSyncStrategy.EXPECT().GetLastJobSuccess(owner).Return(nil)
 			mockJobControl.EXPECT().ControlJobs(testKey, owner, true, nil, nil, mockJobFactory).
 				Return(JobControlJobSucceeded, job, nil)
 
@@ -458,8 +448,6 @@ func TestJobSyncForFailedJob(t *testing.T) {
 			}
 			mockJobSyncStrategy.EXPECT().GetJobFactory(owner, tc.deleting).
 				Return(mockJobFactory, nil)
-			mockJobSyncStrategy.EXPECT().GetReprocessInterval().Return(nil)
-			mockJobSyncStrategy.EXPECT().GetLastJobSuccess(owner).Return(nil)
 			mockJobControl.EXPECT().ControlJobs(testKey, owner, true, nil, nil, mockJobFactory).
 				Return(JobControlJobFailed, job, nil)
 
@@ -516,8 +504,6 @@ func TestJobSyncForInProgressJob(t *testing.T) {
 		Return(needsProcessing)
 	mockJobSyncStrategy.EXPECT().GetJobFactory(owner, false).
 		Return(mockJobFactory, nil)
-	mockJobSyncStrategy.EXPECT().GetReprocessInterval().Return(nil)
-	mockJobSyncStrategy.EXPECT().GetLastJobSuccess(owner).Return(nil)
 	mockJobControl.EXPECT().ControlJobs(testKey, owner, needsProcessing, nil, nil, mockJobFactory).
 		Return(JobControlJobWorking, job, nil)
 
@@ -556,8 +542,6 @@ func TestJobSyncWithJobWorkingResultButNoJobReturned(t *testing.T) {
 		Return(needsProcessing)
 	mockJobSyncStrategy.EXPECT().GetJobFactory(owner, false).
 		Return(mockJobFactory, nil)
-	mockJobSyncStrategy.EXPECT().GetReprocessInterval().Return(nil)
-	mockJobSyncStrategy.EXPECT().GetLastJobSuccess(owner).Return(nil)
 	mockJobControl.EXPECT().ControlJobs(testKey, owner, needsProcessing, nil, nil, mockJobFactory).
 		Return(JobControlJobWorking, nil, nil)
 
@@ -590,8 +574,6 @@ func TestJobSyncWithCreatingJobResult(t *testing.T) {
 		Return(needsProcessing)
 	mockJobSyncStrategy.EXPECT().GetJobFactory(owner, false).
 		Return(mockJobFactory, nil)
-	mockJobSyncStrategy.EXPECT().GetReprocessInterval().Return(nil)
-	mockJobSyncStrategy.EXPECT().GetLastJobSuccess(owner).Return(nil)
 	mockJobControl.EXPECT().ControlJobs(testKey, owner, needsProcessing, nil, nil, mockJobFactory).
 		Return(JobControlCreatingJob, nil, nil)
 
@@ -624,8 +606,6 @@ func TestJobSyncWithUnkownJobsResult(t *testing.T) {
 		Return(needsProcessing)
 	mockJobSyncStrategy.EXPECT().GetJobFactory(owner, false).
 		Return(mockJobFactory, nil)
-	mockJobSyncStrategy.EXPECT().GetReprocessInterval().Return(nil)
-	mockJobSyncStrategy.EXPECT().GetLastJobSuccess(owner).Return(nil)
 	mockJobControl.EXPECT().ControlJobs(testKey, owner, needsProcessing, nil, nil, mockJobFactory).
 		Return(JobControlResult("other-result"), nil, nil)
 

@@ -60,15 +60,19 @@ type JobSyncStrategy interface {
 	// UpdateOwnerStatus updates the status of the owner from the original
 	// copy to the owner copy.
 	UpdateOwnerStatus(original, owner metav1.Object) error
+}
 
-	// GetReprocessInterval returns the approximate interval at which we would like this job re-run
-	// for on-going config management. Actual runtime will be randomized and potentially up to 2x the
-	// value returned here. Controllers which do not want to support reprocessing can return nil.
-	GetReprocessInterval() *time.Duration
+// JobSyncReprocessStrategy is an interface that can be added to
+// implementations of JobSyncStrategy for strategies that need the job to be
+// reprocessed at regular intervals.
+type JobSyncReprocessStrategy interface {
+	// GetReprocessInterval returns the approximate interval at which we would
+	// like this job re-run for on-going config management. Actual runtime will
+	// be randomized and potentially up to 2x the value returned here.
+	GetReprocessInterval() time.Duration
 
-	// GetLastJobSuccess returns the time of the last successful job. Used in conjunction with
-	// GetReprocessInterval to determine if a new job needs to be launched. Controllers which
-	// do not want to support reprocessing should return nil.
+	// GetLastJobSuccess returns the time of the last successful job. Returns nil
+	// if there has not been a successful job.
 	GetLastJobSuccess(owner metav1.Object) *time.Time
 }
 

@@ -98,7 +98,12 @@ func NewController(
 	c.machineSetsLister = machineSetInformer.Lister()
 	c.machineSetsSynced = machineSetInformer.Informer().HasSynced
 
+	clusterInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    c.addCluster,
+		UpdateFunc: c.updateCluster,
+	})
 	c.clusterLister = clusterInformer.Lister()
+	c.clustersSynced = clusterInformer.Informer().HasSynced
 
 	c.syncHandler = c.syncMachineSet
 	c.enqueueMachineSet = c.enqueue
@@ -119,7 +124,7 @@ type Controller struct {
 	// Used for unit testing
 	enqueueMachineSet func(machineSet *cov1.MachineSet)
 
-	buildClients func(*cov1.MachineSet) (clusterapiclient.Interface, error)
+	buildClients func(*cov1.Cluster) (clusterapiclient.Interface, error)
 
 	// machineSetsLister is able to list/get machine sets and is
 	// populated by the shared informer passed to NewController.
@@ -132,10 +137,10 @@ type Controller struct {
 	// clusterLister is able to list/get clusters and is populated
 	// by the shared informer passed to NewController.
 	clusterLister lister.ClusterLister
-	// clusterSynced returns true if the cluster shared informer
+	// clustersSynced returns true if the cluster shared informer
 	// has been synced at least once. Added as a member to the
 	// struct to allow injection for testing.
-	clusterSynced cache.InformerSynced
+	clustersSynced cache.InformerSynced
 
 	// Machines that need to be synced
 	queue workqueue.RateLimitingInterface
@@ -146,51 +151,45 @@ type Controller struct {
 func (c *Controller) addMachineSet(obj interface{}) {
 	machineSet := obj.(*cov1.MachineSet)
 	msLog := logging.WithMachineSet(c.logger, machineSet)
-	if !isMasterMachineSet(machineSet) {
-		msLog.Debugf("Adding machine set")
-		c.enqueueMachineSet(machineSet)
-		return
-	}
-
-	coCluster, err := controller.ClusterForMachineSet(machineSet, c.clusterLister)
-	if err != nil {
-		msLog.Debugf("error looking up machineset's cluster: %v", err)
-		return
-	}
-
-	machineSets, err := controller.MachineSetsForCluster(coCluster, c.machineSetsLister)
-	if err != nil {
-		logging.WithCluster(c.logger, coCluster).Debugf("error looking up cluster's machinesets: %v", err)
-		return
-	}
-	for _, ms := range machineSets {
-		logging.WithMachineSet(c.logger, ms).Debugf("Adding machine set")
-		c.enqueueMachineSet(ms)
-	}
+	msLog.Debugf("Adding machine set")
+	c.enqueueMachineSet(machineSet)
 }
 
 func (c *Controller) updateMachineSet(old, cur interface{}) {
 	machineSet := cur.(*cov1.MachineSet)
 	msLog := logging.WithMachineSet(c.logger, machineSet)
-	if !isMasterMachineSet(machineSet) {
-		msLog.Debugf("Updating machine set")
-		c.enqueueMachineSet(machineSet)
-		return
-	}
+	msLog.Debugf("Updating machine set")
+	c.enqueueMachineSet(machineSet)
+}
 
-	coCluster, err := controller.ClusterForMachineSet(machineSet, c.clusterLister)
-	if err != nil {
-		msLog.Debugf("error looking up machineset's cluster: %v", err)
-		return
-	}
+func (c *Controller) addCluster(obj interface{}) {
+	cluster := obj.(*cov1.Cluster)
+	clusterLog := logging.WithCluster(c.logger, cluster)
+	clusterLog.Debugf("Adding cluster")
 
-	machineSets, err := controller.MachineSetsForCluster(coCluster, c.machineSetsLister)
+	machineSets, err := controller.MachineSetsForCluster(cluster, c.machineSetsLister)
 	if err != nil {
-		logging.WithCluster(c.logger, coCluster).Debugf("error looking up cluster's machinesets: %v", err)
+		clusterLog.Debugf("error looking up cluster's machinesets: %v", err)
 		return
 	}
 	for _, ms := range machineSets {
-		logging.WithMachineSet(c.logger, ms).Debugf("Updating machine set")
+		logging.WithMachineSet(clusterLog, ms).Debugf("Enqueueing machine set for added cluster")
+		c.enqueueMachineSet(ms)
+	}
+}
+
+func (c *Controller) updateCluster(old, cur interface{}) {
+	cluster := cur.(*cov1.Cluster)
+	clusterLog := logging.WithCluster(c.logger, cluster)
+	clusterLog.Debugf("Updating cluster")
+
+	machineSets, err := controller.MachineSetsForCluster(cluster, c.machineSetsLister)
+	if err != nil {
+		clusterLog.Debugf("error looking up cluster's machinesets: %v", err)
+		return
+	}
+	for _, ms := range machineSets {
+		logging.WithMachineSet(clusterLog, ms).Debugf("Enqueueing machine set for updated cluster")
 		c.enqueueMachineSet(ms)
 	}
 }
@@ -204,7 +203,7 @@ func (c *Controller) Run(workers int, stopCh <-chan struct{}) {
 	c.logger.Infof("Starting syncmachineset controller")
 	defer c.logger.Infof("Shutting down syncmachineset controller")
 
-	if !controller.WaitForCacheSync("syncmachineset", stopCh, c.machineSetsSynced) {
+	if !controller.WaitForCacheSync("syncmachineset", stopCh, c.machineSetsSynced, c.clustersSynced) {
 		c.logger.Errorf("could not sync caches for syncmachineset controller")
 		return
 	}
@@ -280,16 +279,10 @@ func isMasterMachineSet(machineSet *cov1.MachineSet) bool {
 	return machineSet.Spec.NodeType == cov1.NodeTypeMaster
 }
 
-func (c *Controller) buildRemoteClusterClients(machineSet *cov1.MachineSet) (clusterapiclient.Interface, error) {
+func (c *Controller) buildRemoteClusterClients(cluster *cov1.Cluster) (clusterapiclient.Interface, error) {
 	// Load the kubeconfig secret for communicating with the remote cluster:
 
-	// Step 1: Get a cluster from the machineset
-	cluster, err := controller.ClusterForMachineSet(machineSet, c.clusterLister)
-	if err != nil {
-		return nil, fmt.Errorf("unable to retrieve cluster for machineset")
-	}
-
-	// Step 2: Get the secret ref from the cluster
+	// Step 1: Get the secret ref from the cluster
 	//
 	// TODO: The cluster controller should watch secrets until it
 	// sees a kubeconfig secret named after the cluster and then
@@ -303,14 +296,14 @@ func (c *Controller) buildRemoteClusterClients(machineSet *cov1.MachineSet) (clu
 	// }
 	secretName := cluster.Name + "-kubeconfig"
 
-	// Step 3: Retrieve secret
-	secret, err := c.kubeClient.CoreV1().Secrets(machineSet.Namespace).Get(secretName, metav1.GetOptions{})
+	// Step 2: Retrieve secret
+	secret, err := c.kubeClient.CoreV1().Secrets(cluster.Namespace).Get(secretName, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
 	secretData := secret.Data["kubeconfig"]
 
-	// Step 4: Generate config from secret data
+	// Step 3: Generate config from secret data
 	config, err := clientcmd.Load(secretData)
 	if err != nil {
 		return nil, err
@@ -322,7 +315,7 @@ func (c *Controller) buildRemoteClusterClients(machineSet *cov1.MachineSet) (clu
 		return nil, err
 	}
 
-	// Step 5: Return client for remote cluster
+	// Step 4: Return client for remote cluster
 	return clusterapiclient.NewForConfig(restConfig)
 }
 
@@ -378,13 +371,13 @@ func (c *Controller) syncMasterMachineSet(ms *cov1.MachineSet) error {
 	}
 	msLog = logging.WithCluster(msLog, coCluster)
 
-	if !ms.Status.ClusterAPIInstalled {
+	if !coCluster.Status.ClusterAPIInstalled {
 		msLog.Debugf(errorMsgClusterAPINotInstalled)
 		return nil
 	}
 
 	// Create the Cluster object if it does not already exist:
-	remoteClusterAPIClient, err := c.buildClients(ms)
+	remoteClusterAPIClient, err := c.buildClients(coCluster)
 	if err != nil {
 		return err
 	}
@@ -426,17 +419,13 @@ func (c *Controller) syncComputeMachineSet(ms *cov1.MachineSet) error {
 	if err != nil {
 		return fmt.Errorf("error looking up machineset's cluster: %v", err)
 	}
-	coMasterMachineSet, err := c.machineSetsLister.MachineSets(coCluster.Namespace).Get(coCluster.Status.MasterMachineSetName)
-	if err != nil {
-		return fmt.Errorf("error looking up cluster's master machineset: %v", err)
-	}
 
-	if !coMasterMachineSet.Status.ClusterAPIInstalled {
+	if !coCluster.Status.ClusterAPIInstalled {
 		msLog.Debugf(errorMsgClusterAPINotInstalled)
 		return nil
 	}
 
-	remoteClusterAPIClient, err := c.buildClients(ms)
+	remoteClusterAPIClient, err := c.buildClients(coCluster)
 	if err != nil {
 		return err
 	}

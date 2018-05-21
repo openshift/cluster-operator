@@ -525,6 +525,102 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Format:      "int64",
 							},
 						},
+						"controlPlaneInstalled": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ControlPlaneInstalled is true if the control plane is installed and running in the cluster.",
+								Type:        []string{"boolean"},
+								Format:      "",
+							},
+						},
+						"controlPlaneInstalledJobClusterGeneration": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ControlPlaneInstalledJobClusterGeneration is the generation of the cluster resource used to generate the latest completed control-plane installation job.",
+								Type:        []string{"integer"},
+								Format:      "int64",
+							},
+						},
+						"controlPlaneInstalledJobMachineSetGeneration": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ControlPlaneInstalledJobMachineSetGeneration is the generation of the master machine set resource used to generate the latest completed control-plane installation job.",
+								Type:        []string{"integer"},
+								Format:      "int64",
+							},
+						},
+						"componentsInstalled": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ComponentsInstalled is true if the additional components needed for the cluster have been installed",
+								Type:        []string{"boolean"},
+								Format:      "",
+							},
+						},
+						"componentsInstalledJobClusterGeneration": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ComponentsInstalledJobGeneration is the generation of the cluster resource used to generate the latest completed components installation job.",
+								Type:        []string{"integer"},
+								Format:      "int64",
+							},
+						},
+						"componentsInstalledJobMachineSetGeneration": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ComponentsInstalledJobMachineSetGeneration is the generation of the master machine set resource used to generate the latest completed components installation job.",
+								Type:        []string{"integer"},
+								Format:      "int64",
+							},
+						},
+						"nodeConfigInstalled": {
+							SchemaProps: spec.SchemaProps{
+								Description: "NodeConfigInstalled is true if the node config daemonset has been created in the cluster.",
+								Type:        []string{"boolean"},
+								Format:      "",
+							},
+						},
+						"nodeConfigInstalledJobClusterGeneration": {
+							SchemaProps: spec.SchemaProps{
+								Description: "NodeConfigInstalledJobClusterGeneration is the generation of the cluster resource used to generate the latest successful node-config installation job.",
+								Type:        []string{"integer"},
+								Format:      "int64",
+							},
+						},
+						"nodeConfigInstalledJobMachineSetGeneration": {
+							SchemaProps: spec.SchemaProps{
+								Description: "NodeConfigInstalledJobMachineSetGeneration is the generation of the master machine set resource used to generate the latest successful node-config installation job.",
+								Type:        []string{"integer"},
+								Format:      "int64",
+							},
+						},
+						"nodeConfigLastInstalled": {
+							SchemaProps: spec.SchemaProps{
+								Description: "NodeConfigInstalledTime is the time of the last successful installation of the node config daemonset in the cluster.",
+								Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+							},
+						},
+						"clusterAPIInstalled": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ClusterAPIInstalled is true if the Kubernetes Cluster API controllers have been deployed onto the remote cluster.",
+								Type:        []string{"boolean"},
+								Format:      "",
+							},
+						},
+						"clusterAPIInstalledJobClusterGeneration": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ClusterAPIInstalledJobClusterGeneration is the generation of the cluster resource used to generate the latest completed deployclusterapi installation job.",
+								Type:        []string{"integer"},
+								Format:      "int64",
+							},
+						},
+						"clusterAPIInstalledJobMachineSetGeneration": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ClusterAPIInstalledJobMachineSetGeneration is the generation of the machine set resource used to generate the latest completed deployclusterapi installation job.",
+								Type:        []string{"integer"},
+								Format:      "int64",
+							},
+						},
+						"clusterAPIInstalledTime": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ClusterAPIInstalledTime is the time we last successfully deployed the Kubernetes Cluster API controllers on the cluster.",
+								Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+							},
+						},
 						"ready": {
 							SchemaProps: spec.SchemaProps{
 								Description: "Ready is true if the master of the cluster is ready to be used and can be accessed using the KubeconfigSecret",
@@ -559,11 +655,11 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 							},
 						},
 					},
-					Required: []string{"machineSetCount", "provisioned", "provisionedJobGeneration", "ready", "conditions", "deprovisionedComputeMachineSets"},
+					Required: []string{"machineSetCount", "provisioned", "provisionedJobGeneration", "controlPlaneInstalled", "controlPlaneInstalledJobClusterGeneration", "controlPlaneInstalledJobMachineSetGeneration", "componentsInstalled", "componentsInstalledJobClusterGeneration", "componentsInstalledJobMachineSetGeneration", "nodeConfigInstalled", "nodeConfigInstalledJobClusterGeneration", "nodeConfigInstalledJobMachineSetGeneration", "nodeConfigLastInstalled", "clusterAPIInstalled", "clusterAPIInstalledJobClusterGeneration", "clusterAPIInstalledJobMachineSetGeneration", "clusterAPIInstalledTime", "ready", "conditions", "deprovisionedComputeMachineSets"},
 				},
 			},
 			Dependencies: []string{
-				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterCondition", "k8s.io/api/core/v1.LocalObjectReference", "k8s.io/api/core/v1.ObjectReference", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterCondition", "k8s.io/api/core/v1.LocalObjectReference", "k8s.io/api/core/v1.ObjectReference", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta", "k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
 		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterSpec": {
 			Schema: spec.Schema{
@@ -660,6 +756,102 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Format:      "int64",
 							},
 						},
+						"controlPlaneInstalled": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ControlPlaneInstalled is true if the control plane is installed and running in the cluster.",
+								Type:        []string{"boolean"},
+								Format:      "",
+							},
+						},
+						"controlPlaneInstalledJobClusterGeneration": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ControlPlaneInstalledJobClusterGeneration is the generation of the cluster resource used to generate the latest completed control-plane installation job.",
+								Type:        []string{"integer"},
+								Format:      "int64",
+							},
+						},
+						"controlPlaneInstalledJobMachineSetGeneration": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ControlPlaneInstalledJobMachineSetGeneration is the generation of the master machine set resource used to generate the latest completed control-plane installation job.",
+								Type:        []string{"integer"},
+								Format:      "int64",
+							},
+						},
+						"componentsInstalled": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ComponentsInstalled is true if the additional components needed for the cluster have been installed",
+								Type:        []string{"boolean"},
+								Format:      "",
+							},
+						},
+						"componentsInstalledJobClusterGeneration": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ComponentsInstalledJobGeneration is the generation of the cluster resource used to generate the latest completed components installation job.",
+								Type:        []string{"integer"},
+								Format:      "int64",
+							},
+						},
+						"componentsInstalledJobMachineSetGeneration": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ComponentsInstalledJobMachineSetGeneration is the generation of the master machine set resource used to generate the latest completed components installation job.",
+								Type:        []string{"integer"},
+								Format:      "int64",
+							},
+						},
+						"nodeConfigInstalled": {
+							SchemaProps: spec.SchemaProps{
+								Description: "NodeConfigInstalled is true if the node config daemonset has been created in the cluster.",
+								Type:        []string{"boolean"},
+								Format:      "",
+							},
+						},
+						"nodeConfigInstalledJobClusterGeneration": {
+							SchemaProps: spec.SchemaProps{
+								Description: "NodeConfigInstalledJobClusterGeneration is the generation of the cluster resource used to generate the latest successful node-config installation job.",
+								Type:        []string{"integer"},
+								Format:      "int64",
+							},
+						},
+						"nodeConfigInstalledJobMachineSetGeneration": {
+							SchemaProps: spec.SchemaProps{
+								Description: "NodeConfigInstalledJobMachineSetGeneration is the generation of the master machine set resource used to generate the latest successful node-config installation job.",
+								Type:        []string{"integer"},
+								Format:      "int64",
+							},
+						},
+						"nodeConfigLastInstalled": {
+							SchemaProps: spec.SchemaProps{
+								Description: "NodeConfigInstalledTime is the time of the last successful installation of the node config daemonset in the cluster.",
+								Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+							},
+						},
+						"clusterAPIInstalled": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ClusterAPIInstalled is true if the Kubernetes Cluster API controllers have been deployed onto the remote cluster.",
+								Type:        []string{"boolean"},
+								Format:      "",
+							},
+						},
+						"clusterAPIInstalledJobClusterGeneration": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ClusterAPIInstalledJobClusterGeneration is the generation of the cluster resource used to generate the latest completed deployclusterapi installation job.",
+								Type:        []string{"integer"},
+								Format:      "int64",
+							},
+						},
+						"clusterAPIInstalledJobMachineSetGeneration": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ClusterAPIInstalledJobMachineSetGeneration is the generation of the machine set resource used to generate the latest completed deployclusterapi installation job.",
+								Type:        []string{"integer"},
+								Format:      "int64",
+							},
+						},
+						"clusterAPIInstalledTime": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ClusterAPIInstalledTime is the time we last successfully deployed the Kubernetes Cluster API controllers on the cluster.",
+								Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+							},
+						},
 						"ready": {
 							SchemaProps: spec.SchemaProps{
 								Description: "Ready is true if the master of the cluster is ready to be used and can be accessed using the KubeconfigSecret",
@@ -694,11 +886,11 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 							},
 						},
 					},
-					Required: []string{"machineSetCount", "provisioned", "provisionedJobGeneration", "ready", "conditions", "deprovisionedComputeMachineSets"},
+					Required: []string{"machineSetCount", "provisioned", "provisionedJobGeneration", "controlPlaneInstalled", "controlPlaneInstalledJobClusterGeneration", "controlPlaneInstalledJobMachineSetGeneration", "componentsInstalled", "componentsInstalledJobClusterGeneration", "componentsInstalledJobMachineSetGeneration", "nodeConfigInstalled", "nodeConfigInstalledJobClusterGeneration", "nodeConfigInstalledJobMachineSetGeneration", "nodeConfigLastInstalled", "clusterAPIInstalled", "clusterAPIInstalledJobClusterGeneration", "clusterAPIInstalledJobMachineSetGeneration", "clusterAPIInstalledTime", "ready", "conditions", "deprovisionedComputeMachineSets"},
 				},
 			},
 			Dependencies: []string{
-				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterCondition", "k8s.io/api/core/v1.LocalObjectReference", "k8s.io/api/core/v1.ObjectReference"},
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterCondition", "k8s.io/api/core/v1.LocalObjectReference", "k8s.io/api/core/v1.ObjectReference", "k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
 		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterVersion": {
 			Schema: spec.Schema{
@@ -1439,74 +1631,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								},
 							},
 						},
-						"componentsInstalled": {
-							SchemaProps: spec.SchemaProps{
-								Description: "ComponentsInstalled is true if the additional components needed for the cluster have been installed",
-								Type:        []string{"boolean"},
-								Format:      "",
-							},
-						},
-						"componentsInstalledJobGeneration": {
-							SchemaProps: spec.SchemaProps{
-								Description: "ComponentsInstalledJobGeneration is the generation of the machine set resource used to generate the latest completed component installation job.",
-								Type:        []string{"integer"},
-								Format:      "int64",
-							},
-						},
-						"nodeConfigInstalled": {
-							SchemaProps: spec.SchemaProps{
-								Description: "NodeConfigInstalled is true if the node config daemonset has been created in the cluster.",
-								Type:        []string{"boolean"},
-								Format:      "",
-							},
-						},
-						"nodeConfigInstalledJobGeneration": {
-							SchemaProps: spec.SchemaProps{
-								Description: "NodeConfigInstalledJobGeneration is the generation of the machine set resource used to generate the latest successful node config installation job.",
-								Type:        []string{"integer"},
-								Format:      "int64",
-							},
-						},
-						"nodeConfigLastInstalled": {
-							SchemaProps: spec.SchemaProps{
-								Description: "NodeConfigInstalledTime is the time we last successfully installed the node config daemonset on the cluster.",
-								Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
-							},
-						},
-						"clusterAPIInstalled": {
-							SchemaProps: spec.SchemaProps{
-								Description: "ClusterAPIInstalled is true if the Kubernetes Cluster API controllers have been deployed onto the remote cluster.",
-								Type:        []string{"boolean"},
-								Format:      "",
-							},
-						},
-						"clusterAPIInstalledJobGeneration": {
-							SchemaProps: spec.SchemaProps{
-								Description: "ClusterAPIInstalledJobGeneration is the generation of the machine set resource used to generate the latest completed deployclusterapi installation job.",
-								Type:        []string{"integer"},
-								Format:      "int64",
-							},
-						},
-						"clusterAPIInstalledTime": {
-							SchemaProps: spec.SchemaProps{
-								Description: "ClusterAPIInstalledTime is the time we last successfully deployed the Kubernetes Cluster API controllers on the cluster.",
-								Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
-							},
-						},
-						"installed": {
-							SchemaProps: spec.SchemaProps{
-								Description: "Installed is true if the software required for this machine set is installed and running.",
-								Type:        []string{"boolean"},
-								Format:      "",
-							},
-						},
-						"installedJobGeneration": {
-							SchemaProps: spec.SchemaProps{
-								Description: "InstalledJobGeneration is the generation of the machine set resource used to generate the latest completed installation job.",
-								Type:        []string{"integer"},
-								Format:      "int64",
-							},
-						},
 						"provisioned": {
 							SchemaProps: spec.SchemaProps{
 								Description: "Provisioned is true if the hardware that corresponds to this MachineSet has been provisioned",
@@ -1521,26 +1645,12 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Format:      "int64",
 							},
 						},
-						"accepted": {
-							SchemaProps: spec.SchemaProps{
-								Description: "Accepted is true if machine set nodes have been accepted on the master",
-								Type:        []string{"boolean"},
-								Format:      "",
-							},
-						},
-						"acceptedJobGeneration": {
-							SchemaProps: spec.SchemaProps{
-								Description: "AcceptedJobGeneration is the generation of the machine set resource used to run the latest completed accept job.",
-								Type:        []string{"integer"},
-								Format:      "int64",
-							},
-						},
 					},
-					Required: []string{"machineCount", "machinesReady", "conditions", "componentsInstalled", "componentsInstalledJobGeneration", "nodeConfigInstalled", "nodeConfigInstalledJobGeneration", "nodeConfigLastInstalled", "clusterAPIInstalled", "clusterAPIInstalledJobGeneration", "clusterAPIInstalledTime", "installed", "installedJobGeneration", "provisioned", "provisionedJobGeneration", "accepted", "acceptedJobGeneration"},
+					Required: []string{"machineCount", "machinesReady", "conditions", "provisioned", "provisionedJobGeneration"},
 				},
 			},
 			Dependencies: []string{
-				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetCondition", "k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetCondition"},
 		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSpec": {
 			Schema: spec.Schema{
