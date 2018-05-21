@@ -853,6 +853,34 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Format:      "",
 							},
 						},
+						"clusterAPIImage": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ClusterAPIImage is the name of the image to use on the target cluster to run Cluster API",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"clusterAPIImagePullPolicy": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ClusterAPIImagePullPolicy is the pull policy to use for the ClusterAPIImage",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"machineControllerImage": {
+							SchemaProps: spec.SchemaProps{
+								Description: "MachineControllerImage is the name of the image to use on the target cluster to run the machine controller",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"machineControllerImagePullPolicy": {
+							SchemaProps: spec.SchemaProps{
+								Description: "MachineControllerImagePullPolicy is the pull policy to use for the MachineControllerImagePullPolicy",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
 					},
 					Required: []string{"imageFormat", "vmImages", "deploymentType", "version"},
 				},
