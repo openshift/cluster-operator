@@ -93,7 +93,17 @@
       dest: "{{ temp_file.path }}"
 
   - name: process template
-    shell: "oc process -f {{ temp_file.path }} -p CLUSTER_API_NAMESPACE={{ cluster_api_namespace }} -p SERVING_CA={{ cluster_api_ca_bundle }} -p SERVING_CERT={{ cluster_api_cert }} -p SERVING_KEY={{ cluster_api_key }} -p BOOTSTRAP_KUBECONFIG='{{ bootstrap_kubeconfig.content }}' | oc apply -f -"
+    shell: |-
+      oc process -f {{ temp_file.path }} \
+         -p CLUSTER_API_NAMESPACE={{ cluster_api_namespace }} \
+         -p SERVING_CA={{ cluster_api_ca_bundle }} \
+         -p SERVING_CERT={{ cluster_api_cert }} \
+         -p SERVING_KEY={{ cluster_api_key }} \
+         -p BOOTSTRAP_KUBECONFIG='{{ bootstrap_kubeconfig.content }}' \
+         -p CLUSTER_API_IMAGE='{{ cluster_api_image }}' \
+         -p CLUSTER_API_IMAGE_PULL_POLICY='{{ cluster_api_image_pull_policy }}' \
+         -p MACHINE_CONTROLLER_IMAGE='{{ machine_controller_image }}' \
+         -p MACHINE_CONTROLLER_IMAGE_PULL_POLICY='{{ machine_controller_image_pull_policy }}' | oc apply -f -
 
   - name: remove template file
     file:

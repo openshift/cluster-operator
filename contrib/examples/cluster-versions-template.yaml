@@ -17,6 +17,20 @@ parameters:
   displayName: Openshift Ansible Image Pull Policy
   description: Policy to use when pulling the Openshift Ansible image
   value: "Always"
+- name: CLUSTER_API_IMAGE
+  displayName: Cluster API Image
+  description: Name and tag of the image to use for the Cluster API on the target cluster
+- name: CLUSTER_API_IMAGE_PULL_POLICY
+  displayName: Cluster API Image Pull Policy
+  descrition: Policy to use when pulling the Cluster API image on the target cluster
+  value: Always
+- name: MACHINE_CONTROLLER_IMAGE
+  displayName: Machine Controller Image 
+  descrition: Name and tag of the image to use for the machine controller on the target cluster
+- name: MACHINE_CONTROLLER_IMAGE_PULL_POLICY
+  displayName: Cluster API Image Pull Policy
+  descrition: Policy to use when pulling the machine controller image on the target cluster
+  value: Always
 
 objects:
 
@@ -37,6 +51,11 @@ objects:
     # TODO: Update after jdiaz incoming work is merged:
     openshiftAnsibleImage: cluster-operator-ansible:canary
     openshiftAnsibleImagePullPolicy: Never
+    clusterAPIImage: "${CLUSTER_API_IMAGE}"
+    clusterAPIImagePullPolicy: "${CLUSTER_API_IMAGE_PULL_POLICY}"
+    machineControllerImage: "${MACHINE_CONTROLLER_IMAGE}"
+    machineControllerImagePullPolicy: "${MACHINE_CONTROLLER_IMAGE_PULL_POLICY}"
+
 
 - apiVersion: clusteroperator.openshift.io/v1alpha1
   kind: ClusterVersion
@@ -54,3 +73,7 @@ objects:
     version: "v3.10.0"
     openshiftAnsibleImage: fake-openshift-ansible:canary
     openshiftAnsibleImagePullPolicy: Never
+    clusterAPIImage: "${CLUSTER_API_IMAGE}"
+    clusterAPIImagePullPolicy: "${CLUSTER_API_IMAGE_PULL_POLICY}"
+    machineControllerImage: "${MACHINE_CONTROLLER_IMAGE}"
+    machineControllerImagePullPolicy: "${MACHINE_CONTROLLER_IMAGE_PULL_POLICY}"
