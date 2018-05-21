@@ -104,6 +104,26 @@ type ClusterVersionSpec struct {
 	// Defaults to IfNotPreset.
 	// +optional
 	OpenshiftAnsibleImagePullPolicy *corev1.PullPolicy
+
+	// ClusterAPIImage is the name of the image to use on the target
+	// cluster to run Cluster API
+	// +optional
+	ClusterAPIImage *string
+
+	// ClusterAPIImagePullPolicy is the pull policy to use for the
+	// ClusterAPIImage
+	// +optional
+	ClusterAPIImagePullPolicy *corev1.PullPolicy
+
+	// MachineControllerImage is the name of the image to use on the
+	// target cluster to run the machine controller
+	// +optional
+	MachineControllerImage *string
+
+	// MachineControllerImagePullPolicy is the pull policy to use for
+	// the MachineControllerImagePullPolicy
+	// +optional
+	MachineControllerImagePullPolicy *corev1.PullPolicy
 }
 
 // ClusterVersionStatus is the status of a ClusterVersion. It may be used to indicate if the

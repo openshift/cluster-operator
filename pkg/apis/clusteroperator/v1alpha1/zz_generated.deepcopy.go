@@ -466,6 +466,42 @@ func (in *ClusterVersionSpec) DeepCopyInto(out *ClusterVersionSpec) {
 			**out = **in
 		}
 	}
+	if in.ClusterAPIImage != nil {
+		in, out := &in.ClusterAPIImage, &out.ClusterAPIImage
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(string)
+			**out = **in
+		}
+	}
+	if in.ClusterAPIImagePullPolicy != nil {
+		in, out := &in.ClusterAPIImagePullPolicy, &out.ClusterAPIImagePullPolicy
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(v1.PullPolicy)
+			**out = **in
+		}
+	}
+	if in.MachineControllerImage != nil {
+		in, out := &in.MachineControllerImage, &out.MachineControllerImage
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(string)
+			**out = **in
+		}
+	}
+	if in.MachineControllerImagePullPolicy != nil {
+		in, out := &in.MachineControllerImagePullPolicy, &out.MachineControllerImagePullPolicy
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(v1.PullPolicy)
+			**out = **in
+		}
+	}
 	return
 }
 

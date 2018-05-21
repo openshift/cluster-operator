@@ -553,6 +553,10 @@ func autoConvert_v1alpha1_ClusterVersionSpec_To_clusteroperator_ClusterVersionSp
 	out.Version = in.Version
 	out.OpenshiftAnsibleImage = (*string)(unsafe.Pointer(in.OpenshiftAnsibleImage))
 	out.OpenshiftAnsibleImagePullPolicy = (*v1.PullPolicy)(unsafe.Pointer(in.OpenshiftAnsibleImagePullPolicy))
+	out.ClusterAPIImage = (*string)(unsafe.Pointer(in.ClusterAPIImage))
+	out.ClusterAPIImagePullPolicy = (*v1.PullPolicy)(unsafe.Pointer(in.ClusterAPIImagePullPolicy))
+	out.MachineControllerImage = (*string)(unsafe.Pointer(in.MachineControllerImage))
+	out.MachineControllerImagePullPolicy = (*v1.PullPolicy)(unsafe.Pointer(in.MachineControllerImagePullPolicy))
 	return nil
 }
 
@@ -570,6 +574,10 @@ func autoConvert_clusteroperator_ClusterVersionSpec_To_v1alpha1_ClusterVersionSp
 	out.Version = in.Version
 	out.OpenshiftAnsibleImage = (*string)(unsafe.Pointer(in.OpenshiftAnsibleImage))
 	out.OpenshiftAnsibleImagePullPolicy = (*v1.PullPolicy)(unsafe.Pointer(in.OpenshiftAnsibleImagePullPolicy))
+	out.ClusterAPIImage = (*string)(unsafe.Pointer(in.ClusterAPIImage))
+	out.ClusterAPIImagePullPolicy = (*v1.PullPolicy)(unsafe.Pointer(in.ClusterAPIImagePullPolicy))
+	out.MachineControllerImage = (*string)(unsafe.Pointer(in.MachineControllerImage))
+	out.MachineControllerImagePullPolicy = (*v1.PullPolicy)(unsafe.Pointer(in.MachineControllerImagePullPolicy))
 	return nil
 }
 
