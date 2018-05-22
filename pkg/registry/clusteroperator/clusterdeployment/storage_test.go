@@ -50,7 +50,6 @@ func validNewClusterDeployment(name string) *clusteroperatorapi.ClusterDeploymen
 		Spec: clusteroperatorapi.ClusterDeploymentSpec{
 			MachineSets: []clusteroperatorapi.ClusterMachineSet{
 				{
-					ShortName: "master",
 					MachineSetConfig: clusteroperatorapi.MachineSetConfig{
 						NodeType: clusteroperatorapi.NodeTypeMaster,
 						Infra:    true,

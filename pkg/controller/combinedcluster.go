@@ -28,7 +28,7 @@ import (
 // CombinedClusterForClusterAPICluster creates a CombinedCluster
 // for the specified cluster-api Cluster.
 func CombinedClusterForClusterAPICluster(cluster *clusterapi.Cluster) (*clusteroperator.CombinedCluster, error) {
-	clusterOperatorSpec, err := ClusterSpecFromClusterAPI(cluster)
+	clusterOperatorSpec, err := ClusterDeploymentSpecFromCluster(cluster)
 	if err != nil {
 		return nil, err
 	}

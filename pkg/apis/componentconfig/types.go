@@ -99,6 +99,10 @@ type ControllerManagerConfiguration struct {
 	// but more CPU (and network) load.
 	ConcurrentDeployClusterAPISyncs int32
 
+	// ConcurrentClusterDeploymentSyncs is the number of cluster deploymentss that are allowed to
+	// sync concurrently. Larger number = more responsive processing but more CPU (and network) load.
+	ConcurrentClusterDeploymentSyncs int32
+
 	// leaderElection defines the configuration of leader election client.
 	LeaderElection componentconfig.LeaderElectionConfiguration
 

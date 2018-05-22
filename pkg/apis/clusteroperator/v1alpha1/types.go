@@ -32,6 +32,10 @@ const (
 	// ClusterNameLabel is the label that a machineset must have to identify the
 	// cluster to which it belongs.
 	ClusterNameLabel = "clusteroperator.openshift.io/cluster"
+
+	// MasterMachineSetName is the short name reserved for master machine sets.
+	// This cannot be used as the short name for a regular compute machine set.
+	MasterMachineSetName = "master"
 )
 
 // +genclient
@@ -478,6 +482,8 @@ const (
 	ClusterAPIInstalled ClusterConditionType = "ClusterAPIInstalled"
 	// ClusterVersionIncompatible is true when the cluster version does not have an AMI defined for the cluster's region.
 	ClusterVersionIncompatible ClusterConditionType = "VersionIncompatible"
+	// ClusterVersionMissing is true when the cluster references a non-existent cluster version
+	ClusterVersionMissing ClusterConditionType = "ClusterVersionMissing"
 	// ClusterReady means the cluster is able to service requests
 	ClusterReady ClusterConditionType = "Ready"
 )

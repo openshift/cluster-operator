@@ -23,7 +23,6 @@ import (
 	"testing"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 
 	corev1 "k8s.io/api/core/v1"
@@ -626,7 +625,7 @@ func TestAddLabels(t *testing.T) {
 	}
 }
 
-func TestClusterSpecFromClusterAPI(t *testing.T) {
+func TestClusterDeploymentSpecFromCluster(t *testing.T) {
 	cases := []struct {
 		name                          string
 		providerConfig                string
@@ -666,7 +665,7 @@ kind: Machine
 					Raw: []byte(tc.providerConfig),
 				}
 			}
-			clusterSpec, err := ClusterSpecFromClusterAPI(cluster)
+			clusterSpec, err := ClusterDeploymentSpecFromCluster(cluster)
 			if tc.expectedError {
 				assert.Error(t, err, "expected an error")
 			} else {
@@ -873,71 +872,6 @@ func newMachineSetSpec(instanceType, vmImage string) *clusteroperator.MachineSet
 		},
 	}
 	return msSpec
-}
-
-func TestPopulateMachineSpec(t *testing.T) {
-	cases := []struct {
-		name                 string
-		machineSetSpec       *clusteroperator.MachineSetSpec
-		clusterSpec          *clusteroperator.ClusterDeploymentSpec
-		clusterVersion       *clusteroperator.ClusterVersion
-		expectedErrorMsg     string
-		expectedAMI          string
-		expectedInstanceType string
-	}{
-		{
-			name:                 "no providerConfig",
-			clusterSpec:          newClusterSpec(testRegion, defaultInstanceType),
-			clusterVersion:       newClusterVersion("origin-v3-10"),
-			expectedAMI:          testAMI,
-			expectedInstanceType: defaultInstanceType,
-		},
-		{
-			name:                 "VMImage already set",
-			machineSetSpec:       newMachineSetSpec(defaultInstanceType, "alreadySetAMI"),
-			clusterSpec:          newClusterSpec(testRegion, defaultInstanceType),
-			clusterVersion:       newClusterVersion("origin-v3-10"),
-			expectedAMI:          "alreadySetAMI",
-			expectedInstanceType: defaultInstanceType,
-		},
-		{
-			name:                 "default instance already set",
-			machineSetSpec:       newMachineSetSpec("fake.alreadyset.5", testAMI),
-			clusterSpec:          newClusterSpec(testRegion, defaultInstanceType),
-			clusterVersion:       newClusterVersion("origin-v3-10"),
-			expectedAMI:          testAMI,
-			expectedInstanceType: "fake.alreadyset.5",
-		},
-		{
-			name:                 "defaults to clusters instance type",
-			machineSetSpec:       newMachineSetSpec("", testAMI),
-			clusterSpec:          newClusterSpec(testRegion, "t2.micro"),
-			clusterVersion:       newClusterVersion("origin-v3-10"),
-			expectedAMI:          testAMI,
-			expectedInstanceType: "t2.micro",
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			machineSpec := &clusterapi.MachineSpec{}
-			if tc.machineSetSpec != nil {
-				providerConfig, err := ClusterAPIMachineProviderConfigFromMachineSetSpec(tc.machineSetSpec)
-				assert.NoError(t, err)
-				machineSpec.ProviderConfig.Value = providerConfig
-			}
-			err := PopulateMachineSpec(machineSpec, tc.clusterSpec, tc.clusterVersion, log.WithField("test", tc.name))
-			if tc.expectedErrorMsg != "" {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tc.expectedErrorMsg)
-			} else {
-				msSpec, err := MachineSetSpecFromClusterAPIMachineSpec(machineSpec)
-				assert.NoError(t, err)
-				assert.Equal(t, tc.expectedAMI, *msSpec.VMImage.AWSImage)
-				assert.Equal(t, tc.expectedInstanceType, msSpec.Hardware.AWS.InstanceType)
-			}
-		})
-	}
-
 }
 
 // TestApplyDefaultMachineSetHardwareSpec tests merging a default hardware spec with a specific spec from a

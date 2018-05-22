@@ -51,16 +51,18 @@ func validateClusterDeploymentSpec(spec *clusteroperator.ClusterDeploymentSpec, 
 	for i := range spec.MachineSets {
 		machineSet := spec.MachineSets[i]
 		allErrs = append(allErrs, validateClusterMachineSet(&machineSet, machineSetsPath.Index(i))...)
-		if machineSetShortNames[machineSet.ShortName] {
-			allErrs = append(allErrs, field.Duplicate(machineSetsPath.Index(i).Child("shortName"), machineSet.ShortName))
-		}
-		machineSetShortNames[machineSet.ShortName] = true
 		if machineSet.NodeType == clusteroperator.NodeTypeMaster {
 			masterCount++
 			if masterCount > 1 {
 				allErrs = append(allErrs, field.Invalid(machineSetsPath.Index(i).Child("type"), machineSet.NodeType, "can only have one master machineset"))
 			}
+		} else {
+			if machineSetShortNames[machineSet.ShortName] {
+				allErrs = append(allErrs, field.Duplicate(machineSetsPath.Index(i).Child("shortName"), machineSet.ShortName))
+			}
+			machineSetShortNames[machineSet.ShortName] = true
 		}
+
 		if machineSet.Infra {
 			infraCount++
 			if infraCount > 1 {
@@ -86,8 +88,17 @@ func validateClusterDeploymentSpec(spec *clusteroperator.ClusterDeploymentSpec, 
 
 func validateClusterMachineSet(machineSet *clusteroperator.ClusterMachineSet, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
-	for _, msg := range apivalidation.NameIsDNSSubdomain(machineSet.ShortName, false) {
-		allErrs = append(allErrs, field.Invalid(fldPath.Child("shortName"), machineSet.ShortName, msg))
+	if machineSet.NodeType == clusteroperator.NodeTypeMaster {
+		if len(machineSet.ShortName) > 0 {
+			allErrs = append(allErrs, field.Invalid(fldPath.Child("shortName"), machineSet.ShortName, "short name must not be specified for master machineset"))
+		}
+	} else {
+		if machineSet.ShortName == clusteroperator.MasterMachineSetName {
+			allErrs = append(allErrs, field.Invalid(fldPath.Child("shortName"), machineSet.ShortName, "short name cannot be reserved name"))
+		}
+		for _, msg := range apivalidation.NameIsDNSLabel(machineSet.ShortName, false) {
+			allErrs = append(allErrs, field.Invalid(fldPath.Child("shortName"), machineSet.ShortName, msg))
+		}
 	}
 	allErrs = append(allErrs, validateMachineSetConfig(&machineSet.MachineSetConfig, fldPath)...)
 	return allErrs

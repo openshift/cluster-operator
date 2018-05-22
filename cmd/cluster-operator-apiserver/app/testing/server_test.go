@@ -47,7 +47,6 @@ func TestRun(t *testing.T) {
 			},
 			MachineSets: []clusteroperator.ClusterMachineSet{
 				{
-					ShortName: "master",
 					MachineSetConfig: clusteroperator.MachineSetConfig{
 						NodeType: clusteroperator.NodeTypeMaster,
 						Infra:    true,
