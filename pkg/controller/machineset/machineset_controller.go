@@ -22,7 +22,6 @@ import (
 
 	v1batch "k8s.io/api/batch/v1"
 	kapi "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -114,11 +113,7 @@ func NewController(
 
 	c.jobSync = controller.NewJobSync(c.jobControl, &jobSyncStrategy{controller: c}, true, logger)
 
-	// Wrap the regular job sync function to
-	// add a check for cluster readiness at the end of a sync
-	// If the cluster is ready based on the status of its
-	// machinesets, then the cluster resource status will be updated.
-	c.syncHandler = c.checkClusterReady(c.jobSync.Sync)
+	c.syncHandler = c.jobSync.Sync
 	c.enqueueMachineSet = c.enqueue
 	c.ansibleGenerator = ansible.NewJobGenerator()
 
@@ -272,69 +267,6 @@ func (c *Controller) getMachineSet(key string) (*clusteroperator.MachineSet, err
 		return nil, fmt.Errorf("invalid key %q: either namespace or name is missing", key)
 	}
 	return c.machineSetsLister.MachineSets(namespace).Get(name)
-}
-
-func (c *Controller) checkClusterReady(syncFunc func(string) error) func(string) error {
-	return func(key string) error {
-		err := syncFunc(key)
-		if err != nil {
-			return err
-		}
-		machineSet, err := c.getMachineSet(key)
-		if errors.IsNotFound(err) {
-			// machineset has been deleted.
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		cluster, err := controller.ClusterForMachineSet(machineSet, c.clustersLister)
-		if err != nil {
-			return err
-		}
-		logger := colog.WithCluster(c.logger, cluster)
-		logger.Debugf("checking whether cluster is ready")
-		if cluster.Status.Ready {
-			logger.Debugf("cluster is ready, skipping")
-			return nil
-		}
-
-		if !cluster.Status.Provisioned {
-			logger.Debugf("cluster is not provisioned yet, skipping")
-			return nil
-		}
-		if !cluster.Status.ControlPlaneInstalled || !cluster.Status.ComponentsInstalled || !cluster.Status.NodeConfigInstalled {
-			logger.Debugf("cluster software is not fully installed yet")
-			return nil
-		}
-		machineSets, err := controller.MachineSetsForCluster(cluster, c.machineSetsLister)
-		if err != nil {
-			return nil
-		}
-		if len(machineSets) != len(cluster.Spec.MachineSets) {
-			return nil
-		}
-		for _, ms := range machineSets {
-			msLogger := colog.WithMachineSet(logger, ms)
-			if ms.Spec.NodeType == clusteroperator.NodeTypeMaster {
-				if !ms.Status.Provisioned {
-					msLogger.Debugf("master machineset is not ready yet")
-					return nil
-				}
-				msLogger.Debugf("master machineset is ready")
-			} else {
-				if !ms.Status.Provisioned {
-					msLogger.Debugf("compute machineset is not ready yet")
-					return nil
-				}
-				msLogger.Debugf("compute machineset is ready")
-			}
-		}
-		logger.Debugf("updating cluster status to Ready")
-		patchedCluster := cluster.DeepCopy()
-		patchedCluster.Status.Ready = true
-		return controller.PatchClusterStatus(c.client, cluster, patchedCluster)
-	}
 }
 
 type jobOwnerControl struct {
