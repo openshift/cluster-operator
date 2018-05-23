@@ -20,15 +20,14 @@ import (
 	"time"
 
 	batchv1 "k8s.io/api/batch/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	batchinformers "k8s.io/client-go/informers/batch/v1"
 	kubeclientset "k8s.io/client-go/kubernetes"
 
 	clustop "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	clustopclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
-	clustopinformers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions/clusteroperator/v1alpha1"
 	"github.com/openshift/cluster-operator/pkg/controller"
 	clusterinstallcontroller "github.com/openshift/cluster-operator/pkg/controller/clusterinstall"
+	capi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	capiclientset "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 	capiinformers "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions/cluster/v1alpha1"
 )
@@ -43,29 +42,8 @@ const (
 	playbook = "playbooks/cluster-operator/node-config-daemonset.yml"
 )
 
-// NewClustopController returns a new *Controller for cluster-operator
-// resources.
-func NewClustopController(
-	clusterInformer clustopinformers.ClusterInformer,
-	machineSetInformer clustopinformers.MachineSetInformer,
-	jobInformer batchinformers.JobInformer,
-	kubeClient kubeclientset.Interface,
-	clustopClient clustopclientset.Interface,
-) *clusterinstallcontroller.Controller {
-	return clusterinstallcontroller.NewClustopController(
-		controllerName,
-		&installStrategy{},
-		[]string{playbook},
-		clusterInformer,
-		machineSetInformer,
-		jobInformer,
-		kubeClient,
-		clustopClient,
-	)
-}
-
-// NewCAPIController returns a new *Controller for cluster-api resources.
-func NewCAPIController(
+// NewController returns a new *Controller for cluster-api resources.
+func NewController(
 	clusterInformer capiinformers.ClusterInformer,
 	machineSetInformer capiinformers.MachineSetInformer,
 	jobInformer batchinformers.JobInformer,
@@ -73,7 +51,7 @@ func NewCAPIController(
 	clustopClient clustopclientset.Interface,
 	capiClient capiclientset.Interface,
 ) *clusterinstallcontroller.Controller {
-	return clusterinstallcontroller.NewCAPIController(
+	return clusterinstallcontroller.NewController(
 		controllerName,
 		&installStrategy{},
 		[]string{playbook},
@@ -88,23 +66,23 @@ func NewCAPIController(
 
 type installStrategy struct{}
 
-func (s *installStrategy) ReadyToInstall(cluster *clustop.CombinedCluster, masterMachineSet metav1.Object) bool {
-	if !cluster.ClusterOperatorStatus.ControlPlaneInstalled {
+func (s *installStrategy) ReadyToInstall(cluster *clustop.CombinedCluster, masterMachineSet *capi.MachineSet) bool {
+	if !cluster.ClusterDeploymentStatus.ControlPlaneInstalled {
 		return false
 	}
-	return cluster.ClusterOperatorStatus.NodeConfigInstalledJobClusterGeneration != cluster.Generation ||
-		cluster.ClusterOperatorStatus.NodeConfigInstalledJobMachineSetGeneration != masterMachineSet.GetGeneration()
+	return cluster.ClusterDeploymentStatus.NodeConfigInstalledJobClusterGeneration != cluster.Generation ||
+		cluster.ClusterDeploymentStatus.NodeConfigInstalledJobMachineSetGeneration != masterMachineSet.GetGeneration()
 }
 
 func (s *installStrategy) IncludeInfraSizeInAnsibleVars() bool {
 	return false
 }
 
-func (s *installStrategy) OnInstall(succeeded bool, cluster *clustop.CombinedCluster, masterMachineSet metav1.Object, job *batchv1.Job) {
-	cluster.ClusterOperatorStatus.NodeConfigInstalled = succeeded
-	cluster.ClusterOperatorStatus.NodeConfigInstalledJobClusterGeneration = cluster.Generation
-	cluster.ClusterOperatorStatus.NodeConfigInstalledJobMachineSetGeneration = masterMachineSet.GetGeneration()
-	cluster.ClusterOperatorStatus.NodeConfigInstalledTime = job.Status.CompletionTime
+func (s *installStrategy) OnInstall(succeeded bool, cluster *clustop.CombinedCluster, masterMachineSet *capi.MachineSet, job *batchv1.Job) {
+	cluster.ClusterDeploymentStatus.NodeConfigInstalled = succeeded
+	cluster.ClusterDeploymentStatus.NodeConfigInstalledJobClusterGeneration = cluster.Generation
+	cluster.ClusterDeploymentStatus.NodeConfigInstalledJobMachineSetGeneration = masterMachineSet.GetGeneration()
+	cluster.ClusterDeploymentStatus.NodeConfigInstalledTime = job.Status.CompletionTime
 }
 
 func (s *installStrategy) ConvertJobSyncConditionType(conditionType controller.JobSyncConditionType) clustop.ClusterConditionType {
@@ -125,8 +103,8 @@ func (s *installStrategy) GetReprocessInterval() time.Duration {
 }
 
 func (s *installStrategy) GetLastJobSuccess(cluster *clustop.CombinedCluster) *time.Time {
-	if cluster.ClusterOperatorStatus.NodeConfigInstalledTime == nil {
+	if cluster.ClusterDeploymentStatus.NodeConfigInstalledTime == nil {
 		return nil
 	}
-	return &cluster.ClusterOperatorStatus.NodeConfigInstalledTime.Time
+	return &cluster.ClusterDeploymentStatus.NodeConfigInstalledTime.Time
 }

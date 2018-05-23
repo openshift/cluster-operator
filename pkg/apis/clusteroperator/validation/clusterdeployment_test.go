@@ -26,18 +26,18 @@ import (
 	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
 )
 
-// getValidCluster gets a cluster that passes all validity checks.
-func getValidCluster() *clusteroperator.Cluster {
-	return &clusteroperator.Cluster{
+// getValidClusterDeployment gets a cluster deployment that passes all validity checks.
+func getValidClusterDeployment() *clusteroperator.ClusterDeployment {
+	return &clusteroperator.ClusterDeployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test-cluster",
 		},
-		Spec: getValidClusterSpec(),
+		Spec: getValidClusterDeploymentSpec(),
 	}
 }
 
-func getValidClusterSpec() clusteroperator.ClusterSpec {
-	return clusteroperator.ClusterSpec{
+func getValidClusterDeploymentSpec() clusteroperator.ClusterDeploymentSpec {
+	return clusteroperator.ClusterDeploymentSpec{
 		MachineSets: []clusteroperator.ClusterMachineSet{
 			{
 				ShortName: "master",
@@ -78,22 +78,22 @@ func getTestMachineSet(size int, shortName string, master bool, infra bool) clus
 	}
 }
 
-// TestValidateCluster tests the ValidateCluster function.
-func TestValidateCluster(t *testing.T) {
+// TestValidateClusterDeployment tests the ValidateCluster function.
+func TestValidateClusterDeployment(t *testing.T) {
 	cases := []struct {
-		name    string
-		cluster *clusteroperator.Cluster
-		valid   bool
+		name              string
+		clusterDeployment *clusteroperator.ClusterDeployment
+		valid             bool
 	}{
 		{
-			name:    "valid",
-			cluster: getValidCluster(),
-			valid:   true,
+			name:              "valid",
+			clusterDeployment: getValidClusterDeployment(),
+			valid:             true,
 		},
 		{
 			name: "invalid name",
-			cluster: func() *clusteroperator.Cluster {
-				c := getValidCluster()
+			clusterDeployment: func() *clusteroperator.ClusterDeployment {
+				c := getValidClusterDeployment()
 				c.Name = "###"
 				return c
 			}(),
@@ -101,8 +101,8 @@ func TestValidateCluster(t *testing.T) {
 		},
 		{
 			name: "invalid spec",
-			cluster: func() *clusteroperator.Cluster {
-				c := getValidCluster()
+			clusterDeployment: func() *clusteroperator.ClusterDeployment {
+				c := getValidClusterDeployment()
 				c.Spec.MachineSets[0].Size = 0
 				return c
 			}(),
@@ -110,8 +110,8 @@ func TestValidateCluster(t *testing.T) {
 		},
 		{
 			name: "invalid status",
-			cluster: func() *clusteroperator.Cluster {
-				c := getValidCluster()
+			clusterDeployment: func() *clusteroperator.ClusterDeployment {
+				c := getValidClusterDeployment()
 				c.Status.MachineSetCount = -1
 				return c
 			}(),
@@ -120,7 +120,7 @@ func TestValidateCluster(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		errs := ValidateCluster(tc.cluster)
+		errs := ValidateClusterDeployment(tc.clusterDeployment)
 		if len(errs) != 0 && tc.valid {
 			t.Errorf("%v: unexpected error: %v", tc.name, errs)
 			continue
@@ -130,25 +130,25 @@ func TestValidateCluster(t *testing.T) {
 	}
 }
 
-// TestValidateClusterUpdate tests the ValidateClusterUpdate function.
-func TestValidateClusterUpdate(t *testing.T) {
+// TestValidateClusterDeploymentUpdate tests the ValidateClusterDeploymentUpdate function.
+func TestValidateClusterDeploymentUpdate(t *testing.T) {
 	cases := []struct {
 		name  string
-		old   *clusteroperator.Cluster
-		new   *clusteroperator.Cluster
+		old   *clusteroperator.ClusterDeployment
+		new   *clusteroperator.ClusterDeployment
 		valid bool
 	}{
 		{
 			name:  "valid",
-			old:   getValidCluster(),
-			new:   getValidCluster(),
+			old:   getValidClusterDeployment(),
+			new:   getValidClusterDeployment(),
 			valid: true,
 		},
 		{
 			name: "invalid spec",
-			old:  getValidCluster(),
-			new: func() *clusteroperator.Cluster {
-				c := getValidCluster()
+			old:  getValidClusterDeployment(),
+			new: func() *clusteroperator.ClusterDeployment {
+				c := getValidClusterDeployment()
 				c.Spec.MachineSets[0].Size = 0
 				return c
 			}(),
@@ -157,7 +157,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		errs := ValidateClusterUpdate(tc.new, tc.old)
+		errs := ValidateClusterDeploymentUpdate(tc.new, tc.old)
 		if len(errs) != 0 && tc.valid {
 			t.Errorf("%v: unexpected error: %v", tc.name, errs)
 			continue
@@ -167,25 +167,25 @@ func TestValidateClusterUpdate(t *testing.T) {
 	}
 }
 
-// TestValidateClusterStatusUpdate tests the ValidateClusterStatusUpdate function.
-func TestValidateClusterStatusUpdate(t *testing.T) {
+// TestValidateClusterDeploymentStatusUpdate tests the ValidateClusterDeploymentStatusUpdate function.
+func TestValidateClusterDeploymentStatusUpdate(t *testing.T) {
 	cases := []struct {
 		name  string
-		old   *clusteroperator.Cluster
-		new   *clusteroperator.Cluster
+		old   *clusteroperator.ClusterDeployment
+		new   *clusteroperator.ClusterDeployment
 		valid bool
 	}{
 		{
 			name:  "valid",
-			old:   getValidCluster(),
-			new:   getValidCluster(),
+			old:   getValidClusterDeployment(),
+			new:   getValidClusterDeployment(),
 			valid: true,
 		},
 		{
 			name: "invalid status",
-			old:  getValidCluster(),
-			new: func() *clusteroperator.Cluster {
-				c := getValidCluster()
+			old:  getValidClusterDeployment(),
+			new: func() *clusteroperator.ClusterDeployment {
+				c := getValidClusterDeployment()
 				c.Status.MachineSetCount = -1
 				return c
 			}(),
@@ -194,7 +194,7 @@ func TestValidateClusterStatusUpdate(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		errs := ValidateClusterStatusUpdate(tc.new, tc.old)
+		errs := ValidateClusterDeploymentStatusUpdate(tc.new, tc.old)
 		if len(errs) != 0 && tc.valid {
 			t.Errorf("%v: unexpected error: %v", tc.name, errs)
 			continue
@@ -204,25 +204,25 @@ func TestValidateClusterStatusUpdate(t *testing.T) {
 	}
 }
 
-// TestValidateClusterSpec tests the validateClusterSpec function.
-func TestValidateClusterSpec(t *testing.T) {
+// TestValidateClusterDeploymentSpec tests the validateClusterDeploymentSpec function.
+func TestValidateClusterDeploymentSpec(t *testing.T) {
 	cases := []struct {
 		name  string
-		spec  *clusteroperator.ClusterSpec
+		spec  *clusteroperator.ClusterDeploymentSpec
 		valid bool
 	}{
 		{
 			name: "valid master only",
-			spec: func() *clusteroperator.ClusterSpec {
-				cs := getValidClusterSpec()
+			spec: func() *clusteroperator.ClusterDeploymentSpec {
+				cs := getValidClusterDeploymentSpec()
 				return &cs
 			}(),
 			valid: true,
 		},
 		{
 			name: "invalid master size",
-			spec: func() *clusteroperator.ClusterSpec {
-				cs := getValidClusterSpec()
+			spec: func() *clusteroperator.ClusterDeploymentSpec {
+				cs := getValidClusterDeploymentSpec()
 				cs.MachineSets = []clusteroperator.ClusterMachineSet{
 					getTestMachineSet(0, "master", true, true),
 				}
@@ -232,8 +232,8 @@ func TestValidateClusterSpec(t *testing.T) {
 		},
 		{
 			name: "valid single compute",
-			spec: func() *clusteroperator.ClusterSpec {
-				cs := getValidClusterSpec()
+			spec: func() *clusteroperator.ClusterDeploymentSpec {
+				cs := getValidClusterDeploymentSpec()
 				cs.MachineSets = []clusteroperator.ClusterMachineSet{
 					getTestMachineSet(1, "master", true, false),
 					getTestMachineSet(1, "one", false, true),
@@ -244,8 +244,8 @@ func TestValidateClusterSpec(t *testing.T) {
 		},
 		{
 			name: "valid multiple computes",
-			spec: func() *clusteroperator.ClusterSpec {
-				cs := getValidClusterSpec()
+			spec: func() *clusteroperator.ClusterDeploymentSpec {
+				cs := getValidClusterDeploymentSpec()
 				cs.MachineSets = []clusteroperator.ClusterMachineSet{
 					getTestMachineSet(1, "master", true, true),
 					getTestMachineSet(1, "one", false, false),
@@ -258,8 +258,8 @@ func TestValidateClusterSpec(t *testing.T) {
 		},
 		{
 			name: "invalid compute name",
-			spec: func() *clusteroperator.ClusterSpec {
-				cs := getValidClusterSpec()
+			spec: func() *clusteroperator.ClusterDeploymentSpec {
+				cs := getValidClusterDeploymentSpec()
 				cs.MachineSets = []clusteroperator.ClusterMachineSet{
 					getTestMachineSet(1, "master", true, true),
 					getTestMachineSet(1, "one", false, false),
@@ -272,8 +272,8 @@ func TestValidateClusterSpec(t *testing.T) {
 		},
 		{
 			name: "invalid compute size",
-			spec: func() *clusteroperator.ClusterSpec {
-				cs := getValidClusterSpec()
+			spec: func() *clusteroperator.ClusterDeploymentSpec {
+				cs := getValidClusterDeploymentSpec()
 				cs.MachineSets = []clusteroperator.ClusterMachineSet{
 					getTestMachineSet(1, "master", true, true),
 					getTestMachineSet(1, "one", false, false),
@@ -286,8 +286,8 @@ func TestValidateClusterSpec(t *testing.T) {
 		},
 		{
 			name: "invalid duplicate compute name",
-			spec: func() *clusteroperator.ClusterSpec {
-				cs := getValidClusterSpec()
+			spec: func() *clusteroperator.ClusterDeploymentSpec {
+				cs := getValidClusterDeploymentSpec()
 				cs.MachineSets = []clusteroperator.ClusterMachineSet{
 					getTestMachineSet(1, "master", true, true),
 					getTestMachineSet(1, "one", false, false),
@@ -300,8 +300,8 @@ func TestValidateClusterSpec(t *testing.T) {
 		},
 		{
 			name: "no master machineset",
-			spec: func() *clusteroperator.ClusterSpec {
-				cs := getValidClusterSpec()
+			spec: func() *clusteroperator.ClusterDeploymentSpec {
+				cs := getValidClusterDeploymentSpec()
 				cs.MachineSets = []clusteroperator.ClusterMachineSet{
 					getTestMachineSet(1, "one", false, true),
 					getTestMachineSet(5, "two", false, false),
@@ -313,8 +313,8 @@ func TestValidateClusterSpec(t *testing.T) {
 		},
 		{
 			name: "no infra machineset",
-			spec: func() *clusteroperator.ClusterSpec {
-				cs := getValidClusterSpec()
+			spec: func() *clusteroperator.ClusterDeploymentSpec {
+				cs := getValidClusterDeploymentSpec()
 				cs.MachineSets = []clusteroperator.ClusterMachineSet{
 					getTestMachineSet(1, "master", true, false),
 					getTestMachineSet(1, "one", false, false),
@@ -327,8 +327,8 @@ func TestValidateClusterSpec(t *testing.T) {
 		},
 		{
 			name: "more than one master",
-			spec: func() *clusteroperator.ClusterSpec {
-				cs := getValidClusterSpec()
+			spec: func() *clusteroperator.ClusterDeploymentSpec {
+				cs := getValidClusterDeploymentSpec()
 				cs.MachineSets = []clusteroperator.ClusterMachineSet{
 					getTestMachineSet(1, "master1", true, true),
 					getTestMachineSet(1, "master2", true, false),
@@ -341,8 +341,8 @@ func TestValidateClusterSpec(t *testing.T) {
 		},
 		{
 			name: "more than one infra",
-			spec: func() *clusteroperator.ClusterSpec {
-				cs := getValidClusterSpec()
+			spec: func() *clusteroperator.ClusterDeploymentSpec {
+				cs := getValidClusterDeploymentSpec()
 				cs.MachineSets = []clusteroperator.ClusterMachineSet{
 					getTestMachineSet(1, "master1", true, false),
 					getTestMachineSet(1, "one", false, true),
@@ -355,8 +355,8 @@ func TestValidateClusterSpec(t *testing.T) {
 		},
 		{
 			name: "missing cluster version name", // namespace is optional
-			spec: func() *clusteroperator.ClusterSpec {
-				cs := getValidClusterSpec()
+			spec: func() *clusteroperator.ClusterDeploymentSpec {
+				cs := getValidClusterDeploymentSpec()
 				cs.ClusterVersionRef.Name = ""
 				return &cs
 			}(),
@@ -365,7 +365,7 @@ func TestValidateClusterSpec(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		errs := validateClusterSpec(tc.spec, field.NewPath("spec"))
+		errs := validateClusterDeploymentSpec(tc.spec, field.NewPath("spec"))
 		if len(errs) != 0 && tc.valid {
 			t.Errorf("%v: unexpected error: %v", tc.name, errs)
 			continue
@@ -375,28 +375,28 @@ func TestValidateClusterSpec(t *testing.T) {
 	}
 }
 
-// TestValidateClusterStatus tests the validateClusterStatus function.
-func TestValidateClusterStatus(t *testing.T) {
+// TestValidateClusterDeploymentStatus tests the validateClusterDeploymentStatus function.
+func TestValidateClusterDeploymentStatus(t *testing.T) {
 	cases := []struct {
 		name   string
-		status *clusteroperator.ClusterStatus
+		status *clusteroperator.ClusterDeploymentStatus
 		valid  bool
 	}{
 		{
 			name:   "empty",
-			status: &clusteroperator.ClusterStatus{},
+			status: &clusteroperator.ClusterDeploymentStatus{},
 			valid:  true,
 		},
 		{
 			name: "positive machinesets",
-			status: &clusteroperator.ClusterStatus{
+			status: &clusteroperator.ClusterDeploymentStatus{
 				MachineSetCount: 1,
 			},
 			valid: true,
 		},
 		{
 			name: "negative machinesets",
-			status: &clusteroperator.ClusterStatus{
+			status: &clusteroperator.ClusterDeploymentStatus{
 				MachineSetCount: -1,
 			},
 			valid: false,
@@ -404,7 +404,7 @@ func TestValidateClusterStatus(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		errs := validateClusterStatus(tc.status, field.NewPath("status"))
+		errs := validateClusterDeploymentStatus(tc.status, field.NewPath("status"))
 		if len(errs) != 0 && tc.valid {
 			t.Errorf("%v: unexpected error: %v", tc.name, errs)
 			continue

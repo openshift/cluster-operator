@@ -28,8 +28,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/clientcmd"
 
-	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
-	coclient "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
+	"github.com/openshift/cluster-operator/pkg/controller"
+	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	capiclient "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 )
 
 func main() {
@@ -59,7 +60,7 @@ func NewWaitForClusterCommand() *cobra.Command {
 }
 
 func waitForCluster(clusterNamespace, clusterName string) error {
-	coClient, namespace, err := client()
+	capiClient, namespace, err := client()
 	if err != nil {
 		return fmt.Errorf("cannot obtain client: %v", err)
 	}
@@ -67,24 +68,28 @@ func waitForCluster(clusterNamespace, clusterName string) error {
 		clusterNamespace = namespace
 	}
 
-	cluster, err := coClient.ClusteroperatorV1alpha1().Clusters(clusterNamespace).Get(clusterName, metav1.GetOptions{})
+	cluster, err := capiClient.ClusterV1alpha1().Clusters(clusterNamespace).Get(clusterName, metav1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("cannot retrieve cluster %s/%s: %v", namespace, clusterName, err)
 	}
 
-	return waitForClusterReady(coClient, cluster)
+	return waitForClusterReady(capiClient, cluster)
 }
 
-func waitForClusterReady(coClient *coclient.Clientset, cluster *cov1.Cluster) error {
+func waitForClusterReady(capiClient *capiclient.Clientset, cluster *capiv1.Cluster) error {
 	for {
-		w, err := coClient.ClusteroperatorV1alpha1().Clusters(cluster.Namespace).Watch(metav1.ListOptions{})
+		w, err := capiClient.ClusterV1alpha1().Clusters(cluster.Namespace).Watch(metav1.ListOptions{})
 		if err != nil {
 			return err
 		}
 		for e := range w.ResultChan() {
-			c := e.Object.(*cov1.Cluster)
+			c := e.Object.(*capiv1.Cluster)
 			if c.Name == cluster.Name {
-				if c.Status.Ready {
+				status, err := controller.ClusterStatusFromClusterAPI(c)
+				if err != nil {
+					continue
+				}
+				if status.Ready {
 					fmt.Printf("Cluster %s/%s is ready.\n", cluster.Namespace, cluster.Name)
 					return nil
 				}
@@ -93,7 +98,7 @@ func waitForClusterReady(coClient *coclient.Clientset, cluster *cov1.Cluster) er
 	}
 }
 
-func client() (*coclient.Clientset, string, error) {
+func client() (*capiclient.Clientset, string, error) {
 	rules := clientcmd.NewDefaultClientConfigLoadingRules()
 	kubeconfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(rules, &clientcmd.ConfigOverrides{})
 	cfg, err := kubeconfig.ClientConfig()
@@ -104,9 +109,9 @@ func client() (*coclient.Clientset, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	coClient, err := coclient.NewForConfig(cfg)
+	capiClient, err := capiclient.NewForConfig(cfg)
 	if err != nil {
 		return nil, "", err
 	}
-	return coClient, namespace, nil
+	return capiClient, namespace, nil
 }

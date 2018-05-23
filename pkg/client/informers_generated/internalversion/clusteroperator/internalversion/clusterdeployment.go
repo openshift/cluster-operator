@@ -30,59 +30,59 @@ import (
 	time "time"
 )
 
-// MachineSetInformer provides access to a shared informer and lister for
-// MachineSets.
-type MachineSetInformer interface {
+// ClusterDeploymentInformer provides access to a shared informer and lister for
+// ClusterDeployments.
+type ClusterDeploymentInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() internalversion.MachineSetLister
+	Lister() internalversion.ClusterDeploymentLister
 }
 
-type machineSetInformer struct {
+type clusterDeploymentInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
 	tweakListOptions internalinterfaces.TweakListOptionsFunc
 	namespace        string
 }
 
-// NewMachineSetInformer constructs a new informer for MachineSet type.
+// NewClusterDeploymentInformer constructs a new informer for ClusterDeployment type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewMachineSetInformer(client internalclientset.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
-	return NewFilteredMachineSetInformer(client, namespace, resyncPeriod, indexers, nil)
+func NewClusterDeploymentInformer(client internalclientset.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
+	return NewFilteredClusterDeploymentInformer(client, namespace, resyncPeriod, indexers, nil)
 }
 
-// NewFilteredMachineSetInformer constructs a new informer for MachineSet type.
+// NewFilteredClusterDeploymentInformer constructs a new informer for ClusterDeployment type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewFilteredMachineSetInformer(client internalclientset.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
+func NewFilteredClusterDeploymentInformer(client internalclientset.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options v1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.Clusteroperator().MachineSets(namespace).List(options)
+				return client.Clusteroperator().ClusterDeployments(namespace).List(options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.Clusteroperator().MachineSets(namespace).Watch(options)
+				return client.Clusteroperator().ClusterDeployments(namespace).Watch(options)
 			},
 		},
-		&clusteroperator.MachineSet{},
+		&clusteroperator.ClusterDeployment{},
 		resyncPeriod,
 		indexers,
 	)
 }
 
-func (f *machineSetInformer) defaultInformer(client internalclientset.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewFilteredMachineSetInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
+func (f *clusterDeploymentInformer) defaultInformer(client internalclientset.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
+	return NewFilteredClusterDeploymentInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
 }
 
-func (f *machineSetInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&clusteroperator.MachineSet{}, f.defaultInformer)
+func (f *clusterDeploymentInformer) Informer() cache.SharedIndexInformer {
+	return f.factory.InformerFor(&clusteroperator.ClusterDeployment{}, f.defaultInformer)
 }
 
-func (f *machineSetInformer) Lister() internalversion.MachineSetLister {
-	return internalversion.NewMachineSetLister(f.Informer().GetIndexer())
+func (f *clusterDeploymentInformer) Lister() internalversion.ClusterDeploymentLister {
+	return internalversion.NewClusterDeploymentLister(f.Informer().GetIndexer())
 }

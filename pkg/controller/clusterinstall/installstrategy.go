@@ -18,11 +18,11 @@ package clusterinstall
 
 import (
 	batchv1 "k8s.io/api/batch/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/openshift/cluster-operator/pkg/ansible"
 	clustop "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	"github.com/openshift/cluster-operator/pkg/controller"
+	capi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 )
 
 // InstallStrategy is the strategy that a controller installing in a
@@ -30,9 +30,9 @@ import (
 // Implement JobSyncReprocessStrategy if successful installation jobs should be
 // reprocessed at regular intervals.
 type InstallStrategy interface {
-	ReadyToInstall(cluster *clustop.CombinedCluster, masterMachineSet metav1.Object) bool
+	ReadyToInstall(cluster *clustop.CombinedCluster, masterMachineSet *capi.MachineSet) bool
 
-	OnInstall(succeeded bool, cluster *clustop.CombinedCluster, masterMachineSet metav1.Object, job *batchv1.Job)
+	OnInstall(succeeded bool, cluster *clustop.CombinedCluster, masterMachineSet *capi.MachineSet, job *batchv1.Job)
 
 	ConvertJobSyncConditionType(conditionType controller.JobSyncConditionType) clustop.ClusterConditionType
 }

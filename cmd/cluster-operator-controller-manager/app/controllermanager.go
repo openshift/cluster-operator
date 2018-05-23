@@ -63,16 +63,11 @@ import (
 	cov1alpha1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	clusteroperatorinformers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions"
 	"github.com/openshift/cluster-operator/pkg/controller"
-	"github.com/openshift/cluster-operator/pkg/controller/cluster"
-	machineapi "github.com/openshift/cluster-operator/pkg/controller/clusterapimachine"
 	"github.com/openshift/cluster-operator/pkg/controller/components"
 	"github.com/openshift/cluster-operator/pkg/controller/deployclusterapi"
 	"github.com/openshift/cluster-operator/pkg/controller/infra"
-	"github.com/openshift/cluster-operator/pkg/controller/machine"
-	"github.com/openshift/cluster-operator/pkg/controller/machineset"
 	"github.com/openshift/cluster-operator/pkg/controller/master"
 	"github.com/openshift/cluster-operator/pkg/controller/nodeconfig"
-	"github.com/openshift/cluster-operator/pkg/controller/syncmachineset"
 	"github.com/openshift/cluster-operator/pkg/version"
 	cav1alpha1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	capiinformers "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions"
@@ -329,22 +324,11 @@ var ControllersDisabledByDefault = sets.NewString()
 func NewControllerInitializers() map[string]InitFunc {
 	controllers := map[string]InitFunc{}
 
-	controllers["cluster"] = startClusterController
 	controllers["infra"] = startInfraController
-	controllers["machineset"] = startMachineSetController
-	controllers["machine"] = startMachineController
 	controllers["master"] = startMasterController
 	controllers["components"] = startComponentsController
 	controllers["nodeconfig"] = startNodeConfigController
 	controllers["deployclusterapi"] = startDeployClusterAPIController
-	controllers["syncmachineset"] = startSyncMachineSetController
-
-	controllers["capi-infra"] = startClusterAPIInfraController
-	controllers["capi-machine"] = startMachineAPIController
-	controllers["capi-master"] = startClusterAPIMasterController
-	controllers["capi-components"] = startClusterAPIComponentsController
-	controllers["capi-nodeconfig"] = startClusterAPINodeConfigController
-	controllers["capi-deployclusterapi"] = startClusterAPIDeployClusterAPIController
 
 	return controllers
 }
@@ -528,221 +512,84 @@ func StartControllers(ctx ControllerContext, controllers map[string]InitFunc) er
 	return nil
 }
 
-func startClusterController(ctx ControllerContext) (bool, error) {
-	if !clusterOperatorResourcesAvailable(ctx) {
-		return false, nil
-	}
-	go cluster.NewController(
-		ctx.InformerFactory.Clusteroperator().V1alpha1().Clusters(),
-		ctx.InformerFactory.Clusteroperator().V1alpha1().MachineSets(),
-		ctx.InformerFactory.Clusteroperator().V1alpha1().ClusterVersions(),
-		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-cluster-controller"),
-		ctx.ClientBuilder.ClientOrDie("clusteroperator-cluster-controller"),
-	).Run(int(ctx.Options.ConcurrentClusterSyncs), ctx.Stop)
-	return true, nil
-}
-
-func startMachineAPIController(ctx ControllerContext) (bool, error) {
-	if !clusterAPIResourcesAvailable(ctx) || !clusterOperatorResourcesAvailable(ctx) {
-		return false, nil
-	}
-	go machineapi.NewController(
-		ctx.ClusterAPIInformerFactory.Cluster().V1alpha1().Clusters(),
-		ctx.ClusterAPIInformerFactory.Cluster().V1alpha1().Machines(),
-		ctx.InformerFactory.Clusteroperator().V1alpha1().ClusterVersions(),
-		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-capi-machine-controller"),
-		ctx.ClientBuilder.ClusterAPIClientOrDie("clusteroperator-capi-machine-controller"),
-	).Run(int(ctx.Options.ConcurrentMachineSyncs), ctx.Stop)
-	return true, nil
-}
-
 func startInfraController(ctx ControllerContext) (bool, error) {
-	if !clusterOperatorResourcesAvailable(ctx) {
-		return false, nil
-	}
-	go infra.NewClusterOperatorController(
-		ctx.InformerFactory.Clusteroperator().V1alpha1().Clusters(),
-		ctx.KubeInformerFactory.Batch().V1().Jobs(),
-		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-infra-controller"),
-		ctx.ClientBuilder.ClientOrDie("clusteroperator-infra-controller"),
-	).Run(int(ctx.Options.ConcurrentClusterSyncs), ctx.Stop)
-	return true, nil
-}
-
-func startClusterAPIInfraController(ctx ControllerContext) (bool, error) {
 	if !clusterAPIResourcesAvailable(ctx) {
 		return false, nil
 	}
-	go infra.NewClusterAPIController(
+	go infra.NewController(
 		ctx.ClusterAPIInformerFactory.Cluster().V1alpha1().Clusters(),
-		ctx.ClusterAPIInformerFactory.Cluster().V1alpha1().MachineSets(),
 		ctx.KubeInformerFactory.Batch().V1().Jobs(),
-		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-capi-infra-controller"),
-		ctx.ClientBuilder.ClientOrDie("clusteroperator-capi-infra-controller"),
-		ctx.ClientBuilder.ClusterAPIClientOrDie("clusteroperator-capi-infra-controller"),
+		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-infra-controller"),
+		ctx.ClientBuilder.ClientOrDie("clusteroperator-infra-controller"),
+		ctx.ClientBuilder.ClusterAPIClientOrDie("clusteroperator-infra-controller"),
 	).Run(int(ctx.Options.ConcurrentClusterSyncs), ctx.Stop)
-	return true, nil
-}
-
-func startMachineSetController(ctx ControllerContext) (bool, error) {
-	if !clusterOperatorResourcesAvailable(ctx) {
-		return false, nil
-	}
-	go machineset.NewController(
-		ctx.InformerFactory.Clusteroperator().V1alpha1().MachineSets(),
-		ctx.InformerFactory.Clusteroperator().V1alpha1().Clusters(),
-		ctx.KubeInformerFactory.Batch().V1().Jobs(),
-		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-machine-set-controller"),
-		ctx.ClientBuilder.ClientOrDie("clusteroperator-machine-set-controller"),
-	).Run(int(ctx.Options.ConcurrentMachineSetSyncs), ctx.Stop)
-	return true, nil
-}
-
-func startMachineController(ctx ControllerContext) (bool, error) {
-	if !clusterOperatorResourcesAvailable(ctx) {
-		return false, nil
-	}
-	go machine.NewController(
-		ctx.InformerFactory.Clusteroperator().V1alpha1().Machines(),
-		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-machine-controller"),
-		ctx.ClientBuilder.ClientOrDie("clusteroperator-machine-controller"),
-	).Run(int(ctx.Options.ConcurrentMachineSyncs), ctx.Stop)
 	return true, nil
 }
 
 func startMasterController(ctx ControllerContext) (bool, error) {
-	if !clusterOperatorResourcesAvailable(ctx) {
-		return false, nil
-	}
-	go master.NewClustopController(
-		ctx.InformerFactory.Clusteroperator().V1alpha1().Clusters(),
-		ctx.InformerFactory.Clusteroperator().V1alpha1().MachineSets(),
-		ctx.KubeInformerFactory.Batch().V1().Jobs(),
-		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-master-controller"),
-		ctx.ClientBuilder.ClientOrDie("clusteroperator-master-controller"),
-	).Run(int(ctx.Options.ConcurrentMasterSyncs), ctx.Stop)
-	return true, nil
-}
-
-func startClusterAPIMasterController(ctx ControllerContext) (bool, error) {
 	if !clusterAPIResourcesAvailable(ctx) {
 		return false, nil
 	}
-	go master.NewCAPIController(
+	go master.NewController(
 		ctx.ClusterAPIInformerFactory.Cluster().V1alpha1().Clusters(),
 		ctx.ClusterAPIInformerFactory.Cluster().V1alpha1().MachineSets(),
 		ctx.KubeInformerFactory.Batch().V1().Jobs(),
-		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-capi-master-controller"),
-		ctx.ClientBuilder.ClientOrDie("clusteroperator-capi-master-controller"),
-		ctx.ClientBuilder.ClusterAPIClientOrDie("clusteroperator-capi-master-controller"),
+		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-master-controller"),
+		ctx.ClientBuilder.ClientOrDie("clusteroperator-master-controller"),
+		ctx.ClientBuilder.ClusterAPIClientOrDie("clusteroperator-master-controller"),
 	).Run(int(ctx.Options.ConcurrentMasterSyncs), ctx.Stop)
 	return true, nil
 }
 
 func startComponentsController(ctx ControllerContext) (bool, error) {
-	if !clusterOperatorResourcesAvailable(ctx) {
-		return false, nil
-	}
-	go components.NewClustopController(
-		ctx.InformerFactory.Clusteroperator().V1alpha1().Clusters(),
-		ctx.InformerFactory.Clusteroperator().V1alpha1().MachineSets(),
-		ctx.KubeInformerFactory.Batch().V1().Jobs(),
-		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-components-controller"),
-		ctx.ClientBuilder.ClientOrDie("clusteroperator-components-controller"),
-	).Run(int(ctx.Options.ConcurrentComponentSyncs), ctx.Stop)
-	return true, nil
-}
-
-func startClusterAPIComponentsController(ctx ControllerContext) (bool, error) {
 	if !clusterAPIResourcesAvailable(ctx) {
 		return false, nil
 	}
-	go components.NewCAPIController(
+	go components.NewController(
 		ctx.ClusterAPIInformerFactory.Cluster().V1alpha1().Clusters(),
 		ctx.ClusterAPIInformerFactory.Cluster().V1alpha1().MachineSets(),
 		ctx.KubeInformerFactory.Batch().V1().Jobs(),
-		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-capi-components-controller"),
-		ctx.ClientBuilder.ClientOrDie("clusteroperator-capi-components-controller"),
-		ctx.ClientBuilder.ClusterAPIClientOrDie("clusteroperator-capi-components-controller"),
+		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-components-controller"),
+		ctx.ClientBuilder.ClientOrDie("clusteroperator-components-controller"),
+		ctx.ClientBuilder.ClusterAPIClientOrDie("clusteroperator-components-controller"),
 	).Run(int(ctx.Options.ConcurrentComponentSyncs), ctx.Stop)
 	return true, nil
 }
 
 func startNodeConfigController(ctx ControllerContext) (bool, error) {
-	if !clusterOperatorResourcesAvailable(ctx) {
-		return false, nil
-	}
-	go nodeconfig.NewClustopController(
-		ctx.InformerFactory.Clusteroperator().V1alpha1().Clusters(),
-		ctx.InformerFactory.Clusteroperator().V1alpha1().MachineSets(),
-		ctx.KubeInformerFactory.Batch().V1().Jobs(),
-		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-nodeconfig-controller"),
-		ctx.ClientBuilder.ClientOrDie("clusteroperator-nodeconfig-controller"),
-	).Run(int(ctx.Options.ConcurrentNodeConfigSyncs), ctx.Stop)
-	return true, nil
-}
-
-func startClusterAPINodeConfigController(ctx ControllerContext) (bool, error) {
 	if !clusterAPIResourcesAvailable(ctx) {
 		return false, nil
 	}
-	go nodeconfig.NewCAPIController(
+	go nodeconfig.NewController(
 		ctx.ClusterAPIInformerFactory.Cluster().V1alpha1().Clusters(),
 		ctx.ClusterAPIInformerFactory.Cluster().V1alpha1().MachineSets(),
 		ctx.KubeInformerFactory.Batch().V1().Jobs(),
-		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-capi-nodeconfig-controller"),
-		ctx.ClientBuilder.ClientOrDie("clusteroperator-capi-nodeconfig-controller"),
-		ctx.ClientBuilder.ClusterAPIClientOrDie("clusteroperator-capi-nodeconfig-controller"),
+		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-nodeconfig-controller"),
+		ctx.ClientBuilder.ClientOrDie("clusteroperator-nodeconfig-controller"),
+		ctx.ClientBuilder.ClusterAPIClientOrDie("clusteroperator-nodeconfig-controller"),
 	).Run(int(ctx.Options.ConcurrentNodeConfigSyncs), ctx.Stop)
-	return true, nil
-}
-
-func startSyncMachineSetController(ctx ControllerContext) (bool, error) {
-	if !resourcesAvailable(ctx) {
-		return false, nil
-	}
-	go syncmachineset.NewController(
-		ctx.InformerFactory.Clusteroperator().V1alpha1().MachineSets(),
-		ctx.InformerFactory.Clusteroperator().V1alpha1().Clusters(),
-		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-syncmachineset-controller"),
-		ctx.ClientBuilder.ClientOrDie("clusteroperator-syncmachineset-controller"),
-	).Run(int(ctx.Options.ConcurrentSyncMachineSetSyncs), ctx.Stop)
 	return true, nil
 }
 
 func startDeployClusterAPIController(ctx ControllerContext) (bool, error) {
-	if !clusterOperatorResourcesAvailable(ctx) {
-		return false, nil
-	}
-	go deployclusterapi.NewClustopController(
-		ctx.InformerFactory.Clusteroperator().V1alpha1().Clusters(),
-		ctx.InformerFactory.Clusteroperator().V1alpha1().MachineSets(),
-		ctx.KubeInformerFactory.Batch().V1().Jobs(),
-		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-deployclusterapi-controller"),
-		ctx.ClientBuilder.ClientOrDie("clusteroperator-deployclusterapi-controller"),
-	).Run(int(ctx.Options.ConcurrentDeployClusterAPISyncs), ctx.Stop)
-	return true, nil
-}
-
-func startClusterAPIDeployClusterAPIController(ctx ControllerContext) (bool, error) {
 	if !clusterAPIResourcesAvailable(ctx) {
 		return false, nil
 	}
-	go deployclusterapi.NewCAPIController(
+	go deployclusterapi.NewController(
 		ctx.ClusterAPIInformerFactory.Cluster().V1alpha1().Clusters(),
 		ctx.ClusterAPIInformerFactory.Cluster().V1alpha1().MachineSets(),
 		ctx.KubeInformerFactory.Batch().V1().Jobs(),
-		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-capi-deployclusterapi-controller"),
-		ctx.ClientBuilder.ClientOrDie("clusteroperator-capi-deployclusterapi-controller"),
-		ctx.ClientBuilder.ClusterAPIClientOrDie("clusteroperator-capi-deployclusterapi-controller"),
+		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-deployclusterapi-controller"),
+		ctx.ClientBuilder.ClientOrDie("clusteroperator-deployclusterapi-controller"),
+		ctx.ClientBuilder.ClusterAPIClientOrDie("clusteroperator-deployclusterapi-controller"),
 	).Run(int(ctx.Options.ConcurrentDeployClusterAPISyncs), ctx.Stop)
 	return true, nil
 }
 
 func clusterOperatorResourcesAvailable(ctx ControllerContext) bool {
 	return resourcesAvailable(ctx,
-		schema.GroupVersionResource{Group: "clusteroperator.openshift.io", Version: "v1alpha1", Resource: "clusters"},
-		schema.GroupVersionResource{Group: "clusteroperator.openshift.io", Version: "v1alpha1", Resource: "machinesets"},
+		schema.GroupVersionResource{Group: "clusteroperator.openshift.io", Version: "v1alpha1", Resource: "clusterdeployments"},
+		schema.GroupVersionResource{Group: "clusteroperator.openshift.io", Version: "v1alpha1", Resource: "clusterversions"},
 	)
 }
 

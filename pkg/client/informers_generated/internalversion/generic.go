@@ -52,14 +52,10 @@ func (f *genericInformer) Lister() cache.GenericLister {
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
 	// Group=clusteroperator.openshift.io, Version=internalVersion
-	case clusteroperator.SchemeGroupVersion.WithResource("clusters"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Clusteroperator().InternalVersion().Clusters().Informer()}, nil
+	case clusteroperator.SchemeGroupVersion.WithResource("clusterdeployments"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Clusteroperator().InternalVersion().ClusterDeployments().Informer()}, nil
 	case clusteroperator.SchemeGroupVersion.WithResource("clusterversions"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Clusteroperator().InternalVersion().ClusterVersions().Informer()}, nil
-	case clusteroperator.SchemeGroupVersion.WithResource("machines"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Clusteroperator().InternalVersion().Machines().Informer()}, nil
-	case clusteroperator.SchemeGroupVersion.WithResource("machinesets"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Clusteroperator().InternalVersion().MachineSets().Informer()}, nil
 
 	}
 

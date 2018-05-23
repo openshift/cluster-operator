@@ -16,10 +16,6 @@ limitations under the License.
 
 package v1alpha1
 
-type ClusterExpansion interface{}
+type ClusterDeploymentExpansion interface{}
 
 type ClusterVersionExpansion interface{}
-
-type MachineExpansion interface{}
-
-type MachineSetExpansion interface{}

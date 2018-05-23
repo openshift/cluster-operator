@@ -32,9 +32,9 @@ import (
 	"github.com/openshift/cluster-operator/pkg/ansible"
 	clustop "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	clustopclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
-	clustopinformers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions/clusteroperator/v1alpha1"
 	"github.com/openshift/cluster-operator/pkg/controller"
 	clusterinstallcontroller "github.com/openshift/cluster-operator/pkg/controller/clusterinstall"
+	capi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	capiclientset "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 	capiinformers "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions/cluster/v1alpha1"
 )
@@ -51,34 +51,8 @@ const (
 	secretCreatorRoleName = "clusteroperator.openshift.io:master-controller"
 )
 
-// NewClustopController returns a new *Controller for cluster-operator
-// resources.
-func NewClustopController(
-	clusterInformer clustopinformers.ClusterInformer,
-	machineSetInformer clustopinformers.MachineSetInformer,
-	jobInformer batchinformers.JobInformer,
-	kubeClient kubeclientset.Interface,
-	clustopClient clustopclientset.Interface,
-) *clusterinstallcontroller.Controller {
-	installStrategy := &installStrategy{
-		kubeClient: kubeClient,
-	}
-	controller := clusterinstallcontroller.NewClustopController(
-		controllerName,
-		installStrategy,
-		[]string{playbook},
-		clusterInformer,
-		machineSetInformer,
-		jobInformer,
-		kubeClient,
-		clustopClient,
-	)
-	installStrategy.logger = controller.Logger
-	return controller
-}
-
-// NewCAPIController returns a new *Controller for cluster-api resources.
-func NewCAPIController(
+// NewController returns a new *Controller for cluster-api resources.
+func NewController(
 	clusterInformer capiinformers.ClusterInformer,
 	machineSetInformer capiinformers.MachineSetInformer,
 	jobInformer batchinformers.JobInformer,
@@ -89,7 +63,7 @@ func NewCAPIController(
 	installStrategy := &installStrategy{
 		kubeClient: kubeClient,
 	}
-	controller := clusterinstallcontroller.NewCAPIController(
+	controller := clusterinstallcontroller.NewController(
 		controllerName,
 		installStrategy,
 		[]string{playbook},
@@ -111,9 +85,9 @@ type installStrategy struct {
 
 var _ clusterinstallcontroller.InstallJobDecorationStrategy = (*installStrategy)(nil)
 
-func (s *installStrategy) ReadyToInstall(cluster *clustop.CombinedCluster, masterMachineSet metav1.Object) bool {
-	return cluster.ClusterOperatorStatus.ControlPlaneInstalledJobClusterGeneration != cluster.Generation ||
-		cluster.ClusterOperatorStatus.ControlPlaneInstalledJobMachineSetGeneration != masterMachineSet.GetGeneration()
+func (s *installStrategy) ReadyToInstall(cluster *clustop.CombinedCluster, masterMachineSet *capi.MachineSet) bool {
+	return cluster.ClusterDeploymentStatus.ControlPlaneInstalledJobClusterGeneration != cluster.Generation ||
+		cluster.ClusterDeploymentStatus.ControlPlaneInstalledJobMachineSetGeneration != masterMachineSet.GetGeneration()
 }
 
 func (s *installStrategy) DecorateJobGeneratorExecutor(executor *ansible.JobGeneratorExecutor, cluster *clustop.CombinedCluster) error {
@@ -187,10 +161,10 @@ func (s *installStrategy) IncludeInfraSizeInAnsibleVars() bool {
 	return false
 }
 
-func (s *installStrategy) OnInstall(succeeded bool, cluster *clustop.CombinedCluster, masterMachineSet metav1.Object, job *batchv1.Job) {
-	cluster.ClusterOperatorStatus.ControlPlaneInstalled = succeeded
-	cluster.ClusterOperatorStatus.ControlPlaneInstalledJobClusterGeneration = cluster.Generation
-	cluster.ClusterOperatorStatus.ControlPlaneInstalledJobMachineSetGeneration = masterMachineSet.GetGeneration()
+func (s *installStrategy) OnInstall(succeeded bool, cluster *clustop.CombinedCluster, masterMachineSet *capi.MachineSet, job *batchv1.Job) {
+	cluster.ClusterDeploymentStatus.ControlPlaneInstalled = succeeded
+	cluster.ClusterDeploymentStatus.ControlPlaneInstalledJobClusterGeneration = cluster.Generation
+	cluster.ClusterDeploymentStatus.ControlPlaneInstalledJobMachineSetGeneration = masterMachineSet.GetGeneration()
 }
 
 func (s *installStrategy) ConvertJobSyncConditionType(conditionType controller.JobSyncConditionType) clustop.ClusterConditionType {

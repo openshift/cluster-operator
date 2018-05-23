@@ -25,17 +25,6 @@ import (
 	clusterapi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 )
 
-// CombinedClusterForClusterOperatorCluster creates a CombinedCluster
-// for the specified cluster-operator Cluster.
-func CombinedClusterForClusterOperatorCluster(cluster *clusteroperator.Cluster) *clusteroperator.CombinedCluster {
-	return &clusteroperator.CombinedCluster{
-		TypeMeta:              cluster.TypeMeta,
-		ObjectMeta:            cluster.ObjectMeta,
-		ClusterOperatorSpec:   &cluster.Spec,
-		ClusterOperatorStatus: &cluster.Status,
-	}
-}
-
 // CombinedClusterForClusterAPICluster creates a CombinedCluster
 // for the specified cluster-api Cluster.
 func CombinedClusterForClusterAPICluster(cluster *clusterapi.Cluster) (*clusteroperator.CombinedCluster, error) {
@@ -48,24 +37,13 @@ func CombinedClusterForClusterAPICluster(cluster *clusterapi.Cluster) (*clustero
 		return nil, err
 	}
 	return &clusteroperator.CombinedCluster{
-		TypeMeta:              cluster.TypeMeta,
-		ObjectMeta:            cluster.ObjectMeta,
-		ClusterOperatorSpec:   clusterOperatorSpec,
-		ClusterOperatorStatus: clusterOperatorStatus,
-		ClusterAPISpec:        &cluster.Spec,
-		ClusterAPIStatus:      &cluster.Status,
+		TypeMeta:                cluster.TypeMeta,
+		ObjectMeta:              cluster.ObjectMeta,
+		ClusterDeploymentSpec:   clusterOperatorSpec,
+		ClusterDeploymentStatus: clusterOperatorStatus,
+		ClusterSpec:             &cluster.Spec,
+		ClusterStatus:           &cluster.Status,
 	}, nil
-}
-
-// ClusterOperatorClusterForCombinedCluster creates a cluster-operator Cluster
-// from the specified CombinedCluster.
-func ClusterOperatorClusterForCombinedCluster(cluster *clusteroperator.CombinedCluster) *clusteroperator.Cluster {
-	return &clusteroperator.Cluster{
-		TypeMeta:   cluster.TypeMeta,
-		ObjectMeta: cluster.ObjectMeta,
-		Spec:       *cluster.ClusterOperatorSpec,
-		Status:     *cluster.ClusterOperatorStatus,
-	}
 }
 
 // ClusterAPIClusterForCombinedCluster creates a cluster-api Cluster from the
@@ -77,13 +55,13 @@ func ClusterAPIClusterForCombinedCluster(cluster *clusteroperator.CombinedCluste
 	newCluster := &clusterapi.Cluster{
 		TypeMeta:   cluster.TypeMeta,
 		ObjectMeta: cluster.ObjectMeta,
-		Spec:       *cluster.ClusterAPISpec,
-		Status:     *cluster.ClusterAPIStatus,
+		Spec:       *cluster.ClusterSpec,
+		Status:     *cluster.ClusterStatus,
 	}
 	if !ignoreChanges {
 		// We don't bother replacing ProviderConfig since we will not be updating the
 		// cluster spec.
-		providerStatus, err := ClusterAPIProviderStatusFromClusterStatus(cluster.ClusterOperatorStatus)
+		providerStatus, err := ClusterAPIProviderStatusFromClusterStatus(cluster.ClusterDeploymentStatus)
 		if err != nil {
 			return nil, err
 		}
@@ -99,8 +77,6 @@ func ConvertToCombinedCluster(cluster metav1.Object) (*clusteroperator.CombinedC
 	switch c := cluster.(type) {
 	case *clusteroperator.CombinedCluster:
 		return c, nil
-	case *clusteroperator.Cluster:
-		return CombinedClusterForClusterOperatorCluster(c), nil
 	case *clusterapi.Cluster:
 		return CombinedClusterForClusterAPICluster(c)
 	default:

@@ -93,7 +93,7 @@ func NewActuator(kubeClient *kubernetes.Clientset, clusterClient *clusterclient.
 
 // Create runs a new EC2 instance
 func (a *Actuator) Create(cluster *clusterv1.Cluster, machine *clusterv1.Machine) error {
-	mLog := clustoplog.WithClusterAPIMachine(a.logger, machine)
+	mLog := clustoplog.WithMachine(a.logger, machine)
 	mLog.Debugf("Create %s/%s", machine.Namespace, machine.Name)
 	result, err := a.CreateMachine(cluster, machine)
 	if err != nil {
@@ -117,7 +117,7 @@ func (a *Actuator) Create(cluster *clusterv1.Cluster, machine *clusterv1.Machine
 
 // CreateMachine starts a new AWS instance as described by the cluster and machine resources
 func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.Machine) (*ec2.Reservation, error) {
-	mLog := clustoplog.WithClusterAPIMachine(a.logger, machine)
+	mLog := clustoplog.WithMachine(a.logger, machine)
 	// Extract cluster operator cluster
 	clusterSpec, err := controller.ClusterSpecFromClusterAPI(cluster)
 	if err != nil {
@@ -302,7 +302,7 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 
 // Delete deletes a machine and updates its finalizer
 func (a *Actuator) Delete(machine *clusterv1.Machine) error {
-	mLog := clustoplog.WithClusterAPIMachine(a.logger, machine)
+	mLog := clustoplog.WithMachine(a.logger, machine)
 	mLog.Debugf("Delete %s/%s", machine.Namespace, machine.Name)
 	if err := a.DeleteMachine(machine); err != nil {
 		a.logger.Errorf("error deleting machine: %v", err)
@@ -313,7 +313,7 @@ func (a *Actuator) Delete(machine *clusterv1.Machine) error {
 
 // DeleteMachine deletes an AWS instance
 func (a *Actuator) DeleteMachine(machine *clusterv1.Machine) error {
-	mLog := clustoplog.WithClusterAPIMachine(a.logger, machine)
+	mLog := clustoplog.WithMachine(a.logger, machine)
 	mLog.Debugf("DeleteMachine %s/%s", machine.Namespace, machine.Name)
 	// TODO: should we lookup all instances matching name and clean them all up?
 	instanceID := getInstanceID(machine)
@@ -366,7 +366,7 @@ func (a *Actuator) Update(c *clusterv1.Cluster, machine *clusterv1.Machine) erro
 
 // Exists determines if the given machine currently exists.
 func (a *Actuator) Exists(machine *clusterv1.Machine) (bool, error) {
-	mLog := clustoplog.WithClusterAPIMachine(a.logger, machine)
+	mLog := clustoplog.WithMachine(a.logger, machine)
 	mLog.Debugf("checking if machine exists")
 
 	coMachineSetSpec, err := controller.MachineSetSpecFromClusterAPIMachineSpec(&machine.Spec)

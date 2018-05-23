@@ -20,10 +20,8 @@ import (
 	"github.com/openshift/cluster-operator/pkg/api"
 	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
 	clusteroperatorv1alpha1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
-	"github.com/openshift/cluster-operator/pkg/registry/clusteroperator/cluster"
+	"github.com/openshift/cluster-operator/pkg/registry/clusteroperator/clusterdeployment"
 	"github.com/openshift/cluster-operator/pkg/registry/clusteroperator/clusterversion"
-	"github.com/openshift/cluster-operator/pkg/registry/clusteroperator/machine"
-	"github.com/openshift/cluster-operator/pkg/registry/clusteroperator/machineset"
 	"k8s.io/apiserver/pkg/registry/generic"
 	"k8s.io/apiserver/pkg/registry/rest"
 	genericapiserver "k8s.io/apiserver/pkg/server"
@@ -64,11 +62,11 @@ func (p StorageProvider) v1alpha1Storage(
 	apiResourceConfigSource serverstorage.APIResourceConfigSource,
 	restOptionsGetter generic.RESTOptionsGetter,
 ) (map[string]rest.Storage, error) {
-	clusterRESTOptions, err := restOptionsGetter.GetRESTOptions(clusteroperator.Resource("clusters"))
+	clusterDeploymentRESTOptions, err := restOptionsGetter.GetRESTOptions(clusteroperator.Resource("clusterdeployments"))
 	if err != nil {
 		return nil, err
 	}
-	clusterStorage, clusterStatusStorage := cluster.NewStorage(clusterRESTOptions)
+	clusterDeploymentStorage, clusterDeploymentStatusStorage := clusterdeployment.NewStorage(clusterDeploymentRESTOptions)
 
 	clusterVerRESTOptions, err := restOptionsGetter.GetRESTOptions(clusteroperator.Resource("clusterversions"))
 	if err != nil {
@@ -76,27 +74,11 @@ func (p StorageProvider) v1alpha1Storage(
 	}
 	clusterVersionStorage, clusterVersionStatusStorage := clusterversion.NewStorage(clusterVerRESTOptions)
 
-	machineSetRESTOptions, err := restOptionsGetter.GetRESTOptions(clusteroperator.Resource("machinesets"))
-	if err != nil {
-		return nil, err
-	}
-	machineSetStorage, machineSetStatusStorage := machineset.NewStorage(machineSetRESTOptions)
-
-	machineRESTOptions, err := restOptionsGetter.GetRESTOptions(clusteroperator.Resource("machines"))
-	if err != nil {
-		return nil, err
-	}
-	machineStorage, machineStatusStorage := machine.NewStorage(machineRESTOptions)
-
 	return map[string]rest.Storage{
-		"clusters":               clusterStorage,
-		"clusters/status":        clusterStatusStorage,
-		"clusterversions":        clusterVersionStorage,
-		"clusterversions/status": clusterVersionStatusStorage,
-		"machinesets":            machineSetStorage,
-		"machinesets/status":     machineSetStatusStorage,
-		"machines":               machineStorage,
-		"machines/status":        machineStatusStorage,
+		"clusterdeployments":        clusterDeploymentStorage,
+		"clusterdeployments/status": clusterDeploymentStatusStorage,
+		"clusterversions":           clusterVersionStorage,
+		"clusterversions/status":    clusterVersionStatusStorage,
 	}, nil
 }
 

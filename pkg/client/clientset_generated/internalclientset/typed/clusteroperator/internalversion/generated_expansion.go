@@ -16,10 +16,6 @@ limitations under the License.
 
 package internalversion
 
-type ClusterExpansion interface{}
+type ClusterDeploymentExpansion interface{}
 
 type ClusterVersionExpansion interface{}
-
-type MachineExpansion interface{}
-
-type MachineSetExpansion interface{}

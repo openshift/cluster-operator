@@ -25,10 +25,8 @@ import (
 
 type ClusteroperatorV1alpha1Interface interface {
 	RESTClient() rest.Interface
-	ClustersGetter
+	ClusterDeploymentsGetter
 	ClusterVersionsGetter
-	MachinesGetter
-	MachineSetsGetter
 }
 
 // ClusteroperatorV1alpha1Client is used to interact with features provided by the clusteroperator.openshift.io group.
@@ -36,20 +34,12 @@ type ClusteroperatorV1alpha1Client struct {
 	restClient rest.Interface
 }
 
-func (c *ClusteroperatorV1alpha1Client) Clusters(namespace string) ClusterInterface {
-	return newClusters(c, namespace)
+func (c *ClusteroperatorV1alpha1Client) ClusterDeployments(namespace string) ClusterDeploymentInterface {
+	return newClusterDeployments(c, namespace)
 }
 
 func (c *ClusteroperatorV1alpha1Client) ClusterVersions(namespace string) ClusterVersionInterface {
 	return newClusterVersions(c, namespace)
-}
-
-func (c *ClusteroperatorV1alpha1Client) Machines(namespace string) MachineInterface {
-	return newMachines(c, namespace)
-}
-
-func (c *ClusteroperatorV1alpha1Client) MachineSets(namespace string) MachineSetInterface {
-	return newMachineSets(c, namespace)
 }
 
 // NewForConfig creates a new ClusteroperatorV1alpha1Client for the given config.

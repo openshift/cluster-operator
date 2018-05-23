@@ -27,9 +27,7 @@ import (
 	clientgofake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
 
-	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	clusteroperatorclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset/fake"
-	clusteroperatorinformers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions"
 	"github.com/openshift/cluster-operator/pkg/controller"
 	clusterapi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	clusterapiclientset "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset/fake"
@@ -44,43 +42,11 @@ const (
 	testClusterUUID = types.UID("test-cluster-uuid")
 )
 
-// newTestClusterOperatorController creates a test Controller for
-// cluster-operator resources with fake clients and informers.
-func newTestClusterOperatorController() (
-	*Controller,
-	cache.Store, // cluster store
-	cache.Store, // jobs store
-	*clientgofake.Clientset,
-	*clusteroperatorclientset.Clientset,
-
-) {
-	kubeClient := &clientgofake.Clientset{}
-	kubeInformers := kubeinformers.NewSharedInformerFactory(kubeClient, 10*time.Minute)
-	clusterOperatorClient := &clusteroperatorclientset.Clientset{}
-	clusterOperatorInformers := clusteroperatorinformers.NewSharedInformerFactory(clusterOperatorClient, 0)
-
-	controller := NewClusterOperatorController(
-		clusterOperatorInformers.Clusteroperator().V1alpha1().Clusters(),
-		kubeInformers.Batch().V1().Jobs(),
-		kubeClient,
-		clusterOperatorClient,
-	)
-
-	controller.clustersSynced = alwaysReady
-
-	return controller,
-		clusterOperatorInformers.Clusteroperator().V1alpha1().Clusters().Informer().GetStore(),
-		kubeInformers.Batch().V1().Jobs().Informer().GetStore(),
-		kubeClient,
-		clusterOperatorClient
-}
-
-// newTestClusterAPIController creates a test Controller for
+// newTestController creates a test Controller for
 // cluster-api resources with fake clients and informers.
-func newTestClusterAPIController() (
+func newTestController() (
 	*Controller,
 	cache.Store, // cluster store
-	cache.Store, // machineset store
 	cache.Store, // jobs store
 	*clientgofake.Clientset,
 	*clusteroperatorclientset.Clientset,
@@ -93,9 +59,8 @@ func newTestClusterAPIController() (
 	clusterAPIClient := &clusterapiclientset.Clientset{}
 	clusterAPIInformers := clusterapiinformers.NewSharedInformerFactory(clusterAPIClient, 0)
 
-	controller := NewClusterAPIController(
+	controller := NewController(
 		clusterAPIInformers.Cluster().V1alpha1().Clusters(),
-		clusterAPIInformers.Cluster().V1alpha1().MachineSets(),
 		kubeInformers.Batch().V1().Jobs(),
 		kubeClient,
 		clusterOperatorClient,
@@ -106,7 +71,6 @@ func newTestClusterAPIController() (
 
 	return controller,
 		clusterAPIInformers.Cluster().V1alpha1().Clusters().Informer().GetStore(),
-		clusterAPIInformers.Cluster().V1alpha1().MachineSets().Informer().GetStore(),
 		kubeInformers.Batch().V1().Jobs().Informer().GetStore(),
 		kubeClient,
 		clusterOperatorClient,
@@ -144,30 +108,7 @@ func getKey(cluster metav1.Object, t *testing.T) string {
 	return key
 }
 
-func newClusterOperatorCluster() *clusteroperator.Cluster {
-	cluster := &clusteroperator.Cluster{
-		ObjectMeta: metav1.ObjectMeta{
-			UID:       testClusterUUID,
-			Name:      testClusterName,
-			Namespace: testNamespace,
-		},
-		Spec: clusteroperator.ClusterSpec{
-			MachineSets: []clusteroperator.ClusterMachineSet{
-				{
-					ShortName: "master",
-					MachineSetConfig: clusteroperator.MachineSetConfig{
-						NodeType: clusteroperator.NodeTypeMaster,
-						Infra:    true,
-						Size:     3,
-					},
-				},
-			},
-		},
-	}
-	return cluster
-}
-
-func newClusterAPICluster() *clusterapi.Cluster {
+func newCluster() *clusterapi.Cluster {
 	encodedClusterProviderConfigSpec := `
 apiVersion: "clusteroperator.openshift.io/v1alpha1"
 kind: "ClusterProviderConfigSpec"
@@ -205,12 +146,6 @@ func TestController(t *testing.T) {
 		expectedErr        bool
 	}{
 		{
-			name:               "new cluster-operator cluster creation",
-			useClusterOperator: true,
-			clusterName:        testClusterName,
-			clusterNamespace:   testNamespace,
-		},
-		{
 			name:               "new cluster-api cluster creation",
 			useClusterOperator: false,
 			clusterName:        testClusterName,
@@ -219,48 +154,9 @@ func TestController(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			var infraController *Controller
-			var clusterStore cache.Store
-			var cluster metav1.Object
-			if tc.useClusterOperator {
-				infraController, clusterStore, _, _, _ = newTestClusterOperatorController()
-				cluster = newClusterOperatorCluster()
-			} else {
-				var machineSetStore cache.Store
-				infraController, clusterStore, machineSetStore, _, _, _, _ = newTestClusterAPIController()
-				cluster = newClusterAPICluster()
-				infraMachineSet := &clusterapi.MachineSet{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: cluster.GetNamespace(),
-						Name:      "test-infra",
-						Labels: map[string]string{
-							clusteroperator.ClusterNameLabel: cluster.GetName(),
-						},
-					},
-					Spec: clusterapi.MachineSetSpec{
-						Template: clusterapi.MachineTemplateSpec{
-							Spec: clusterapi.MachineSpec{
-								ProviderConfig: clusterapi.ProviderConfig{
-									Value: func() *runtime.RawExtension {
-										pc, err := controller.ClusterAPIMachineProviderConfigFromMachineSetSpec(
-											&clusteroperator.MachineSetSpec{
-												MachineSetConfig: clusteroperator.MachineSetConfig{
-													Infra: true,
-												},
-											})
-										if err != nil {
-											t.Fatalf("could not create provider config: %v", err)
-										}
-										return pc
-									}(),
-								},
-							},
-						},
-					},
-				}
-				machineSetStore.Add(infraMachineSet)
-			}
+			infraController, clusterStore, _, _, _, _ := newTestController()
 
+			cluster := newCluster()
 			clusterStore.Add(cluster)
 
 			err := infraController.syncHandler(getKey(cluster, t))

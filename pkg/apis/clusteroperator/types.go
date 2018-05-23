@@ -35,17 +35,18 @@ const (
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// Cluster represents a cluster that clusteroperator manages
-type Cluster struct {
+// ClusterDeployment represents a deployment of a cluster that clusteroperator
+// manages
+type ClusterDeployment struct {
 	// +optional
 	metav1.TypeMeta
 	// +optional
 	metav1.ObjectMeta
 
 	// +optional
-	Spec ClusterSpec
+	Spec ClusterDeploymentSpec
 	// +optional
-	Status ClusterStatus
+	Status ClusterDeploymentStatus
 }
 
 // finalizer values unique to cluster-operator
@@ -55,13 +56,13 @@ const (
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// ClusterList is a list of Clusters.
-type ClusterList struct {
+// ClusterDeploymentList is a list of ClusterDeployments.
+type ClusterDeploymentList struct {
 	metav1.TypeMeta
 	// +optional
 	metav1.ListMeta
 
-	Items []Cluster
+	Items []ClusterDeployment
 }
 
 // +genclient
@@ -178,11 +179,11 @@ type ClusterProviderConfigSpec struct {
 	// +optional
 	metav1.ObjectMeta
 
-	ClusterSpec
+	ClusterDeploymentSpec
 }
 
-// ClusterSpec is the specification of a cluster's hardware and configuration
-type ClusterSpec struct {
+// ClusterDeploymentSpec is the specification of a cluster's hardware and configuration
+type ClusterDeploymentSpec struct {
 	// Hardware specifies the hardware that the cluster will run on
 	Hardware ClusterHardwareSpec
 
@@ -206,6 +207,7 @@ type ClusterVersionReference struct {
 	// Namespace of the clusterversion.
 	// +optional
 	Namespace string
+
 	// Name of the clusterversion.
 	Name string
 }
@@ -227,7 +229,7 @@ type AWSClusterSpec struct {
 	AccountSecret corev1.LocalObjectReference
 
 	// SSHSecret refers to a secret that contains the ssh private key to access
-	// EC2 instances in this cluster
+	// EC2 instances in this cluster.
 	SSHSecret corev1.LocalObjectReference
 
 	// SSHUser refers to the username that should be used for Ansible to SSH to the system. (default: clusteroperator)
@@ -298,11 +300,11 @@ type ClusterProviderStatus struct {
 	// +optional
 	metav1.ObjectMeta
 
-	ClusterStatus
+	ClusterDeploymentStatus
 }
 
-// ClusterStatus contains the status for a cluster
-type ClusterStatus struct {
+// ClusterDeploymentStatus contains the status for a cluster
+type ClusterDeploymentStatus struct {
 	// MachineSetCount is the number of actual machine sets that are active for the cluster
 	MachineSetCount int
 
@@ -478,36 +480,6 @@ const (
 	ClusterReady ClusterConditionType = "Ready"
 )
 
-// +genclient
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
-// MachineSet represents a group of machines in a cluster that clusteroperator manages
-type MachineSet struct {
-	// +optional
-	metav1.TypeMeta
-	// +optional
-	metav1.ObjectMeta
-
-	// Spec is the specification for the MachineSet
-	// +optional
-	Spec MachineSetSpec
-
-	// Status is the status for the MachineSet
-	// +optional
-	Status MachineSetStatus
-}
-
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
-// MachineSetList is a list of MachineSets.
-type MachineSetList struct {
-	metav1.TypeMeta
-	// +optional
-	metav1.ListMeta
-
-	Items []MachineSet
-}
-
 // ClusterMachineSet is the specification of a machine set in a cluster
 type ClusterMachineSet struct {
 	// ShortName is a unique name for the machine set within the cluster
@@ -557,10 +529,6 @@ type MachineSetConfig struct {
 
 // MachineSetSpec is the Cluster Operator specification for a Cluster API machine template provider config.
 // TODO: This should be renamed, it is now used on MachineTemplate.Spec.ProviderConfig.
-// TODO: most fields here are set automatically, typically a user should not be setting directly. Should
-// we break this down into two sections similar to spec/status, one for things we expect the user to set
-// (namely the Hardware, which is optional), and the rest to a sub-struct that more clearly indicates
-// those fields are set automatically. (cluster hardware, vmimage)
 type MachineSetSpec struct {
 	// MachineSetConfig is the configuration for the MachineSet
 	MachineSetConfig
@@ -572,8 +540,7 @@ type MachineSetSpec struct {
 	// ClusterVersionRef references the clusterversion the machine set is running.
 	ClusterVersionRef corev1.ObjectReference
 
-	// VMImage contains a single cloud provider specific image to use for this machine set. It will typically
-	// be set automatically by controllers based on the cluster version.
+	// VMImage contains a single cloud provider specific image to use for this machine set.
 	VMImage VMImage
 }
 
@@ -585,7 +552,7 @@ type VMImage struct {
 
 // MachineSetHardwareSpec specifies the hardware for a MachineSet
 type MachineSetHardwareSpec struct {
-	// AWS specifies the hardware spec for an AWS MachineSet
+	// AWS specifies the hardware spec for an AWS machine set
 	// +optional
 	AWS *MachineSetAWSHardwareSpec
 }
@@ -595,117 +562,6 @@ type MachineSetAWSHardwareSpec struct {
 	// InstanceType is the type of instance to use for machines in this MachineSet
 	// +optional
 	InstanceType string
-}
-
-// MachineSetStatus is the status of a MachineSet
-type MachineSetStatus struct {
-	// MachinesProvisioned is the count of provisioned machines for the MachineSet
-	MachinesProvisioned int
-
-	// MachinesReady is the number of nodes that are ready
-	MachinesReady int
-
-	// Conditions includes more detailed status of the MachineSet
-	Conditions []MachineSetCondition
-
-	// Provisioned is true if the hardware that corresponds to this MachineSet has
-	// been provisioned
-	Provisioned bool
-
-	// ProvisionedJobGeneration is the generation of the machine set resource used to
-	// to generate the latest completed hardware provisioning job.
-	ProvisionedJobGeneration int64
-}
-
-// MachineSetCondition contains details for the current condition of a MachineSet
-type MachineSetCondition struct {
-	// Type is the type of the condition.
-	Type MachineSetConditionType
-	// Status is the status of the condition.
-	Status corev1.ConditionStatus
-	// LastProbeTime is the last time we probed the condition.
-	// +optional
-	LastProbeTime metav1.Time
-	// LastTransitionTime is the last time the condition transitioned from one status to another.
-	// +optional
-	LastTransitionTime metav1.Time
-	// Reason is a unique, one-word, CamelCase reason for the condition's last transition.
-	// +optional
-	Reason string
-	// Message is a human-readable message indicating details about last transition.
-	// +optional
-	Message string
-}
-
-// MachineSetConditionType is a valid value for MachineSetCondition.Type
-type MachineSetConditionType string
-
-// These are valid conditions for a node group
-const (
-	// MachineSetHardwareProvisioning is true if the cloud resources for this
-	// machine set are in the process of provisioning.
-	MachineSetHardwareProvisioning MachineSetConditionType = "HardwareProvisioning"
-
-	// MachineSetHardwareProvisioningFailed is true if the last provisioning attempt
-	// for this machine set failed.
-	MachineSetHardwareProvisioningFailed MachineSetConditionType = "HardwareProvisioningFailed"
-
-	// MachineSetHardwareDeprovisioning is true if the cloud resources for this
-	// machine set are in the process of deprovisioning.
-	MachineSetHardwareDeprovisioning MachineSetConditionType = "HardwareDeprovisioning"
-
-	// MachineSetHardwareDeprovisioningFailed is true if the last deprovisioning attempt
-	// for this machine set failed.
-	MachineSetHardwareDeprovisioningFailed MachineSetConditionType = "HardwareDeprovisioningFailed"
-
-	// MachineSetHardwareProvisioned is true if the corresponding cloud resource(s) for
-	// this machine set have been provisioned (ie. AWS autoscaling group)
-	MachineSetHardwareProvisioned MachineSetConditionType = "HardwareProvisioned"
-
-	// MachineSetHardwareReady is true if the hardware for the nodegroup is in ready
-	// state (is started and healthy)
-	MachineSetHardwareReady MachineSetConditionType = "HardwareReady"
-
-	// MachineSetReady is true if the nodes of this nodegroup are ready for work
-	// (have joined the cluster and have a healthy node status)
-	MachineSetReady MachineSetConditionType = "Ready"
-)
-
-// +genclient
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
-// Machine represents a member of a MachineSet in a cluster that clusteroperator manages
-type Machine struct {
-	// +optional
-	metav1.TypeMeta
-	// +optional
-	metav1.ObjectMeta
-
-	// +optional
-	Spec MachineSpec
-	// +optional
-	Status MachineStatus
-}
-
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
-// MachineList is a list of Machines.
-type MachineList struct {
-	metav1.TypeMeta
-	// +optional
-	metav1.ListMeta
-
-	Items []Machine
-}
-
-// MachineSpec is the specificiation of a Machine.
-type MachineSpec struct {
-	// NodeType is the type of the node in this machine
-	NodeType NodeType
-}
-
-// MachineStatus is the status of a Machine.
-type MachineStatus struct {
 }
 
 // NodeType is the type of the Node

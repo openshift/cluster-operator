@@ -30,32 +30,22 @@ import (
 )
 
 // WithMachineSet expands a logger's context to include info about the given machineset.
-func WithMachineSet(logger log.FieldLogger, machineSet *clusteroperator.MachineSet) log.FieldLogger {
-	return WithGenericMachineSet(logger, machineSet)
-}
-
-// WithAPIMachineSet expands a logger's context to include info about the given machineset.
-func WithAPIMachineSet(logger log.FieldLogger, machineSet *clusterapi.MachineSet) log.FieldLogger {
-	return WithGenericMachineSet(logger, machineSet)
-}
-
-// WithGenericMachineSet expands a logger's context to include info about the given machineset.
-func WithGenericMachineSet(logger log.FieldLogger, machineSet metav1.Object) log.FieldLogger {
+func WithMachineSet(logger log.FieldLogger, machineSet *clusterapi.MachineSet) log.FieldLogger {
 	return WithGenericObject(logger, "machineset", machineSet)
 }
 
+// WithClusterDeployment expands a logger's context to include info about the given cluster deployment.
+func WithClusterDeployment(logger log.FieldLogger, clusterDeployment *clusteroperator.ClusterDeployment) log.FieldLogger {
+	return WithGenericObject(logger, "clusterdeployment", clusterDeployment)
+}
+
 // WithCluster expands a logger's context to include info about the given cluster.
-func WithCluster(logger log.FieldLogger, cluster *clusteroperator.Cluster) log.FieldLogger {
-	return WithGenericCluster(logger, cluster)
+func WithCluster(logger log.FieldLogger, cluster *clusterapi.Cluster) log.FieldLogger {
+	return WithGenericObject(logger, "cluster", cluster)
 }
 
-// WithAPICluster expands a logger's context to include info about the given cluster.
-func WithAPICluster(logger log.FieldLogger, cluster *clusterapi.Cluster) log.FieldLogger {
-	return WithGenericCluster(logger, cluster)
-}
-
-// WithGenericCluster expands a logger's context to include info about the given cluster.
-func WithGenericCluster(logger log.FieldLogger, cluster metav1.Object) log.FieldLogger {
+// WithCombinedCluster expands a logger's context to include info about the given cluster.
+func WithCombinedCluster(logger log.FieldLogger, cluster *clusteroperator.CombinedCluster) log.FieldLogger {
 	return WithGenericObject(logger, "cluster", cluster)
 }
 
@@ -64,17 +54,7 @@ func WithGenericObject(logger log.FieldLogger, objectType string, obj metav1.Obj
 	return logger.WithField(objectType, fmt.Sprintf("%s/%s", obj.GetNamespace(), obj.GetName()))
 }
 
-// WithClusterAPICluster expands a logger's context to include info about the given cluster.
-func WithClusterAPICluster(logger log.FieldLogger, cluster *clusterv1.Cluster) log.FieldLogger {
-	return logger.WithField("cluster", fmt.Sprintf("%s/%s", cluster.Namespace, cluster.Name))
-}
-
-// WithClusterAPIMachineSet expands a logger's context to include info about the given machineset.
-func WithClusterAPIMachineSet(logger log.FieldLogger, machineSet *clusterv1.MachineSet) log.FieldLogger {
-	return logger.WithField("machineset", fmt.Sprintf("%s/%s", machineSet.Namespace, machineSet.Name))
-}
-
-// WithClusterAPIMachine expands a logger's context to include info about the given machine.
-func WithClusterAPIMachine(logger log.FieldLogger, machine *clusterv1.Machine) log.FieldLogger {
-	return logger.WithField("machine", fmt.Sprintf("%s/%s", machine.Namespace, machine.Name))
+// WithMachine expands a logger's context to include info about the given machine.
+func WithMachine(logger log.FieldLogger, machine *clusterv1.Machine) log.FieldLogger {
+	return WithGenericObject(logger, "machine", machine)
 }

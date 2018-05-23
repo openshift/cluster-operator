@@ -48,14 +48,10 @@ var (
 
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
-		&Cluster{},
-		&ClusterList{},
+		&ClusterDeployment{},
+		&ClusterDeploymentList{},
 		&ClusterVersion{},
 		&ClusterVersionList{},
-		&MachineSet{},
-		&MachineSetList{},
-		&Machine{},
-		&MachineList{},
 		&ClusterProviderConfigSpec{},
 		&ClusterProviderStatus{},
 		&MachineSetProviderConfigSpec{},
