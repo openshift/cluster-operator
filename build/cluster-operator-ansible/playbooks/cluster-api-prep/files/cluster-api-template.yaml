@@ -7,8 +7,10 @@
 #   SERVING_CERT: base-64-encoded, pem cert to use for ssl communication with the Cluster API Server. Required.
 #   SERVING_KEY: base-64-encoded, pem private key for the cert to use for ssl communication with the Cluster API Server. Required.
 #   SERVING_CA: base-64-encoded, pem CA cert for the ssl certs. Required.
-#   IMAGE: clusterapi container image location
-#   IMAGE_PULL_POLICY: control image pull policy for clusterapi containers
+#   CLUSTER_API_IMAGE: clusterapi container image location
+#   CLUSTER_API_IMAGE_PULL_POLICY: control image pull policy for clusterapi containers
+#   MACHINE_CONTROLLER_IMAGE: machine controller image reference
+#   MACHINE_CONTROLLER_IMAGE_PULL_POLICY: pull policy for machine controller image
 #
 ########
 
@@ -82,8 +84,8 @@ objects:
         serviceAccountName: cluster-api-apiserver
         containers:
         - name: apiserver
-          image: ${IMAGE}
-          imagePullPolicy: ${IMAGE_PULL_POLICY}
+          image: ${CLUSTER_API_IMAGE}
+          imagePullPolicy: ${CLUSTER_API_IMAGE_PULL_POLICY}
           volumeMounts:
           - name: cluster-apiserver-certs
             mountPath: /var/run/cluster-api-apiserver
@@ -203,7 +205,9 @@ objects:
         containers:
         - name: machine-controller
           image: ${MACHINE_CONTROLLER_IMAGE}
-          imagePullPolicy: ${IMAGE_PULL_POLICY}
+          imagePullPolicy: ${MACHINE_CONTROLLER_IMAGE_PULL_POLICY}
+          command:
+          - /opt/services/aws-machine-controller
           args:
           - --log-level=debug
           - --default-availability-zone=${DEFAULT_AVAILABILITY_ZONE}
@@ -249,8 +253,8 @@ objects:
           node-role.kubernetes.io/master: "true"
         containers:
         - name: controller-manager
-          image: ${IMAGE}
-          imagePullPolicy: ${IMAGE_PULL_POLICY}
+          image: ${CLUSTER_API_IMAGE}
+          imagePullPolicy: ${CLUSTER_API_IMAGE_PULL_POLICY}
           command:
           - "./controller-manager"
           resources:
@@ -371,7 +375,7 @@ parameters:
 - name: KUBE_SYSTEM_NAMESPACE
   value: kube-system
 # pull policy (for testing)
-- name: IMAGE_PULL_POLICY
+- name: CLUSTER_API_IMAGE_PULL_POLICY
   value: Always
 # CA cert for API Server SSL cert
 - name: SERVING_CA
@@ -380,11 +384,11 @@ parameters:
 # Public API Server SSL cert
 - name: SERVING_KEY
 # location of container image
-- name: IMAGE
-  value: quay.io/openshift/kubernetes-cluster-api:latest
+- name: CLUSTER_API_IMAGE
 # machine controller image
 - name: MACHINE_CONTROLLER_IMAGE
-  value: quay.io/csrwng/aws-machine-controller:latest
+- name: MACHINE_CONTROLLER_IMAGE_PULL_POLICY
+  value: Always
 - name: DEFAULT_AVAILABILITY_ZONE
   value: us-east-1c
 - name: BOOTSTRAP_KUBECONFIG

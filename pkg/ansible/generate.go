@@ -22,6 +22,8 @@ import (
 	"strings"
 	"text/template"
 
+	corev1 "k8s.io/api/core/v1"
+
 	coapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 )
 
@@ -235,6 +237,19 @@ openshift_aws_elb_basename: [[ .Name ]]
 openshift_aws_vpc_name: [[ .Name ]]
 
 openshift_aws_vpc: [[ .VPCDefaults ]]
+
+[[if .ClusterAPIImage]]
+cluster_api_image: [[ .ClusterAPIImage ]]
+[[end]]
+[[if .ClusterAPIImagePullPolicy]]
+cluster_api_image_pull_policy: [[ .ClusterAPIImagePullPolicy ]]
+[[end]]
+[[if .MachineControllerImage]]
+machine_controller_image: [[ .MachineControllerImage ]]
+[[end]]
+[[if .MachineControllerImagePullPolicy]]
+machine_controller_image_pull_policy: [[ .MachineControllerImagePullPolicy ]]
+[[end]]
 `
 	masterVarsTemplate = `
 openshift_aws_ami_map:
@@ -331,13 +346,17 @@ ansible_become=true
 )
 
 type clusterParams struct {
-	Name           string
-	Region         string
-	SSHKeyName     string
-	SSHUser        string
-	VPCDefaults    string
-	DeploymentType coapi.ClusterDeploymentType
-	InfraSize      int
+	Name                             string
+	Region                           string
+	SSHKeyName                       string
+	SSHUser                          string
+	VPCDefaults                      string
+	DeploymentType                   coapi.ClusterDeploymentType
+	InfraSize                        int
+	ClusterAPIImage                  string
+	ClusterAPIImagePullPolicy        corev1.PullPolicy
+	MachineControllerImage           string
+	MachineControllerImagePullPolicy corev1.PullPolicy
 }
 
 type machineSetParams struct {
@@ -400,6 +419,22 @@ func GenerateClusterWideVars(name string,
 		VPCDefaults:    vpcDefaults,
 		DeploymentType: clusterVersionSpec.DeploymentType,
 		InfraSize:      infraSize,
+	}
+
+	if clusterVersionSpec.ClusterAPIImage != nil {
+		params.ClusterAPIImage = *clusterVersionSpec.ClusterAPIImage
+	}
+
+	if clusterVersionSpec.ClusterAPIImagePullPolicy != nil {
+		params.ClusterAPIImagePullPolicy = *clusterVersionSpec.ClusterAPIImagePullPolicy
+	}
+
+	if clusterVersionSpec.MachineControllerImage != nil {
+		params.MachineControllerImage = *clusterVersionSpec.MachineControllerImage
+	}
+
+	if clusterVersionSpec.MachineControllerImagePullPolicy != nil {
+		params.MachineControllerImagePullPolicy = *clusterVersionSpec.MachineControllerImagePullPolicy
 	}
 
 	var buf bytes.Buffer

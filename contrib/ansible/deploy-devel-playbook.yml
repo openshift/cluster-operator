@@ -16,6 +16,15 @@
     # Namespace to deploy CO to:
     cluster_operator_namespace: "openshift-cluster-operator"
 
+    # Namespace for cluster versions:
+    cluster_version_namespace: "openshift-cluster-operator"
+
+    # Images to deploy on target cluster
+    cluster_api_image: "registry.svc.ci.openshift.org/openshift-cluster-operator/kubernetes-cluster-api:latest"
+    cluster_api_image_pull_policy: "Always"
+    machine_controller_image: "registry.svc.ci.openshift.org/openshift-cluster-operator/cluster-operator:latest"
+    machine_controller_image_pull_policy: "Always"
+
     # Normally we assume to build and push images for devel deployments:
     push_images: True
   tasks:
@@ -51,8 +60,12 @@
   - name: process cluster versions template
     oc_process:
       template_file: "{{ playbook_dir }}/../examples/cluster-versions-template.yaml"
-    parameters:
-      CLUSTER_VERSION_NS: "{{ cluster_version_namespace }}"
+      parameters:
+        CLUSTER_VERSION_NS: "{{ cluster_version_namespace }}"
+        CLUSTER_API_IMAGE: "{{ cluster_api_image }}"
+        CLUSTER_API_IMAGE_PULL_POLICY: "{{ cluster_api_image_pull_policy }}"
+        MACHINE_CONTROLLER_IMAGE: "{{ machine_controller_image }}"
+        MACHINE_CONTROLLER_IMAGE_PULL_POLICY: "{{ machine_controller_image_pull_policy }}"
     register: cluster_versions_reg
 
   - name: create/update cluster versions
