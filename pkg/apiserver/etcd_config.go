@@ -119,6 +119,7 @@ func (c completedEtcdConfig) NewServer(stopCh <-chan struct{}) (*ClusterOperator
 
 	caAPIBuilder := ca_apis.GetClusterAPIBuilder()
 	validation.ReplaceStorageBuilder(caAPIBuilder, ca.InternalMachine, validation.ReplaceMachineStorageBuilder)
+	validation.ReplaceStorageBuilder(caAPIBuilder, ca.InternalCluster, validation.ReplaceClusterStorageBuilder)
 	caGroupInfo := caAPIBuilder.Build(roFactory)
 	if caGroupInfo != nil {
 		groupInfos = append(groupInfos, caGroupInfo)

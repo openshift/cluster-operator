@@ -365,7 +365,7 @@ func TestValidateClusterSpec(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		errs := validateClusterSpec(tc.spec, field.NewPath("spec"))
+		errs := ValidateClusterSpec(tc.spec, field.NewPath("spec"))
 		if len(errs) != 0 && tc.valid {
 			t.Errorf("%v: unexpected error: %v", tc.name, errs)
 			continue
