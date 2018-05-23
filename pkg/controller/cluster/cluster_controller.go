@@ -875,6 +875,9 @@ func (c *Controller) calculateStatus(clusterLog log.FieldLogger, cluster *cluste
 			UID:       resolvedClusterVersion.UID,
 		}
 	}
+
+	c.checkReadiness(clusterLog, cluster, machineSets, &newStatus)
+
 	return newStatus, nil
 }
 
@@ -889,6 +892,35 @@ func (c *Controller) resolveClusterVersion(cluster *clusteroperator.Cluster) (*c
 	cv, err := c.clusterVersionsLister.ClusterVersions(versionNS).Get(
 		cluster.Spec.ClusterVersionRef.Name)
 	return cv, err
+}
+
+func (c *Controller) checkReadiness(logger log.FieldLogger, cluster *clusteroperator.Cluster, machineSets []*clusteroperator.MachineSet, clusterStatus *clusteroperator.ClusterStatus) {
+	logger.Debugf("checking whether cluster is ready")
+	if cluster.Status.Ready {
+		logger.Debugf("cluster is ready, skipping")
+		return
+	}
+
+	if !cluster.Status.Provisioned {
+		logger.Debugf("cluster is not provisioned yet, skipping")
+		return
+	}
+	if !cluster.Status.ControlPlaneInstalled || !cluster.Status.ComponentsInstalled || !cluster.Status.NodeConfigInstalled {
+		logger.Debugf("cluster software is not fully installed yet")
+		return
+	}
+	if len(machineSets) != len(cluster.Spec.MachineSets) {
+		return
+	}
+	for _, ms := range machineSets {
+		msLogger := colog.WithMachineSet(logger, ms)
+		if !ms.Status.Provisioned {
+			msLogger.Debugf("machineset is not ready yet")
+			return
+		}
+	}
+	logger.Debugf("Setting cluster status to ready")
+	clusterStatus.Ready = true
 }
 
 func buildNewMachineSetSpec(cluster *clusteroperator.Cluster, clusterVersion *clusteroperator.ClusterVersion, machineSetConfig clusteroperator.MachineSetConfig) clusteroperator.MachineSetSpec {
