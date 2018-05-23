@@ -171,7 +171,7 @@ func TestMasterMachineSets(t *testing.T) {
 			}
 			cStore.Add(cluster)
 
-			c.buildClients = func(*cov1.Cluster) (clusterapiclient.Interface, error) {
+			c.BuildRemoteClient = func(*cov1.Cluster) (clusterapiclient.Interface, error) {
 				return remoteClusterAPIClient, nil
 			}
 			if tc.clusterAPIExists {

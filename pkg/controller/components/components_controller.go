@@ -60,7 +60,12 @@ func NewClustopController(
 ) *clusterinstallcontroller.Controller {
 	return clusterinstallcontroller.NewClustopController(
 		controllerName,
-		&installStrategy{},
+		&installStrategy{
+			canGetInfraSize: func(*clustop.CombinedCluster) bool { return true },
+			getInfraSize: func(cluster *clustop.CombinedCluster) (int, error) {
+				return controller.GetClustopInfraSize(cluster)
+			},
+		},
 		playbooks,
 		clusterInformer,
 		machineSetInformer,
@@ -79,9 +84,18 @@ func NewCAPIController(
 	clustopClient clustopclientset.Interface,
 	capiClient capiclientset.Interface,
 ) *clusterinstallcontroller.Controller {
+	machineSetLister := machineSetInformer.Lister()
 	return clusterinstallcontroller.NewCAPIController(
 		controllerName,
-		&installStrategy{},
+		&installStrategy{
+			canGetInfraSize: func(cluster *clustop.CombinedCluster) bool {
+				_, err := controller.GetCAPIInfraMachineSet(cluster, machineSetLister)
+				return err == nil
+			},
+			getInfraSize: func(cluster *clustop.CombinedCluster) (int, error) {
+				return controller.GetCAPIInfraSize(cluster, machineSetLister)
+			},
+		},
 		playbooks,
 		clusterInformer,
 		machineSetInformer,
@@ -92,7 +106,10 @@ func NewCAPIController(
 	)
 }
 
-type installStrategy struct{}
+type installStrategy struct {
+	canGetInfraSize func(*clustop.CombinedCluster) bool
+	getInfraSize    func(*clustop.CombinedCluster) (int, error)
+}
 
 var _ clusterinstallcontroller.InstallJobDecorationStrategy = (*installStrategy)(nil)
 
@@ -100,12 +117,19 @@ func (s *installStrategy) ReadyToInstall(cluster *clustop.CombinedCluster, maste
 	if !cluster.ClusterOperatorStatus.ControlPlaneInstalled {
 		return false
 	}
+	if !s.canGetInfraSize(cluster) {
+		return false
+	}
 	return cluster.ClusterOperatorStatus.ComponentsInstalledJobClusterGeneration != cluster.Generation ||
 		cluster.ClusterOperatorStatus.ComponentsInstalledJobMachineSetGeneration != masterMachineSet.GetGeneration()
 }
 
 func (s *installStrategy) DecorateJobGeneratorExecutor(executor *ansible.JobGeneratorExecutor, cluster *clustop.CombinedCluster) error {
-	executor.WithInfraSize(cluster)
+	infraSize, err := s.getInfraSize(cluster)
+	if err != nil {
+		return err
+	}
+	executor.WithInfraSize(infraSize)
 	return nil
 }
 

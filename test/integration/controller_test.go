@@ -17,6 +17,8 @@ limitations under the License.
 package integration
 
 import (
+	"bytes"
+	"fmt"
 	"sort"
 	"sync"
 	"testing"
@@ -30,6 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	serializer "k8s.io/apimachinery/pkg/runtime/serializer"
+	jsonserializer "k8s.io/apimachinery/pkg/runtime/serializer/json"
 	"k8s.io/apimachinery/pkg/watch"
 	kubeinformers "k8s.io/client-go/informers"
 	kubefake "k8s.io/client-go/kubernetes/fake"
@@ -39,9 +42,11 @@ import (
 	_ "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/install"
 
 	servertesting "github.com/openshift/cluster-operator/cmd/cluster-operator-apiserver/app/testing"
+	"github.com/openshift/cluster-operator/pkg/api"
 	clustopv1alpha1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	clustopclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
 	clustopinformers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions"
+	"github.com/openshift/cluster-operator/pkg/controller"
 	clustercontroller "github.com/openshift/cluster-operator/pkg/controller/cluster"
 	capimachinecontroller "github.com/openshift/cluster-operator/pkg/controller/clusterapimachine"
 	componentscontroller "github.com/openshift/cluster-operator/pkg/controller/components"
@@ -51,7 +56,9 @@ import (
 	machinesetcontroller "github.com/openshift/cluster-operator/pkg/controller/machineset"
 	mastercontroller "github.com/openshift/cluster-operator/pkg/controller/master"
 	nodeconfigcontroller "github.com/openshift/cluster-operator/pkg/controller/nodeconfig"
-	//	capiv1alpha1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	syncmachinesetcontroller "github.com/openshift/cluster-operator/pkg/controller/syncmachineset"
+	capicommon "sigs.k8s.io/cluster-api/pkg/apis/cluster/common"
+	capiv1alpha1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	capiclientset "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 	capifakeclientset "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset/fake"
 	capiinformers "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions"
@@ -144,7 +151,7 @@ func TestClusterCreate(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			kubeClient, _, clusterOperatorClient, _, _, tearDown := startServerAndControllers(t)
+			kubeClient, _, clustopClient, _, _, tearDown := startServerAndControllers(t)
 			defer tearDown()
 
 			clusterVersion := &clustopv1alpha1.ClusterVersion{
@@ -170,7 +177,7 @@ func TestClusterCreate(t *testing.T) {
 					OpenshiftAnsibleImagePullPolicy: func(p kapi.PullPolicy) *kapi.PullPolicy { return &p }(kapi.PullNever),
 				},
 			}
-			clusterOperatorClient.ClusteroperatorV1alpha1().ClusterVersions(testNamespace).Create(clusterVersion)
+			clustopClient.ClusteroperatorV1alpha1().ClusterVersions(testNamespace).Create(clusterVersion)
 
 			cluster := &clustopv1alpha1.Cluster{
 				ObjectMeta: metav1.ObjectMeta{
@@ -196,24 +203,24 @@ func TestClusterCreate(t *testing.T) {
 				},
 			}
 
-			cluster, err := clusterOperatorClient.ClusteroperatorV1alpha1().Clusters(testNamespace).Create(cluster)
+			cluster, err := clustopClient.ClusteroperatorV1alpha1().Clusters(testNamespace).Create(cluster)
 			if !assert.NoError(t, err, "could not create the cluster") {
 				return
 			}
 
-			if err := waitForClusterToExist(clusterOperatorClient, testNamespace, testClusterName); err != nil {
+			if err := waitForClusterToExist(clustopClient, testNamespace, testClusterName); err != nil {
 				t.Fatalf("error waiting for Cluster to exist: %v", err)
 			}
 
-			if !verifyMachineSetsCreated(t, kubeClient, clusterOperatorClient, cluster) {
+			if !verifyMachineSetsCreated(t, kubeClient, clustopClient, cluster) {
 				return
 			}
 
-			if !completeInfraProvision(t, kubeClient, clusterOperatorClient, cluster) {
+			if !completeInfraProvision(t, kubeClient, clustopClient, cluster) {
 				return
 			}
 
-			masterMachineSet, err := getMasterMachineSet(clusterOperatorClient, cluster)
+			masterMachineSet, err := getMasterMachineSet(clustopClient, cluster)
 			if !assert.NoError(t, err, "error getting master machine set") {
 				return
 			}
@@ -221,51 +228,270 @@ func TestClusterCreate(t *testing.T) {
 				return
 			}
 
-			if !completeMachineSetProvision(t, kubeClient, clusterOperatorClient, masterMachineSet) {
+			if !completeMachineSetProvision(t, kubeClient, clustopClient, masterMachineSet) {
 				return
 			}
 
-			if !completeControlPlaneInstall(t, kubeClient, clusterOperatorClient, cluster) {
+			if !completeControlPlaneInstall(t, kubeClient, clustopClient, cluster) {
 				return
 			}
 
-			if !completeComponentsInstall(t, kubeClient, clusterOperatorClient, cluster) {
+			if !completeComponentsInstall(t, kubeClient, clustopClient, cluster) {
 				return
 			}
 
-			if !completeNodeConfigInstall(t, kubeClient, clusterOperatorClient, cluster) {
+			if !completeNodeConfigInstall(t, kubeClient, clustopClient, cluster) {
 				return
 			}
 
-			if !completeDeployClusterAPIInstall(t, kubeClient, clusterOperatorClient, cluster) {
+			if !completeDeployClusterAPIInstall(t, kubeClient, clustopClient, cluster) {
 				return
 			}
 
-			computeMachineSets, err := getComputeMachineSets(clusterOperatorClient, cluster)
+			computeMachineSets, err := getComputeMachineSets(clustopClient, cluster)
 			if !assert.NoError(t, err, "error getting compute machine sets") {
 				return
 			}
 
 			for _, machineSet := range computeMachineSets {
-				if !completeMachineSetProvision(t, kubeClient, clusterOperatorClient, machineSet) {
+				if !completeMachineSetProvision(t, kubeClient, clustopClient, machineSet) {
 					return
 				}
 			}
 
-			if err := waitForClusterReady(clusterOperatorClient, cluster.Namespace, cluster.Name); err != nil {
+			if err := waitForClusterReady(clustopClient, cluster.Namespace, cluster.Name); err != nil {
 				t.Fatalf("timed out waiting for cluster to be ready: %v", err)
 			}
 
-			if err := clusterOperatorClient.ClusteroperatorV1alpha1().Clusters(cluster.Namespace).Delete(cluster.Name, &metav1.DeleteOptions{}); err != nil {
+			if err := clustopClient.ClusteroperatorV1alpha1().Clusters(cluster.Namespace).Delete(cluster.Name, &metav1.DeleteOptions{}); err != nil {
 				t.Fatalf("could not delete cluster: %v", err)
 			}
 
-			if !completeMachineSetsDeprovision(t, kubeClient, clusterOperatorClient, cluster) {
+			if !completeMachineSetsDeprovision(t, kubeClient, clustopClient, cluster) {
 				return
 			}
 
-			if !completeInfraDeprovision(t, kubeClient, clusterOperatorClient, cluster) {
+			if !completeInfraDeprovision(t, kubeClient, clustopClient, cluster) {
 				return
+			}
+
+			if err := waitForClusterToNotExist(clustopClient, cluster.Namespace, cluster.Name); err != nil {
+				t.Fatalf("cluster not removed: %v", err)
+			}
+		})
+	}
+}
+
+func testCAPIMachineSet(name string, replicas int32, roles []capicommon.MachineRole, infra bool) *capiv1alpha1.MachineSet {
+	return &capiv1alpha1.MachineSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: testNamespace,
+			Name:      name,
+			Labels: map[string]string{
+				clustopv1alpha1.ClusterNameLabel: testClusterName,
+			},
+		},
+		Spec: capiv1alpha1.MachineSetSpec{
+			Replicas: func(n int32) *int32 { return &n }(3),
+			Selector: metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"set": name,
+				},
+			},
+			Template: capiv1alpha1.MachineTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"set": name,
+					},
+				},
+				Spec: capiv1alpha1.MachineSpec{
+					Roles: roles,
+					ProviderConfig: capiv1alpha1.ProviderConfig{
+						Value: func() *runtime.RawExtension {
+							r, _ := controller.ClusterAPIMachineProviderConfigFromMachineSetSpec(&clustopv1alpha1.MachineSetSpec{
+								MachineSetConfig: clustopv1alpha1.MachineSetConfig{
+									Infra: infra,
+								},
+							})
+							return r
+						}(),
+					},
+				},
+			},
+		},
+	}
+}
+
+// TestCAPIClusterCreate tests creating a cluster-api cluster.
+func TestCAPIClusterCreate(t *testing.T) {
+	cases := []struct {
+		name        string
+		machineSets []*capiv1alpha1.MachineSet
+	}{
+		{
+			name: "no compute machine sets",
+			machineSets: []*capiv1alpha1.MachineSet{
+				testCAPIMachineSet("master", 3, []capicommon.MachineRole{capicommon.MasterRole}, true),
+			},
+		},
+		{
+			name: "single compute machine sets",
+			machineSets: []*capiv1alpha1.MachineSet{
+				testCAPIMachineSet("master", 3, []capicommon.MachineRole{capicommon.MasterRole}, true),
+				testCAPIMachineSet("first", 5, []capicommon.MachineRole{capicommon.NodeRole}, false),
+			},
+		},
+		{
+			name: "multiple compute machine sets",
+			machineSets: []*capiv1alpha1.MachineSet{
+				testCAPIMachineSet("master", 3, []capicommon.MachineRole{capicommon.MasterRole}, true),
+				testCAPIMachineSet("first", 5, []capicommon.MachineRole{capicommon.NodeRole}, false),
+				testCAPIMachineSet("second", 6, []capicommon.MachineRole{capicommon.NodeRole}, false),
+				testCAPIMachineSet("3rd", 3, []capicommon.MachineRole{capicommon.NodeRole}, false),
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			kubeClient, _, clustopClient, capiClient, _, tearDown := startServerAndControllers(t)
+			defer tearDown()
+
+			clusterVersion := &clustopv1alpha1.ClusterVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: testNamespace,
+					Name:      testClusterVersionName,
+				},
+				Spec: clustopv1alpha1.ClusterVersionSpec{
+					ImageFormat: "openshift/origin-${component}:${version}",
+					VMImages: clustopv1alpha1.VMImages{
+						AWSImages: &clustopv1alpha1.AWSVMImages{
+							RegionAMIs: []clustopv1alpha1.AWSRegionAMIs{
+								{
+									Region: "us-east-1",
+									AMI:    "computeAMI_ID",
+								},
+							},
+						},
+					},
+					DeploymentType:                  clustopv1alpha1.ClusterDeploymentTypeOrigin,
+					Version:                         "v3.7.0",
+					OpenshiftAnsibleImage:           func(s string) *string { return &s }("test-ansible-image"),
+					OpenshiftAnsibleImagePullPolicy: func(p kapi.PullPolicy) *kapi.PullPolicy { return &p }(kapi.PullNever),
+				},
+			}
+			clustopClient.ClusteroperatorV1alpha1().ClusterVersions(testNamespace).Create(clusterVersion)
+
+			cluster := &capiv1alpha1.Cluster{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: testNamespace,
+					Name:      testClusterName,
+				},
+				Spec: capiv1alpha1.ClusterSpec{
+					ClusterNetwork: capiv1alpha1.ClusterNetworkingConfig{
+						Services: capiv1alpha1.NetworkRanges{
+							CIDRBlocks: []string{"255.255.255.255"},
+						},
+						Pods: capiv1alpha1.NetworkRanges{
+							CIDRBlocks: []string{"255.255.255.255"},
+						},
+						ServiceDomain: "service-domain",
+					},
+					ProviderConfig: capiv1alpha1.ProviderConfig{
+						Value: clusterAPIProviderConfigFromClusterSpec(&clustopv1alpha1.ClusterSpec{
+							ClusterVersionRef: clustopv1alpha1.ClusterVersionReference{
+								Namespace: clusterVersion.Namespace,
+								Name:      clusterVersion.Name,
+							},
+							Hardware: clustopv1alpha1.ClusterHardwareSpec{
+								AWS: &clustopv1alpha1.AWSClusterSpec{
+									Region: "us-east-1",
+								},
+							},
+							DefaultHardwareSpec: &clustopv1alpha1.MachineSetHardwareSpec{
+								AWS: &clustopv1alpha1.MachineSetAWSHardwareSpec{
+									InstanceType: "instance-type",
+								},
+							},
+						}),
+					},
+				},
+			}
+
+			cluster, err := capiClient.ClusterV1alpha1().Clusters(testNamespace).Create(cluster)
+			if !assert.NoError(t, err, "could not create the cluster") {
+				return
+			}
+
+			machineSets := make([]*capiv1alpha1.MachineSet, len(tc.machineSets))
+			var masterMachinSet *capiv1alpha1.MachineSet
+
+			for i, machineSet := range tc.machineSets {
+				if machineSet.Labels == nil {
+					machineSet.Labels = map[string]string{}
+				}
+				machineSet.Labels["clusteroperator.openshift.io/cluster"] = cluster.Name
+				ms, err := capiClient.ClusterV1alpha1().MachineSets(testNamespace).Create(machineSet)
+				if !assert.NoError(t, err, "could not create machineset %v", machineSet.Name) {
+					return
+				}
+				machineSets[i] = ms
+				for _, role := range ms.Spec.Template.Spec.Roles {
+					if role == capicommon.MasterRole {
+						if masterMachinSet != nil {
+							t.Fatalf("multiple master machinesets: %s and %s", masterMachinSet.Name, ms.Name)
+						}
+						masterMachinSet = ms
+					}
+				}
+				if masterMachinSet == nil {
+					t.Fatalf("no master machineset")
+				}
+			}
+
+			if err := waitForCAPIClusterToExist(capiClient, testNamespace, testClusterName); err != nil {
+				t.Fatalf("error waiting for Cluster to exist: %v", err)
+			}
+
+			for _, machineSet := range tc.machineSets {
+				if err := waitForCAPIMachineSetToExist(capiClient, testNamespace, machineSet.Name); err != nil {
+					t.Fatalf("error waiting for MachinSet %v to exist: %v", machineSet.Name, err)
+				}
+			}
+
+			if !completeCAPIInfraProvision(t, kubeClient, capiClient, cluster) {
+				return
+			}
+
+			if !completeCAPIControlPlaneInstall(t, kubeClient, capiClient, cluster) {
+				return
+			}
+
+			if !completeCAPIComponentsInstall(t, kubeClient, capiClient, cluster) {
+				return
+			}
+
+			if !completeCAPINodeConfigInstall(t, kubeClient, capiClient, cluster) {
+				return
+			}
+
+			if !completeCAPIDeployClusterAPIInstall(t, kubeClient, capiClient, cluster) {
+				return
+			}
+
+			if err := capiClient.ClusterV1alpha1().Clusters(cluster.Namespace).Delete(cluster.Name, &metav1.DeleteOptions{}); err != nil {
+				t.Fatalf("could not delete cluster: %v", err)
+			}
+
+			if err := setCAPIDeprovisionedComputeMachinesets(capiClient, cluster.Namespace, cluster.Name); err != nil {
+				t.Fatalf("could not set DeprovisionedComputeMachinesets: %v", err)
+			}
+
+			if !completeCAPIInfraDeprovision(t, kubeClient, capiClient, cluster) {
+				return
+			}
+
+			if err := waitForCAPIClusterToNotExist(capiClient, cluster.Namespace, cluster.Name); err != nil {
+				t.Fatalf("cluster not removed: %v", err)
 			}
 		})
 	}
@@ -443,10 +669,24 @@ func startServerAndControllers(t *testing.T) (
 			)
 			return func() { controller.Run(1, stopCh) }
 		}(),
+		// syncmachineset
+		func() func() {
+			controller := syncmachinesetcontroller.NewController(
+				clustopSharedInformers.MachineSets(),
+				clustopSharedInformers.Clusters(),
+				fakeKubeClient,
+				clustopClient,
+			)
+			controller.BuildRemoteClient = func(*clustopv1alpha1.Cluster) (capiclientset.Interface, error) {
+				return fakeCAPIClient, nil
+			}
+			return func() { controller.Run(1, stopCh) }
+		}(),
 		// cpai-infra
 		func() func() {
 			controller := infracontroller.NewClusterAPIController(
 				capiSharedInformers.Clusters(),
+				capiSharedInformers.MachineSets(),
 				batchSharedInformers.Jobs(),
 				fakeKubeClient,
 				clustopClient,
@@ -544,8 +784,16 @@ func getCluster(clustopClient clustopclientset.Interface, namespace, name string
 	return clustopClient.ClusteroperatorV1alpha1().Clusters(namespace).Get(name, metav1.GetOptions{})
 }
 
+func getCAPICluster(capiClient capiclientset.Interface, namespace, name string) (*capiv1alpha1.Cluster, error) {
+	return capiClient.ClusterV1alpha1().Clusters(namespace).Get(name, metav1.GetOptions{})
+}
+
 func getMachineSet(clustopClient clustopclientset.Interface, namespace, name string) (*clustopv1alpha1.MachineSet, error) {
 	return clustopClient.ClusteroperatorV1alpha1().MachineSets(namespace).Get(name, metav1.GetOptions{})
+}
+
+func getCAPIMachineSet(capiClient capiclientset.Interface, namespace, name string) (*capiv1alpha1.MachineSet, error) {
+	return capiClient.ClusterV1alpha1().MachineSets(namespace).Get(name, metav1.GetOptions{})
 }
 
 func getMasterMachineSet(clustopClient clustopclientset.Interface, cluster *clustopv1alpha1.Cluster) (*clustopv1alpha1.MachineSet, error) {
@@ -670,6 +918,44 @@ func deleteDependentMachineSets(clustopClient clustopclientset.Interface, cluste
 		if err := clustopClient.ClusteroperatorV1alpha1().MachineSets(machineSet.Namespace).Delete(machineSet.Name, &metav1.DeleteOptions{}); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func clusterAPIProviderConfigFromClusterSpec(clusterSpec *clustopv1alpha1.ClusterSpec) *runtime.RawExtension {
+	clusterProviderConfigSpec := &clustopv1alpha1.ClusterProviderConfigSpec{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: clustopv1alpha1.SchemeGroupVersion.String(),
+			Kind:       "ClusterProviderConfigSpec",
+		},
+		ClusterSpec: *clusterSpec,
+	}
+	serializer := jsonserializer.NewSerializer(jsonserializer.DefaultMetaFactory, api.Scheme, api.Scheme, false)
+	var buffer bytes.Buffer
+	serializer.Encode(clusterProviderConfigSpec, &buffer)
+	return &runtime.RawExtension{
+		Raw: buffer.Bytes(),
+	}
+}
+
+func setCAPIDeprovisionedComputeMachinesets(capiClient capiclientset.Interface, namespace, name string) error {
+	cluster, err := getCAPICluster(capiClient, namespace, name)
+	if err != nil {
+		return fmt.Errorf("could not get cluster %s/%s", namespace, name)
+	}
+	status, err := controller.ClusterStatusFromClusterAPI(cluster)
+	if err != nil {
+		return err
+	}
+	status.DeprovisionedComputeMachinesets = true
+	providerStatus, err := controller.ClusterAPIProviderStatusFromClusterStatus(status)
+	if err != nil {
+		return err
+	}
+	cluster.Status.ProviderStatus = providerStatus
+	_, err = capiClient.ClusterV1alpha1().Clusters(namespace).UpdateStatus(cluster)
+	if err != nil {
+		return err
 	}
 	return nil
 }

@@ -40,6 +40,7 @@ import (
 	"github.com/openshift/cluster-operator/pkg/kubernetes/pkg/util/metrics"
 
 	"github.com/openshift/cluster-operator/pkg/controller"
+	"github.com/openshift/cluster-operator/pkg/logging"
 
 	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	clusteroperatorclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
@@ -79,10 +80,15 @@ func NewClusterOperatorController(
 		kubeClient,
 		jobInformer,
 		func(handler cache.ResourceEventHandler) { clusterInformer.Informer().AddEventHandler(handler) },
+		func(handler cache.ResourceEventHandler) {}, // do nothing as we don't need to listen to changes to clustop machinesets
 		func(namespace, name string) (metav1.Object, error) {
 			return clusterLister.Clusters(namespace).Get(name)
 		},
 		clusterInformer.Informer().HasSynced,
+		func(*clusteroperator.CombinedCluster) bool { return true },
+		func(cluster *clusteroperator.CombinedCluster) (int, error) {
+			return controller.GetClustopInfraSize(cluster)
+		},
 	)
 }
 
@@ -90,12 +96,14 @@ func NewClusterOperatorController(
 // cluster-api resources.
 func NewClusterAPIController(
 	clusterInformer clusterapiinformers.ClusterInformer,
+	machineSetInformer clusterapiinformers.MachineSetInformer,
 	jobInformer batchinformers.JobInformer,
 	kubeClient kubeclientset.Interface,
 	clusteroperatorClient clusteroperatorclientset.Interface,
 	clusterapiClient clusterapiclientset.Interface,
 ) *Controller {
 	clusterLister := clusterInformer.Lister()
+	machineSetLister := machineSetInformer.Lister()
 	return newController(
 		clusterapi.SchemeGroupVersion.WithKind("Cluster"),
 		"capi-infra",
@@ -104,10 +112,18 @@ func NewClusterAPIController(
 		kubeClient,
 		jobInformer,
 		func(handler cache.ResourceEventHandler) { clusterInformer.Informer().AddEventHandler(handler) },
+		func(handler cache.ResourceEventHandler) { machineSetInformer.Informer().AddEventHandler(handler) },
 		func(namespace, name string) (metav1.Object, error) {
 			return clusterLister.Clusters(namespace).Get(name)
 		},
 		clusterInformer.Informer().HasSynced,
+		func(cluster *clusteroperator.CombinedCluster) bool {
+			_, err := controller.GetCAPIInfraMachineSet(cluster, machineSetLister)
+			return err == nil
+		},
+		func(cluster *clusteroperator.CombinedCluster) (int, error) {
+			return controller.GetCAPIInfraSize(cluster, machineSetLister)
+		},
 	)
 }
 
@@ -118,9 +134,12 @@ func newController(
 	clusterapiClient clusterapiclientset.Interface,
 	kubeClient kubeclientset.Interface,
 	jobInformer batchinformers.JobInformer,
-	addInformerEventHandler func(cache.ResourceEventHandler),
+	addClusterInformerEventHandler func(cache.ResourceEventHandler),
+	addMachineSetInformerEventHandler func(cache.ResourceEventHandler),
 	getCluster func(namespace, name string) (metav1.Object, error),
 	clustersSynced cache.InformerSynced,
+	canGetInfraSize func(*clusteroperator.CombinedCluster) bool,
+	getInfraSize func(*clusteroperator.CombinedCluster) (int, error),
 ) *Controller {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(glog.Infof)
@@ -136,21 +155,27 @@ func newController(
 
 	logger := log.WithField("controller", controllerName)
 	c := &Controller{
-		clusterKind:    clusterKind,
-		controllerName: controllerName,
-		coClient:       clusteroperatorClient,
-		caClient:       clusterapiClient,
-		kubeClient:     kubeClient,
-		queue:          workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), controllerName),
-		logger:         logger,
-		getCluster:     getCluster,
-		clustersSynced: clustersSynced,
+		clusterKind:     clusterKind,
+		controllerName:  controllerName,
+		coClient:        clusteroperatorClient,
+		caClient:        clusterapiClient,
+		kubeClient:      kubeClient,
+		queue:           workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), controllerName),
+		logger:          logger,
+		getCluster:      getCluster,
+		clustersSynced:  clustersSynced,
+		canGetInfraSize: canGetInfraSize,
+		getInfraSize:    getInfraSize,
 	}
 
-	addInformerEventHandler(cache.ResourceEventHandlerFuncs{
+	addClusterInformerEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.addCluster,
 		UpdateFunc: c.updateCluster,
 		DeleteFunc: c.deleteCluster,
+	})
+	addMachineSetInformerEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    c.addMachineSet,
+		UpdateFunc: c.updateMachineSet,
 	})
 
 	jobOwnerControl := &jobOwnerControl{controller: c}
@@ -202,6 +227,9 @@ type Controller struct {
 	// Clusters that need to be synced
 	queue workqueue.RateLimitingInterface
 
+	canGetInfraSize func(*clusteroperator.CombinedCluster) bool
+	getInfraSize    func(*clusteroperator.CombinedCluster) (int, error)
+
 	logger *log.Entry
 }
 
@@ -235,6 +263,26 @@ func (c *Controller) deleteCluster(obj interface{}) {
 	c.enqueueCluster(cluster)
 }
 
+func (c *Controller) addMachineSet(obj interface{}) {
+	machineSet := obj.(metav1.Object)
+	if !isInfraMachineSet(machineSet) {
+		return
+	}
+	logging.WithGenericMachineSet(c.logger, machineSet).
+		Debugf("Adding infra machine set")
+	c.enqueueClusterForMachineSet(machineSet)
+}
+
+func (c *Controller) updateMachineSet(old, cur interface{}) {
+	machineSet := cur.(metav1.Object)
+	if !isInfraMachineSet(machineSet) {
+		return
+	}
+	logging.WithGenericMachineSet(c.logger, machineSet).
+		Debugf("Updating infra machine set")
+	c.enqueueClusterForMachineSet(machineSet)
+}
+
 // Run runs c; will not return until stopCh is closed. workers determines how
 // many clusters will be handled in parallel.
 func (c *Controller) Run(workers int, stopCh <-chan struct{}) {
@@ -264,6 +312,20 @@ func (c *Controller) enqueue(cluster metav1.Object) {
 	}
 
 	c.queue.Add(key)
+}
+
+func (c *Controller) enqueueClusterForMachineSet(machineSet metav1.Object) {
+	cluster, err := controller.ClusterForGenericMachineSet(machineSet, c.clusterKind, c.getCluster)
+	if err != nil {
+		logging.WithGenericMachineSet(c.logger, machineSet).
+			Warnf("Error getting cluster for infra machine set: %v")
+		return
+	}
+	if cluster == nil {
+		logging.WithGenericMachineSet(c.logger, machineSet).
+			Infof("No cluster for infra machine set")
+	}
+	c.enqueueCluster(cluster)
 }
 
 // worker runs a worker thread that just dequeues items, processes them, and marks them done.
@@ -304,6 +366,22 @@ func (c *Controller) handleErr(err error, key interface{}) {
 	utilruntime.HandleError(err)
 	logger.Infof("dropping cluster out of the queue: %v", err)
 	c.queue.Forget(key)
+}
+
+func isInfraMachineSet(obj metav1.Object) bool {
+	switch machineSet := obj.(type) {
+	case *clusteroperator.MachineSet:
+		return machineSet.Spec.Infra
+	case *clusterapi.MachineSet:
+		clustopSpec, err := controller.MachineSetSpecFromClusterAPIMachineSpec(&machineSet.Spec.Template.Spec)
+		if err != nil {
+			return false
+		}
+		return clustopSpec.Infra
+	default:
+		utilruntime.HandleError(fmt.Errorf("expected object to be a MachineSet: %T", obj))
+		return false
+	}
 }
 
 type jobOwnerControl struct {
@@ -373,6 +451,10 @@ func (s *jobSyncStrategy) DoesOwnerNeedProcessing(owner metav1.Object) bool {
 		}
 	}
 
+	if !s.controller.canGetInfraSize(cluster) {
+		return false
+	}
+
 	return cluster.ClusterOperatorStatus.ProvisionedJobGeneration != cluster.Generation
 }
 
@@ -381,28 +463,32 @@ func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object, deleting bool) (con
 	if err != nil {
 		return nil, fmt.Errorf("could not convert owner from JobSync into a cluster: %v: %#v", err, owner)
 	}
+	cvRef := cluster.ClusterOperatorSpec.ClusterVersionRef
+	cv, err := s.controller.coClient.Clusteroperator().ClusterVersions(cvRef.Namespace).Get(cvRef.Name, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("could not get the ClusterVersion: %v", err)
+	}
+	infraSize, err := s.controller.getInfraSize(cluster)
+	if err != nil {
+		return nil, fmt.Errorf("could not get the infra size: %v", err)
+	}
 	playbook := infraPlaybook
 	if deleting {
 		playbook = deprovisionInfraPlaybook
 	}
-	jobFactory := jobFactory(func(name string) (*v1batch.Job, *kapi.ConfigMap, error) {
-		cvRef := cluster.ClusterOperatorSpec.ClusterVersionRef
-		cv, err := s.controller.coClient.Clusteroperator().ClusterVersions(cvRef.Namespace).Get(cvRef.Name, metav1.GetOptions{})
+	jobGeneratorExecutor := ansible.
+		NewJobGeneratorExecutorForMasterMachineSet(s.controller.ansibleGenerator, []string{playbook}, cluster, cv).
+		WithInfraSize(infraSize)
+	return jobFactory(func(name string) (*v1batch.Job, *kapi.ConfigMap, error) {
+		job, configMap, err := jobGeneratorExecutor.Execute(name)
 		if err != nil {
 			return nil, nil, err
 		}
-		vars, err := ansible.GenerateClusterVars(cluster.Name, cluster.ClusterOperatorSpec, &cv.Spec)
-		if err != nil {
-			return nil, nil, err
-		}
-		image, pullPolicy := ansible.GetAnsibleImageForClusterVersion(cv)
-		job, configMap := s.controller.ansibleGenerator.GeneratePlaybookJob(name, &cluster.ClusterOperatorSpec.Hardware, playbook, ansible.DefaultInventory, vars, image, pullPolicy)
 		labels := controller.JobLabelsForClusterController(cluster, s.controller.controllerName)
 		controller.AddLabels(job, labels)
 		controller.AddLabels(configMap, labels)
 		return job, configMap, nil
-	})
-	return jobFactory, nil
+	}), nil
 }
 
 func (s *jobSyncStrategy) DeepCopyOwner(owner metav1.Object) metav1.Object {
@@ -462,15 +548,11 @@ func (s *jobSyncStrategy) UpdateOwnerStatus(original, owner metav1.Object) error
 		cluster := controller.ClusterOperatorClusterForCombinedCluster(combinedCluster)
 		return controller.PatchClusterStatus(s.controller.coClient, originalCluster, cluster)
 	case clusterapi.SchemeGroupVersion.Group:
-		originalCluster, err := controller.ClusterAPIClusterForCombinedCluster(originalCombinedCluster, true /*ignoreChanges*/)
-		if err != nil {
-			return err
-		}
 		cluster, err := controller.ClusterAPIClusterForCombinedCluster(combinedCluster, false /*ignoreChanges*/)
 		if err != nil {
 			return err
 		}
-		return controller.PatchClusterAPIStatus(s.controller.caClient, originalCluster, cluster)
+		return controller.UpdateClusterAPIStatus(s.controller.caClient, cluster)
 	default:
 		return fmt.Errorf("unknown cluster kind %+v", s.controller.clusterKind)
 	}

@@ -293,16 +293,28 @@ func TestJobSyncWithNoWorkResult(t *testing.T) {
 // there is a job working and the job is completed.
 func TestJobSyncForCompletedJob(t *testing.T) {
 	cases := []struct {
-		name     string
-		deleting bool
+		name                string
+		finalizerInOriginal bool
+		finalizerInUpdated  bool
+		deleting            bool
 	}{
 		{
-			name:     "processing",
-			deleting: false,
+			name:                "processing",
+			finalizerInOriginal: true,
+			finalizerInUpdated:  true,
+			deleting:            false,
 		},
 		{
-			name:     "undoing",
-			deleting: true,
+			name:                "processing with no finalizer",
+			finalizerInOriginal: false,
+			finalizerInUpdated:  true,
+			deleting:            false,
+		},
+		{
+			name:                "undoing",
+			finalizerInOriginal: true,
+			finalizerInUpdated:  false,
+			deleting:            true,
 		},
 	}
 	for _, tc := range cases {
@@ -318,10 +330,15 @@ func TestJobSyncForCompletedJob(t *testing.T) {
 
 			owner := &metav1.ObjectMeta{}
 			ownerCopy := &metav1.ObjectMeta{}
+			if tc.finalizerInOriginal {
+				owner.Finalizers = []string{testFinalizer}
+			}
+			if tc.finalizerInUpdated {
+				ownerCopy.Finalizers = []string{testFinalizer}
+			}
 			if tc.deleting {
 				now := metav1.Now()
 				owner.DeletionTimestamp = &now
-				owner.Finalizers = []string{testFinalizer}
 				ownerCopy.DeletionTimestamp = &now
 			}
 
@@ -343,13 +360,12 @@ func TestJobSyncForCompletedJob(t *testing.T) {
 
 			mockJobSyncStrategy.EXPECT().GetOwner(testKey).
 				Return(owner, nil)
+			mockJobControl.EXPECT().GetJobPrefix().
+				AnyTimes().
+				Return(testJobPrefix)
 			if !tc.deleting {
 				mockJobSyncStrategy.EXPECT().DoesOwnerNeedProcessing(owner).
 					Return(true)
-			} else {
-				mockJobControl.EXPECT().GetJobPrefix().
-					AnyTimes().
-					Return(testJobPrefix)
 			}
 			mockJobSyncStrategy.EXPECT().GetJobFactory(owner, tc.deleting).
 				Return(mockJobFactory, nil)
@@ -388,16 +404,28 @@ func TestJobSyncForCompletedJob(t *testing.T) {
 // there is a job working and the job has failed.
 func TestJobSyncForFailedJob(t *testing.T) {
 	cases := []struct {
-		name     string
-		deleting bool
+		name                string
+		finalizerInOriginal bool
+		finalizerInUpdated  bool
+		deleting            bool
 	}{
 		{
-			name:     "processing",
-			deleting: false,
+			name:                "processing",
+			finalizerInOriginal: true,
+			finalizerInUpdated:  true,
+			deleting:            false,
 		},
 		{
-			name:     "undoing",
-			deleting: true,
+			name:                "processing with no finalizer",
+			finalizerInOriginal: false,
+			finalizerInUpdated:  true,
+			deleting:            false,
+		},
+		{
+			name:                "undoing",
+			finalizerInOriginal: true,
+			finalizerInUpdated:  false,
+			deleting:            true,
 		},
 	}
 	for _, tc := range cases {
@@ -413,10 +441,15 @@ func TestJobSyncForFailedJob(t *testing.T) {
 
 			owner := &metav1.ObjectMeta{}
 			ownerCopy := &metav1.ObjectMeta{}
+			if tc.finalizerInOriginal {
+				owner.Finalizers = []string{testFinalizer}
+			}
+			if tc.finalizerInUpdated {
+				ownerCopy.Finalizers = []string{testFinalizer}
+			}
 			if tc.deleting {
 				now := metav1.Now()
 				owner.DeletionTimestamp = &now
-				owner.Finalizers = []string{testFinalizer}
 				ownerCopy.DeletionTimestamp = &now
 			}
 
@@ -438,13 +471,12 @@ func TestJobSyncForFailedJob(t *testing.T) {
 
 			mockJobSyncStrategy.EXPECT().GetOwner(testKey).
 				Return(owner, nil)
+			mockJobControl.EXPECT().GetJobPrefix().
+				AnyTimes().
+				Return(testJobPrefix)
 			if !tc.deleting {
 				mockJobSyncStrategy.EXPECT().DoesOwnerNeedProcessing(owner).
 					Return(true)
-			} else {
-				mockJobControl.EXPECT().GetJobPrefix().
-					AnyTimes().
-					Return(testJobPrefix)
 			}
 			mockJobSyncStrategy.EXPECT().GetJobFactory(owner, tc.deleting).
 				Return(mockJobFactory, nil)

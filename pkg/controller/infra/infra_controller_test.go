@@ -80,6 +80,7 @@ func newTestClusterOperatorController() (
 func newTestClusterAPIController() (
 	*Controller,
 	cache.Store, // cluster store
+	cache.Store, // machineset store
 	cache.Store, // jobs store
 	*clientgofake.Clientset,
 	*clusteroperatorclientset.Clientset,
@@ -94,6 +95,7 @@ func newTestClusterAPIController() (
 
 	controller := NewClusterAPIController(
 		clusterAPIInformers.Cluster().V1alpha1().Clusters(),
+		clusterAPIInformers.Cluster().V1alpha1().MachineSets(),
 		kubeInformers.Batch().V1().Jobs(),
 		kubeClient,
 		clusterOperatorClient,
@@ -104,6 +106,7 @@ func newTestClusterAPIController() (
 
 	return controller,
 		clusterAPIInformers.Cluster().V1alpha1().Clusters().Informer().GetStore(),
+		clusterAPIInformers.Cluster().V1alpha1().MachineSets().Informer().GetStore(),
 		kubeInformers.Batch().V1().Jobs().Informer().GetStore(),
 		kubeClient,
 		clusterOperatorClient,
@@ -217,20 +220,51 @@ func TestController(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			var controller *Controller
+			var infraController *Controller
 			var clusterStore cache.Store
 			var cluster metav1.Object
 			if tc.useClusterOperator {
-				controller, clusterStore, _, _, _ = newTestClusterOperatorController()
+				infraController, clusterStore, _, _, _ = newTestClusterOperatorController()
 				cluster = newClusterOperatorCluster()
 			} else {
-				controller, clusterStore, _, _, _, _ = newTestClusterAPIController()
+				var machineSetStore cache.Store
+				infraController, clusterStore, machineSetStore, _, _, _, _ = newTestClusterAPIController()
 				cluster = newClusterAPICluster()
+				infraMachineSet := &clusterapi.MachineSet{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: cluster.GetNamespace(),
+						Name:      "test-infra",
+						Labels: map[string]string{
+							clusteroperator.ClusterNameLabel: cluster.GetName(),
+						},
+					},
+					Spec: clusterapi.MachineSetSpec{
+						Template: clusterapi.MachineTemplateSpec{
+							Spec: clusterapi.MachineSpec{
+								ProviderConfig: clusterapi.ProviderConfig{
+									Value: func() *runtime.RawExtension {
+										pc, err := controller.ClusterAPIMachineProviderConfigFromMachineSetSpec(
+											&clusteroperator.MachineSetSpec{
+												MachineSetConfig: clusteroperator.MachineSetConfig{
+													Infra: true,
+												},
+											})
+										if err != nil {
+											t.Fatalf("could not create provider config: %v", err)
+										}
+										return pc
+									}(),
+								},
+							},
+						},
+					},
+				}
+				machineSetStore.Add(infraMachineSet)
 			}
 
 			clusterStore.Add(cluster)
 
-			err := controller.syncHandler(getKey(cluster, t))
+			err := infraController.syncHandler(getKey(cluster, t))
 			if tc.expectedErr {
 				assert.Error(t, err)
 			} else {

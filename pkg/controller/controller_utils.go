@@ -24,20 +24,23 @@ import (
 	"github.com/golang/glog"
 	log "github.com/sirupsen/logrus"
 
-	lister "github.com/openshift/cluster-operator/pkg/client/listers_generated/clusteroperator/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	jsonserializer "k8s.io/apimachinery/pkg/runtime/serializer/json"
+	"k8s.io/apimachinery/pkg/selection"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/openshift/cluster-operator/pkg/api"
 	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	lister "github.com/openshift/cluster-operator/pkg/client/listers_generated/clusteroperator/v1alpha1"
+	capicommon "sigs.k8s.io/cluster-api/pkg/apis/cluster/common"
 	clusterapi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	capilister "sigs.k8s.io/cluster-api/pkg/client/listers_generated/cluster/v1alpha1"
 )
 
 var (
@@ -294,17 +297,31 @@ func ClusterForGenericMachineSet(
 	clusterKind schema.GroupVersionKind,
 	getCluster func(namespace, name string) (metav1.Object, error),
 ) (metav1.Object, error) {
-	controller, err := GetObjectController(
-		machineSet,
-		clusterKind,
-		func(name string) (metav1.Object, error) {
-			return getCluster(machineSet.GetNamespace(), name)
-		},
-	)
-	if err != nil {
-		return nil, err
+	switch ms := machineSet.(type) {
+	case *clusteroperator.MachineSet:
+		controller, err := GetObjectController(
+			machineSet,
+			clusterKind,
+			func(name string) (metav1.Object, error) {
+				return getCluster(machineSet.GetNamespace(), name)
+			},
+		)
+		if err != nil {
+			return nil, err
+		}
+		return controller, nil
+	case *clusterapi.MachineSet:
+		if ms.Labels == nil {
+			return nil, fmt.Errorf("missing %s label", clusteroperator.ClusterNameLabel)
+		}
+		clusterName, ok := ms.Labels[clusteroperator.ClusterNameLabel]
+		if !ok {
+			return nil, fmt.Errorf("missing %s label", clusteroperator.ClusterNameLabel)
+		}
+		return getCluster(ms.Namespace, clusterName)
+	default:
+		return nil, fmt.Errorf("unknown type of MachineSet: %T", ms)
 	}
-	return controller, nil
 }
 
 // MachineSetsForCluster retrieves the machinesets owned by a given cluster.
@@ -320,6 +337,16 @@ func MachineSetsForCluster(cluster *clusteroperator.Cluster, machineSetsLister l
 		}
 	}
 	return clusterMachineSets, nil
+}
+
+// CAPIMachineSetsForCluster retrieves the machinesets associated with the
+// specified cluster name.
+func CAPIMachineSetsForCluster(namespace string, clusterName string, machineSetsLister capilister.MachineSetLister) ([]*clusterapi.MachineSet, error) {
+	requirement, err := labels.NewRequirement(clusteroperator.ClusterNameLabel, selection.Equals, []string{clusterName})
+	if err != nil {
+		return nil, err
+	}
+	return machineSetsLister.MachineSets(namespace).List(labels.NewSelector().Add(*requirement))
 }
 
 // MachineSetLabels returns the labels to apply to a machine set belonging to the
@@ -378,7 +405,7 @@ func ClusterSpecFromClusterAPI(cluster *clusterapi.Cluster) (*clusteroperator.Cl
 	}
 	obj, gvk, err := api.Codecs.UniversalDecoder(clusteroperator.SchemeGroupVersion).Decode([]byte(cluster.Spec.ProviderConfig.Value.Raw), nil, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not decode ProviderConfig: %v", err)
 	}
 	spec, ok := obj.(*clusteroperator.ClusterProviderConfigSpec)
 	if !ok {
@@ -395,7 +422,7 @@ func ClusterStatusFromClusterAPI(cluster *clusterapi.Cluster) (*clusteroperator.
 	}
 	obj, gvk, err := api.Codecs.UniversalDecoder(clusteroperator.SchemeGroupVersion).Decode([]byte(cluster.Status.ProviderStatus.Raw), nil, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not decode ProviderStatus: %v", err)
 	}
 	status, ok := obj.(*clusteroperator.ClusterProviderStatus)
 	if !ok {
@@ -549,4 +576,61 @@ func ApplyDefaultMachineSetHardwareSpec(machineSetHardwareSpec, defaultHardwareS
 		return nil, err
 	}
 	return mergedSpec, nil
+}
+
+// GetClustopInfraSize gets the size of the infra machine set for the cluster.
+func GetClustopInfraSize(cluster *clusteroperator.CombinedCluster) (int, error) {
+	for _, ms := range cluster.ClusterOperatorSpec.MachineSets {
+		if ms.Infra {
+			return ms.Size, nil
+		}
+	}
+	return 0, fmt.Errorf("no machineset of type Infra found")
+}
+
+// GetCAPIInfraSize gets the size of the infra machine set for the cluster.
+func GetCAPIInfraSize(cluster *clusteroperator.CombinedCluster, machineSetLister capilister.MachineSetLister) (int, error) {
+	machineSet, err := GetCAPIInfraMachineSet(cluster, machineSetLister)
+	if err != nil {
+		return 0, err
+	}
+	size := machineSet.Spec.Replicas
+	if size == nil {
+		return 1, nil
+	}
+	return int(*size), nil
+}
+
+// GetCAPIInfraMachineSet gets the infra machine set for the cluster.
+func GetCAPIInfraMachineSet(cluster *clusteroperator.CombinedCluster, machineSetLister capilister.MachineSetLister) (*clusterapi.MachineSet, error) {
+	machineSets, err := CAPIMachineSetsForCluster(cluster.Namespace, cluster.Name, machineSetLister)
+	if err != nil {
+		return nil, err
+	}
+	for _, ms := range machineSets {
+		clustopSpec, err := MachineSetSpecFromClusterAPIMachineSpec(&ms.Spec.Template.Spec)
+		if err != nil {
+			continue
+		}
+		if clustopSpec.Infra {
+			return ms, nil
+		}
+	}
+	return nil, fmt.Errorf("no infra machineset found")
+}
+
+// GetCAPIMasterMachineSet gets the master machine set for the cluster.
+func GetCAPIMasterMachineSet(cluster *clusteroperator.CombinedCluster, machineSetLister capilister.MachineSetLister) (*clusterapi.MachineSet, error) {
+	machineSets, err := CAPIMachineSetsForCluster(cluster.Namespace, cluster.Name, machineSetLister)
+	if err != nil {
+		return nil, err
+	}
+	for _, ms := range machineSets {
+		for _, role := range ms.Spec.Template.Spec.Roles {
+			if role == capicommon.MasterRole {
+				return ms, nil
+			}
+		}
+	}
+	return nil, fmt.Errorf("no master machineset found")
 }

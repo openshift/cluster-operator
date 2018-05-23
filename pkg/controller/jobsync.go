@@ -217,6 +217,9 @@ func (s *jobSync) setOwnerStatusForSuccessfulJob(original metav1.Object, job *v1
 		finalizers.Delete(finalizerName)
 		owner.SetFinalizers(finalizers.List())
 	} else {
+		if s.undoOnDelete {
+			s.addFinalizerWithoutSaving(owner)
+		}
 		s.strategy.OnJobCompletion(owner, job, true)
 	}
 	return s.strategy.UpdateOwnerStatus(original, owner)
@@ -239,6 +242,9 @@ func (s *jobSync) setOwnerStatusForFailedJob(original metav1.Object, job *v1batc
 		finalizers.Delete(finalizerName)
 		owner.SetFinalizers(finalizers.List())
 	} else {
+		if s.undoOnDelete {
+			s.addFinalizerWithoutSaving(owner)
+		}
 		s.strategy.OnJobCompletion(owner, job, false)
 	}
 	return s.strategy.UpdateOwnerStatus(original, owner)
@@ -249,6 +255,9 @@ func (s *jobSync) setOwnerStatusForInProgressJob(original metav1.Object, job *v1
 		return fmt.Errorf("job control result was that a job was working, but no job was returned")
 	}
 	owner := s.strategy.DeepCopyOwner(original)
+	if !deleting && s.undoOnDelete {
+		s.addFinalizerWithoutSaving(owner)
+	}
 	workingCondtion := JobSyncProcessing
 	if deleting {
 		workingCondtion = JobSyncUndoing
@@ -281,10 +290,17 @@ func (s *jobSync) addFinalizer(original metav1.Object) error {
 		return nil
 	}
 	owner := s.strategy.DeepCopyOwner(original)
+	s.addFinalizerWithoutSaving(owner)
+	return s.strategy.UpdateOwnerStatus(original, owner)
+}
+
+func (s *jobSync) addFinalizerWithoutSaving(owner metav1.Object) {
+	if s.hasFinalizer(owner) {
+		return
+	}
 	finalizers := sets.NewString(owner.GetFinalizers()...)
 	finalizers.Insert(s.getFinalizerName())
 	owner.SetFinalizers(finalizers.List())
-	return s.strategy.UpdateOwnerStatus(original, owner)
 }
 
 func (s *jobSync) getFinalizerName() string {
