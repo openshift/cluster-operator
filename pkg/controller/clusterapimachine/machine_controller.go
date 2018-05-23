@@ -337,7 +337,7 @@ func (c *Controller) syncMachine(key string) error {
 	}
 
 	if !apiequality.Semantic.DeepEqual(machine, newMachine) {
-		_, err = c.capiClient.ClusterV1alpha1().Machines(cluster.Namespace).Update(machine)
+		_, err = c.capiClient.ClusterV1alpha1().Machines(cluster.Namespace).Update(newMachine)
 		if err != nil {
 			return err
 		}

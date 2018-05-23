@@ -23,18 +23,22 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/client-go/kubernetes"
 	clusterv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	clusterclient "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
-	"sigs.k8s.io/cluster-api/util"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 
 	coapi "github.com/openshift/cluster-operator/pkg/api"
+	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	"github.com/openshift/cluster-operator/pkg/controller"
+	clustoplog "github.com/openshift/cluster-operator/pkg/logging"
 )
 
 const (
@@ -47,6 +51,11 @@ const (
 
 	// Instance ID annotation
 	instanceIDAnnotation = "cluster-operator.openshift.io/aws-instance-id"
+
+	awsCredsSecretIDKey     = "awsAccessKeyId"
+	awsCredsSecretAccessKey = "awsSecretAccessKey"
+
+	ec2InstanceIDNotFoundCode = "InvalidInstanceID.NotFound"
 )
 
 // Instance state constants
@@ -84,10 +93,11 @@ func NewActuator(kubeClient *kubernetes.Clientset, clusterClient *clusterclient.
 
 // Create runs a new EC2 instance
 func (a *Actuator) Create(cluster *clusterv1.Cluster, machine *clusterv1.Machine) error {
-	a.logger.Debugf("Create %s/%s", machine.Namespace, machine.Name)
+	mLog := clustoplog.WithClusterAPIMachine(a.logger, machine)
+	mLog.Debugf("Create %s/%s", machine.Namespace, machine.Name)
 	result, err := a.CreateMachine(cluster, machine)
 	if err != nil {
-		a.logger.Errorf("error creating machine: %v", err)
+		mLog.Errorf("error creating machine: %v", err)
 		return err
 	}
 	machineCopy := machine.DeepCopy()
@@ -97,6 +107,8 @@ func (a *Actuator) Create(cluster *clusterv1.Cluster, machine *clusterv1.Machine
 	machineCopy.Annotations[instanceIDAnnotation] = *(result.Instances[0].InstanceId)
 	_, err = a.clusterClient.ClusterV1alpha1().Machines(machineCopy.Namespace).Update(machineCopy)
 	if err != nil {
+		// TODO: if this fails because machine updated in meantime, we requeue machine, see no instance ID,
+		// and create another.
 		a.logger.Errorf("error annotating new machine with instance ID: %v", err)
 		return err
 	}
@@ -105,6 +117,7 @@ func (a *Actuator) Create(cluster *clusterv1.Cluster, machine *clusterv1.Machine
 
 // CreateMachine starts a new AWS instance as described by the cluster and machine resources
 func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.Machine) (*ec2.Reservation, error) {
+	mLog := clustoplog.WithClusterAPIMachine(a.logger, machine)
 	// Extract cluster operator cluster
 	clusterSpec, err := controller.ClusterSpecFromClusterAPI(cluster)
 	if err != nil {
@@ -115,18 +128,18 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 		return nil, fmt.Errorf("Cluster does not contain an AWS hardware spec")
 	}
 
-	region := clusterSpec.Hardware.AWS.Region
-	a.logger.Debugf("Obtaining EC2 client for region %q", region)
-	client, err := a.ec2Client(region)
-	if err != nil {
-		return nil, fmt.Errorf("unable to obtain EC2 client: %v", err)
-	}
-
 	coMachineSetSpec, err := controller.MachineSetSpecFromClusterAPIMachineSpec(&machine.Spec)
 	if err != nil {
 		return nil, err
 	}
-	a.logger.Debugf("Creating machine %q", machine.Name)
+	mLog.Debugf("Creating machine %q", machine.Name)
+
+	region := clusterSpec.Hardware.AWS.Region
+	mLog.Debugf("Obtaining EC2 client for region %q", region)
+	client, err := a.ec2Client(coMachineSetSpec, machine.Namespace, region)
+	if err != nil {
+		return nil, fmt.Errorf("unable to obtain EC2 client: %v", err)
+	}
 
 	if coMachineSetSpec.VMImage.AWSImage == nil {
 		return nil, fmt.Errorf("machine does not have an AWS image set")
@@ -135,7 +148,7 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 	// Get AMI to use
 	amiName := *coMachineSetSpec.VMImage.AWSImage
 
-	a.logger.Debugf("Describing AMI %s", amiName)
+	mLog.Debugf("Describing AMI %s", amiName)
 	imageIds := []*string{aws.String(amiName)}
 	describeImagesRequest := ec2.DescribeImagesInput{
 		ImageIds: imageIds,
@@ -144,7 +157,6 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 	if err != nil {
 		return nil, fmt.Errorf("error describing AMI %s: %v", amiName, err)
 	}
-	a.logger.Debugf("Describe AMI result:\n%s", describeAMIResult)
 	if len(describeAMIResult.Images) != 1 {
 		return nil, fmt.Errorf("Unexpected number of images returned: %d", len(describeAMIResult.Images))
 	}
@@ -159,7 +171,6 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 	if err != nil {
 		return nil, fmt.Errorf("Error describing VPC %s: %v", vpcName, err)
 	}
-	a.logger.Debugf("Describe VPC result:\n%v", describeVpcsResult)
 	if len(describeVpcsResult.Vpcs) != 1 {
 		return nil, fmt.Errorf("Unexpected number of VPCs: %d", len(describeVpcsResult.Vpcs))
 	}
@@ -180,7 +191,7 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 	if err != nil {
 		return nil, fmt.Errorf("Error describing Subnets for VPC %s: %v", vpcName, err)
 	}
-	a.logger.Debugf("Describe Subnets result:\n%v", describeSubnetsResult)
+	mLog.Debugf("Describe Subnets result:\n%v", describeSubnetsResult)
 	if len(describeSubnetsResult.Subnets) == 0 {
 		return nil, fmt.Errorf("Did not find a subnet")
 	}
@@ -206,7 +217,7 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 	if err != nil {
 		return nil, err
 	}
-	a.logger.Debugf("Describe Security Groups result:\n%v", describeSecurityGroupsResult)
+	mLog.Debugf("Describe Security Groups result:\n%v", describeSecurityGroupsResult)
 
 	var securityGroupIds []*string
 	for _, g := range describeSecurityGroupsResult.SecurityGroups {
@@ -285,34 +296,29 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 	if err != nil {
 		return nil, fmt.Errorf("cannot create EC2 instance: %v", err)
 	}
-	a.logger.Debugf("Run Instances result:\n%v", runResult)
 
 	return runResult, nil
 }
 
 // Delete deletes a machine and updates its finalizer
 func (a *Actuator) Delete(machine *clusterv1.Machine) error {
-	a.logger.Debugf("Delete %s/%s", machine.Namespace, machine.Name)
+	mLog := clustoplog.WithClusterAPIMachine(a.logger, machine)
+	mLog.Debugf("Delete %s/%s", machine.Namespace, machine.Name)
 	if err := a.DeleteMachine(machine); err != nil {
 		a.logger.Errorf("error deleting machine: %v", err)
 		return err
 	}
-
-	// Deleting the machine was successful, remove the finalizer from the machine resource
-	machineCopy := machine.DeepCopy()
-	machineCopy.ObjectMeta.Finalizers = util.Filter(machineCopy.ObjectMeta.Finalizers, clusterv1.MachineFinalizer)
-	_, err := a.clusterClient.ClusterV1alpha1().Machines(machineCopy.Namespace).Update(machineCopy)
-	if err != nil {
-		a.logger.Errorf("error removing finalizer from deleted machine: %v", err)
-	}
-	return err
+	return nil
 }
 
 // DeleteMachine deletes an AWS instance
 func (a *Actuator) DeleteMachine(machine *clusterv1.Machine) error {
-	a.logger.Debugf("DeleteMachine %s/%s", machine.Namespace, machine.Name)
+	mLog := clustoplog.WithClusterAPIMachine(a.logger, machine)
+	mLog.Debugf("DeleteMachine %s/%s", machine.Namespace, machine.Name)
+	// TODO: should we lookup all instances matching name and clean them all up?
 	instanceID := getInstanceID(machine)
 	if len(instanceID) == 0 {
+		mLog.Warnf("attempted to delete machine with no instance ID set")
 		return nil
 	}
 
@@ -325,7 +331,7 @@ func (a *Actuator) DeleteMachine(machine *clusterv1.Machine) error {
 		return fmt.Errorf("machine does not contain AWS hardware spec")
 	}
 	region := coMachineSetSpec.ClusterHardware.AWS.Region
-	client, err := a.ec2Client(region)
+	client, err := a.ec2Client(coMachineSetSpec, machine.Namespace, region)
 	if err != nil {
 		return fmt.Errorf("error getting EC2 client: %v", err)
 	}
@@ -337,6 +343,14 @@ func (a *Actuator) DeleteMachine(machine *clusterv1.Machine) error {
 	}
 	terminateInstancesResult, err := client.TerminateInstances(terminateInstancesRequest)
 	if err != nil {
+		// If the instance no longer exists, we need to make sure we don't infinitely
+		// block deletion of the Machine in etcd.
+		if awsErr, ok := err.(awserr.Error); ok {
+			if awsErr.Code() == ec2InstanceIDNotFoundCode {
+				mLog.WithField("instanceID", instanceID).Warnf("AWS instance no longer exists")
+				return nil
+			}
+		}
 		return fmt.Errorf("error terminating instance %q: %v", instanceID, err)
 	}
 	a.logger.Debugf("Terminate Instances result:\n%v", terminateInstancesResult)
@@ -344,7 +358,7 @@ func (a *Actuator) DeleteMachine(machine *clusterv1.Machine) error {
 }
 
 // Update the machine to the provided definition.
-// TODO: For now, this results in a No-op.
+// TODO: For now, this results in a No-op. We should check for the latest correct instance (name matches, in running/pending state)
 func (a *Actuator) Update(c *clusterv1.Cluster, machine *clusterv1.Machine) error {
 	a.logger.Debugf("Update %s/%s", machine.Namespace, machine.Name)
 	return nil
@@ -352,11 +366,8 @@ func (a *Actuator) Update(c *clusterv1.Cluster, machine *clusterv1.Machine) erro
 
 // Exists determines if the given machine currently exists.
 func (a *Actuator) Exists(machine *clusterv1.Machine) (bool, error) {
-	a.logger.Debugf("Exists %s/%s", machine.Namespace, machine.Name)
-	instanceID := getInstanceID(machine)
-	if len(instanceID) == 0 {
-		return false, nil
-	}
+	mLog := clustoplog.WithClusterAPIMachine(a.logger, machine)
+	mLog.Debugf("checking if machine exists")
 
 	coMachineSetSpec, err := controller.MachineSetSpecFromClusterAPIMachineSpec(&machine.Spec)
 	if err != nil {
@@ -367,37 +378,87 @@ func (a *Actuator) Exists(machine *clusterv1.Machine) (bool, error) {
 		return false, fmt.Errorf("machineSet does not contain AWS hardware spec")
 	}
 	region := coMachineSetSpec.ClusterHardware.AWS.Region
-	client, err := a.ec2Client(region)
+	client, err := a.ec2Client(coMachineSetSpec, machine.Namespace, region)
 	if err != nil {
 		return false, fmt.Errorf("error getting EC2 client: %v", err)
 	}
+	machineName := machine.Name
+
+	// Query instances with our machine's name, and in running/pending state.
 	request := &ec2.DescribeInstancesInput{
 		Filters: []*ec2.Filter{
-			{Name: aws.String("instance-id"), Values: []*string{&instanceID}},
+			{
+				Name:   aws.String("tag:Name"),
+				Values: []*string{&machineName},
+			},
+			{
+				Name:   aws.String("instance-state-name"),
+				Values: []*string{aws.String("running"), aws.String("pending")},
+			},
 		},
 	}
 	result, err := client.DescribeInstances(request)
 	if err != nil {
 		return false, err
 	}
-	a.logger.Debugf("Describe Instances result:\n%v", result)
+	// No instances found with this name, definitely does not exist:
 	if len(result.Reservations) == 0 || len(result.Reservations[0].Instances) == 0 {
+		mLog.Debug("instance does not exist")
 		return false, nil
 	}
-	if *(result.Reservations[0].Instances[0].InstanceId) == instanceID {
-		// Determine whether the instance is in a running state, if not return false
-		stateCode := *result.Reservations[0].Instances[0].State.Code
-		stateCode = stateCode & stateMask // Only the lower byte is relevant
-		if stateCode == StatePending || stateCode == StateRunning {
-			return true, nil
+
+	if len(result.Reservations) > 1 {
+		// This is not good. Not sure if or where we could even handle it.
+		// TODO: can we issue a delete on one here? the oldest? reconcile in Update instead?
+		for _, reservation := range result.Reservations {
+			for _, instance := range reservation.Instances {
+				mLog.WithFields(log.Fields{
+					"instanceID": *instance.InstanceId,
+					"state":      *instance.State.Name,
+				}).Warn("found multiple instances for machine in pending/running state")
+			}
 		}
 	}
-	return false, nil
+
+	mLog.Debug("instance exists")
+	return true, nil
 }
 
-// Helper function to create an ec2 client
-func (a *Actuator) ec2Client(region string) (*ec2.EC2, error) {
-	s, err := session.NewSession(&aws.Config{Region: aws.String(region)})
+// ec2Client creates an EC2 client using either the cluster AWS credentials secret
+// if defined (i.e. in the root cluster), otherwise the IAM profile of the master where the
+// actuator will run. (target clusters)
+func (a *Actuator) ec2Client(mSpec *cov1.MachineSetSpec, namespace, region string) (*ec2.EC2, error) {
+	awsConfig := &aws.Config{Region: aws.String(region)}
+
+	if mSpec.ClusterHardware.AWS == nil {
+		return nil, fmt.Errorf("no AWS cluster hardware set on machine spec")
+	}
+
+	// If the cluster specifies an AWS credentials secret and it exists, use it for our client credentials:
+	if mSpec.ClusterHardware.AWS.AccountSecret.Name != "" {
+		a.logger.Debugf("loading AWS credentials secret")
+		secret, err := a.kubeClient.CoreV1().Secrets(namespace).Get(
+			mSpec.ClusterHardware.AWS.AccountSecret.Name, metav1.GetOptions{})
+		if err != nil {
+			return nil, err
+		}
+		accessKeyID, ok := secret.Data[awsCredsSecretIDKey]
+		if !ok {
+			return nil, fmt.Errorf("AWS credentials secret %v did not contain key %v",
+				mSpec.ClusterHardware.AWS.AccountSecret.Name, awsCredsSecretIDKey)
+		}
+		secretAccessKey, ok := secret.Data[awsCredsSecretAccessKey]
+		if !ok {
+			return nil, fmt.Errorf("AWS credentials secret %v did not contain key %v",
+				mSpec.ClusterHardware.AWS.AccountSecret.Name, awsCredsSecretAccessKey)
+		}
+
+		awsConfig.Credentials = credentials.NewStaticCredentials(
+			string(accessKeyID), string(secretAccessKey), "")
+	}
+
+	// Otherwise default to relying on the IAM role of the masters where the actuator is running:
+	s, err := session.NewSession(awsConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -456,5 +517,5 @@ func getInstanceID(machine *clusterv1.Machine) string {
 }
 
 func iamRole(cluster *clusterv1.Cluster) string {
-	return fmt.Sprintf("%s_%s", defaultIAMRole, cluster.Name)
+	return fmt.Sprintf("%s", defaultIAMRole)
 }
