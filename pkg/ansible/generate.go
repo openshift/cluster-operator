@@ -400,20 +400,20 @@ func GenerateClusterWideVars(name string,
 		InfraSize:      infraSize,
 	}
 
-	if clusterVersionSpec.ClusterAPIImage != nil {
-		params.ClusterAPIImage = *clusterVersionSpec.ClusterAPIImage
+	if clusterVersion.Spec.ClusterAPIImage != nil {
+		params.ClusterAPIImage = *clusterVersion.Spec.ClusterAPIImage
 	}
 
-	if clusterVersionSpec.ClusterAPIImagePullPolicy != nil {
-		params.ClusterAPIImagePullPolicy = *clusterVersionSpec.ClusterAPIImagePullPolicy
+	if clusterVersion.Spec.ClusterAPIImagePullPolicy != nil {
+		params.ClusterAPIImagePullPolicy = *clusterVersion.Spec.ClusterAPIImagePullPolicy
 	}
 
-	if clusterVersionSpec.MachineControllerImage != nil {
-		params.MachineControllerImage = *clusterVersionSpec.MachineControllerImage
+	if clusterVersion.Spec.MachineControllerImage != nil {
+		params.MachineControllerImage = *clusterVersion.Spec.MachineControllerImage
 	}
 
-	if clusterVersionSpec.MachineControllerImagePullPolicy != nil {
-		params.MachineControllerImagePullPolicy = *clusterVersionSpec.MachineControllerImagePullPolicy
+	if clusterVersion.Spec.MachineControllerImagePullPolicy != nil {
+		params.MachineControllerImagePullPolicy = *clusterVersion.Spec.MachineControllerImagePullPolicy
 	}
 
 	var buf bytes.Buffer
