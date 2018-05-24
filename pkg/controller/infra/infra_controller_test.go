@@ -173,10 +173,9 @@ apiVersion: "clusteroperator.openshift.io/v1alpha1"
 kind: "ClusterProviderConfigSpec"
 machineSets:
 - shortName: master
-  masterSetConfig:
-    nodeType: master
-    infra: true
-    size: 3
+  nodeType: master
+  infra: true
+  size: 3
 `
 	cluster := &clusterapi.Cluster{
 		ObjectMeta: metav1.ObjectMeta{

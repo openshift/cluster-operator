@@ -588,37 +588,6 @@ func GetClustopInfraSize(cluster *clusteroperator.CombinedCluster) (int, error) 
 	return 0, fmt.Errorf("no machineset of type Infra found")
 }
 
-// GetCAPIInfraSize gets the size of the infra machine set for the cluster.
-func GetCAPIInfraSize(cluster *clusteroperator.CombinedCluster, machineSetLister capilister.MachineSetLister) (int, error) {
-	machineSet, err := GetCAPIInfraMachineSet(cluster, machineSetLister)
-	if err != nil {
-		return 0, err
-	}
-	size := machineSet.Spec.Replicas
-	if size == nil {
-		return 1, nil
-	}
-	return int(*size), nil
-}
-
-// GetCAPIInfraMachineSet gets the infra machine set for the cluster.
-func GetCAPIInfraMachineSet(cluster *clusteroperator.CombinedCluster, machineSetLister capilister.MachineSetLister) (*clusterapi.MachineSet, error) {
-	machineSets, err := CAPIMachineSetsForCluster(cluster.Namespace, cluster.Name, machineSetLister)
-	if err != nil {
-		return nil, err
-	}
-	for _, ms := range machineSets {
-		clustopSpec, err := MachineSetSpecFromClusterAPIMachineSpec(&ms.Spec.Template.Spec)
-		if err != nil {
-			continue
-		}
-		if clustopSpec.Infra {
-			return ms, nil
-		}
-	}
-	return nil, fmt.Errorf("no infra machineset found")
-}
-
 // GetCAPIMasterMachineSet gets the master machine set for the cluster.
 func GetCAPIMasterMachineSet(cluster *clusteroperator.CombinedCluster, machineSetLister capilister.MachineSetLister) (*clusterapi.MachineSet, error) {
 	machineSets, err := CAPIMachineSetsForCluster(cluster.Namespace, cluster.Name, machineSetLister)
