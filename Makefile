@@ -203,8 +203,8 @@ $(BINDIR)/e2e.test: .init
 
 # Util targets
 ##############
-.PHONY: verify verify-generated verify-client-gen
-verify: .init .generate_exes verify-generated verify-client-gen
+.PHONY: verify verify-generated verify-client-gen verify-mocks
+verify: .init .generate_exes verify-generated verify-client-gen verify-mocks
 	@echo Running gofmt:
 	@$(DOCKER_CMD) gofmt -l -s $(TOP_SRC_DIRS)>.out 2>&1||true
 	@[ ! -s .out ] || \
@@ -240,6 +240,14 @@ verify-generated: .init .generate_exes
 verify-client-gen: .init .generate_exes
 	$(DOCKER_CMD) $(BUILD_DIR)/verify-client-gen.sh
 
+verify-mocks:
+	@echo Running verify mocks generation
+	@[ `git status -s | head -c1 | wc -c` -eq 0 ] || \
+	    (echo "Cannot vefify mocks while there are uncommited changes" && false)
+	@$(DOCKER_CMD) $(BUILD_DIR)/generate-mocks.sh
+	@[ `git status -s | head -c1 | wc -c` -eq 0 ] || \
+	    (echo "Please run \"make .generate_mocks\"" && false)
+
 format: .init
 	$(DOCKER_CMD) gofmt -w -s $(TOP_SRC_DIRS)
 
@@ -268,7 +276,7 @@ test-unit: .init build .generate_mocks
 	  $(addprefix $(CLUSTER_OPERATOR_PKG)/,$(UNIT_TEST_DIRS)) $(TEST_LOG_FLAGS)
 
 .generate_mocks:
-	$(DOCKER_CMD) go generate ./pkg/controller
+	$(DOCKER_CMD) $(BUILD_DIR)/generate-mocks.sh
 
 test-integration: .init build
 	@echo Running integration tests:
