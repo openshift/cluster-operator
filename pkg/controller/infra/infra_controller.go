@@ -85,10 +85,6 @@ func NewClusterOperatorController(
 			return clusterLister.Clusters(namespace).Get(name)
 		},
 		clusterInformer.Informer().HasSynced,
-		func(*clusteroperator.CombinedCluster) bool { return true },
-		func(cluster *clusteroperator.CombinedCluster) (int, error) {
-			return controller.GetClustopInfraSize(cluster)
-		},
 	)
 }
 
@@ -103,7 +99,6 @@ func NewClusterAPIController(
 	clusterapiClient clusterapiclientset.Interface,
 ) *Controller {
 	clusterLister := clusterInformer.Lister()
-	machineSetLister := machineSetInformer.Lister()
 	return newController(
 		clusterapi.SchemeGroupVersion.WithKind("Cluster"),
 		"capi-infra",
@@ -117,13 +112,6 @@ func NewClusterAPIController(
 			return clusterLister.Clusters(namespace).Get(name)
 		},
 		clusterInformer.Informer().HasSynced,
-		func(cluster *clusteroperator.CombinedCluster) bool {
-			_, err := controller.GetCAPIInfraMachineSet(cluster, machineSetLister)
-			return err == nil
-		},
-		func(cluster *clusteroperator.CombinedCluster) (int, error) {
-			return controller.GetCAPIInfraSize(cluster, machineSetLister)
-		},
 	)
 }
 
@@ -138,8 +126,6 @@ func newController(
 	addMachineSetInformerEventHandler func(cache.ResourceEventHandler),
 	getCluster func(namespace, name string) (metav1.Object, error),
 	clustersSynced cache.InformerSynced,
-	canGetInfraSize func(*clusteroperator.CombinedCluster) bool,
-	getInfraSize func(*clusteroperator.CombinedCluster) (int, error),
 ) *Controller {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(glog.Infof)
@@ -155,17 +141,15 @@ func newController(
 
 	logger := log.WithField("controller", controllerName)
 	c := &Controller{
-		clusterKind:     clusterKind,
-		controllerName:  controllerName,
-		coClient:        clusteroperatorClient,
-		caClient:        clusterapiClient,
-		kubeClient:      kubeClient,
-		queue:           workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), controllerName),
-		logger:          logger,
-		getCluster:      getCluster,
-		clustersSynced:  clustersSynced,
-		canGetInfraSize: canGetInfraSize,
-		getInfraSize:    getInfraSize,
+		clusterKind:    clusterKind,
+		controllerName: controllerName,
+		coClient:       clusteroperatorClient,
+		caClient:       clusterapiClient,
+		kubeClient:     kubeClient,
+		queue:          workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), controllerName),
+		logger:         logger,
+		getCluster:     getCluster,
+		clustersSynced: clustersSynced,
 	}
 
 	addClusterInformerEventHandler(cache.ResourceEventHandlerFuncs{
@@ -226,9 +210,6 @@ type Controller struct {
 
 	// Clusters that need to be synced
 	queue workqueue.RateLimitingInterface
-
-	canGetInfraSize func(*clusteroperator.CombinedCluster) bool
-	getInfraSize    func(*clusteroperator.CombinedCluster) (int, error)
 
 	logger *log.Entry
 }
@@ -451,10 +432,6 @@ func (s *jobSyncStrategy) DoesOwnerNeedProcessing(owner metav1.Object) bool {
 		}
 	}
 
-	if !s.controller.canGetInfraSize(cluster) {
-		return false
-	}
-
 	return cluster.ClusterOperatorStatus.ProvisionedJobGeneration != cluster.Generation
 }
 
@@ -468,7 +445,7 @@ func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object, deleting bool) (con
 	if err != nil {
 		return nil, fmt.Errorf("could not get the ClusterVersion: %v", err)
 	}
-	infraSize, err := s.controller.getInfraSize(cluster)
+	infraSize, err := controller.GetClustopInfraSize(cluster)
 	if err != nil {
 		return nil, fmt.Errorf("could not get the infra size: %v", err)
 	}

@@ -326,28 +326,77 @@ func testCAPIMachineSet(name string, replicas int32, roles []capicommon.MachineR
 func TestCAPIClusterCreate(t *testing.T) {
 	cases := []struct {
 		name        string
-		machineSets []*capiv1alpha1.MachineSet
+		machineSets []clustopv1alpha1.ClusterMachineSet
 	}{
 		{
 			name: "no compute machine sets",
-			machineSets: []*capiv1alpha1.MachineSet{
-				testCAPIMachineSet("master", 3, []capicommon.MachineRole{capicommon.MasterRole}, true),
+			machineSets: []clustopv1alpha1.ClusterMachineSet{
+				{
+					ShortName: "master",
+					MachineSetConfig: clustopv1alpha1.MachineSetConfig{
+						Size:     3,
+						NodeType: clustopv1alpha1.NodeTypeMaster,
+						Infra:    true,
+					},
+				},
 			},
 		},
 		{
 			name: "single compute machine sets",
-			machineSets: []*capiv1alpha1.MachineSet{
-				testCAPIMachineSet("master", 3, []capicommon.MachineRole{capicommon.MasterRole}, true),
-				testCAPIMachineSet("first", 5, []capicommon.MachineRole{capicommon.NodeRole}, false),
+			machineSets: []clustopv1alpha1.ClusterMachineSet{
+				{
+					ShortName: "master",
+					MachineSetConfig: clustopv1alpha1.MachineSetConfig{
+						Size:     3,
+						NodeType: clustopv1alpha1.NodeTypeMaster,
+						Infra:    true,
+					},
+				},
+				{
+					ShortName: "first",
+					MachineSetConfig: clustopv1alpha1.MachineSetConfig{
+						Size:     5,
+						NodeType: clustopv1alpha1.NodeTypeCompute,
+						Infra:    false,
+					},
+				},
 			},
 		},
 		{
 			name: "multiple compute machine sets",
-			machineSets: []*capiv1alpha1.MachineSet{
-				testCAPIMachineSet("master", 3, []capicommon.MachineRole{capicommon.MasterRole}, true),
-				testCAPIMachineSet("first", 5, []capicommon.MachineRole{capicommon.NodeRole}, false),
-				testCAPIMachineSet("second", 6, []capicommon.MachineRole{capicommon.NodeRole}, false),
-				testCAPIMachineSet("3rd", 3, []capicommon.MachineRole{capicommon.NodeRole}, false),
+			machineSets: []clustopv1alpha1.ClusterMachineSet{
+				{
+					ShortName: "master",
+					MachineSetConfig: clustopv1alpha1.MachineSetConfig{
+						Size:     3,
+						NodeType: clustopv1alpha1.NodeTypeMaster,
+						Infra:    true,
+					},
+				},
+				{
+					ShortName: "first",
+					MachineSetConfig: clustopv1alpha1.MachineSetConfig{
+						Size:     5,
+						NodeType: clustopv1alpha1.NodeTypeCompute,
+						Infra:    false,
+					},
+				},
+				{
+					ShortName: "second",
+					MachineSetConfig: clustopv1alpha1.MachineSetConfig{
+						Size:     6,
+						NodeType: clustopv1alpha1.NodeTypeCompute,
+						Infra:    false,
+					},
+				},
+				{
+					ShortName: "3rd",
+					MachineSetConfig: clustopv1alpha1.MachineSetConfig{
+						Size:     3,
+						NodeType: clustopv1alpha1.NodeTypeCompute,
+						Infra:    false,
+					},
+				},
 			},
 		},
 	}
@@ -381,6 +430,23 @@ func TestCAPIClusterCreate(t *testing.T) {
 			}
 			clustopClient.ClusteroperatorV1alpha1().ClusterVersions(testNamespace).Create(clusterVersion)
 
+			coClusterSpec := &clustopv1alpha1.ClusterSpec{
+				ClusterVersionRef: clustopv1alpha1.ClusterVersionReference{
+					Namespace: clusterVersion.Namespace,
+					Name:      clusterVersion.Name,
+				},
+				Hardware: clustopv1alpha1.ClusterHardwareSpec{
+					AWS: &clustopv1alpha1.AWSClusterSpec{
+						Region: "us-east-1",
+					},
+				},
+				DefaultHardwareSpec: &clustopv1alpha1.MachineSetHardwareSpec{
+					AWS: &clustopv1alpha1.MachineSetAWSHardwareSpec{
+						InstanceType: "instance-type",
+					},
+				},
+				MachineSets: tc.machineSets,
+			}
 			cluster := &capiv1alpha1.Cluster{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: testNamespace,
@@ -397,22 +463,7 @@ func TestCAPIClusterCreate(t *testing.T) {
 						ServiceDomain: "service-domain",
 					},
 					ProviderConfig: capiv1alpha1.ProviderConfig{
-						Value: clusterAPIProviderConfigFromClusterSpec(&clustopv1alpha1.ClusterSpec{
-							ClusterVersionRef: clustopv1alpha1.ClusterVersionReference{
-								Namespace: clusterVersion.Namespace,
-								Name:      clusterVersion.Name,
-							},
-							Hardware: clustopv1alpha1.ClusterHardwareSpec{
-								AWS: &clustopv1alpha1.AWSClusterSpec{
-									Region: "us-east-1",
-								},
-							},
-							DefaultHardwareSpec: &clustopv1alpha1.MachineSetHardwareSpec{
-								AWS: &clustopv1alpha1.MachineSetAWSHardwareSpec{
-									InstanceType: "instance-type",
-								},
-							},
-						}),
+						Value: clusterAPIProviderConfigFromClusterSpec(coClusterSpec),
 					},
 				},
 			}
@@ -423,9 +474,21 @@ func TestCAPIClusterCreate(t *testing.T) {
 			}
 
 			machineSets := make([]*capiv1alpha1.MachineSet, len(tc.machineSets))
-			var masterMachinSet *capiv1alpha1.MachineSet
+			var masterMachineSet *capiv1alpha1.MachineSet
 
-			for i, machineSet := range tc.machineSets {
+			for i, clustopClusterMS := range tc.machineSets {
+
+				role := capicommon.NodeRole
+				if clustopClusterMS.NodeType == clustopv1alpha1.NodeTypeMaster {
+					role = capicommon.MasterRole
+				}
+
+				machineSet := testCAPIMachineSet(
+					fmt.Sprintf("%s-%s", cluster.Name, clustopClusterMS.ShortName),
+					int32(clustopClusterMS.Size),
+					[]capicommon.MachineRole{role},
+					clustopClusterMS.Infra)
+
 				if machineSet.Labels == nil {
 					machineSet.Labels = map[string]string{}
 				}
@@ -435,26 +498,26 @@ func TestCAPIClusterCreate(t *testing.T) {
 					return
 				}
 				machineSets[i] = ms
-				for _, role := range ms.Spec.Template.Spec.Roles {
-					if role == capicommon.MasterRole {
-						if masterMachinSet != nil {
-							t.Fatalf("multiple master machinesets: %s and %s", masterMachinSet.Name, ms.Name)
-						}
-						masterMachinSet = ms
+
+				if clustopClusterMS.NodeType == clustopv1alpha1.NodeTypeMaster {
+					if masterMachineSet != nil {
+						t.Fatalf("multiple master machinesets: %s and %s", masterMachineSet.Name, ms.Name)
 					}
+					masterMachineSet = ms
 				}
-				if masterMachinSet == nil {
-					t.Fatalf("no master machineset")
-				}
+			}
+
+			if masterMachineSet == nil {
+				t.Fatalf("no master machineset")
 			}
 
 			if err := waitForCAPIClusterToExist(capiClient, testNamespace, testClusterName); err != nil {
 				t.Fatalf("error waiting for Cluster to exist: %v", err)
 			}
 
-			for _, machineSet := range tc.machineSets {
-				if err := waitForCAPIMachineSetToExist(capiClient, testNamespace, machineSet.Name); err != nil {
-					t.Fatalf("error waiting for MachinSet %v to exist: %v", machineSet.Name, err)
+			for _, ms := range machineSets {
+				if err := waitForCAPIMachineSetToExist(capiClient, testNamespace, ms.Name); err != nil {
+					t.Fatalf("error waiting for MachineSet %v to exist: %v", ms.Name, err)
 				}
 			}
 
