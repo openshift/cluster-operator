@@ -199,6 +199,22 @@ type ClusterSpec struct {
 
 	// ClusterVersionRef references the clusterversion that should be running.
 	ClusterVersionRef ClusterVersionReference
+
+	// AddOns are post-installation tasks to perform
+	// +optional
+	AddOns []AddOnSpec `json:"addons"`
+}
+
+// AddOnSpec specifies the post-installation extras to apply to a cluster
+type AddOnSpec struct {
+	// name of addon
+	Name string `json:"name,omitempty"`
+	// container image implementing install/upgrade/etc for the addon
+	Image string `json:"image"`
+	// command to run on container images
+	Command string `json:"command,omitempty"`
+	// any parameters that are necessary for the image to perform its tasks
+	Params string `json:"params,omitempty"`
 }
 
 // ClusterVersionReference provides information to locate a cluster version to use.
