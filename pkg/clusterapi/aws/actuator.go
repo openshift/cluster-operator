@@ -26,6 +26,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/client-go/kubernetes"
+	capicommon "sigs.k8s.io/cluster-api/pkg/apis/cluster/common"
 	clusterv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	clusterclient "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 
@@ -60,12 +61,17 @@ const (
 
 // Instance state constants
 const (
-	StatePending      = 0
-	StateRunning      = 16
-	StateShuttingDown = 32
-	StateTerminated   = 48
-	StateStopping     = 64
-	StateStopped      = 80
+	StatePending       = 0
+	StateRunning       = 16
+	StateShuttingDown  = 32
+	StateTerminated    = 48
+	StateStopping      = 64
+	StateStopped       = 80
+	hostTypeNode       = "node"
+	hostTypeMaster     = "master"
+	subHostTypeDefault = "default"
+	subHostTypeInfra   = "infra"
+	subHostTypeCompute = "compute"
 )
 
 var stateMask int64 = 0xFF
@@ -113,6 +119,15 @@ func (a *Actuator) Create(cluster *clusterv1.Cluster, machine *clusterv1.Machine
 		return err
 	}
 	return err
+}
+
+func machineHasRole(machine *clusterv1.Machine, role capicommon.MachineRole) bool {
+	for _, r := range machine.Spec.Roles {
+		if r == role {
+			return true
+		}
+	}
+	return false
 }
 
 // CreateMachine starts a new AWS instance as described by the cluster and machine resources
@@ -235,9 +250,25 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 		},
 	}
 
+	// Set host type and sub-type to match what we do in pkg/ansible/generate.go. This is required
+	// mainly for our Ansible code that dynamically generates the list of masters by searching for
+	// AWS tags.
+	hostType := hostTypeNode
+	subHostType := subHostTypeCompute
+	if machineHasRole(machine, capicommon.MasterRole) {
+		hostType = hostTypeMaster
+		subHostType = subHostTypeDefault
+	}
+	if coMachineSetSpec.Infra {
+		subHostType = subHostTypeInfra
+	}
+	mLog.WithFields(log.Fields{"hostType": hostType, "subHostType": subHostType}).Debugf("creating instance with host type")
+
 	// Add tags to the created machine
 	tagList := []*ec2.Tag{
 		{Key: aws.String("clusterid"), Value: aws.String(cluster.Name)},
+		{Key: aws.String("host-type"), Value: aws.String(hostType)},
+		{Key: aws.String("sub-host-type"), Value: aws.String(subHostType)},
 		{Key: aws.String("kubernetes.io/cluster/" + cluster.Name), Value: aws.String(cluster.Name)},
 		{Key: aws.String("Name"), Value: aws.String(machine.Name)},
 	}
