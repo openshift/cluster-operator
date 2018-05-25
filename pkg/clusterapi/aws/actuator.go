@@ -23,6 +23,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
+	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/client-go/kubernetes"
@@ -31,7 +32,6 @@ import (
 	clusterclient "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
@@ -61,12 +61,6 @@ const (
 
 // Instance state constants
 const (
-	StatePending       = 0
-	StateRunning       = 16
-	StateShuttingDown  = 32
-	StateTerminated    = 48
-	StateStopping      = 64
-	StateStopped       = 80
 	hostTypeNode       = "node"
 	hostTypeMaster     = "master"
 	subHostTypeDefault = "default"
@@ -100,40 +94,28 @@ func NewActuator(kubeClient *kubernetes.Clientset, clusterClient *clusterclient.
 // Create runs a new EC2 instance
 func (a *Actuator) Create(cluster *clusterv1.Cluster, machine *clusterv1.Machine) error {
 	mLog := clustoplog.WithMachine(a.logger, machine)
-	mLog.Debugf("Create %s/%s", machine.Namespace, machine.Name)
+	mLog.Info("creating machine")
 	result, err := a.CreateMachine(cluster, machine)
 	if err != nil {
 		mLog.Errorf("error creating machine: %v", err)
 		return err
 	}
-	machineCopy := machine.DeepCopy()
-	if machineCopy.Annotations == nil {
-		machineCopy.Annotations = map[string]string{}
+
+	var instance *ec2.Instance
+	if result != nil && len(result.Instances) > 0 {
+		instance = result.Instances[0]
 	}
-	machineCopy.Annotations[instanceIDAnnotation] = *(result.Instances[0].InstanceId)
-	_, err = a.clusterClient.ClusterV1alpha1().Machines(machineCopy.Namespace).Update(machineCopy)
+
+	err = a.updateStatus(machine, instance, mLog)
 	if err != nil {
-		// TODO: if this fails because machine updated in meantime, we requeue machine, see no instance ID,
-		// and create another.
-		a.logger.Errorf("error annotating new machine with instance ID: %v", err)
 		return err
 	}
-	return err
-}
-
-func machineHasRole(machine *clusterv1.Machine, role capicommon.MachineRole) bool {
-	for _, r := range machine.Spec.Roles {
-		if r == role {
-			return true
-		}
-	}
-	return false
+	return nil
 }
 
 // CreateMachine starts a new AWS instance as described by the cluster and machine resources
 func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.Machine) (*ec2.Reservation, error) {
 	mLog := clustoplog.WithMachine(a.logger, machine)
-	// Extract cluster operator cluster
 	clusterSpec, err := controller.ClusterSpecFromClusterAPI(cluster)
 	if err != nil {
 		return nil, err
@@ -147,7 +129,6 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 	if err != nil {
 		return nil, err
 	}
-	mLog.Debugf("Creating machine %q", machine.Name)
 
 	region := clusterSpec.Hardware.AWS.Region
 	mLog.Debugf("Obtaining EC2 client for region %q", region)
@@ -206,7 +187,6 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 	if err != nil {
 		return nil, fmt.Errorf("Error describing Subnets for VPC %s: %v", vpcName, err)
 	}
-	mLog.Debugf("Describe Subnets result:\n%v", describeSubnetsResult)
 	if len(describeSubnetsResult.Subnets) == 0 {
 		return nil, fmt.Errorf("Did not find a subnet")
 	}
@@ -232,7 +212,6 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 	if err != nil {
 		return nil, err
 	}
-	mLog.Debugf("Describe Security Groups result:\n%v", describeSecurityGroupsResult)
 
 	var securityGroupIds []*string
 	for _, g := range describeSecurityGroupsResult.SecurityGroups {
@@ -255,7 +234,7 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 	// AWS tags.
 	hostType := hostTypeNode
 	subHostType := subHostTypeCompute
-	if machineHasRole(machine, capicommon.MasterRole) {
+	if controller.MachineHasRole(machine, capicommon.MasterRole) {
 		hostType = hostTypeMaster
 		subHostType = subHostTypeDefault
 	}
@@ -334,9 +313,9 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 // Delete deletes a machine and updates its finalizer
 func (a *Actuator) Delete(cluster *clusterv1.Cluster, machine *clusterv1.Machine) error {
 	mLog := clustoplog.WithMachine(a.logger, machine)
-	mLog.Debugf("Delete %s/%s", machine.Namespace, machine.Name)
+	mLog.Info("deleting machine")
 	if err := a.DeleteMachine(machine); err != nil {
-		a.logger.Errorf("error deleting machine: %v", err)
+		mLog.Errorf("error deleting machine: %v", err)
 		return err
 	}
 	return nil
@@ -345,13 +324,6 @@ func (a *Actuator) Delete(cluster *clusterv1.Cluster, machine *clusterv1.Machine
 // DeleteMachine deletes an AWS instance
 func (a *Actuator) DeleteMachine(machine *clusterv1.Machine) error {
 	mLog := clustoplog.WithMachine(a.logger, machine)
-	mLog.Debugf("DeleteMachine %s/%s", machine.Namespace, machine.Name)
-	// TODO: should we lookup all instances matching name and clean them all up?
-	instanceID := getInstanceID(machine)
-	if len(instanceID) == 0 {
-		mLog.Warnf("attempted to delete machine with no instance ID set")
-		return nil
-	}
 
 	coMachineSetSpec, err := controller.MachineSetSpecFromClusterAPIMachineSpec(&machine.Spec)
 	if err != nil {
@@ -367,35 +339,113 @@ func (a *Actuator) DeleteMachine(machine *clusterv1.Machine) error {
 		return fmt.Errorf("error getting EC2 client: %v", err)
 	}
 
-	terminateInstancesRequest := &ec2.TerminateInstancesInput{
-		InstanceIds: []*string{
-			aws.String(instanceID),
-		},
-	}
-	terminateInstancesResult, err := client.TerminateInstances(terminateInstancesRequest)
+	instances, err := a.getRunningInstances(machine, client)
 	if err != nil {
-		// If the instance no longer exists, we need to make sure we don't infinitely
-		// block deletion of the Machine in etcd.
-		if awsErr, ok := err.(awserr.Error); ok {
-			if awsErr.Code() == ec2InstanceIDNotFoundCode {
-				mLog.WithField("instanceID", instanceID).Warnf("AWS instance no longer exists")
-				return nil
+		return err
+	}
+	if len(instances) == 0 {
+		mLog.Warnf("no instances found to delete for machine")
+		return nil
+	}
+
+	instanceIDs := []*string{}
+	for _, instance := range instances {
+		instanceIDs = append(instanceIDs, instance.InstanceId)
+	}
+
+	return a.terminateInstances(client, instanceIDs, mLog)
+}
+
+// Update attempts to sync machine state with an existing instance. Today this just updates status
+// for details that may have changed. (IPs and hostnames) We do not currently support making any
+// changes to actual machines in AWS. Instead these will be replaced via MachineDeployments.
+func (a *Actuator) Update(cluster *clusterv1.Cluster, machine *clusterv1.Machine) error {
+	mLog := clustoplog.WithMachine(a.logger, machine)
+	mLog.Debugf("updating machine")
+
+	clusterSpec, err := controller.ClusterSpecFromClusterAPI(cluster)
+	if err != nil {
+		return err
+	}
+
+	if clusterSpec.Hardware.AWS == nil {
+		return fmt.Errorf("Cluster does not contain an AWS hardware spec")
+	}
+
+	coMachineSetSpec, err := controller.MachineSetSpecFromClusterAPIMachineSpec(&machine.Spec)
+	if err != nil {
+		return err
+	}
+
+	region := clusterSpec.Hardware.AWS.Region
+	mLog.WithField("region", region).Debugf("obtaining EC2 client for region")
+	client, err := a.ec2Client(coMachineSetSpec, machine.Namespace, region)
+	if err != nil {
+		return fmt.Errorf("unable to obtain EC2 client: %v", err)
+	}
+
+	instances, err := a.getRunningInstances(machine, client)
+	if err != nil {
+		return err
+	}
+
+	if len(instances) == 0 {
+		// Parent controller should prevent this from ever happening by calling Exists and then Create,
+		// but instance could be deleted between the two calls.
+		return fmt.Errorf("attempted to update machine but no instances found")
+	}
+
+	// In very unusual circumstances, there could be more than one machine running matching this
+	// machine name and cluster ID. In this scenario we will keep the newest, and delete all others.
+	var newestInstance *ec2.Instance
+	if len(instances) > 1 {
+
+		// Determine which instance is the newest:
+		for _, instance := range instances {
+			mLog.WithFields(log.Fields{
+				"instanceID": *instance.InstanceId,
+				"state":      *instance.State.Name,
+				"launchTime": *instance.LaunchTime,
+			}).Warn("found multiple instances for machine in pending/running state")
+
+			if newestInstance == nil {
+				newestInstance = instance
+				continue
+			}
+			newestInstance = chooseNewestInstance(newestInstance, instance)
+		}
+
+		// Cleanup all the older instances:
+		terminateInstanceIDs := []*string{}
+		for _, instance := range instances {
+			if *instance.InstanceId != *newestInstance.InstanceId {
+				terminateInstanceIDs = append(terminateInstanceIDs, instance.InstanceId)
 			}
 		}
-		return fmt.Errorf("error terminating instance %q: %v", instanceID, err)
+		err := a.terminateInstances(client, terminateInstanceIDs, mLog)
+		if err != nil {
+			return err
+		}
+	} else {
+		newestInstance = instances[0]
 	}
-	a.logger.Debugf("Terminate Instances result:\n%v", terminateInstancesResult)
+
+	mLog = mLog.WithField("instanceID", *newestInstance.InstanceId)
+	mLog.Debug("instance found")
+
+	instance := newestInstance
+
+	// We do not support making changes to pre-existing instances, just update status.
+	statusErr := a.updateStatus(machine, instance, mLog)
+	if statusErr != nil {
+		return statusErr
+	}
+
 	return nil
 }
 
-// Update the machine to the provided definition.
-// TODO: For now, this results in a No-op. We should check for the latest correct instance (name matches, in running/pending state)
-func (a *Actuator) Update(c *clusterv1.Cluster, machine *clusterv1.Machine) error {
-	a.logger.Debugf("Update %s/%s", machine.Namespace, machine.Name)
-	return nil
-}
-
-// Exists determines if the given machine currently exists.
+// Exists determines if the given machine currently exists. For AWS we query for instances in
+// running state, with a matching name tag, to determine a match.
 func (a *Actuator) Exists(cluster *clusterv1.Cluster, machine *clusterv1.Machine) (bool, error) {
 	mLog := clustoplog.WithMachine(a.logger, machine)
 	mLog.Debugf("checking if machine exists")
@@ -413,7 +463,99 @@ func (a *Actuator) Exists(cluster *clusterv1.Cluster, machine *clusterv1.Machine
 	if err != nil {
 		return false, fmt.Errorf("error getting EC2 client: %v", err)
 	}
+
+	instances, err := a.getRunningInstances(machine, client)
+	if err != nil {
+		return false, err
+	}
+	if len(instances) == 0 {
+		mLog.Debug("instance does not exist")
+		return false, nil
+	}
+
+	// If more than one result was returned, it will be handled in Update.
+	mLog.Debug("instance exists")
+	return true, nil
+}
+
+// updateStatus calculates the new machine status, checks if anything has changed, and updates if so.
+func (a *Actuator) updateStatus(machine *clusterv1.Machine, instance *ec2.Instance, mLog log.FieldLogger) error {
+
+	mLog.Debug("updating status")
+
+	// Starting with a fresh status as we assume full control of it here.
+	awsStatus := &cov1.AWSMachineProviderStatus{}
+
+	// Instance may have existed but been deleted outside our control, clear it's status if so:
+	if instance != nil {
+		awsStatus.InstanceID = instance.InstanceId
+		awsStatus.InstanceState = instance.State.Name
+		// Some of these pointers may still be nil (public IP and DNS):
+		awsStatus.PublicIP = instance.PublicIpAddress
+		awsStatus.PublicDNS = instance.PublicDnsName
+		awsStatus.PrivateIP = instance.PrivateIpAddress
+		awsStatus.PrivateDNS = instance.PrivateDnsName
+	}
+	mLog.Debug("finished calculating AWS status")
+
+	awsStatusRaw, err := controller.ClusterAPIMachineProviderStatusFromAWSMachineProviderStatus(awsStatus)
+	if err != nil {
+		mLog.Errorf("error encoding AWS provider status: %v", err)
+		return err
+	}
+
+	machineCopy := machine.DeepCopy()
+	machineCopy.Status.ProviderStatus = awsStatusRaw
+
+	if !equality.Semantic.DeepEqual(machine.Status, machineCopy.Status) {
+		mLog.Info("machine status has changed, updating")
+		machineCopy.Status.LastUpdated = metav1.Now()
+
+		_, err := a.clusterClient.ClusterV1alpha1().Machines(machineCopy.Namespace).UpdateStatus(machineCopy)
+		if err != nil {
+			mLog.Errorf("error updating machine status: %v", err)
+			return err
+		}
+	} else {
+		mLog.Debug("status unchanged")
+	}
+	return nil
+}
+
+func (a *Actuator) terminateInstances(client *ec2.EC2, instanceIDs []*string, mLog log.FieldLogger) error {
+	for _, instanceID := range instanceIDs {
+		mLog.WithField("instanceID", *instanceID).Info("terminating instance")
+	}
+
+	terminateInstancesRequest := &ec2.TerminateInstancesInput{
+		InstanceIds: instanceIDs,
+	}
+	_, err := client.TerminateInstances(terminateInstancesRequest)
+	if err != nil {
+		mLog.Errorf("error terminating instances: %v", err)
+		return fmt.Errorf("error terminating instances: %v", err)
+	}
+	return nil
+}
+
+func getClusterID(machine *clusterv1.Machine) (string, bool) {
+	clusterID, ok := machine.Labels[cov1.ClusterNameLabel]
+	return clusterID, ok
+}
+
+// getRunningInstances returns all instances that have a tag matching our machine name, and cluster ID.
+// Normally this should just be one, but the caller will need to decide how to handle situations where
+// multiple exist.
+func (a *Actuator) getRunningInstances(machine *clusterv1.Machine, client *ec2.EC2) ([]*ec2.Instance, error) {
+	mLog := clustoplog.WithMachine(a.logger, machine)
+	instances := []*ec2.Instance{}
+
 	machineName := machine.Name
+
+	clusterID, ok := getClusterID(machine)
+	if !ok {
+		return instances, fmt.Errorf("unable to get cluster ID for machine: %s", machine.Name)
+	}
 
 	// Query instances with our machine's name, and in running/pending state.
 	request := &ec2.DescribeInstancesInput{
@@ -426,33 +568,25 @@ func (a *Actuator) Exists(cluster *clusterv1.Cluster, machine *clusterv1.Machine
 				Name:   aws.String("instance-state-name"),
 				Values: []*string{aws.String("running"), aws.String("pending")},
 			},
+			{
+				Name:   aws.String("tag:clusterid"),
+				Values: []*string{&clusterID},
+			},
 		},
 	}
 	result, err := client.DescribeInstances(request)
 	if err != nil {
-		return false, err
-	}
-	// No instances found with this name, definitely does not exist:
-	if len(result.Reservations) == 0 || len(result.Reservations[0].Instances) == 0 {
-		mLog.Debug("instance does not exist")
-		return false, nil
+		return instances, err
 	}
 
-	if len(result.Reservations) > 1 {
-		// This is not good. Not sure if or where we could even handle it.
-		// TODO: can we issue a delete on one here? the oldest? reconcile in Update instead?
-		for _, reservation := range result.Reservations {
-			for _, instance := range reservation.Instances {
-				mLog.WithFields(log.Fields{
-					"instanceID": *instance.InstanceId,
-					"state":      *instance.State.Name,
-				}).Warn("found multiple instances for machine in pending/running state")
-			}
+	for _, reservation := range result.Reservations {
+		for _, instance := range reservation.Instances {
+			mLog.WithField("instanceID", *instance.InstanceId).Debug("found instance for machine")
+			instances = append(instances, instance)
 		}
 	}
 
-	mLog.Debug("instance exists")
-	return true, nil
+	return instances, nil
 }
 
 // ec2Client creates an EC2 client using either the cluster AWS credentials secret
@@ -538,15 +672,26 @@ func getBootstrapKubeconfig() (string, error) {
 	return base64.StdEncoding.EncodeToString(content), nil
 }
 
-func getInstanceID(machine *clusterv1.Machine) string {
-	if machine.Annotations != nil {
-		if instanceID, ok := machine.Annotations[instanceIDAnnotation]; ok {
-			return instanceID
-		}
-	}
-	return ""
-}
-
 func iamRole(cluster *clusterv1.Cluster) string {
 	return fmt.Sprintf("%s", defaultIAMRole)
+}
+
+// chooseNewestInstance attempts to safely pick the newest instance by comparing their launch times, which could
+// potentially be unset.
+func chooseNewestInstance(instance1, instance2 *ec2.Instance) *ec2.Instance {
+	if instance1.LaunchTime == nil && instance2.LaunchTime == nil {
+		// No idea what to do here, just return the first.
+		return instance1
+	}
+	if instance1.LaunchTime != nil && instance2.LaunchTime == nil {
+		return instance1
+	}
+	if instance1.LaunchTime == nil && instance2.LaunchTime != nil {
+		return instance2
+	}
+	if (*instance1.LaunchTime).After(*instance2.LaunchTime) {
+		return instance1
+	}
+	return instance2
+
 }

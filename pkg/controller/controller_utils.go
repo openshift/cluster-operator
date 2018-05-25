@@ -315,7 +315,7 @@ func ClusterAPIProviderStatusFromClusterStatus(clusterStatus *clusteroperator.Cl
 		return nil, err
 	}
 	return &runtime.RawExtension{
-		Raw: buffer.Bytes(),
+		Raw: bytes.TrimSpace(buffer.Bytes()),
 	}, nil
 }
 
@@ -353,7 +353,42 @@ func ClusterAPIMachineProviderConfigFromMachineSetSpec(machineSetSpec *clusterop
 		return nil, err
 	}
 	return &runtime.RawExtension{
-		Raw: buffer.Bytes(),
+		Raw: bytes.TrimSpace(buffer.Bytes()),
+	}, nil
+}
+
+// AWSMachineProviderStatusFromClusterAPIMachine gets the cluster-operator MachineSetSpec from the
+// specified cluster-api MachineSet.
+func AWSMachineProviderStatusFromClusterAPIMachine(m *clusterapi.Machine) (*clusteroperator.AWSMachineProviderStatus, error) {
+	if m.Status.ProviderStatus == nil {
+		return &clusteroperator.AWSMachineProviderStatus{}, nil
+	}
+	obj, gvk, err := api.Codecs.UniversalDecoder(clusteroperator.SchemeGroupVersion).Decode([]byte(m.Status.ProviderStatus.Raw), nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	status, ok := obj.(*clusteroperator.AWSMachineProviderStatus)
+	if !ok {
+		return nil, fmt.Errorf("Unexpected object: %#v", gvk)
+	}
+	return status, nil
+}
+
+// ClusterAPIMachineProviderStatusFromAWSMachineProviderStatus gets the cluster-api ProviderConfig for a Machine template
+// to store the cluster-operator MachineSetSpec.
+func ClusterAPIMachineProviderStatusFromAWSMachineProviderStatus(awsStatus *clusteroperator.AWSMachineProviderStatus) (*runtime.RawExtension, error) {
+	awsStatus.TypeMeta = metav1.TypeMeta{
+		APIVersion: clusteroperator.SchemeGroupVersion.String(),
+		Kind:       "AWSMachineProviderStatus",
+	}
+	serializer := jsonserializer.NewSerializer(jsonserializer.DefaultMetaFactory, api.Scheme, api.Scheme, false)
+	var buffer bytes.Buffer
+	err := serializer.Encode(awsStatus, &buffer)
+	if err != nil {
+		return nil, err
+	}
+	return &runtime.RawExtension{
+		Raw: bytes.TrimSpace(buffer.Bytes()),
 	}, nil
 }
 
@@ -469,4 +504,14 @@ func GetMasterMachineSet(cluster *clusteroperator.CombinedCluster, machineSetLis
 		}
 	}
 	return nil, fmt.Errorf("no master machineset found")
+}
+
+// MachineHasRole returns true if the machine has the given cluster-api role.
+func MachineHasRole(machine *clusterapi.Machine, role capicommon.MachineRole) bool {
+	for _, r := range machine.Spec.Roles {
+		if r == role {
+			return true
+		}
+	}
+	return false
 }
