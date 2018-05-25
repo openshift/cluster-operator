@@ -118,7 +118,7 @@ parameters:
   value: openshift-cluster-operator
 # location of cluster-api container image
 - name: CLUSTER_API_IMAGE
-  value: quay.io/openshift/kubernetes-cluster-api:latest
+  value: registry.svc.ci.openshift.org/openshift-cluster-operator/kubernetes-cluster-api:latest
 # machine controller image
 - name: DEFAULT_AVAILABILITY_ZONE
   value: us-east-1c
