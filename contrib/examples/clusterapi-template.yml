@@ -141,16 +141,33 @@ objects:
     template:
       metadata:
         labels:
-          # TODO: enforce this in validation
           clusteroperator.openshift.io/machineset: ${CLUSTER_NAME}-master
           clusteroperator.openshift.io/cluster: ${CLUSTER_NAME}
       spec:
+        roles:
+          - Master
         providerConfig:
           value:
             apiVersion: clusteroperator.openshift.io/v1alpha1
             kind: MachineSetProviderConfigSpec
-        roles:
-          - master
+            clusterHardware:
+              aws:
+                accountSecret:
+                  name: ${CLUSTER_NAME}-aws-creds
+                keyPairName: ${SSH_KEYPAIR_NAME}
+                region: us-east-1
+                sshSecret:
+                  name: ${CLUSTER_NAME}-ssh-key
+                sshUser: centos
+                sslSecret:
+                  name: ${CLUSTER_NAME}-certs
+            hardware:
+              aws:
+                instanceType: t2.xlarge
+            infra: false
+            vmImage:
+              # Matches origin v3-10 cluster version:
+              awsImage: ami-0e8468df91f4e8b6c
 
 
 # TODO: transition these to MachineDeployments once we have the upstream controller running.
