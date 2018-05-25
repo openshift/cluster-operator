@@ -37,17 +37,18 @@ const (
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// Cluster represents a cluster that clusteroperator manages
-type Cluster struct {
+// ClusterDeployment represents a deployment of a cluster that clusteroperator
+// manages
+type ClusterDeployment struct {
 	// +optional
 	metav1.TypeMeta `json:",inline"`
 	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	// +optional
-	Spec ClusterSpec `json:"spec,omitempty"`
+	Spec ClusterDeploymentSpec `json:"spec,omitempty"`
 	// +optional
-	Status ClusterStatus `json:"status,omitempty"`
+	Status ClusterDeploymentStatus `json:"status,omitempty"`
 }
 
 // finalizer values unique to cluster-operator
@@ -57,13 +58,13 @@ const (
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// ClusterList is a list of Clusters.
-type ClusterList struct {
+// ClusterDeploymentList is a list of ClusterDeployments.
+type ClusterDeploymentList struct {
 	metav1.TypeMeta `json:",inline"`
 	// +optional
 	metav1.ListMeta `json:"metadata,omitempty"`
 
-	Items []Cluster `json:"items"`
+	Items []ClusterDeployment `json:"items"`
 }
 
 // +genclient
@@ -180,11 +181,11 @@ type ClusterProviderConfigSpec struct {
 	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	ClusterSpec `json:",inline"`
+	ClusterDeploymentSpec `json:",inline"`
 }
 
-// ClusterSpec is the specification of a cluster's hardware and configuration
-type ClusterSpec struct {
+// ClusterDeploymentSpec is the specification of a cluster's hardware and configuration
+type ClusterDeploymentSpec struct {
 	// Hardware specifies the hardware that the cluster will run on
 	Hardware ClusterHardwareSpec `json:"hardware"`
 
@@ -301,11 +302,11 @@ type ClusterProviderStatus struct {
 	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	ClusterStatus `json:",inline"`
+	ClusterDeploymentStatus `json:",inline"`
 }
 
-// ClusterStatus contains the status for a cluster
-type ClusterStatus struct {
+// ClusterDeploymentStatus contains the status for a cluster
+type ClusterDeploymentStatus struct {
 	// MachineSetCount is the number of actual machine sets that are active for the cluster
 	MachineSetCount int `json:"machineSetCount"`
 
@@ -481,36 +482,6 @@ const (
 	ClusterReady ClusterConditionType = "Ready"
 )
 
-// +genclient
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
-// MachineSet represents a group of machines in a cluster that clusteroperator manages
-type MachineSet struct {
-	// +optional
-	metav1.TypeMeta `json:",inline"`
-	// +optional
-	metav1.ObjectMeta `json:"metadata"`
-
-	// Spec is the specification for the MachineSet
-	// +optional
-	Spec MachineSetSpec `json:"spec,omitempty"`
-
-	// Status is the status for the MachineSet
-	// +optional
-	Status MachineSetStatus `json:"status,omitempty"`
-}
-
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
-// MachineSetList is a list of MachineSets.
-type MachineSetList struct {
-	metav1.TypeMeta `json:",inline"`
-	// +optional
-	metav1.ListMeta `json:"metadata,omitempty"`
-
-	Items []MachineSet `json:"items"`
-}
-
 // ClusterMachineSet is the specification of a machine set in a cluster
 type ClusterMachineSet struct {
 	// ShortName is a unique name for the machine set within the cluster
@@ -595,117 +566,6 @@ type MachineSetAWSHardwareSpec struct {
 	InstanceType string `json:"instanceType,omitempty"`
 }
 
-// MachineSetStatus is the status of a MachineSet
-type MachineSetStatus struct {
-	// MachinesProvisioned is the count of provisioned machines for the MachineSet
-	MachinesProvisioned int `json:"machineCount"`
-
-	// MachinesReady is the number of machines that are ready
-	MachinesReady int `json:"machinesReady"`
-
-	// Conditions includes more detailed status of the MachineSet
-	Conditions []MachineSetCondition `json:"conditions"`
-
-	// Provisioned is true if the hardware that corresponds to this MachineSet has
-	// been provisioned
-	Provisioned bool `json:"provisioned"`
-
-	// ProvisionedJobGeneration is the generation of the machine set resource used to
-	// generate the latest completed hardware provisioning job.
-	ProvisionedJobGeneration int64 `json:"provisionedJobGeneration"`
-}
-
-// MachineSetCondition contains details for the current condition of a MachineSet
-type MachineSetCondition struct {
-	// Type is the type of the condition.
-	Type MachineSetConditionType `json:"type"`
-	// Status is the status of the condition.
-	Status corev1.ConditionStatus `json:"status"`
-	// LastProbeTime is the last time we probed the condition.
-	// +optional
-	LastProbeTime metav1.Time `json:"lastProbeTime,omitempty"`
-	// LastTransitionTime is the last time the condition transitioned from one status to another.
-	// +optional
-	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
-	// Reason is a unique, one-word, CamelCase reason for the condition's last transition.
-	// +optional
-	Reason string `json:"reason,omitempty"`
-	// Message is a human-readable message indicating details about last transition.
-	// +optional
-	Message string `json:"message,omitempty"`
-}
-
-// MachineSetConditionType is a valid value for MachineSetCondition.Type
-type MachineSetConditionType string
-
-// These are valid conditions for a node group
-const (
-	// MachineSetHardwareProvisioning is true if the cloud resources for this
-	// machine set are in the process of provisioning.
-	MachineSetHardwareProvisioning MachineSetConditionType = "HardwareProvisioning"
-
-	// MachineSetHardwareProvisioningFailed is true if the last provisioning attempt
-	// for this machine set failed.
-	MachineSetHardwareProvisioningFailed MachineSetConditionType = "HardwareProvisioningFailed"
-
-	// MachineSetHardwareProvisioned is true if the corresponding cloud resource(s) for
-	// this machine set have been provisioned (ie. AWS autoscaling group)
-	MachineSetHardwareProvisioned MachineSetConditionType = "HardwareProvisioned"
-
-	// MachineSetHardwareDeprovisioning is true if the cloud resources for this
-	// machine set are in the process of deprovisioning.
-	MachineSetHardwareDeprovisioning MachineSetConditionType = "HardwareDeprovisioning"
-
-	// MachineSetHardwareDeprovisioningFailed is true if the last deprovisioning attempt
-	// for this machine set failed.
-	MachineSetHardwareDeprovisioningFailed MachineSetConditionType = "HardwareDeprovisioningFailed"
-
-	// MachineSetHardwareReady is true if the hardware for the nodegroup is in ready
-	// state (is started and healthy)
-	MachineSetHardwareReady MachineSetConditionType = "HardwareReady"
-
-	// MachineSetReady is true if the nodes of this nodegroup are ready for work
-	// (have joined the cluster and have a healthy node status)
-	MachineSetReady MachineSetConditionType = "Ready"
-)
-
-// +genclient
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
-// Machine represents a node in a cluster that clusteroperator manages
-type Machine struct {
-	// +optional
-	metav1.TypeMeta `json:",inline"`
-	// +optional
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	// +optional
-	Spec MachineSpec `json:"spec,omitempty"`
-	// +optional
-	Status MachineStatus `json:"status,omitempty"`
-}
-
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
-// MachineList is a list of Nodes.
-type MachineList struct {
-	metav1.TypeMeta `json:",inline"`
-	// +optional
-	metav1.ListMeta `json:"metadata,omitempty"`
-
-	Items []Machine `json:"items"`
-}
-
-// MachineSpec is the specificiation of a Machine.
-type MachineSpec struct {
-	// NodeType is the type of the node
-	NodeType NodeType `json:"nodeType"`
-}
-
-// MachineStatus is the status of a Machine.
-type MachineStatus struct {
-}
-
 // NodeType is the type of the Node
 type NodeType string
 
@@ -724,9 +584,9 @@ type CombinedCluster struct {
 	metav1.TypeMeta
 	metav1.ObjectMeta
 
-	ClusterOperatorSpec   *ClusterSpec
-	ClusterOperatorStatus *ClusterStatus
+	ClusterDeploymentSpec   *ClusterDeploymentSpec
+	ClusterDeploymentStatus *ClusterDeploymentStatus
 
-	ClusterAPISpec   *clusterapi.ClusterSpec
-	ClusterAPIStatus *clusterapi.ClusterStatus
+	ClusterSpec   *clusterapi.ClusterSpec
+	ClusterStatus *clusterapi.ClusterStatus
 }

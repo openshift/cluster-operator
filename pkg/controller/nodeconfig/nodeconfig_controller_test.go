@@ -22,6 +22,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	co "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	capi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -98,14 +99,14 @@ func TestStrategyReadyToInstall(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Generation: tc.clusterGeneration,
 				},
-				ClusterOperatorStatus: &co.ClusterStatus{
+				ClusterDeploymentStatus: &co.ClusterDeploymentStatus{
 					ControlPlaneInstalled:                      tc.controlPlaneInstalled,
 					NodeConfigInstalledJobClusterGeneration:    tc.nodeConfigInstalledClusterGeneration,
 					NodeConfigInstalledJobMachineSetGeneration: tc.nodeConfigInstalledMachineSetGeneration,
 				},
 			}
 
-			ms := &co.MachineSet{
+			ms := &capi.MachineSet{
 				ObjectMeta: metav1.ObjectMeta{
 					Generation: tc.machineSetGeneration,
 				},

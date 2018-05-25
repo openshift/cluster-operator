@@ -26,16 +26,8 @@ func addDefaultingFuncs(scheme *runtime.Scheme) error {
 	return RegisterDefaults(scheme)
 }
 
-func SetDefaults_ClusterSpec(spec *ClusterSpec) {
+func SetDefaults_ClusterDeploymentSpec(spec *ClusterDeploymentSpec) {
 	if spec.Hardware.AWS != nil && spec.Hardware.AWS.SSHUser == "" {
 		spec.Hardware.AWS.SSHUser = defaultSSHUser
 	}
-}
-
-func SetDefaults_MachineSetSpec(spec *MachineSetSpec) {
-	// No defaults
-}
-
-func SetDefaults_MachineSpec(spec *MachineSpec) {
-	// No defaults
 }

@@ -50,23 +50,17 @@ var (
 
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
-		&Cluster{},
-		&ClusterList{},
+		&ClusterDeployment{},
+		&ClusterDeploymentList{},
 		&ClusterVersion{},
 		&ClusterVersionList{},
-		&MachineSet{},
-		&MachineSetList{},
-		&Machine{},
-		&MachineList{},
 		&ClusterProviderConfigSpec{},
 		&ClusterProviderStatus{},
 		&MachineSetProviderConfigSpec{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	scheme.AddKnownTypes(schema.GroupVersion{Version: "v1"}, &metav1.Status{})
-	scheme.AddFieldLabelConversionFunc("clusteroperator.openshift.io/v1alpha1", "Cluster", ClusterFieldLabelConversionFunc)
-	scheme.AddFieldLabelConversionFunc("clusteroperator.openshift.io/v1alpha1", "MachineSet", MachineSetFieldLabelConversionFunc)
-	scheme.AddFieldLabelConversionFunc("clusteroperator.openshift.io/v1alpha1", "Node", MachineFieldLabelConversionFunc)
+	scheme.AddFieldLabelConversionFunc("clusteroperator.openshift.io/v1alpha1", "ClusterDeployment", ClusterDeploymentFieldLabelConversionFunc)
 
 	return nil
 }

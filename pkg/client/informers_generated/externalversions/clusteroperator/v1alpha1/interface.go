@@ -24,14 +24,10 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
-	// Clusters returns a ClusterInformer.
-	Clusters() ClusterInformer
+	// ClusterDeployments returns a ClusterDeploymentInformer.
+	ClusterDeployments() ClusterDeploymentInformer
 	// ClusterVersions returns a ClusterVersionInformer.
 	ClusterVersions() ClusterVersionInformer
-	// Machines returns a MachineInformer.
-	Machines() MachineInformer
-	// MachineSets returns a MachineSetInformer.
-	MachineSets() MachineSetInformer
 }
 
 type version struct {
@@ -45,22 +41,12 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
 }
 
-// Clusters returns a ClusterInformer.
-func (v *version) Clusters() ClusterInformer {
-	return &clusterInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+// ClusterDeployments returns a ClusterDeploymentInformer.
+func (v *version) ClusterDeployments() ClusterDeploymentInformer {
+	return &clusterDeploymentInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // ClusterVersions returns a ClusterVersionInformer.
 func (v *version) ClusterVersions() ClusterVersionInformer {
 	return &clusterVersionInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
-}
-
-// Machines returns a MachineInformer.
-func (v *version) Machines() MachineInformer {
-	return &machineInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
-}
-
-// MachineSets returns a MachineSetInformer.
-func (v *version) MachineSets() MachineSetInformer {
-	return &machineSetInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }

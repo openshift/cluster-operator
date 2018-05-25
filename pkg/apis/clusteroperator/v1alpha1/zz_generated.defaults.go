@@ -28,63 +28,30 @@ import (
 // Public to allow building arbitrary schemes.
 // All generated defaulters are covering - they call all nested defaulters.
 func RegisterDefaults(scheme *runtime.Scheme) error {
-	scheme.AddTypeDefaultingFunc(&Cluster{}, func(obj interface{}) { SetObjectDefaults_Cluster(obj.(*Cluster)) })
-	scheme.AddTypeDefaultingFunc(&ClusterList{}, func(obj interface{}) { SetObjectDefaults_ClusterList(obj.(*ClusterList)) })
+	scheme.AddTypeDefaultingFunc(&ClusterDeployment{}, func(obj interface{}) { SetObjectDefaults_ClusterDeployment(obj.(*ClusterDeployment)) })
+	scheme.AddTypeDefaultingFunc(&ClusterDeploymentList{}, func(obj interface{}) { SetObjectDefaults_ClusterDeploymentList(obj.(*ClusterDeploymentList)) })
 	scheme.AddTypeDefaultingFunc(&ClusterProviderConfigSpec{}, func(obj interface{}) { SetObjectDefaults_ClusterProviderConfigSpec(obj.(*ClusterProviderConfigSpec)) })
 	scheme.AddTypeDefaultingFunc(&CombinedCluster{}, func(obj interface{}) { SetObjectDefaults_CombinedCluster(obj.(*CombinedCluster)) })
-	scheme.AddTypeDefaultingFunc(&Machine{}, func(obj interface{}) { SetObjectDefaults_Machine(obj.(*Machine)) })
-	scheme.AddTypeDefaultingFunc(&MachineList{}, func(obj interface{}) { SetObjectDefaults_MachineList(obj.(*MachineList)) })
-	scheme.AddTypeDefaultingFunc(&MachineSet{}, func(obj interface{}) { SetObjectDefaults_MachineSet(obj.(*MachineSet)) })
-	scheme.AddTypeDefaultingFunc(&MachineSetList{}, func(obj interface{}) { SetObjectDefaults_MachineSetList(obj.(*MachineSetList)) })
-	scheme.AddTypeDefaultingFunc(&MachineSetProviderConfigSpec{}, func(obj interface{}) {
-		SetObjectDefaults_MachineSetProviderConfigSpec(obj.(*MachineSetProviderConfigSpec))
-	})
 	return nil
 }
 
-func SetObjectDefaults_Cluster(in *Cluster) {
-	SetDefaults_ClusterSpec(&in.Spec)
+func SetObjectDefaults_ClusterDeployment(in *ClusterDeployment) {
+	SetDefaults_ClusterDeploymentSpec(&in.Spec)
 }
 
-func SetObjectDefaults_ClusterList(in *ClusterList) {
+func SetObjectDefaults_ClusterDeploymentList(in *ClusterDeploymentList) {
 	for i := range in.Items {
 		a := &in.Items[i]
-		SetObjectDefaults_Cluster(a)
+		SetObjectDefaults_ClusterDeployment(a)
 	}
 }
 
 func SetObjectDefaults_ClusterProviderConfigSpec(in *ClusterProviderConfigSpec) {
-	SetDefaults_ClusterSpec(&in.ClusterSpec)
+	SetDefaults_ClusterDeploymentSpec(&in.ClusterDeploymentSpec)
 }
 
 func SetObjectDefaults_CombinedCluster(in *CombinedCluster) {
-	if in.ClusterOperatorSpec != nil {
-		SetDefaults_ClusterSpec(in.ClusterOperatorSpec)
+	if in.ClusterDeploymentSpec != nil {
+		SetDefaults_ClusterDeploymentSpec(in.ClusterDeploymentSpec)
 	}
-}
-
-func SetObjectDefaults_Machine(in *Machine) {
-	SetDefaults_MachineSpec(&in.Spec)
-}
-
-func SetObjectDefaults_MachineList(in *MachineList) {
-	for i := range in.Items {
-		a := &in.Items[i]
-		SetObjectDefaults_Machine(a)
-	}
-}
-
-func SetObjectDefaults_MachineSet(in *MachineSet) {
-	SetDefaults_MachineSetSpec(&in.Spec)
-}
-
-func SetObjectDefaults_MachineSetList(in *MachineSetList) {
-	for i := range in.Items {
-		a := &in.Items[i]
-		SetObjectDefaults_MachineSet(a)
-	}
-}
-
-func SetObjectDefaults_MachineSetProviderConfigSpec(in *MachineSetProviderConfigSpec) {
-	SetDefaults_MachineSetSpec(&in.MachineSetSpec)
 }

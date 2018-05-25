@@ -21,31 +21,9 @@ import "fmt"
 // These functions are used for field selectors. They are only needed if
 // field selection is made available for types.
 
-// ClusterFieldLabelConversionFunc does not convert anything, just returns
+// ClusterDeploymentFieldLabelConversionFunc does not convert anything, just returns
 // what it's given for the supported fields, and errors for unsupported.
-func ClusterFieldLabelConversionFunc(label, value string) (string, string, error) {
-	switch label {
-	case "spec.sampleField":
-		return label, value, nil
-	default:
-		return "", "", fmt.Errorf("field label not supported: %s", label)
-	}
-}
-
-// MachineSetFieldLabelConversionFunc does not convert anything, just returns
-// what it's given for the supported fields, and errors for unsupported.
-func MachineSetFieldLabelConversionFunc(label, value string) (string, string, error) {
-	switch label {
-	case "spec.sampleField":
-		return label, value, nil
-	default:
-		return "", "", fmt.Errorf("field label not supported: %s", label)
-	}
-}
-
-// MachineFieldLabelConversionFunc does not convert anything, just returns
-// what it's given for the supported fields, and errors for unsupported.
-func MachineFieldLabelConversionFunc(label, value string) (string, string, error) {
+func ClusterDeploymentFieldLabelConversionFunc(label, value string) (string, string, error) {
 	switch label {
 	case "spec.sampleField":
 		return label, value, nil

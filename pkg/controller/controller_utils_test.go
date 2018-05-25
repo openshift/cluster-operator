@@ -30,11 +30,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
 
 	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
-	clusteroperatorclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset/fake"
-	informers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions"
 
 	clustercommon "sigs.k8s.io/cluster-api/pkg/apis/cluster/common"
 	clusterapi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
@@ -274,10 +271,8 @@ func TestSetClusterCondtion(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			cluster := &clusteroperator.Cluster{
-				Status: clusteroperator.ClusterStatus{
-					Conditions: tc.existingConditions,
-				},
+			clusterStatus := &clusteroperator.ClusterDeploymentStatus{
+				Conditions: tc.existingConditions,
 			}
 			updateCheck := func(oldReason, oldMessage, newReason, newMessage string) bool {
 				assert.Equal(t, tc.expectedOldReason, oldReason, "unexpected old reason passed to update condition check")
@@ -288,7 +283,7 @@ func TestSetClusterCondtion(t *testing.T) {
 			}
 			startTime := time.Now()
 			SetClusterCondition(
-				&cluster.Status,
+				clusterStatus,
 				tc.conditionType,
 				tc.status,
 				tc.reason,
@@ -296,7 +291,7 @@ func TestSetClusterCondtion(t *testing.T) {
 				updateCheck,
 			)
 			endTime := time.Now()
-			actualConditions := cluster.Status.Conditions
+			actualConditions := clusterStatus.Conditions
 			if assert.Equal(t, len(tc.expectedConditions), len(actualConditions), "unexpected number of conditions") {
 				for i := range actualConditions {
 					expected := tc.expectedConditions[i]
@@ -395,12 +390,10 @@ func TestFindClusterCondition(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			cluster := &clusteroperator.Cluster{
-				Status: clusteroperator.ClusterStatus{
-					Conditions: tc.conditions,
-				},
+			clusterStatus := &clusteroperator.ClusterDeploymentStatus{
+				Conditions: tc.conditions,
 			}
-			actual := FindClusterCondition(&cluster.Status, tc.conditionType)
+			actual := FindClusterCondition(clusterStatus, tc.conditionType)
 			if tc.expectedConditionIndex < 0 {
 				assert.Nil(t, actual, "expected to not find condition")
 			} else {
@@ -408,265 +401,6 @@ func TestFindClusterCondition(t *testing.T) {
 				assert.Equal(t, expected, actual, "unexecpted condition found")
 			}
 		})
-	}
-}
-
-func newMachineSetCondition(
-	conditionType clusteroperator.MachineSetConditionType,
-	status corev1.ConditionStatus,
-	reason string,
-	message string,
-	lastTransitionTime metav1.Time,
-	lastProbeTime metav1.Time,
-) clusteroperator.MachineSetCondition {
-	return clusteroperator.MachineSetCondition{
-		Type:               conditionType,
-		Status:             status,
-		Reason:             reason,
-		Message:            message,
-		LastTransitionTime: lastTransitionTime,
-		LastProbeTime:      lastProbeTime,
-	}
-}
-
-// TestSetMachineSetCondtion tests the SetMachineSetCondtion function.
-func TestSetMachineSetCondtion(t *testing.T) {
-	cases := []struct {
-		name               string
-		existingConditions []clusteroperator.MachineSetCondition
-		conditionType      clusteroperator.MachineSetConditionType
-		status             corev1.ConditionStatus
-		reason             string
-		message            string
-		updateCondition    bool
-		expectedConditions []clusteroperator.MachineSetCondition
-		expectedOldReason  string
-		expectedOldMessage string
-	}{
-		{
-			name:          "new condition",
-			conditionType: clusteroperator.MachineSetReady,
-			status:        corev1.ConditionTrue,
-			reason:        "reason",
-			message:       "message",
-			expectedConditions: []clusteroperator.MachineSetCondition{
-				newMachineSetCondition(clusteroperator.MachineSetReady, corev1.ConditionTrue, "reason", "message", metav1.Now(), metav1.Now()),
-			},
-		},
-		{
-			name: "new condition with existing conditions",
-			existingConditions: []clusteroperator.MachineSetCondition{
-				newMachineSetCondition(clusteroperator.MachineSetHardwareProvisioning, corev1.ConditionTrue, "other reason", "other message", metav1.Time{}, metav1.Time{}),
-			},
-			conditionType: clusteroperator.MachineSetReady,
-			status:        corev1.ConditionTrue,
-			reason:        "reason",
-			message:       "message",
-			expectedConditions: []clusteroperator.MachineSetCondition{
-				newMachineSetCondition(clusteroperator.MachineSetHardwareProvisioning, corev1.ConditionTrue, "other reason", "other message", metav1.Time{}, metav1.Time{}),
-				newMachineSetCondition(clusteroperator.MachineSetReady, corev1.ConditionTrue, "reason", "message", metav1.Now(), metav1.Now()),
-			},
-		},
-		{
-			name:          "false condition not created",
-			conditionType: clusteroperator.MachineSetReady,
-			status:        corev1.ConditionFalse,
-			reason:        "reason",
-			message:       "message",
-		},
-		{
-			name: "condition not updated",
-			existingConditions: []clusteroperator.MachineSetCondition{
-				newMachineSetCondition(clusteroperator.MachineSetReady, corev1.ConditionTrue, "old reason", "old message", metav1.Time{}, metav1.Time{}),
-			},
-			conditionType: clusteroperator.MachineSetReady,
-			status:        corev1.ConditionTrue,
-			reason:        "reason",
-			message:       "message",
-			expectedConditions: []clusteroperator.MachineSetCondition{
-				newMachineSetCondition(clusteroperator.MachineSetReady, corev1.ConditionTrue, "old reason", "old message", metav1.Time{}, metav1.Time{}),
-			},
-			expectedOldReason:  "old reason",
-			expectedOldMessage: "old message",
-		},
-		{
-			name: "condition status changed",
-			existingConditions: []clusteroperator.MachineSetCondition{
-				newMachineSetCondition(clusteroperator.MachineSetReady, corev1.ConditionTrue, "old reason", "old message", metav1.Time{}, metav1.Time{}),
-			},
-			conditionType: clusteroperator.MachineSetReady,
-			status:        corev1.ConditionFalse,
-			reason:        "reason",
-			message:       "message",
-			expectedConditions: []clusteroperator.MachineSetCondition{
-				newMachineSetCondition(clusteroperator.MachineSetReady, corev1.ConditionFalse, "reason", "message", metav1.Now(), metav1.Now()),
-			},
-			expectedOldReason:  "old reason",
-			expectedOldMessage: "old message",
-		},
-		{
-			name: "condition changed due to update check",
-			existingConditions: []clusteroperator.MachineSetCondition{
-				newMachineSetCondition(clusteroperator.MachineSetReady, corev1.ConditionTrue, "old reason", "old message", metav1.Time{}, metav1.Time{}),
-			},
-			conditionType:   clusteroperator.MachineSetReady,
-			status:          corev1.ConditionTrue,
-			reason:          "reason",
-			message:         "message",
-			updateCondition: true,
-			expectedConditions: []clusteroperator.MachineSetCondition{
-				newMachineSetCondition(clusteroperator.MachineSetReady, corev1.ConditionTrue, "reason", "message", metav1.Time{}, metav1.Now()),
-			},
-			expectedOldReason:  "old reason",
-			expectedOldMessage: "old message",
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			machineSet := &clusteroperator.MachineSet{
-				Status: clusteroperator.MachineSetStatus{
-					Conditions: tc.existingConditions,
-				},
-			}
-			updateCheck := func(oldReason, oldMessage, newReason, newMessage string) bool {
-				assert.Equal(t, tc.expectedOldReason, oldReason, "unexpected old reason passed to update condition check")
-				assert.Equal(t, tc.expectedOldMessage, oldMessage, "unexpected old message passed to update condition check")
-				assert.Equal(t, tc.reason, newReason, "unexpected new reason passed to update condition check")
-				assert.Equal(t, tc.message, newMessage, "unexpected new message passed to update condition check")
-				return tc.updateCondition
-			}
-			startTime := time.Now()
-			SetMachineSetCondition(
-				machineSet,
-				tc.conditionType,
-				tc.status,
-				tc.reason,
-				tc.message,
-				updateCheck,
-			)
-			endTime := time.Now()
-			actualConditions := machineSet.Status.Conditions
-			if assert.Equal(t, len(tc.expectedConditions), len(actualConditions), "unexpected number of conditions") {
-				for i := range actualConditions {
-					expected := tc.expectedConditions[i]
-					actual := actualConditions[i]
-					assert.Equal(t, expected.Type, actual.Type, "unexpected type in condition %d", i)
-					assert.Equal(t, expected.Status, actual.Status, "unexpected status in condition %d", i)
-					assert.Equal(t, expected.Reason, actual.Reason, "unexpected reason in condition %d", i)
-					assert.Equal(t, expected.Message, actual.Message, "unexpected message in condition %d", i)
-					if expected.LastTransitionTime.IsZero() {
-						assert.Equal(t, expected.LastTransitionTime, actual.LastTransitionTime, "unexpected last transition time in condition %d", i)
-					} else if actual.LastTransitionTime.IsZero() {
-						t.Errorf("last probe time not set for condition %d", i)
-					} else if actual.LastTransitionTime.Time.Before(startTime) || endTime.Before(actual.LastTransitionTime.Time) {
-						t.Errorf("last probe time not within expected bounds for condition %d", i)
-					}
-					if expected.LastProbeTime.IsZero() {
-						assert.Equal(t, expected.LastProbeTime, actual.LastProbeTime, "unexpected last probe time in condition %d", i)
-					} else if actual.LastProbeTime.IsZero() {
-						t.Errorf("last probe time not set for condition %d", i)
-					} else if actual.LastProbeTime.Time.Before(startTime) || endTime.Before(actual.LastProbeTime.Time) {
-						t.Errorf("last probe time not within expected bounds for condition %d", i)
-					}
-				}
-			}
-		})
-	}
-}
-
-// TestFindMachineSetCondition tests the FindMachineSetCondition function.
-func TestFindMachineSetCondition(t *testing.T) {
-	cases := []struct {
-		name                   string
-		conditions             []clusteroperator.MachineSetCondition
-		conditionType          clusteroperator.MachineSetConditionType
-		expectedConditionIndex int
-	}{
-		{
-			name:                   "no conditions",
-			conditionType:          clusteroperator.MachineSetReady,
-			expectedConditionIndex: -1,
-		},
-		{
-			name: "only condition",
-			conditions: []clusteroperator.MachineSetCondition{
-				{Type: clusteroperator.MachineSetReady},
-			},
-			conditionType:          clusteroperator.MachineSetReady,
-			expectedConditionIndex: 0,
-		},
-		{
-			name: "first condition",
-			conditions: []clusteroperator.MachineSetCondition{
-				{Type: clusteroperator.MachineSetReady},
-				{Type: clusteroperator.MachineSetHardwareProvisioning},
-			},
-			conditionType:          clusteroperator.MachineSetReady,
-			expectedConditionIndex: 0,
-		},
-		{
-			name: "last condition",
-			conditions: []clusteroperator.MachineSetCondition{
-				{Type: clusteroperator.MachineSetHardwareProvisioning},
-				{Type: clusteroperator.MachineSetReady},
-			},
-			conditionType:          clusteroperator.MachineSetReady,
-			expectedConditionIndex: 1,
-		},
-		{
-			name: "middle condition",
-			conditions: []clusteroperator.MachineSetCondition{
-				{Type: clusteroperator.MachineSetHardwareProvisioning},
-				{Type: clusteroperator.MachineSetReady},
-				{Type: clusteroperator.MachineSetHardwareProvisioned},
-			},
-			conditionType:          clusteroperator.MachineSetReady,
-			expectedConditionIndex: 1,
-		},
-		{
-			name: "single non-matching condition",
-			conditions: []clusteroperator.MachineSetCondition{
-				{Type: clusteroperator.MachineSetHardwareProvisioning},
-			},
-			conditionType:          clusteroperator.MachineSetReady,
-			expectedConditionIndex: -1,
-		},
-		{
-			name: "multiple non-matching conditions",
-			conditions: []clusteroperator.MachineSetCondition{
-				{Type: clusteroperator.MachineSetHardwareProvisioning},
-				{Type: clusteroperator.MachineSetHardwareProvisioned},
-				{Type: clusteroperator.MachineSetHardwareProvisioningFailed},
-			},
-			conditionType:          clusteroperator.MachineSetReady,
-			expectedConditionIndex: -1,
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			machineSet := &clusteroperator.MachineSet{
-				Status: clusteroperator.MachineSetStatus{
-					Conditions: tc.conditions,
-				},
-			}
-			actual := FindMachineSetCondition(machineSet, tc.conditionType)
-			if tc.expectedConditionIndex < 0 {
-				assert.Nil(t, actual, "expected to not find condition")
-			} else {
-				expected := &tc.conditions[tc.expectedConditionIndex]
-				assert.Equal(t, expected, actual, "unexecpted condition found")
-			}
-		})
-	}
-}
-
-func testCluster(namespace, name string, uid types.UID) *clusteroperator.Cluster {
-	return &clusteroperator.Cluster{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: namespace,
-			Name:      name,
-			UID:       uid,
-		},
 	}
 }
 
@@ -780,126 +514,8 @@ func TestGetObjectController(t *testing.T) {
 	}
 }
 
-// TestClusterForMachineSet tests the ClusterForMachineSet function.
-func TestClusterForMachineSet(t *testing.T) {
-	cases := []struct {
-		name            string
-		namespace       string
-		ownerRefs       []metav1.OwnerReference
-		clusters        []*clusteroperator.Cluster
-		expectedCluster *clusteroperator.Cluster
-		expectedError   bool
-	}{
-		{
-			name:      "no owner",
-			namespace: "test-namespace",
-			clusters: []*clusteroperator.Cluster{
-				testCluster("test-namespace", "test-cluster", "test-uid"),
-			},
-		},
-		{
-			name:      "no controlling owner",
-			namespace: "test-namespace",
-			ownerRefs: []metav1.OwnerReference{
-				newNonControllingOwnerRef(testCluster("test-namespace", "test-cluster", "test-uid"), clusterKind),
-			},
-			clusters: []*clusteroperator.Cluster{
-				testCluster("test-namespace", "test-cluster", "test-uid"),
-			},
-		},
-		{
-			name:      "controller not found",
-			namespace: "test-namespace",
-			ownerRefs: []metav1.OwnerReference{
-				*metav1.NewControllerRef(testCluster("test-namespace", "test-cluster", "test-uid"), clusterKind),
-			},
-			expectedError: true,
-		},
-		{
-			name:      "controller has other kind",
-			namespace: "test-namespace",
-			ownerRefs: []metav1.OwnerReference{
-				*metav1.NewControllerRef(
-					testCluster("test-namespace", "test-cluster", "test-uid"),
-					clusterKind.GroupVersion().WithKind("other-kind")),
-			},
-			clusters: []*clusteroperator.Cluster{
-				testCluster("test-namespace", "test-cluster", "test-uid"),
-			},
-		},
-		{
-			name:      "controller has other group",
-			namespace: "test-namespace",
-			ownerRefs: []metav1.OwnerReference{
-				*metav1.NewControllerRef(
-					testCluster("test-namespace", "test-cluster", "test-uid"),
-					schema.GroupVersionKind{Group: "other-group", Version: clusterKind.Version, Kind: clusterKind.Kind}),
-			},
-			clusters: []*clusteroperator.Cluster{
-				testCluster("test-namespace", "test-cluster", "test-uid"),
-			},
-		},
-		{
-			name:      "controller has other version",
-			namespace: "test-namespace",
-			ownerRefs: []metav1.OwnerReference{
-				*metav1.NewControllerRef(
-					testCluster("test-namespace", "test-cluster", "test-uid"),
-					schema.GroupVersionKind{Group: clusterKind.Group, Version: "other-version", Kind: clusterKind.Kind}),
-			},
-			clusters: []*clusteroperator.Cluster{
-				testCluster("test-namespace", "test-cluster", "test-uid"),
-			},
-		},
-		{
-			name:      "controller has other UID",
-			namespace: "test-namespace",
-			ownerRefs: []metav1.OwnerReference{
-				*metav1.NewControllerRef(testCluster("test-namespace", "test-cluster", "test-uid"), clusterKind),
-			},
-			clusters: []*clusteroperator.Cluster{
-				testCluster("test-namespace", "test-cluster", "other-uid"),
-			},
-		},
-		{
-			name:      "controller found",
-			namespace: "test-namespace",
-			ownerRefs: []metav1.OwnerReference{
-				*metav1.NewControllerRef(testCluster("test-namespace", "test-cluster", "test-uid"), clusterKind),
-			},
-			clusters: []*clusteroperator.Cluster{
-				testCluster("test-namespace", "test-cluster", "test-uid"),
-			},
-			expectedCluster: testCluster("test-namespace", "test-cluster", "test-uid"),
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			client := &clusteroperatorclientset.Clientset{}
-			informers := informers.NewSharedInformerFactory(client, 0)
-			store := informers.Clusteroperator().V1alpha1().Clusters().Informer().GetStore()
-			lister := informers.Clusteroperator().V1alpha1().Clusters().Lister()
-
-			machineSet := &clusteroperator.MachineSet{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace:       tc.namespace,
-					OwnerReferences: tc.ownerRefs,
-				},
-			}
-
-			for _, cluster := range tc.clusters {
-				store.Add(cluster)
-			}
-
-			actual, err := ClusterForMachineSet(machineSet, lister)
-			assert.Equal(t, tc.expectedCluster, actual, "unexpected cluster")
-			assert.Equal(t, tc.expectedError, err != nil, "unexpected error")
-		})
-	}
-}
-
 func TestMachineSetLabels(t *testing.T) {
-	cluster := &clusteroperator.Cluster{
+	clusterDeployment := &clusteroperator.ClusterDeployment{
 		ObjectMeta: metav1.ObjectMeta{
 			UID:  "test-uid",
 			Name: "test-name",
@@ -910,16 +526,14 @@ func TestMachineSetLabels(t *testing.T) {
 		"cluster":                "test-name",
 		"machine-set-short-name": "test-short-name",
 	}
-	actual := MachineSetLabels(cluster, "test-short-name")
+	actual := MachineSetLabels(clusterDeployment, "test-short-name")
 	assert.Equal(t, expected, actual)
 }
 
 func TestJobLabelsForClusterController(t *testing.T) {
-	cluster := &clusteroperator.Cluster{
-		ObjectMeta: metav1.ObjectMeta{
-			UID:  "test-uid",
-			Name: "test-name",
-		},
+	cluster := &metav1.ObjectMeta{
+		UID:  "test-uid",
+		Name: "test-name",
 	}
 	expected := map[string]string{
 		"cluster-uid": "test-uid",
@@ -928,71 +542,6 @@ func TestJobLabelsForClusterController(t *testing.T) {
 	}
 	actual := JobLabelsForClusterController(cluster, "test-job-type")
 	assert.Equal(t, expected, actual)
-}
-
-func TestJobLabelsForMachineSetController(t *testing.T) {
-	cases := []struct {
-		name             string
-		machineSetLabels map[string]string
-		expected         map[string]string
-	}{
-		{
-			name: "nil labels",
-			expected: map[string]string{
-				"machine-set-uid": "test-uid",
-				"machine-set":     "test-name",
-				"job-type":        "test-job-type",
-			},
-		},
-		{
-			name:             "empty labels",
-			machineSetLabels: map[string]string{},
-			expected: map[string]string{
-				"machine-set-uid": "test-uid",
-				"machine-set":     "test-name",
-				"job-type":        "test-job-type",
-			},
-		},
-		{
-			name: "single label",
-			machineSetLabels: map[string]string{
-				"label1": "value1",
-			},
-			expected: map[string]string{
-				"machine-set-uid": "test-uid",
-				"machine-set":     "test-name",
-				"job-type":        "test-job-type",
-				"label1":          "value1",
-			},
-		},
-		{
-			name: "multiple labels",
-			machineSetLabels: map[string]string{
-				"label1": "value1",
-				"label2": "value2",
-			},
-			expected: map[string]string{
-				"machine-set-uid": "test-uid",
-				"machine-set":     "test-name",
-				"job-type":        "test-job-type",
-				"label1":          "value1",
-				"label2":          "value2",
-			},
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			machineSet := &clusteroperator.MachineSet{
-				ObjectMeta: metav1.ObjectMeta{
-					UID:    "test-uid",
-					Name:   "test-name",
-					Labels: tc.machineSetLabels,
-				},
-			}
-			actual := JobLabelsForMachineSetController(machineSet, "test-job-type")
-			assert.Equal(t, tc.expected, actual)
-		})
-	}
 }
 
 func TestAddLabels(t *testing.T) {
@@ -1187,7 +736,7 @@ kind: Machine
 }
 
 func TestClusterAPIProviderStatusFromClusterStatus(t *testing.T) {
-	clusterStatus := &clusteroperator.ClusterStatus{
+	clusterStatus := &clusteroperator.ClusterDeploymentStatus{
 		MachineSetCount:      1,
 		MasterMachineSetName: "master",
 	}
@@ -1211,7 +760,7 @@ func TestGetImage(t *testing.T) {
 	cases := []struct {
 		name             string
 		clusterVersion   *clusteroperator.ClusterVersion
-		clusterSpec      *clusteroperator.ClusterSpec
+		clusterSpec      *clusteroperator.ClusterDeploymentSpec
 		expectedErrorMsg string
 	}{
 		{
@@ -1222,7 +771,7 @@ func TestGetImage(t *testing.T) {
 		{
 			name:           "cluster has no AWS hardware",
 			clusterVersion: newClusterVersion("origin-v3-10"),
-			clusterSpec: func() *clusteroperator.ClusterSpec {
+			clusterSpec: func() *clusteroperator.ClusterDeploymentSpec {
 				cs := newClusterSpec(testRegion, defaultInstanceType)
 				cs.Hardware.AWS = nil
 				return cs
@@ -1242,7 +791,7 @@ func TestGetImage(t *testing.T) {
 		{
 			name:           "no matching region",
 			clusterVersion: newClusterVersion("origin-v3-10"),
-			clusterSpec: func() *clusteroperator.ClusterSpec {
+			clusterSpec: func() *clusteroperator.ClusterDeploymentSpec {
 				cs := newClusterSpec(testRegion, defaultInstanceType)
 				cs.Hardware.AWS.Region = "us-west-notreal"
 				return cs
@@ -1264,8 +813,8 @@ func TestGetImage(t *testing.T) {
 	}
 }
 
-func newClusterSpec(region, instanceType string) *clusteroperator.ClusterSpec {
-	return &clusteroperator.ClusterSpec{
+func newClusterSpec(region, instanceType string) *clusteroperator.ClusterDeploymentSpec {
+	return &clusteroperator.ClusterDeploymentSpec{
 		Hardware: clusteroperator.ClusterHardwareSpec{
 			AWS: &clusteroperator.AWSClusterSpec{
 				Region: testRegion,
@@ -1330,7 +879,7 @@ func TestPopulateMachineSpec(t *testing.T) {
 	cases := []struct {
 		name                 string
 		machineSetSpec       *clusteroperator.MachineSetSpec
-		clusterSpec          *clusteroperator.ClusterSpec
+		clusterSpec          *clusteroperator.ClusterDeploymentSpec
 		clusterVersion       *clusteroperator.ClusterVersion
 		expectedErrorMsg     string
 		expectedAMI          string

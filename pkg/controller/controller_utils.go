@@ -37,7 +37,6 @@ import (
 
 	"github.com/openshift/cluster-operator/pkg/api"
 	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
-	lister "github.com/openshift/cluster-operator/pkg/client/listers_generated/clusteroperator/v1alpha1"
 	capicommon "sigs.k8s.io/cluster-api/pkg/apis/cluster/common"
 	clusterapi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	capilister "sigs.k8s.io/cluster-api/pkg/client/listers_generated/cluster/v1alpha1"
@@ -127,7 +126,7 @@ func shouldUpdateCondition(
 // 1) Requested status is different than existing status.
 // 2) The updateConditionCheck function returns true.
 func SetClusterCondition(
-	clusterStatus *clusteroperator.ClusterStatus,
+	clusterStatus *clusteroperator.ClusterDeploymentStatus,
 	conditionType clusteroperator.ClusterConditionType,
 	status corev1.ConditionStatus,
 	reason string,
@@ -169,70 +168,10 @@ func SetClusterCondition(
 
 // FindClusterCondition finds in the cluster the condition that has the
 // specified condition type. If none exists, then returns nil.
-func FindClusterCondition(clusterStatus *clusteroperator.ClusterStatus, conditionType clusteroperator.ClusterConditionType) *clusteroperator.ClusterCondition {
+func FindClusterCondition(clusterStatus *clusteroperator.ClusterDeploymentStatus, conditionType clusteroperator.ClusterConditionType) *clusteroperator.ClusterCondition {
 	for i, condition := range clusterStatus.Conditions {
 		if condition.Type == conditionType {
 			return &clusterStatus.Conditions[i]
-		}
-	}
-	return nil
-}
-
-// SetMachineSetCondition sets the condition for the machine set.
-// If the machine set does not already have a condition with the specified
-// type, a condition will be added to the machine set if and only if the
-// specified status is True.
-// If the machine set does already have a condition with the specified type,
-// the condition will be updated if either of the following are true.
-// 1) Requested status is different than existing status.
-// 2) The updateConditionCheck function returns true.
-func SetMachineSetCondition(
-	machineSet *clusteroperator.MachineSet,
-	conditionType clusteroperator.MachineSetConditionType,
-	status corev1.ConditionStatus,
-	reason string,
-	message string,
-	updateConditionCheck UpdateConditionCheck,
-) {
-	now := metav1.Now()
-	existingCondition := FindMachineSetCondition(machineSet, conditionType)
-	if existingCondition == nil {
-		if status == corev1.ConditionTrue {
-			machineSet.Status.Conditions = append(
-				machineSet.Status.Conditions,
-				clusteroperator.MachineSetCondition{
-					Type:               conditionType,
-					Status:             status,
-					Reason:             reason,
-					Message:            message,
-					LastTransitionTime: now,
-					LastProbeTime:      now,
-				},
-			)
-		}
-	} else {
-		if shouldUpdateCondition(
-			existingCondition.Status, existingCondition.Reason, existingCondition.Message,
-			status, reason, message,
-			updateConditionCheck,
-		) {
-			if existingCondition.Status != status {
-				existingCondition.LastTransitionTime = now
-			}
-			existingCondition.Status = status
-			existingCondition.Reason = reason
-			existingCondition.Message = message
-			existingCondition.LastProbeTime = now
-		}
-	}
-}
-
-// FindMachineSetCondition finds in the machine set the condition that has the
-// specified condition type. If none exists, then returns nil.
-func FindMachineSetCondition(machineSet *clusteroperator.MachineSet, conditionType clusteroperator.MachineSetConditionType) *clusteroperator.MachineSetCondition {
-	for i, condition := range machineSet.Status.Conditions {
-		if condition.Type == conditionType {
-			return &machineSet.Status.Conditions[i]
 		}
 	}
 	return nil
@@ -270,78 +209,20 @@ func GetObjectController(
 }
 
 // ClusterForMachineSet retrieves the cluster to which a machine set belongs.
-func ClusterForMachineSet(machineSet *clusteroperator.MachineSet, clustersLister lister.ClusterLister) (*clusteroperator.Cluster, error) {
-	controller, err := GetObjectController(
-		machineSet,
-		clusterKind,
-		func(name string) (metav1.Object, error) {
-			return clustersLister.Clusters(machineSet.Namespace).Get(name)
-		},
-	)
-	if err != nil {
-		return nil, err
+func ClusterForMachineSet(machineSet *clusterapi.MachineSet, clusterLister capilister.ClusterLister) (*clusterapi.Cluster, error) {
+	if machineSet.Labels == nil {
+		return nil, fmt.Errorf("missing %s label", clusteroperator.ClusterNameLabel)
 	}
-	if controller == nil {
-		return nil, nil
-	}
-	cluster, ok := controller.(*clusteroperator.Cluster)
+	clusterName, ok := machineSet.Labels[clusteroperator.ClusterNameLabel]
 	if !ok {
-		return nil, fmt.Errorf("Could not convert controller into a Cluster")
+		return nil, fmt.Errorf("missing %s label", clusteroperator.ClusterNameLabel)
 	}
-	return cluster, nil
+	return clusterLister.Clusters(machineSet.Namespace).Get(clusterName)
 }
 
-// ClusterForGenericMachineSet retrieves the cluster to which a machine set belongs.
-func ClusterForGenericMachineSet(
-	machineSet metav1.Object,
-	clusterKind schema.GroupVersionKind,
-	getCluster func(namespace, name string) (metav1.Object, error),
-) (metav1.Object, error) {
-	switch ms := machineSet.(type) {
-	case *clusteroperator.MachineSet:
-		controller, err := GetObjectController(
-			machineSet,
-			clusterKind,
-			func(name string) (metav1.Object, error) {
-				return getCluster(machineSet.GetNamespace(), name)
-			},
-		)
-		if err != nil {
-			return nil, err
-		}
-		return controller, nil
-	case *clusterapi.MachineSet:
-		if ms.Labels == nil {
-			return nil, fmt.Errorf("missing %s label", clusteroperator.ClusterNameLabel)
-		}
-		clusterName, ok := ms.Labels[clusteroperator.ClusterNameLabel]
-		if !ok {
-			return nil, fmt.Errorf("missing %s label", clusteroperator.ClusterNameLabel)
-		}
-		return getCluster(ms.Namespace, clusterName)
-	default:
-		return nil, fmt.Errorf("unknown type of MachineSet: %T", ms)
-	}
-}
-
-// MachineSetsForCluster retrieves the machinesets owned by a given cluster.
-func MachineSetsForCluster(cluster *clusteroperator.Cluster, machineSetsLister lister.MachineSetLister) ([]*clusteroperator.MachineSet, error) {
-	clusterMachineSets := []*clusteroperator.MachineSet{}
-	allMachineSets, err := machineSetsLister.MachineSets(cluster.Namespace).List(labels.Everything())
-	if err != nil {
-		return nil, err
-	}
-	for _, machineSet := range allMachineSets {
-		if metav1.IsControlledBy(machineSet, cluster) {
-			clusterMachineSets = append(clusterMachineSets, machineSet)
-		}
-	}
-	return clusterMachineSets, nil
-}
-
-// CAPIMachineSetsForCluster retrieves the machinesets associated with the
+// MachineSetsForCluster retrieves the machinesets associated with the
 // specified cluster name.
-func CAPIMachineSetsForCluster(namespace string, clusterName string, machineSetsLister capilister.MachineSetLister) ([]*clusterapi.MachineSet, error) {
+func MachineSetsForCluster(namespace string, clusterName string, machineSetsLister capilister.MachineSetLister) ([]*clusterapi.MachineSet, error) {
 	requirement, err := labels.NewRequirement(clusteroperator.ClusterNameLabel, selection.Equals, []string{clusterName})
 	if err != nil {
 		return nil, err
@@ -350,11 +231,11 @@ func CAPIMachineSetsForCluster(namespace string, clusterName string, machineSets
 }
 
 // MachineSetLabels returns the labels to apply to a machine set belonging to the
-// specified cluster and having the specified short name.
-func MachineSetLabels(cluster *clusteroperator.Cluster, machineSetShortName string) map[string]string {
+// specified cluster deployment and having the specified short name.
+func MachineSetLabels(clusterDeployment *clusteroperator.ClusterDeployment, machineSetShortName string) map[string]string {
 	return map[string]string{
-		ClusterUIDLabel:          string(cluster.UID),
-		ClusterNameLabel:         cluster.Name,
+		ClusterUIDLabel:          string(clusterDeployment.UID),
+		ClusterNameLabel:         clusterDeployment.Name,
 		MachineSetShortNameLabel: machineSetShortName,
 	}
 }
@@ -371,20 +252,6 @@ func JobLabelsForClusterController(cluster metav1.Object, jobType string) map[st
 	}
 }
 
-// JobLabelsForMachineSetController returns the labels to apply to a job doing a
-// task for the specified machine set.
-func JobLabelsForMachineSetController(machineSet *clusteroperator.MachineSet, jobType string) map[string]string {
-	labels := map[string]string{
-		MachineSetUIDLabel:  string(machineSet.UID),
-		MachineSetNameLabel: machineSet.Name,
-		JobTypeLabel:        jobType,
-	}
-	for k, v := range machineSet.Labels {
-		labels[k] = v
-	}
-	return labels
-}
-
 // AddLabels add the additional labels to the existing labels of the object.
 func AddLabels(obj metav1.Object, additionalLabels map[string]string) {
 	labels := obj.GetLabels()
@@ -399,7 +266,7 @@ func AddLabels(obj metav1.Object, additionalLabels map[string]string) {
 
 // ClusterSpecFromClusterAPI gets the cluster-operator ClusterSpec from the
 // specified cluster-api Cluster.
-func ClusterSpecFromClusterAPI(cluster *clusterapi.Cluster) (*clusteroperator.ClusterSpec, error) {
+func ClusterSpecFromClusterAPI(cluster *clusterapi.Cluster) (*clusteroperator.ClusterDeploymentSpec, error) {
 	if cluster.Spec.ProviderConfig.Value == nil {
 		return nil, fmt.Errorf("No Value in ProviderConfig")
 	}
@@ -411,14 +278,14 @@ func ClusterSpecFromClusterAPI(cluster *clusterapi.Cluster) (*clusteroperator.Cl
 	if !ok {
 		return nil, fmt.Errorf("Unexpected object: %#v", gvk)
 	}
-	return &spec.ClusterSpec, nil
+	return &spec.ClusterDeploymentSpec, nil
 }
 
 // ClusterStatusFromClusterAPI gets the cluster-operator ClusterStatus from the
 // specified cluster-api Cluster.
-func ClusterStatusFromClusterAPI(cluster *clusterapi.Cluster) (*clusteroperator.ClusterStatus, error) {
+func ClusterStatusFromClusterAPI(cluster *clusterapi.Cluster) (*clusteroperator.ClusterDeploymentStatus, error) {
 	if cluster.Status.ProviderStatus == nil {
-		return &clusteroperator.ClusterStatus{}, nil
+		return &clusteroperator.ClusterDeploymentStatus{}, nil
 	}
 	obj, gvk, err := api.Codecs.UniversalDecoder(clusteroperator.SchemeGroupVersion).Decode([]byte(cluster.Status.ProviderStatus.Raw), nil, nil)
 	if err != nil {
@@ -428,18 +295,18 @@ func ClusterStatusFromClusterAPI(cluster *clusterapi.Cluster) (*clusteroperator.
 	if !ok {
 		return nil, fmt.Errorf("Unexpected object: %#v", gvk)
 	}
-	return &status.ClusterStatus, nil
+	return &status.ClusterDeploymentStatus, nil
 }
 
 // ClusterAPIProviderStatusFromClusterStatus gets the cluster-api ProviderStatus
 // storing the cluster-operator ClusterStatus.
-func ClusterAPIProviderStatusFromClusterStatus(clusterStatus *clusteroperator.ClusterStatus) (*runtime.RawExtension, error) {
+func ClusterAPIProviderStatusFromClusterStatus(clusterStatus *clusteroperator.ClusterDeploymentStatus) (*runtime.RawExtension, error) {
 	clusterProviderStatus := &clusteroperator.ClusterProviderStatus{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: clusteroperator.SchemeGroupVersion.String(),
 			Kind:       "ClusterProviderStatus",
 		},
-		ClusterStatus: *clusterStatus,
+		ClusterDeploymentStatus: *clusterStatus,
 	}
 	serializer := jsonserializer.NewSerializer(jsonserializer.DefaultMetaFactory, api.Scheme, api.Scheme, false)
 	var buffer bytes.Buffer
@@ -491,7 +358,7 @@ func ClusterAPIMachineProviderConfigFromMachineSetSpec(machineSetSpec *clusterop
 }
 
 // PopulateMachineSpec ensures that the MachineSetSpec we use for the machine spec provider config is fully populated with defaults and calculated values based on Cluster Operator specific logic. This can be used both on individual machines, as well as on the MachineTemplateSpec used in MachineSets and MachineDeployments.
-func PopulateMachineSpec(machineSpec *clusterapi.MachineSpec, clusterSpec *clusteroperator.ClusterSpec, clusterVersion *clusteroperator.ClusterVersion, mLog log.FieldLogger) error {
+func PopulateMachineSpec(machineSpec *clusterapi.MachineSpec, clusterSpec *clusteroperator.ClusterDeploymentSpec, clusterVersion *clusteroperator.ClusterVersion, mLog log.FieldLogger) error {
 	var msSpec *clusteroperator.MachineSetSpec
 	var err error
 	if machineSpec.ProviderConfig.Value == nil {
@@ -536,7 +403,7 @@ func PopulateMachineSpec(machineSpec *clusterapi.MachineSpec, clusterSpec *clust
 }
 
 // getImage returns a specific image for the given machine and cluster version.
-func getImage(clusterSpec *clusteroperator.ClusterSpec, clusterVersion *clusteroperator.ClusterVersion) (*clusteroperator.VMImage, error) {
+func getImage(clusterSpec *clusteroperator.ClusterDeploymentSpec, clusterVersion *clusteroperator.ClusterVersion) (*clusteroperator.VMImage, error) {
 	if clusterSpec.Hardware.AWS == nil {
 		return nil, fmt.Errorf("no AWS hardware defined for cluster")
 	}
@@ -578,9 +445,9 @@ func ApplyDefaultMachineSetHardwareSpec(machineSetHardwareSpec, defaultHardwareS
 	return mergedSpec, nil
 }
 
-// GetClustopInfraSize gets the size of the infra machine set for the cluster.
-func GetClustopInfraSize(cluster *clusteroperator.CombinedCluster) (int, error) {
-	for _, ms := range cluster.ClusterOperatorSpec.MachineSets {
+// GetInfraSize gets the size of the infra machine set for the cluster.
+func GetInfraSize(cluster *clusteroperator.CombinedCluster) (int, error) {
+	for _, ms := range cluster.ClusterDeploymentSpec.MachineSets {
 		if ms.Infra {
 			return ms.Size, nil
 		}
@@ -588,9 +455,9 @@ func GetClustopInfraSize(cluster *clusteroperator.CombinedCluster) (int, error) 
 	return 0, fmt.Errorf("no machineset of type Infra found")
 }
 
-// GetCAPIMasterMachineSet gets the master machine set for the cluster.
-func GetCAPIMasterMachineSet(cluster *clusteroperator.CombinedCluster, machineSetLister capilister.MachineSetLister) (*clusterapi.MachineSet, error) {
-	machineSets, err := CAPIMachineSetsForCluster(cluster.Namespace, cluster.Name, machineSetLister)
+// GetMasterMachineSet gets the master machine set for the cluster.
+func GetMasterMachineSet(cluster *clusteroperator.CombinedCluster, machineSetLister capilister.MachineSetLister) (*clusterapi.MachineSet, error) {
+	machineSets, err := MachineSetsForCluster(cluster.Namespace, cluster.Name, machineSetLister)
 	if err != nil {
 		return nil, err
 	}

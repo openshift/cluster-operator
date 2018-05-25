@@ -35,12 +35,12 @@ func TestRun(t *testing.T) {
 	}
 
 	// test whether the server is really healthy after /healthz told us so
-	t.Logf("Creating Cluster directly after being healthy")
-	_, err = client.Clusters("default").Create(&clusteroperator.Cluster{
+	t.Logf("Creating ClusterDeployment directly after being healthy")
+	_, err = client.ClusterDeployments("default").Create(&clusteroperator.ClusterDeployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "cluster1",
 		},
-		Spec: clusteroperator.ClusterSpec{
+		Spec: clusteroperator.ClusterDeploymentSpec{
 			ClusterVersionRef: clusteroperator.ClusterVersionReference{
 				Namespace: "openshift-cluster-operator",
 				Name:      "v3-9",
@@ -58,6 +58,6 @@ func TestRun(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("Failed to create cluster: %v", err)
+		t.Fatalf("Failed to create clusterdeployment: %v", err)
 	}
 }

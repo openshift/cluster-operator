@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package machineset
+package clusterdeployment
 
 import (
 	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
@@ -28,16 +28,16 @@ import (
 )
 
 // NewStorage creates a new rest.Storage responsible for accessing
-// MachineSet resources
-func NewStorage(opts generic.RESTOptions) (machinesets *registry.Store, machinesetsStatus rest.Storage) {
+// Cluster resources
+func NewStorage(opts generic.RESTOptions) (clusters *registry.Store, clustersStatus *StatusREST) {
 	store := registry.Store{
-		NewFunc:                  func() runtime.Object { return &clusteroperator.MachineSet{} },
-		NewListFunc:              func() runtime.Object { return &clusteroperator.MachineSetList{} },
-		DefaultQualifiedResource: clusteroperator.Resource("machinesets"),
+		NewFunc:                  func() runtime.Object { return &clusteroperator.ClusterDeployment{} },
+		NewListFunc:              func() runtime.Object { return &clusteroperator.ClusterDeploymentList{} },
+		DefaultQualifiedResource: clusteroperator.Resource("clusterdeployments"),
 
-		CreateStrategy:          machinesetRESTStrategies,
-		UpdateStrategy:          machinesetRESTStrategies,
-		DeleteStrategy:          machinesetRESTStrategies,
+		CreateStrategy:          clusterDeploymentRESTStrategies,
+		UpdateStrategy:          clusterDeploymentRESTStrategies,
+		DeleteStrategy:          clusterDeploymentRESTStrategies,
 		EnableGarbageCollection: true,
 	}
 
@@ -47,7 +47,7 @@ func NewStorage(opts generic.RESTOptions) (machinesets *registry.Store, machines
 	}
 
 	statusStore := store
-	statusStore.UpdateStrategy = machinesetStatusUpdateStrategy
+	statusStore.UpdateStrategy = clusterDeploymentStatusUpdateStrategy
 
 	return &store, &StatusREST{&statusStore}
 }
@@ -59,9 +59,9 @@ type StatusREST struct {
 	store *registry.Store
 }
 
-// New returns a new MachineSet.
+// New returns a new ClusterDeployment.
 func (r *StatusREST) New() runtime.Object {
-	return &clusteroperator.MachineSet{}
+	return &clusteroperator.ClusterDeployment{}
 }
 
 // Get retrieves the object from the storage. It is required to support Patch

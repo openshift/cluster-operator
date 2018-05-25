@@ -69,13 +69,13 @@ func TestV1Alpha1Storage(t *testing.T) {
 		t.Fatalf("error getting v1alpha1 storage (%s)", err)
 	}
 
-	_, clusterStorageExists := storageMap["clusters"]
-	if !clusterStorageExists {
-		t.Fatalf("no clusters storage found")
+	_, clusterDeploymentStorageExists := storageMap["clusterdeployments"]
+	if !clusterDeploymentStorageExists {
+		t.Fatalf("no clusterdeployments storage found")
 	}
-	_, clusterStatusStorageExists := storageMap["clusters/status"]
-	if !clusterStatusStorageExists {
-		t.Fatalf("no clusters/status storage found")
+	_, clusterDeploymentStatusStorageExists := storageMap["clusterdeployments/status"]
+	if !clusterDeploymentStatusStorageExists {
+		t.Fatalf("no clusterdeployments/status storage found")
 	}
 
 	_, clusterVersionStorageExists := storageMap["clusterversions"]
@@ -86,23 +86,5 @@ func TestV1Alpha1Storage(t *testing.T) {
 	_, clusterVersionStatusStorageExists := storageMap["clusterversions/status"]
 	if !clusterVersionStatusStorageExists {
 		t.Fatalf("no clusterversions/status storage found")
-	}
-
-	_, machineGroupStorageExists := storageMap["machinesets"]
-	if !machineGroupStorageExists {
-		t.Fatalf("no machinesets storage found")
-	}
-	_, machineGroupStatusStorageExists := storageMap["machinesets/status"]
-	if !machineGroupStatusStorageExists {
-		t.Fatalf("no machinesets/status storage found")
-	}
-
-	_, machineStorageExists := storageMap["machines"]
-	if !machineStorageExists {
-		t.Fatalf("no machines storage found")
-	}
-	_, machineStatusStorageExists := storageMap["machines/status"]
-	if !machineStatusStorageExists {
-		t.Fatalf("no machines/status storage found")
 	}
 }

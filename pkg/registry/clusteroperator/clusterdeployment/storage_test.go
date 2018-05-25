@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package cluster
+package clusterdeployment
 
 import (
 	"testing"
@@ -36,18 +36,18 @@ func newStorage(t *testing.T) (*genericregistry.Store, *etcdtesting.EtcdTestServ
 		StorageConfig:           etcdStorage,
 		Decorator:               generic.UndecoratedStorage,
 		DeleteCollectionWorkers: 1,
-		ResourcePrefix:          "clusters",
+		ResourcePrefix:          "clusterdeployments",
 	}
 	clusterStorage, _ := NewStorage(restOptions)
 	return clusterStorage, server
 }
 
-func validNewCluster(name string) *clusteroperatorapi.Cluster {
-	return &clusteroperatorapi.Cluster{
+func validNewClusterDeployment(name string) *clusteroperatorapi.ClusterDeployment {
+	return &clusteroperatorapi.ClusterDeployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
-		Spec: clusteroperatorapi.ClusterSpec{
+		Spec: clusteroperatorapi.ClusterDeploymentSpec{
 			MachineSets: []clusteroperatorapi.ClusterMachineSet{
 				{
 					ShortName: "master",
@@ -66,8 +66,8 @@ func validNewCluster(name string) *clusteroperatorapi.Cluster {
 	}
 }
 
-func validChangedCluster() *clusteroperatorapi.Cluster {
-	return validNewCluster("foo")
+func validChangedClusterDeployment() *clusteroperatorapi.ClusterDeployment {
+	return validNewClusterDeployment("foo")
 }
 
 func TestCreate(t *testing.T) {
@@ -75,13 +75,13 @@ func TestCreate(t *testing.T) {
 	defer server.Terminate(t)
 	defer storage.DestroyFunc()
 	test := genericregistrytest.New(t, storage)
-	cluster := validNewCluster("foo")
-	cluster.ObjectMeta = metav1.ObjectMeta{GenerateName: "foo"}
+	clusterDeployment := validNewClusterDeployment("foo")
+	clusterDeployment.ObjectMeta = metav1.ObjectMeta{GenerateName: "foo"}
 	test.TestCreate(
 		// valid
-		cluster,
+		clusterDeployment,
 		// invalid
-		&clusteroperatorapi.Cluster{
+		&clusteroperatorapi.ClusterDeployment{
 			ObjectMeta: metav1.ObjectMeta{Name: "*BadName!"},
 		},
 	)
@@ -94,15 +94,15 @@ func TestUpdate(t *testing.T) {
 	test := genericregistrytest.New(t, storage)
 	test.TestUpdate(
 		// valid
-		validNewCluster("foo"),
+		validNewClusterDeployment("foo"),
 		// updateFunc
 		func(obj runtime.Object) runtime.Object {
-			object := obj.(*clusteroperatorapi.Cluster)
+			object := obj.(*clusteroperatorapi.ClusterDeployment)
 			return object
 		},
 		//invalid update
 		func(obj runtime.Object) runtime.Object {
-			object := obj.(*clusteroperatorapi.Cluster)
+			object := obj.(*clusteroperatorapi.ClusterDeployment)
 			return object
 		},
 	)
@@ -113,7 +113,7 @@ func TestDelete(t *testing.T) {
 	defer server.Terminate(t)
 	defer storage.DestroyFunc()
 	test := genericregistrytest.New(t, storage).ReturnDeletedObject()
-	test.TestDelete(validNewCluster("foo"))
+	test.TestDelete(validNewClusterDeployment("foo"))
 }
 
 func TestGet(t *testing.T) {
@@ -121,7 +121,7 @@ func TestGet(t *testing.T) {
 	defer server.Terminate(t)
 	defer storage.DestroyFunc()
 	test := genericregistrytest.New(t, storage)
-	test.TestGet(validNewCluster("foo"))
+	test.TestGet(validNewClusterDeployment("foo"))
 }
 
 func TestList(t *testing.T) {
@@ -129,7 +129,7 @@ func TestList(t *testing.T) {
 	defer server.Terminate(t)
 	defer storage.DestroyFunc()
 	test := genericregistrytest.New(t, storage)
-	test.TestList(validNewCluster("foo"))
+	test.TestList(validNewClusterDeployment("foo"))
 }
 
 // TODO: Figure out how to make this test pass.
@@ -139,7 +139,7 @@ func TestList(t *testing.T) {
 //	defer storage.DestroyFunc()
 //	test := genericregistrytest.New(t, storage)
 //	test.TestWatch(
-//		validNewCluster("foo"),
+//		validNewClusterDeployment("foo"),
 //		// matching labels
 //		[]labels.Set{},
 //		// not matching labels

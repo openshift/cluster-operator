@@ -79,16 +79,6 @@ type ControllerManagerConfiguration struct {
 	// but more CPU (and network) load.
 	ConcurrentClusterSyncs int32
 
-	// concurrentMachineSetSyncs is the number of machine set objects that are
-	// allowed to sync concurrently. Larger number = more responsive machine sets,
-	// but more CPU (and network) load.
-	ConcurrentMachineSetSyncs int32
-
-	// concurrentMachineSyncs is the number of machine objects that are
-	// allowed to sync concurrently. Larger number = more responsive machines,
-	// but more CPU (and network) load.
-	ConcurrentMachineSyncs int32
-
 	// concurrentMasterSyncs is the number of master machine objects that are
 	// allowed to sync concurrently. Larger number = more responsive master machines,
 	// but more CPU (and network) load.
@@ -103,10 +93,6 @@ type ControllerManagerConfiguration struct {
 	// the node config daemonset concurrently. Larger number = more responsive processing
 	// but more CPU (and network) load.
 	ConcurrentNodeConfigSyncs int32
-
-	// ConcurrentSyncMachineSetSyncs is the number of machinesets we can be syncing out to remote clusters
-	// concurrently. Larger number = more responsive processing but more CPU (and network) load.
-	ConcurrentSyncMachineSetSyncs int32
 
 	// ConcurrentDeployClusterAPISyncs is the number of clusters that are allowed to be deploying
 	// the upstream cluster API controllers concurrently. Larger number = more responsive processing

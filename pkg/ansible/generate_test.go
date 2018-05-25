@@ -30,66 +30,16 @@ const (
 	imageFormat = "openshift/origin-${component}:v3.10.0"
 )
 
-func testCluster() *coapi.Cluster {
-	cluster := &coapi.Cluster{}
-	cluster.Name = "testcluster"
-	cluster.Spec.Hardware.AWS = &coapi.AWSClusterSpec{
-		Region:      "us-east-1",
-		KeyPairName: "mykey",
-		SSHUser:     "centos",
-	}
-	return cluster
-}
-
-func testMachineSet() *coapi.MachineSet {
-	cluster := testCluster()
-	return &coapi.MachineSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "testmachineset",
-			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(cluster, cluster.GroupVersionKind()),
-			},
-		},
-		Spec: coapi.MachineSetSpec{
-			MachineSetConfig: coapi.MachineSetConfig{
-				NodeType: coapi.NodeTypeCompute,
-				Infra:    false,
-				Size:     3,
-				Hardware: &coapi.MachineSetHardwareSpec{
-					AWS: &coapi.MachineSetAWSHardwareSpec{
-						InstanceType: "x9large",
-					},
-				},
-			},
-			ClusterHardware: testCluster().Spec.Hardware,
-		},
-	}
-}
-
-func testClusterMachineSetBuilder(name string, nodeType coapi.NodeType, infra bool, size int,
-	cluster *coapi.Cluster) *coapi.ClusterMachineSet {
-	return &coapi.ClusterMachineSet{
-		ShortName: name,
-		MachineSetConfig: coapi.MachineSetConfig{
-			NodeType: nodeType,
-			Infra:    infra,
-			Size:     size,
-			Hardware: &coapi.MachineSetHardwareSpec{
-				AWS: &coapi.MachineSetAWSHardwareSpec{
-					InstanceType: "x9large",
-				},
+func testClusterSpec() *coapi.ClusterDeploymentSpec {
+	return &coapi.ClusterDeploymentSpec{
+		Hardware: coapi.ClusterHardwareSpec{
+			AWS: &coapi.AWSClusterSpec{
+				Region:      "us-east-1",
+				KeyPairName: "mykey",
+				SSHUser:     "centos",
 			},
 		},
 	}
-}
-
-func testClusterWithInfra() *coapi.Cluster {
-	cluster := testCluster()
-	cluster.Spec.MachineSets = []coapi.ClusterMachineSet{
-		*testClusterMachineSetBuilder("master", coapi.NodeTypeMaster, false, 3, cluster),
-		*testClusterMachineSetBuilder("infra", coapi.NodeTypeCompute, true, 2, cluster),
-	}
-	return cluster
 }
 
 func testClusterVersion() *coapi.ClusterVersion {
@@ -124,14 +74,18 @@ func testClusterVersion() *coapi.ClusterVersion {
 func TestGenerateClusterWideVars(t *testing.T) {
 	tests := []struct {
 		name             string
-		cluster          *coapi.Cluster
+		clusterName      string
+		clusterSpec      *coapi.ClusterDeploymentSpec
+		infraSize        int
 		clusterVersion   *coapi.ClusterVersion
 		shouldInclude    []string
 		shouldNotInclude []string
 	}{
 		{
 			name:           "cluster",
-			cluster:        testClusterWithInfra(),
+			clusterName:    "testcluster",
+			clusterSpec:    testClusterSpec(),
+			infraSize:      2,
 			clusterVersion: testClusterVersion(),
 			shouldInclude: []string{
 				"openshift_aws_clusterid: testcluster",
@@ -156,7 +110,7 @@ func TestGenerateClusterWideVars(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result, err := GenerateClusterWideVars(tc.cluster.Name, &tc.cluster.Spec.Hardware, tc.clusterVersion, 2)
+			result, err := GenerateClusterWideVars(tc.clusterName, &tc.clusterSpec.Hardware, tc.clusterVersion, tc.infraSize)
 			assert.Nil(t, err, "%s: unexpected: %v", tc.name, err)
 			for _, str := range tc.shouldInclude {
 				assert.Contains(t, result, str, "%s: result does not contain %q", tc.name, str)
@@ -180,14 +134,14 @@ func TestLookupAMIForMachineSet(t *testing.T) {
 			name:            "default AMI returned for compute node",
 			isMaster:        false,
 			clusterVersion:  testClusterVersion(),
-			clusterHardware: &testCluster().Spec.Hardware,
+			clusterHardware: &testClusterSpec().Hardware,
 			expectedAMI:     "compute-AMI-east",
 		},
 		{
 			name:            "default AMI returned for master node when no master AMI set",
 			isMaster:        true,
 			clusterVersion:  testClusterVersion(),
-			clusterHardware: &testCluster().Spec.Hardware,
+			clusterHardware: &testClusterSpec().Hardware,
 			expectedAMI:     "compute-AMI-east",
 		},
 		{
@@ -195,7 +149,7 @@ func TestLookupAMIForMachineSet(t *testing.T) {
 			isMaster:       true,
 			clusterVersion: testClusterVersion(),
 			clusterHardware: func() *coapi.ClusterHardwareSpec {
-				h := &testCluster().Spec.Hardware
+				h := &testClusterSpec().Hardware
 				h.AWS.Region = "us-west-1"
 				return h
 			}(),
@@ -206,7 +160,7 @@ func TestLookupAMIForMachineSet(t *testing.T) {
 			isMaster:       false,
 			clusterVersion: testClusterVersion(),
 			clusterHardware: func() *coapi.ClusterHardwareSpec {
-				h := &testCluster().Spec.Hardware
+				h := &testClusterSpec().Hardware
 				h.AWS.Region = "ca-central-1"
 				return h
 			}(),
@@ -260,84 +214,6 @@ func TestConvertVersionToRelease(t *testing.T) {
 				assert.NoError(t, err)
 			} else {
 				assert.Error(t, err)
-			}
-		})
-	}
-}
-
-func TestGenerateMachineSetVars(t *testing.T) {
-	tests := []struct {
-		name             string
-		cluster          *coapi.Cluster
-		machineSet       *coapi.MachineSet
-		shouldInclude    []string
-		shouldNotInclude []string
-	}{
-		{
-			name:    "master machineset",
-			cluster: testCluster(),
-			machineSet: func() *coapi.MachineSet {
-				ms := testMachineSet()
-				ms.Spec.NodeType = coapi.NodeTypeMaster
-				return ms
-			}(),
-			shouldInclude: []string{
-				"master: compute-AMI-east",
-				"openshift_aws_ami: compute-AMI-east",
-				"instance_type: x9large",
-				"desired_size: 3",
-				"openshift_aws_clusterid: testcluster",
-				"openshift_release: \"3.10\"",
-				"oreg_url: " + imageFormat,
-			},
-		},
-		{
-			name:    "infra machineset",
-			cluster: testCluster(),
-			machineSet: func() *coapi.MachineSet {
-				ms := testMachineSet()
-				ms.Spec.Infra = true
-				ms.Spec.Size = 5
-				return ms
-			}(),
-			shouldInclude: []string{
-				"infra: compute-AMI-east",
-				"openshift_aws_ami: compute-AMI-east",
-				"instance_type: x9large",
-				"desired_size: 5",
-				"openshift_aws_clusterid: testcluster",
-				"sub-host-type: infra",
-				"openshift_release: \"3.10\"",
-				"oreg_url: " + imageFormat,
-			},
-		},
-		{
-			name:       "compute machineset",
-			cluster:    testCluster(),
-			machineSet: testMachineSet(),
-			shouldInclude: []string{
-				"compute: compute-AMI-east",
-				"openshift_aws_ami: compute-AMI-east",
-				"group: compute",
-				"sub-host-type: compute",
-				"instance_type: x9large",
-				"desired_size: 3",
-				"openshift_release: \"3.10\"",
-				"oreg_url: " + imageFormat,
-			},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			cv := testClusterVersion()
-			result, err := GenerateMachineSetVars(tc.cluster, tc.machineSet, cv)
-			assert.Nil(t, err, "%s: unexpected: %v", tc.name, err)
-			for _, str := range tc.shouldInclude {
-				assert.Contains(t, result, str, "%s: result does not contain %q", tc.name, str)
-			}
-			for _, str := range tc.shouldNotInclude {
-				assert.NotContains(t, result, str, "%s: result contains %q", tc.name, str)
 			}
 		})
 	}

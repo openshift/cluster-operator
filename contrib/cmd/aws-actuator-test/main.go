@@ -30,6 +30,7 @@ import (
 	"github.com/spf13/pflag"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	jsonserializer "k8s.io/apimachinery/pkg/runtime/serializer/json"
 
@@ -145,100 +146,73 @@ func main() {
 }
 
 func testClusterAPIResources(name string) (*clusterv1.Cluster, *clusterv1.Machine) {
-	pullPolicy := corev1.PullAlways
-
-	// cluster version
-	coVersion := cov1.ClusterVersion{}
-	coVersion.Name = "origin-v3-9"
-	coVersion.Spec = cov1.ClusterVersionSpec{
-		ImageFormat:    "openshift/origin-${component}:v3.9.0",
-		DeploymentType: cov1.ClusterDeploymentTypeOrigin,
-		VMImages: cov1.VMImages{
-			AWSImages: &cov1.AWSVMImages{
-				RegionAMIs: []cov1.AWSRegionAMIs{
-					{
-						Region: "us-east-1",
-						AMI:    "ami-833d37f9",
+	clusterProviderConfigSpec := &cov1.ClusterProviderConfigSpec{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "clusteroperator.openshift.io/v1alpha1",
+			Kind:       "ClusterProviderConfigSpec",
+		},
+		ClusterDeploymentSpec: cov1.ClusterDeploymentSpec{
+			Hardware: cov1.ClusterHardwareSpec{
+				AWS: &cov1.AWSClusterSpec{
+					AccountSecret: corev1.LocalObjectReference{
+						Name: "aws-credentials",
 					},
+					SSHSecret: corev1.LocalObjectReference{
+						Name: "ssh-private-key",
+					},
+					SSHUser: "centos",
+					SSLSecret: corev1.LocalObjectReference{
+						Name: "ssl-cert",
+					},
+					Region:      "us-east-1",
+					KeyPairName: "libra",
+				},
+			},
+			DefaultHardwareSpec: &cov1.MachineSetHardwareSpec{
+				AWS: &cov1.MachineSetAWSHardwareSpec{
+					InstanceType: "t2.xlarge",
 				},
 			},
 		},
-		Version:                         "v3.9.0",
-		OpenshiftAnsibleImage:           strptr("openshift/origin-ansible:v3.9.0"),
-		OpenshiftAnsibleImagePullPolicy: &pullPolicy,
 	}
 
-	// cluster-operator cluster
-	coCluster := cov1.Cluster{}
-	coCluster.Name = name
-	coClusterAWS := &cov1.AWSClusterSpec{}
-	coClusterAWS.AccountSecret.Name = "aws-credentials"
-	coClusterAWS.SSHSecret.Name = "ssh-private-key"
-	coClusterAWS.SSHUser = "centos"
-	coClusterAWS.SSLSecret.Name = "ssl-cert"
-	coClusterAWS.Region = "us-east-1"
-	coClusterAWS.KeyPairName = "libra"
-	coCluster.Spec.Hardware.AWS = coClusterAWS
-	coCluster.Spec.DefaultHardwareSpec = &cov1.MachineSetHardwareSpec{
-		AWS: &cov1.MachineSetAWSHardwareSpec{
-			InstanceType: "t2.xlarge",
+	machineSetProviderConfigSpec := &cov1.MachineSetProviderConfigSpec{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "clusteroperator.openshift.io/v1alpha1",
+			Kind:       "MachineSetProviderConfigSpec",
 		},
-	}
-	coCluster.Spec.MachineSets = []cov1.ClusterMachineSet{
-		{
-			ShortName: "master",
-			MachineSetConfig: cov1.MachineSetConfig{
-				NodeType: cov1.NodeTypeMaster,
-				Size:     1,
-			},
-		},
-		{
-			ShortName: "infra",
+		MachineSetSpec: cov1.MachineSetSpec{
 			MachineSetConfig: cov1.MachineSetConfig{
 				NodeType: cov1.NodeTypeCompute,
 				Size:     1,
-				Infra:    true,
+				Hardware: &cov1.MachineSetHardwareSpec{
+					AWS: &cov1.MachineSetAWSHardwareSpec{
+						InstanceType: "t2.xlarge",
+					},
+				},
 			},
-		},
-		{
-			ShortName: "compute",
-			MachineSetConfig: cov1.MachineSetConfig{
-				NodeType: cov1.NodeTypeCompute,
-				Size:     1,
-			},
-		},
-	}
-
-	// cluster-operator machineset
-	coMachineSet := cov1.MachineSet{}
-	coMachineSet.Name = name + "-compute-1"
-	coMachineSet.Spec.MachineSetConfig = cov1.MachineSetConfig{
-		NodeType: cov1.NodeTypeCompute,
-		Size:     1,
-		Hardware: &cov1.MachineSetHardwareSpec{
-			AWS: &cov1.MachineSetAWSHardwareSpec{
-				InstanceType: "t2.xlarge",
+			ClusterHardware: cov1.ClusterHardwareSpec{
+				AWS: clusterProviderConfigSpec.Hardware.AWS.DeepCopy(),
 			},
 		},
 	}
-	coMachineSet.Spec.ClusterHardware.AWS = coClusterAWS
 
 	// Serialize cluster version and add it as an annotation to the MachineSet
-	coMachineSet.Annotations = map[string]string{
-		"cluster-operator.openshift.io/cluster-version": serializeCOResource(&coVersion),
-	}
+	//	coMachineSet.Annotations = map[string]string{
+	//		"cluster-operator.openshift.io/cluster-version": serializeCOResource(&coVersion),
+	//	}
 
 	// Now define cluster-api resources
 	cluster := clusterv1.Cluster{}
 	cluster.Name = name
 	cluster.Spec.ProviderConfig.Value = &runtime.RawExtension{
-		Raw: []byte(serializeCOResource(&coCluster)),
+		Raw: []byte(serializeCOResource(clusterProviderConfigSpec)),
 	}
 
 	machine := clusterv1.Machine{}
 	machine.Name = name + "-compute-machine-1"
 	machine.Spec.ProviderConfig.Value = &runtime.RawExtension{
-		Raw: []byte(serializeCOResource(&coMachineSet)),
+		Raw: []byte(serializeCOResource(machineSetProviderConfigSpec)),
 	}
 
 	return &cluster, &machine

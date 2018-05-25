@@ -19,14 +19,11 @@ package integration
 import (
 	"time"
 
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 
-	clustopv1alpha1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
-	clustopclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
 	"github.com/openshift/cluster-operator/pkg/controller"
 	capiv1alpha1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	capiclientset "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
@@ -79,43 +76,23 @@ func waitForObjectToNotExistOrNotHaveFinalizer(namespace, name string, finalizer
 	)
 }
 
-func waitForClusterStatus(clustopClient clustopclientset.Interface, namespace, name string, checkStatus func(*clustopv1alpha1.Cluster) bool) error {
-	return waitForObjectStatus(
-		namespace,
-		name,
-		func(namespace, name string) (metav1.Object, error) { return getCluster(clustopClient, namespace, name) },
-		func(obj metav1.Object) bool { return checkStatus(obj.(*clustopv1alpha1.Cluster)) },
-	)
-}
-
-func waitForCAPIClusterStatus(capiClient capiclientset.Interface, namespace, name string, checkStatus func(*capiv1alpha1.Cluster) bool) error {
+func waitForClusterStatus(capiClient capiclientset.Interface, namespace, name string, checkStatus func(*capiv1alpha1.Cluster) bool) error {
 	return waitForObjectStatus(
 		namespace,
 		name,
 		func(namespace, name string) (metav1.Object, error) {
-			return getCAPICluster(capiClient, namespace, name)
+			return getCluster(capiClient, namespace, name)
 		},
 		func(obj metav1.Object) bool { return checkStatus(obj.(*capiv1alpha1.Cluster)) },
 	)
 }
 
-func waitForMachineSetStatus(clustopClient clustopclientset.Interface, namespace, name string, checkStatus func(*clustopv1alpha1.MachineSet) bool) error {
+func waitForMachineSetStatus(capiClient capiclientset.Interface, namespace, name string, checkStatus func(*capiv1alpha1.MachineSet) bool) error {
 	return waitForObjectStatus(
 		namespace,
 		name,
 		func(namespace, name string) (metav1.Object, error) {
-			return getMachineSet(clustopClient, namespace, name)
-		},
-		func(obj metav1.Object) bool { return checkStatus(obj.(*clustopv1alpha1.MachineSet)) },
-	)
-}
-
-func waitForCAPIMachineSetStatus(capiClient capiclientset.Interface, namespace, name string, checkStatus func(*capiv1alpha1.MachineSet) bool) error {
-	return waitForObjectStatus(
-		namespace,
-		name,
-		func(namespace, name string) (metav1.Object, error) {
-			return getCAPIMachineSet(capiClient, namespace, name)
+			return getMachineSet(capiClient, namespace, name)
 		},
 		func(obj metav1.Object) bool { return checkStatus(obj.(*capiv1alpha1.MachineSet)) },
 	)
@@ -123,18 +100,8 @@ func waitForCAPIMachineSetStatus(capiClient capiclientset.Interface, namespace, 
 
 // waitForClusterToExist waits for the Cluster with the specified name to
 // exist in the specified namespace.
-func waitForClusterToExist(clustopClient clustopclientset.Interface, namespace, name string) error {
+func waitForClusterToExist(capiClient capiclientset.Interface, namespace, name string) error {
 	return waitForClusterStatus(
-		clustopClient,
-		namespace, name,
-		func(cluster *clustopv1alpha1.Cluster) bool { return cluster != nil },
-	)
-}
-
-// waitForCAPIClusterToExist waits for the Cluster with the specified name to
-// exist in the specified namespace.
-func waitForCAPIClusterToExist(capiClient capiclientset.Interface, namespace, name string) error {
-	return waitForCAPIClusterStatus(
 		capiClient,
 		namespace, name,
 		func(cluster *capiv1alpha1.Cluster) bool { return cluster != nil },
@@ -143,40 +110,19 @@ func waitForCAPIClusterToExist(capiClient capiclientset.Interface, namespace, na
 
 // waitForClusterToNotExist waits for the Cluster with the specified name to not
 // exist in the specified namespace.
-func waitForClusterToNotExist(clustopClient clustopclientset.Interface, namespace, name string) error {
+func waitForClusterToNotExist(capiClient capiclientset.Interface, namespace, name string) error {
 	return waitForObjectToNotExist(
 		namespace, name,
 		func(namespace, name string) (metav1.Object, error) {
-			return getCluster(clustopClient, namespace, name)
-		},
-	)
-}
-
-// waitForCAPIClusterToNotExist waits for the Cluster with the specified name to not
-// exist in the specified namespace.
-func waitForCAPIClusterToNotExist(capiClient capiclientset.Interface, namespace, name string) error {
-	return waitForObjectToNotExist(
-		namespace, name,
-		func(namespace, name string) (metav1.Object, error) {
-			return getCAPICluster(capiClient, namespace, name)
+			return getCluster(capiClient, namespace, name)
 		},
 	)
 }
 
 // waitForMachineSetToExist waits for the MachineSet with the specified name to
 // exist in the specified namespace.
-func waitForMachineSetToExist(clustopClient clustopclientset.Interface, namespace, name string) error {
+func waitForMachineSetToExist(capiClient capiclientset.Interface, namespace, name string) error {
 	return waitForMachineSetStatus(
-		clustopClient,
-		namespace, name,
-		func(machineSet *clustopv1alpha1.MachineSet) bool { return machineSet != nil },
-	)
-}
-
-// waitForCAPIMachineSetToExist waits for the MachineSet with the specified name to
-// exist in the specified namespace.
-func waitForCAPIMachineSetToExist(capiClient capiclientset.Interface, namespace, name string) error {
-	return waitForCAPIMachineSetStatus(
 		capiClient,
 		namespace, name,
 		func(machineSet *capiv1alpha1.MachineSet) bool { return machineSet != nil },
@@ -185,53 +131,18 @@ func waitForCAPIMachineSetToExist(capiClient capiclientset.Interface, namespace,
 
 // waitForMachineSetToNotExist waits for the MachineSet with the specified name to not
 // exist in the specified namespace.
-func waitForMachineSetToNotExist(clustopClient clustopclientset.Interface, namespace, name string) error {
+func waitForMachineSetToNotExist(capiClient capiclientset.Interface, namespace, name string) error {
 	return waitForObjectToNotExist(
 		namespace, name,
 		func(namespace, name string) (metav1.Object, error) {
-			return getMachineSet(clustopClient, namespace, name)
-		},
-	)
-}
-
-// waitForClusterMachineSetCount waits for the status of the cluster to
-// reflect that the machine sets have been created.
-func waitForClusterMachineSetCount(clustopClient clustopclientset.Interface, namespace string, name string) error {
-	return waitForClusterStatus(
-		clustopClient,
-		namespace, name,
-		func(cluster *clustopv1alpha1.Cluster) bool {
-			return cluster.Status.MachineSetCount == len(cluster.Spec.MachineSets)
-		},
-	)
-}
-
-// waitForClusterProvisioning waits for the cluster to be in a state of provisioning.
-func waitForClusterProvisioning(clustopClient clustopclientset.Interface, namespace, name string) error {
-	return waitForClusterStatus(
-		clustopClient,
-		namespace, name,
-		func(cluster *clustopv1alpha1.Cluster) bool {
-			condition := controller.FindClusterCondition(&cluster.Status, clustopv1alpha1.ClusterInfraProvisioning)
-			return condition != nil && condition.Status == corev1.ConditionTrue
+			return getMachineSet(capiClient, namespace, name)
 		},
 	)
 }
 
 // waitForClusterProvisioned waits for the cluster to be provisioned.
-func waitForClusterProvisioned(clustopClient clustopclientset.Interface, namespace, name string) error {
+func waitForClusterProvisioned(capiClient capiclientset.Interface, namespace, name string) error {
 	return waitForClusterStatus(
-		clustopClient,
-		namespace, name,
-		func(cluster *clustopv1alpha1.Cluster) bool {
-			return cluster.Status.Provisioned
-		},
-	)
-}
-
-// waitForCAPIClusterProvisioned waits for the cluster to be provisioned.
-func waitForCAPIClusterProvisioned(capiClient capiclientset.Interface, namespace, name string) error {
-	return waitForCAPIClusterStatus(
 		capiClient,
 		namespace, name,
 		func(cluster *capiv1alpha1.Cluster) bool {
@@ -245,12 +156,16 @@ func waitForCAPIClusterProvisioned(capiClient capiclientset.Interface, namespace
 }
 
 // waitForClusterReady waits for the cluster to be ready.
-func waitForClusterReady(clustopClient clustopclientset.Interface, namespace, name string) error {
+func waitForClusterReady(capiClient capiclientset.Interface, namespace, name string) error {
 	return waitForClusterStatus(
-		clustopClient,
+		capiClient,
 		namespace, name,
-		func(cluster *clustopv1alpha1.Cluster) bool {
-			return cluster.Status.Ready
+		func(cluster *capiv1alpha1.Cluster) bool {
+			status, err := controller.ClusterStatusFromClusterAPI(cluster)
+			if err != nil {
+				return false
+			}
+			return status.Ready
 		},
 	)
 }

@@ -26,20 +26,12 @@ type FakeClusteroperatorV1alpha1 struct {
 	*testing.Fake
 }
 
-func (c *FakeClusteroperatorV1alpha1) Clusters(namespace string) v1alpha1.ClusterInterface {
-	return &FakeClusters{c, namespace}
+func (c *FakeClusteroperatorV1alpha1) ClusterDeployments(namespace string) v1alpha1.ClusterDeploymentInterface {
+	return &FakeClusterDeployments{c, namespace}
 }
 
 func (c *FakeClusteroperatorV1alpha1) ClusterVersions(namespace string) v1alpha1.ClusterVersionInterface {
 	return &FakeClusterVersions{c, namespace}
-}
-
-func (c *FakeClusteroperatorV1alpha1) Machines(namespace string) v1alpha1.MachineInterface {
-	return &FakeMachines{c, namespace}
-}
-
-func (c *FakeClusteroperatorV1alpha1) MachineSets(namespace string) v1alpha1.MachineSetInterface {
-	return &FakeMachineSets{c, namespace}
 }
 
 // RESTClient returns a RESTClient that is used to communicate

@@ -25,7 +25,7 @@ import (
 
 func TestGetNamespace(t *testing.T) {
 	const namespace = "testns"
-	obj := &clusteroperator.Cluster{
+	obj := &clusteroperator.ClusterDeployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
 		},

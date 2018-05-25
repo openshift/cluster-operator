@@ -24,24 +24,24 @@ import (
 	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
 )
 
-// ValidateClusterName validates the name of a cluster.
-var ValidateClusterName = apivalidation.ValidateClusterName
+// ValidateClusterDeploymentName validates the name of a cluster.
+var ValidateClusterDeploymentName = apivalidation.ValidateClusterName
 
-// ValidateCluster validates a cluster being created.
-func ValidateCluster(cluster *clusteroperator.Cluster) field.ErrorList {
+// ValidateClusterDeployment validates a cluster being created.
+func ValidateClusterDeployment(cluster *clusteroperator.ClusterDeployment) field.ErrorList {
 	allErrs := field.ErrorList{}
 
-	for _, msg := range ValidateClusterName(cluster.Name, false) {
+	for _, msg := range ValidateClusterDeploymentName(cluster.Name, false) {
 		allErrs = append(allErrs, field.Invalid(field.NewPath("spec").Child("name"), cluster.Name, msg))
 	}
-	allErrs = append(allErrs, validateClusterSpec(&cluster.Spec, field.NewPath("spec"))...)
-	allErrs = append(allErrs, validateClusterStatus(&cluster.Status, field.NewPath("status"))...)
+	allErrs = append(allErrs, validateClusterDeploymentSpec(&cluster.Spec, field.NewPath("spec"))...)
+	allErrs = append(allErrs, validateClusterDeploymentStatus(&cluster.Status, field.NewPath("status"))...)
 
 	return allErrs
 }
 
-// validateClusterSpec validates the spec of a cluster.
-func validateClusterSpec(spec *clusteroperator.ClusterSpec, fldPath *field.Path) field.ErrorList {
+// validateClusterDeploymentSpec validates the spec of a cluster.
+func validateClusterDeploymentSpec(spec *clusteroperator.ClusterDeploymentSpec, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 	machineSetsPath := fldPath.Child("machineSets")
 	versionPath := fldPath.Child("clusterVersionRef")
@@ -93,8 +93,8 @@ func validateClusterMachineSet(machineSet *clusteroperator.ClusterMachineSet, fl
 	return allErrs
 }
 
-// validateClusterStatus validates the status of a cluster.
-func validateClusterStatus(status *clusteroperator.ClusterStatus, fldPath *field.Path) field.ErrorList {
+// validateClusterDeploymentStatus validates the status of a cluster.
+func validateClusterDeploymentStatus(status *clusteroperator.ClusterDeploymentStatus, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 
 	if status.MachineSetCount < 0 {
@@ -116,20 +116,20 @@ func validateSecretRef(ref *corev1.LocalObjectReference, fldPath *field.Path) fi
 	return allErrs
 }
 
-// ValidateClusterUpdate validates an update to the spec of a cluster.
-func ValidateClusterUpdate(new *clusteroperator.Cluster, old *clusteroperator.Cluster) field.ErrorList {
+// ValidateClusterDeploymentUpdate validates an update to the spec of a cluster.
+func ValidateClusterDeploymentUpdate(new *clusteroperator.ClusterDeployment, old *clusteroperator.ClusterDeployment) field.ErrorList {
 	allErrs := field.ErrorList{}
 
-	allErrs = append(allErrs, validateClusterSpec(&new.Spec, field.NewPath("spec"))...)
+	allErrs = append(allErrs, validateClusterDeploymentSpec(&new.Spec, field.NewPath("spec"))...)
 
 	return allErrs
 }
 
-// ValidateClusterStatusUpdate validates an update to the status of a cluster.
-func ValidateClusterStatusUpdate(new *clusteroperator.Cluster, old *clusteroperator.Cluster) field.ErrorList {
+// ValidateClusterDeploymentStatusUpdate validates an update to the status of a cluster.
+func ValidateClusterDeploymentStatusUpdate(new *clusteroperator.ClusterDeployment, old *clusteroperator.ClusterDeployment) field.ErrorList {
 	allErrs := field.ErrorList{}
 
-	allErrs = append(allErrs, validateClusterStatus(&new.Status, field.NewPath("status"))...)
+	allErrs = append(allErrs, validateClusterDeploymentStatus(&new.Status, field.NewPath("status"))...)
 
 	return allErrs
 }
