@@ -242,10 +242,10 @@ verify-client-gen: .init .generate_exes
 
 verify-mocks:
 	@echo Running verify mocks generation
-	@[ `git status -s | head -c1 | wc -c` -eq 0 ] || \
-	    (echo "Cannot vefify mocks while there are uncommited changes" && false)
+	@git diff --quiet && git diff --cached --quiet || \
+	    (echo "Cannot verify mocks while there are uncommited changes" && false)
 	@$(DOCKER_CMD) $(BUILD_DIR)/generate-mocks.sh
-	@[ `git status -s | head -c1 | wc -c` -eq 0 ] || \
+	@git diff --quiet && git diff --cached --quiet || \
 	    (echo "Please run \"make .generate_mocks\"" && false)
 
 format: .init
