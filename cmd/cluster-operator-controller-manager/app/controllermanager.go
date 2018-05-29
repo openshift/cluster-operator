@@ -68,6 +68,7 @@ import (
 	"github.com/openshift/cluster-operator/pkg/controller/infra"
 	"github.com/openshift/cluster-operator/pkg/controller/master"
 	"github.com/openshift/cluster-operator/pkg/controller/nodeconfig"
+	"github.com/openshift/cluster-operator/pkg/controller/syncmachineset"
 	"github.com/openshift/cluster-operator/pkg/version"
 	cav1alpha1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	capiinformers "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions"
@@ -329,6 +330,7 @@ func NewControllerInitializers() map[string]InitFunc {
 	controllers["components"] = startComponentsController
 	controllers["nodeconfig"] = startNodeConfigController
 	controllers["deployclusterapi"] = startDeployClusterAPIController
+	controllers["syncmachineset"] = startSyncMachineSetController
 
 	return controllers
 }
@@ -568,6 +570,19 @@ func startNodeConfigController(ctx ControllerContext) (bool, error) {
 		ctx.ClientBuilder.ClientOrDie("clusteroperator-nodeconfig-controller"),
 		ctx.ClientBuilder.ClusterAPIClientOrDie("clusteroperator-nodeconfig-controller"),
 	).Run(int(ctx.Options.ConcurrentNodeConfigSyncs), ctx.Stop)
+	return true, nil
+}
+
+func startSyncMachineSetController(ctx ControllerContext) (bool, error) {
+	if !resourcesAvailable(ctx) {
+		return false, nil
+	}
+	go syncmachineset.NewController(
+		//ctx.InformerFactory.Clusteroperator().V1alpha1.Clusters(),
+		ctx.InformerFactory.Clusteroperator().V1alpha1().ClusterDeployments(),
+		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-syncmachineset-controller"),
+		ctx.ClientBuilder.ClientOrDie("clusteroperator-syncmachineset-controller"),
+	).Run(int(ctx.Options.ConcurrentSyncMachineSetSyncs), ctx.Stop)
 	return true, nil
 }
 
