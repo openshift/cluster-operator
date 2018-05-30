@@ -55,6 +55,12 @@ func (d *deployer) createCluster(c *clusterv1.Cluster, machines []*clusterv1.Mac
 		master.Name = master.GetGenerateName() + c.GetName()
 	}
 
+	glog.Infof("Starting cluster dependency creation %s", c.GetName())
+
+	if err := d.machineDeployer.ProvisionClusterDependencies(c, machines); err != nil {
+		return err
+	}
+
 	glog.Infof("Starting cluster creation %s", c.GetName())
 
 	glog.Infof("Starting master creation %s", master.GetName())
@@ -66,12 +72,12 @@ func (d *deployer) createCluster(c *clusterv1.Cluster, machines []*clusterv1.Mac
 	*vmCreated = true
 	glog.Infof("Created master %s", master.GetName())
 
-	masterIP, err := d.getMasterIP(master)
+	masterIP, err := d.getMasterIP(c, master)
 	if err != nil {
 		return fmt.Errorf("unable to get master IP: %v", err)
 	}
 
-	if err := d.copyKubeConfig(master); err != nil {
+	if err := d.copyKubeConfig(c, master); err != nil {
 		return fmt.Errorf("unable to write kubeconfig: %v", err)
 	}
 
@@ -92,13 +98,18 @@ func (d *deployer) createCluster(c *clusterv1.Cluster, machines []*clusterv1.Mac
 		return fmt.Errorf("can't create machine controller: %v", err)
 	}
 
+	glog.Info("Creating additional cluster resources...")
+	if err := d.machineDeployer.PostCreate(c, machines); err != nil {
+		return fmt.Errorf("can't create additional cluster resources: %v", err)
+	}
+
 	if err := d.waitForClusterResourceReady(); err != nil {
-		return err
+		return fmt.Errorf("cluster resource isn't ready: %v", err)
 	}
 
 	c, err = d.client.Clusters(apiv1.NamespaceDefault).Create(c)
 	if err != nil {
-		return err
+		return fmt.Errorf("can't create cluster: %v", err)
 	}
 
 	c.Status.APIEndpoints = append(c.Status.APIEndpoints,
@@ -107,11 +118,11 @@ func (d *deployer) createCluster(c *clusterv1.Cluster, machines []*clusterv1.Mac
 			Port: 443,
 		})
 	if _, err := d.client.Clusters(apiv1.NamespaceDefault).UpdateStatus(c); err != nil {
-		return err
+		return fmt.Errorf("can't update status: %v", err)
 	}
 
 	if err := d.createMachines(machines); err != nil {
-		return err
+		return fmt.Errorf("can't create machines: %v", err)
 	}
 	return nil
 }
@@ -148,12 +159,22 @@ func (d *deployer) deleteAllMachines() error {
 	if err != nil {
 		return err
 	}
+	glog.Infof("Deleting non-master machines...")
+	var deletedMachineNames []string
 	for _, m := range machines.Items {
 		if !util.IsMaster(&m) {
-			if err := d.delete(m.Name); err != nil {
+			err = d.client.Machines(apiv1.NamespaceDefault).Delete(m.Name, &metav1.DeleteOptions{})
+			if err != nil {
 				return err
 			}
+			deletedMachineNames = append(deletedMachineNames, m.Name)
 			glog.Infof("Deleted machine object %s", m.Name)
+		}
+	}
+	for _, name := range deletedMachineNames {
+		err = d.ensureDeletionCompleted(name)
+		if err != nil {
+			return err
 		}
 	}
 	return nil
@@ -164,12 +185,20 @@ func (d *deployer) delete(name string) error {
 	if err != nil {
 		return err
 	}
-	err = util.Poll(500*time.Millisecond, 120*time.Second, func() (bool, error) {
-		if _, err = d.client.Machines(apiv1.NamespaceDefault).Get(name, metav1.GetOptions{}); err == nil {
+	err = d.ensureDeletionCompleted(name)
+	return err
+}
+
+func (d *deployer) ensureDeletionCompleted(machineName string) error {
+	err := util.Poll(500*time.Millisecond, 240*time.Second, func() (bool, error) {
+		if _, err := d.client.Machines(apiv1.NamespaceDefault).Get(machineName, metav1.GetOptions{}); err == nil {
 			return false, nil
 		}
 		return true, nil
 	})
+	if err != nil {
+		return fmt.Errorf("unable to ensure machine %v has been deleted: %v", machineName, err)
+	}
 	return err
 }
 
@@ -192,9 +221,9 @@ func (d *deployer) getCluster() (*clusterv1.Cluster, error) {
 	return &clusters.Items[0], nil
 }
 
-func (d *deployer) getMasterIP(master *clusterv1.Machine) (string, error) {
+func (d *deployer) getMasterIP(cluster *clusterv1.Cluster, master *clusterv1.Machine) (string, error) {
 	for i := 0; i < MasterIPAttempts; i++ {
-		ip, err := d.machineDeployer.GetIP(master)
+		ip, err := d.machineDeployer.GetIP(cluster, master)
 		if err != nil || ip == "" {
 			glog.Info("Hanging for master IP...")
 			time.Sleep(time.Duration(SleepSecondsPerAttempt) * time.Second)
@@ -205,10 +234,10 @@ func (d *deployer) getMasterIP(master *clusterv1.Machine) (string, error) {
 	return "", fmt.Errorf("unable to find Master IP after defined wait")
 }
 
-func (d *deployer) copyKubeConfig(master *clusterv1.Machine) error {
+func (d *deployer) copyKubeConfig(cluster *clusterv1.Cluster, master *clusterv1.Machine) error {
 	writeErr := util.Retry(func() (bool, error) {
 		glog.Infof("Waiting for Kubernetes to come up...")
-		config, err := d.machineDeployer.GetKubeConfig(master)
+		config, err := d.machineDeployer.GetKubeConfig(cluster, master)
 		if err != nil {
 			glog.Errorf("Error while retriving kubeconfig %s", err)
 			return false, err

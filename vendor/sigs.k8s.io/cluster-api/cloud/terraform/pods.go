@@ -32,9 +32,9 @@ import (
 	"sigs.k8s.io/cluster-api/cloud/terraform/config"
 )
 
-var apiServerImage = "gcr.io/k8s-cluster-api/cluster-apiserver:0.0.2"
-var controllerManagerImage = "gcr.io/k8s-cluster-api/controller-manager:0.0.2"
-var machineControllerImage = "gcr.io/karangoel-gke-1/terraform-machine-controller:0.0.1-dev"
+var apiServerImage = "gcr.io/k8s-cluster-api/cluster-apiserver:0.0.4"
+var controllerManagerImage = "gcr.io/k8s-cluster-api/controller-manager:0.0.4"
+var machineControllerImage = "gcr.io/k8s-cluster-api/terraform-machine-controller:0.0.5"
 
 func init() {
 	if img, ok := os.LookupEnv("MACHINE_CONTROLLER_IMAGE"); ok {
@@ -159,8 +159,9 @@ func CreateApiServerAndController(token string) error {
 
 	ioutil.WriteFile("/tmp/pods.yaml", tmplBuf.Bytes(), 0644)
 
-	maxTries := 5
+	maxTries := 30
 	for tries := 0; tries < maxTries; tries++ {
+		glog.Infof("Attempting to deploy cluster api config.")
 		err = deployConfig(tmplBuf.Bytes())
 		if err == nil {
 			return nil
@@ -168,6 +169,8 @@ func CreateApiServerAndController(token string) error {
 			if tries < maxTries-1 {
 				glog.Info("Error scheduling machine controller. Will retry...\n")
 				time.Sleep(3 * time.Second)
+			} else {
+				glog.Info("Error scheduling machine controller. No more retries.")
 			}
 		}
 	}

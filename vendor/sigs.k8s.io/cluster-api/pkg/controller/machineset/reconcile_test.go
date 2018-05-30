@@ -106,20 +106,20 @@ func TestMachineSetControllerReconcileHandler(t *testing.T) {
 			expectedMachine:     machineFromMachineSet(createMachineSet(1, "foo", "bar2", "acme"), "bar1"),
 		},
 		{
-			name:                "scenario 8: the current machine has different controller ref, do nothing.",
+			name:                "scenario 8: the current machine has different controller ref, thus a machine is created.",
 			startingMachineSets: []*v1alpha1.MachineSet{createMachineSet(1, "foo", "bar2", "acme")},
 			startingMachines:    []*v1alpha1.Machine{setDifferentOwnerUID(machineFromMachineSet(createMachineSet(1, "foo", "bar1", "acme"), "bar1"))},
 			machineSetToSync:    "foo",
 			namespaceToSync:     "acme",
-			expectedActions:     []string{},
+			expectedActions:     []string{"create"},
 		},
 		{
-			name:                "scenario 9: the current machine is being deleted, do nothing.",
+			name:                "scenario 9: the current machine is being deleted, thus a machine is created.",
 			startingMachineSets: []*v1alpha1.MachineSet{createMachineSet(1, "foo", "bar2", "acme")},
 			startingMachines:    []*v1alpha1.Machine{setMachineDeleting(machineFromMachineSet(createMachineSet(1, "foo", "bar1", "acme"), "bar1"))},
 			machineSetToSync:    "foo",
 			namespaceToSync:     "acme",
-			expectedActions:     []string{},
+			expectedActions:     []string{"create"},
 		},
 		{
 			name:                "scenario 10: the current machine has no controller refs, owner refs preserved, machine should be adopted.",
@@ -150,13 +150,14 @@ func TestMachineSetControllerReconcileHandler(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+				rObjects = append(rObjects, amachineset)
 			}
 			fakeClient := fake.NewSimpleClientset(rObjects...)
 			machineLister := v1alpha1listers.NewMachineLister(machinesIndexer)
 			machineSetLister := v1alpha1listers.NewMachineSetLister(machineSetIndexer)
 			target := &MachineSetControllerImpl{}
-			target.machineClient = fakeClient
-			target.machineSetsLister = machineSetLister
+			target.clusterAPIClient = fakeClient
+			target.machineSetLister = machineSetLister
 			target.machineLister = machineLister
 
 			// act
@@ -171,8 +172,9 @@ func TestMachineSetControllerReconcileHandler(t *testing.T) {
 
 			// validate
 			actions := fakeClient.Actions()
+			actions = getFilteredActions(actions, "machines")
 			if len(actions) != len(test.expectedActions) {
-				t.Fatalf("unexpected actions: %v, expected %d actions got %d", actions, len(test.expectedActions), len(actions))
+				t.Fatalf("got %d actions, expected %d actions; got %v actions, expected %v actions", len(actions), len(test.expectedActions), actions, test.expectedActions)
 			}
 			for i, verb := range test.expectedActions {
 				if actions[i].GetVerb() != verb {
@@ -222,15 +224,16 @@ func createMachineSet(replicas int, machineSetName string, machineName string, n
 			Namespace: namespace,
 		},
 		Spec: v1alpha1.MachineSetSpec{
-			Replicas: &replicasInt32,
-			Selector:metav1.LabelSelector{
-				MatchLabels: map[string]string{labelKey:"strongMachine"},
+			Replicas:        &replicasInt32,
+			MinReadySeconds: 600,
+			Selector: metav1.LabelSelector{
+				MatchLabels: map[string]string{labelKey: "strongMachine"},
 			},
 			Template: v1alpha1.MachineTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      machineName,
 					Namespace: namespace,
-					Labels: map[string]string{labelKey:"strongMachine"},
+					Labels:    map[string]string{labelKey: "strongMachine"},
 				},
 				Spec: v1alpha1.MachineSpec{
 					ProviderConfig: v1alpha1.ProviderConfig{
@@ -297,4 +300,14 @@ func setNonControllerRef(m *v1alpha1.Machine) *v1alpha1.Machine {
 	controller := false
 	m.ObjectMeta.OwnerReferences[0].Controller = &controller
 	return m
+}
+
+func getFilteredActions(actions []clienttesting.Action, resource string) []clienttesting.Action {
+	var filteredActions []clienttesting.Action
+	for _, action := range actions {
+		if action.GetResource().Resource == resource {
+			filteredActions = append(filteredActions, action)
+		}
+	}
+	return filteredActions
 }

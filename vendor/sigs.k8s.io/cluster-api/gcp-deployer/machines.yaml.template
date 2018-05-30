@@ -9,11 +9,14 @@ items:
     providerConfig:
       value:
         apiVersion: "gceproviderconfig/v1alpha1"
-        kind: "GCEProviderConfig"
-        project: "$GCLOUD_PROJECT"
+        kind: "GCEMachineProviderConfig"
         zone: "$ZONE"
         machineType: "n1-standard-2"
         os: "ubuntu-1604-lts"
+        disks:
+        - initializeParams:
+            diskSizeGb: 30
+            diskType: "pd-standard"
     versions:
       kubelet: 1.9.4
       controlPlane: 1.9.4
@@ -32,11 +35,14 @@ items:
     providerConfig:
       value:
         apiVersion: "gceproviderconfig/v1alpha1"
-        kind: "GCEProviderConfig"
-        project: "$GCLOUD_PROJECT"
+        kind: "GCEMachineProviderConfig"
         zone: "$ZONE"
         machineType: "n1-standard-1"
         os: "ubuntu-1604-lts"
+        disks:
+        - initializeParams:
+            diskSizeGb: 30
+            diskType: "pd-standard"
     versions:
       kubelet: 1.9.4
       containerRuntime:

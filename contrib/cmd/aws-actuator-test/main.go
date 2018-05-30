@@ -78,12 +78,12 @@ func deleteClusterMachine(instanceId string) error {
 }
 
 func clusterMachineExists(instanceId string) error {
-	_, machine := testClusterAPIResources("any")
+	cluster, machine := testClusterAPIResources("any")
 	machine.Annotations = map[string]string{
 		instanceIDAnnotation: instanceId,
 	}
 	actuator := aws.NewActuator(nil, nil, log.WithField("example", "delete-machine"), "us-east-1c")
-	exists, err := actuator.Exists(machine)
+	exists, err := actuator.Exists(cluster, machine)
 	if err != nil {
 		return err
 	}

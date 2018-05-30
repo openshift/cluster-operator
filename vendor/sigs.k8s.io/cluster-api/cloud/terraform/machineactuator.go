@@ -1,12 +1,9 @@
 /*
 Copyright 2017 The Kubernetes Authors.
-
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-
     http://www.apache.org/licenses/LICENSE-2.0
-
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -48,8 +45,10 @@ import (
 )
 
 const (
-	MasterIpAnnotationKey        = "master-ip"
-	TerraformConfigAnnotationKey = "tf-config"
+	MasterIpAnnotationKey            = "master-ip"
+	TerraformConfigAnnotationKey     = "tf-config"
+	ControlPlaneVersionAnnotationKey = "control-plane-version"
+	KubeletVersionAnnotationKey      = "kubelet-version"
 
 	// Filename in which named machines are saved using a ConfigMap (in master).
 	NamedMachinesFilename = "vsphere_named_machines.yaml"
@@ -240,13 +239,13 @@ func (tf *TerraformClient) Create(cluster *clusterv1.Cluster, machine *clusterv1
 		// Check if we need to terraform init
 		tfInitExists, e := pathExists(path.Join(tfConfigDir, ".terraform/"))
 		if e != nil {
-			return errors.New(fmt.Sprintf("Could not get the path of the file: ", e))
+			return errors.New(fmt.Sprintf("Could not get the path of the file: %+v", e))
 		}
 		if !tfInitExists {
 			glog.Infof("Terraform not initialized.. Running terraform init.")
 			_, initErr := runTerraformCmd(true, tfConfigDir, "init")
 			if initErr != nil {
-				return errors.New(fmt.Sprintf("Could not run terraform: ", initErr))
+				return errors.New(fmt.Sprintf("Could not run terraform: %+v", initErr))
 			}
 		}
 
@@ -341,9 +340,43 @@ func runTerraformCmd(stdout bool, workingDir string, arg ...string) (bytes.Buffe
 	return out, nil
 }
 
-func (tf *TerraformClient) Delete(machine *clusterv1.Machine) error {
-	glog.Infof("TERRAFORM DELETE.\n")
-	return nil
+func (tf *TerraformClient) Delete(_ *clusterv1.Cluster, machine *clusterv1.Machine) error {
+	// Check if the instance exists, return if it doesn't
+	instance, err := tf.instanceIfExists(machine)
+	if err != nil {
+		return err
+	}
+
+	if instance == nil {
+		return nil
+	}
+
+	homedir, err := getHomeDir()
+	if err != nil {
+		return err
+	}
+	machinePath := path.Join(homedir, fmt.Sprintf(".terraform.d/kluster/machines/%s", machine.ObjectMeta.Name))
+
+	// destroy it
+	args := []string{
+		"destroy",
+		"-auto-approve",
+		"-input=false",
+		"-var", fmt.Sprintf("vm_name=%s", machine.ObjectMeta.Name),
+		"-var-file=variables.tfvars",
+	}
+	_, err = runTerraformCmd(false, machinePath, args...)
+	if err != nil {
+		return fmt.Errorf("could not run terraform: %s", err)
+	}
+
+	// remove finalizer
+	if tf.machineClient != nil {
+		machine.ObjectMeta.Finalizers = util.Filter(machine.ObjectMeta.Finalizers, clusterv1.MachineFinalizer)
+		_, err = tf.machineClient.Update(machine)
+	}
+
+	return err
 }
 
 func (tf *TerraformClient) PostDelete(cluster *clusterv1.Cluster, machines []*clusterv1.Machine) error {
@@ -351,11 +384,118 @@ func (tf *TerraformClient) PostDelete(cluster *clusterv1.Cluster, machines []*cl
 }
 
 func (tf *TerraformClient) Update(cluster *clusterv1.Cluster, goalMachine *clusterv1.Machine) error {
-	glog.Infof("TERRAFORM UPDATE.\n")
+	// Try to get the annotations for the versions. If they don't exist, update the annotation and return.
+	// This can only happen right after bootstrapping.
+	if goalMachine.ObjectMeta.Annotations == nil {
+		ip, _ := tf.GetIP(goalMachine)
+		glog.Info("Annotations do not exist. Populating existing state for bootstrapped machine.")
+		return tf.updateAnnotations(goalMachine, ip)
+	}
+
+	// Check if the annotations we want to track exist, if not, the user likely created a master machine with their own annotation.
+	if _, ok := goalMachine.ObjectMeta.Annotations[ControlPlaneVersionAnnotationKey]; !ok {
+		ip, _ := tf.GetIP(goalMachine)
+		glog.Info("Version annotations do not exist. Populating existing state for bootstrapped machine.")
+		return tf.updateAnnotations(goalMachine, ip)
+	}
+
+	if util.IsMaster(goalMachine) {
+		glog.Info("Upgrade for master machine.. Check if upgrade needed.")
+		// Get the versions for the new object.
+		goalMachineControlPlaneVersion := goalMachine.Spec.Versions.ControlPlane
+		goalMachineKubeletVersion := goalMachine.Spec.Versions.Kubelet
+
+		// If the saved versions and new versions differ, do in-place upgrade.
+		if goalMachineControlPlaneVersion != goalMachine.Annotations[ControlPlaneVersionAnnotationKey] ||
+			goalMachineKubeletVersion != goalMachine.Annotations[KubeletVersionAnnotationKey] {
+			glog.Infof("Doing in-place upgrade for master from %s to %s", goalMachine.Annotations[ControlPlaneVersionAnnotationKey], goalMachineControlPlaneVersion)
+			err := tf.updateMasterInPlace(goalMachine)
+			if err != nil {
+				glog.Errorf("Master inplace update failed: %+v", err)
+			}
+		} else {
+			glog.Info("UPDATE TYPE NOT SUPPORTED")
+			return nil
+		}
+	} else {
+		glog.Info("NODE UPDATES NOT SUPPORTED")
+		return nil
+	}
+
 	return nil
 }
 
-func (tf *TerraformClient) Exists(machine *clusterv1.Machine) (bool, error) {
+// Assumes that update is needed.
+// For now support only K8s control plane upgrades.
+func (tf *TerraformClient) updateMasterInPlace(goalMachine *clusterv1.Machine) error {
+	goalMachineControlPlaneVersion := goalMachine.Spec.Versions.ControlPlane
+	goalMachineKubeletVersion := goalMachine.Spec.Versions.Kubelet
+
+	currentControlPlaneVersion := goalMachine.Annotations[ControlPlaneVersionAnnotationKey]
+	currentKubeletVersion := goalMachine.Annotations[KubeletVersionAnnotationKey]
+
+	// Control plane upgrade
+	if goalMachineControlPlaneVersion != currentControlPlaneVersion {
+		// Pull the kudeadm for target version K8s.
+		cmd := fmt.Sprintf("curl -sSL https://dl.k8s.io/release/v%s/bin/linux/amd64/kubeadm | sudo tee /usr/bin/kubeadm > /dev/null; "+
+			"sudo chmod a+rx /usr/bin/kubeadm", goalMachineControlPlaneVersion)
+		_, err := tf.remoteSshCommand(goalMachine, cmd, "~/.ssh/id_rsa", "ubuntu")
+		if err != nil {
+			glog.Infof("remoteSshCommand failed while downloading new kubeadm: %+v", err)
+			return err
+		}
+
+		// Next upgrade control plane
+		cmd = fmt.Sprintf("sudo kubeadm upgrade apply %s -y", "v"+goalMachine.Spec.Versions.ControlPlane)
+		_, err = tf.remoteSshCommand(goalMachine, cmd, "~/.ssh/id_rsa", "ubuntu")
+		if err != nil {
+			glog.Infof("remoteSshCommand failed while upgrading control plane: %+v", err)
+			return err
+		}
+	}
+
+	// Upgrade kubelet
+	if goalMachineKubeletVersion != currentKubeletVersion {
+		// Upgrade kubelet to desired version.
+		cmd := fmt.Sprintf("sudo apt-get install kubelet=%s", goalMachine.Spec.Versions.Kubelet+"-00")
+		_, err := tf.remoteSshCommand(goalMachine, cmd, "~/.ssh/id_rsa", "ubuntu")
+		if err != nil {
+			glog.Infof("remoteSshCommand while installing new kubelet version: %v", err)
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (tf *TerraformClient) remoteSshCommand(m *clusterv1.Machine, cmd, privateKeyPath, sshUser string) (string, error) {
+	glog.Infof("Remote SSH execution '%s' on %s", cmd, m.ObjectMeta.Name)
+
+	publicIP, err := tf.GetIP(m)
+	if err != nil {
+		return "", err
+	}
+
+	command := fmt.Sprintf("echo STARTFILE; %s", cmd)
+	c := exec.Command("ssh", "-i", privateKeyPath, sshUser+"@"+publicIP,
+		"-o", "StrictHostKeyChecking no",
+		"-o", "UserKnownHostsFile /dev/null",
+		command)
+	out, err := c.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("error: %v, output: %s", err, string(out))
+	}
+	result := strings.TrimSpace(string(out))
+	parts := strings.Split(result, "STARTFILE")
+	glog.Infof("\t Result of command %s ========= %+v", cmd, parts)
+	if len(parts) != 2 {
+		return "", nil
+	}
+	// TODO: Check error.
+	return strings.TrimSpace(parts[1]), nil
+}
+
+func (tf *TerraformClient) Exists(cluster *clusterv1.Cluster, machine *clusterv1.Machine) (bool, error) {
 	i, err := tf.instanceIfExists(machine)
 	if err != nil {
 		return false, err
@@ -394,19 +534,16 @@ func (tf *TerraformClient) GetKubeConfig(master *clusterv1.Machine) (string, err
 	cmd := exec.Command(
 		// TODO: this is taking my private key and username for now.
 		"ssh", "-i", "~/.ssh/vsphere_tmp",
+		"-q",
 		"-o", "StrictHostKeyChecking no",
 		"-o", "UserKnownHostsFile /dev/null",
 		fmt.Sprintf("ubuntu@%s", ip),
-		"echo STARTFILE; sudo cat /etc/kubernetes/admin.conf")
+		"sudo cat /etc/kubernetes/admin.conf")
 	cmd.Stdout = &out
 	cmd.Stderr = os.Stderr
 	cmd.Run()
 	result := strings.TrimSpace(out.String())
-	parts := strings.Split(result, "STARTFILE")
-	if len(parts) != 2 {
-		return "", nil
-	}
-	return strings.TrimSpace(parts[1]), nil
+	return result, nil
 }
 
 // After master created, move the plugins folder from local to
@@ -448,7 +585,7 @@ func (tf *TerraformClient) SetupRemoteMaster(master *clusterv1.Machine) error {
 		"-o", "StrictHostKeyChecking no",
 		"-o", "UserKnownHostsFile /dev/null",
 		fmt.Sprintf("ubuntu@%s", ip),
-		fmt.Sprintf("source ~/.profile; cd ~/.terraform.d/kluster/machines/%s; ~/.terraform.d/terraform init; cp -r ~/.terraform.d/kluster/machines/%s/.terraform/plugins/* ~/.terraform.d/plugins/", machineName, machineName))
+		fmt.Sprintf("source ~/.profile; cd ~/.terraform.d/kluster/machines/%s; ~/.terraform.d/bin/terraform init; cp -r ~/.terraform.d/kluster/machines/%s/.terraform/plugins/* ~/.terraform.d/plugins/", machineName, machineName))
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Run()
@@ -461,12 +598,15 @@ func (tf *TerraformClient) updateAnnotations(machine *clusterv1.Machine, masterE
 		machine.ObjectMeta.Annotations = make(map[string]string)
 	}
 	machine.ObjectMeta.Annotations[MasterIpAnnotationKey] = masterEndpointIp
+	machine.ObjectMeta.Annotations[ControlPlaneVersionAnnotationKey] = machine.Spec.Versions.ControlPlane
+	machine.ObjectMeta.Annotations[KubeletVersionAnnotationKey] = machine.Spec.Versions.Kubelet
+
 	_, err := tf.machineClient.Update(machine)
 	if err != nil {
 		return err
 	}
-	err = tf.updateInstanceStatus(machine)
-	return err
+	//err = tf.updateInstanceStatus(machine)
+	return nil
 }
 
 func (tf *TerraformClient) instanceIfExists(machine *clusterv1.Machine) (*clusterv1.Machine, error) {

@@ -24,3 +24,4 @@ import:
 - package: github.com/kubernetes-incubator/apiserver-builder
   version: ^1.9.0-alpha.3
 - package: sigs.k8s.io/cluster-api
+- package: github.com/stretchr/testify

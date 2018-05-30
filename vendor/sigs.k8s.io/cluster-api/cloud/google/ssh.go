@@ -64,21 +64,26 @@ func cleanupSshKeyPairs() {
 }
 
 // It creates secret to store private key.
-func (gce *GCEClient) setupSSHAccess(m *clusterv1.Machine) error {
+func (gce *GCEClient) setupSSHAccess(cluster *clusterv1.Cluster, machine *clusterv1.Machine) error {
 	// Create public/private key pairs
 	err := createSshKeyPairs()
 	if err != nil {
 		return err
 	}
 
-	config, err := gce.providerconfig(m.Spec.ProviderConfig)
+	machineConfig, err := gce.machineproviderconfig(machine.Spec.ProviderConfig)
 	if err != nil {
 		return err
 	}
 
-	err = run("gcloud", "compute", "instances", "add-metadata", m.Name,
+	clusterConfig, err := gce.clusterproviderconfig(cluster.Spec.ProviderConfig)
+	if err != nil {
+		return err
+	}
+
+	err = run("gcloud", "compute", "instances", "add-metadata", machine.Name,
 		"--metadata-from-file", "ssh-keys="+SshKeyFile+".pub.gcloud",
-		"--project", config.Project, "--zone", config.Zone)
+		"--project", clusterConfig.Project, "--zone", machineConfig.Zone)
 	if err != nil {
 		return err
 	}
@@ -94,25 +99,20 @@ func (gce *GCEClient) setupSSHAccess(m *clusterv1.Machine) error {
 	return err
 }
 
-func (gce *GCEClient) remoteSshCommand(m *clusterv1.Machine, cmd string) (string, error) {
-	glog.Infof("Remote SSH execution '%s' on %s", cmd, m.ObjectMeta.Name)
+func (gce *GCEClient) remoteSshCommand(cluster *clusterv1.Cluster, machine *clusterv1.Machine, cmd string) (string, error) {
+	glog.Infof("Remote SSH execution '%s' on %s", cmd, machine.ObjectMeta.Name)
 
-	publicIP, err := gce.GetIP(m)
+	publicIP, err := gce.GetIP(cluster, machine)
 	if err != nil {
 		return "", err
 	}
 
-	command := fmt.Sprintf("echo STARTFILE; %s", cmd)
-	c := exec.Command("ssh", "-i", gce.sshCreds.privateKeyPath, gce.sshCreds.user+"@"+publicIP, command)
+	command := fmt.Sprintf("%s", cmd)
+	c := exec.Command("ssh", "-i", gce.sshCreds.privateKeyPath, "-q", gce.sshCreds.user+"@"+publicIP, command)
 	out, err := c.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("error: %v, output: %s", err, string(out))
 	}
 	result := strings.TrimSpace(string(out))
-	parts := strings.Split(result, "STARTFILE")
-	if len(parts) != 2 {
-		return "", nil
-	}
-	// TODO: Check error.
-	return strings.TrimSpace(parts[1]), nil
+	return result, nil
 }

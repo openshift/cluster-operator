@@ -44,10 +44,11 @@ type MachineControllerImpl struct {
 
 	actuator Actuator
 
-	kubernetesClientSet *kubernetes.Clientset
+	kubernetesClientSet kubernetes.Interface
 	clientSet           clientset.Interface
 	machineClient       v1alpha1.MachineInterface
 	linkedNodes         map[string]bool
+	cachedReadiness     map[string]bool
 }
 
 // Init initializes the controller and is called by the generated code
@@ -64,6 +65,7 @@ func (c *MachineControllerImpl) Init(arguments sharedinformers.ControllerInitArg
 	c.kubernetesClientSet = arguments.GetSharedInformers().KubernetesClientSet
 
 	c.linkedNodes = make(map[string]bool)
+	c.cachedReadiness = make(map[string]bool)
 
 	// Create machine actuator.
 	// TODO: Assume default namespace for now. Maybe a separate a controller per namespace?
@@ -101,14 +103,19 @@ func (c *MachineControllerImpl) Reconcile(machine *clusterv1.Machine) error {
 		// Remove finalizer on successful deletion.
 		glog.Infof("machine object %v deletion successful, removing finalizer.", name)
 		machine.ObjectMeta.Finalizers = util.Filter(machine.ObjectMeta.Finalizers, clusterv1.MachineFinalizer)
-		if _, err := c.machineClient.Update(machine); err != nil {
+		if _, err := c.clientSet.ClusterV1alpha1().Machines(machine.Namespace).Update(machine); err != nil {
 			glog.Errorf("Error removing finalizer from machine object %v; %v", name, err)
 			return err
 		}
 		return nil
 	}
 
-	exist, err := c.actuator.Exists(machine)
+	cluster, err := c.getCluster(machine)
+	if err != nil {
+		return err
+	}
+
+	exist, err := c.actuator.Exists(cluster, machine)
 	if err != nil {
 		glog.Errorf("Error checking existance of machine instance for machine object %v; %v", name, err)
 		return err
@@ -147,7 +154,12 @@ func (c *MachineControllerImpl) update(new_machine *clusterv1.Machine) error {
 }
 
 func (c *MachineControllerImpl) delete(machine *clusterv1.Machine) error {
-	return c.actuator.Delete(machine)
+	cluster, err := c.getCluster(machine)
+	if err != nil {
+		return err
+	}
+
+	return c.actuator.Delete(cluster, machine)
 }
 
 func (c *MachineControllerImpl) getCluster(machine *clusterv1.Machine) (*clusterv1.Cluster, error) {
