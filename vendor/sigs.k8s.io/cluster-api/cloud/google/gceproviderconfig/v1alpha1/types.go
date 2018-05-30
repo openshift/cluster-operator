@@ -21,13 +21,30 @@ import (
 )
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-type GCEProviderConfig struct {
+type GCEMachineProviderConfig struct {
 	metav1.TypeMeta `json:",inline"`
 
-	Project     string `json:"project"`
 	Zone        string `json:"zone"`
 	MachineType string `json:"machineType"`
 
 	// The name of the OS to be installed on the machine.
-	OS string `json:"os"`
+	OS    string `json:"os"`
+	Disks []Disk `json:"disks"`
+}
+
+type Disk struct {
+	InitializeParams DiskInitializeParams `json:"initializeParams"`
+}
+
+type DiskInitializeParams struct {
+	DiskSizeGb int64  `json:"diskSizeGb"`
+	DiskType   string `json:"diskType"`
+}
+
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type GCEClusterProviderConfig struct {
+	metav1.TypeMeta `json:",inline"`
+
+	Project     string `json:"project"`
 }

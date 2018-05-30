@@ -1,5 +1,5 @@
-hash: 15d40998b89952af6e466f19c373d9d195fdbbdd6566a567a2b62aa53e57ee65
-updated: 2018-05-08T17:34:33.238841971-04:00
+hash: fd7865846480287d3a1fc4f9d47be4579b0be1a57394189edcfecf056b8635b0
+updated: 2018-05-30T10:42:18.434085638-03:00
 imports:
 - name: bitbucket.org/ww/goautoneg
   version: 75cd24fc2f2c2a2088577d12123ddee5f54e0675
@@ -172,9 +172,9 @@ imports:
   - compiler
   - extensions
 - name: github.com/gorilla/context
-  version: 215affda49addc4c8ef7e2534915df2c8c35c6cd
+  version: 08b5f424b9271eedf6f9f0ce86cb9396ed337a42
 - name: github.com/gorilla/mux
-  version: 8096f47503459bcc74d1f4c487b7e6e42e5746b5
+  version: e0b5abaaae35242fa74372f26c24107711702a4e
 - name: github.com/gregjones/httpcache
   version: 787624de3eb7bd915c329cba748687a3b22666a6
   subpackages:
@@ -198,7 +198,7 @@ imports:
 - name: github.com/inconshreveable/mousetrap
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
 - name: github.com/jmespath/go-jmespath
-  version: 0b12d6b521d83fc7f755e7cfc1b1fbdd35a01a74
+  version: c2b33e8439af944379acbdd9c3a5fe0bc44bd8a5
 - name: github.com/jonboulle/clockwork
   version: 72f9bd7c4e0c2a40055ab3d0f09654f730cce982
 - name: github.com/json-iterator/go
@@ -213,7 +213,7 @@ imports:
   - pkg/builders
   - pkg/controller
 - name: github.com/kubernetes/repo-infra
-  version: e26fc85d14a1d3dc25569831acc06919673c545a
+  version: 3c350a455362b622fe786e63f8f07b2a87f54f7b
 - name: github.com/mailru/easyjson
   version: 2f5df55504ebc322e4d52d34df6a1f5b503bf26d
   subpackages:
@@ -269,7 +269,7 @@ imports:
 - name: github.com/spf13/pflag
   version: e57e3eeb33f795204c1ca35f56c44f83227c6e66
 - name: github.com/stretchr/testify
-  version: 69483b4bd14f5845b5a1e55bca19e954e827f1d0
+  version: c679ae2cc0cb27ec3293fea7e254e47386f05d69
   subpackages:
   - assert
 - name: github.com/ugorji/go
@@ -694,7 +694,7 @@ imports:
   - pkg/util
   - pkg/util/proto
 - name: sigs.k8s.io/cluster-api
-  version: 5d5cdec6cf1208bfb4f63e3b2cd48154a12d52a5
+  version: 851a4b40eedd60ffaab6ab25d5ba40412523e4e7
   subpackages:
   - pkg/apis
   - pkg/apis/cluster
@@ -702,8 +702,10 @@ imports:
   - pkg/apis/cluster/install
   - pkg/apis/cluster/v1alpha1
   - pkg/client/clientset_generated/clientset
+  - pkg/client/clientset_generated/clientset/fake
   - pkg/client/clientset_generated/clientset/scheme
   - pkg/client/clientset_generated/clientset/typed/cluster/v1alpha1
+  - pkg/client/clientset_generated/clientset/typed/cluster/v1alpha1/fake
   - pkg/client/informers_generated/externalversions
   - pkg/client/informers_generated/externalversions/cluster
   - pkg/client/informers_generated/externalversions/cluster/v1alpha1
@@ -711,6 +713,7 @@ imports:
   - pkg/client/listers_generated/cluster/v1alpha1
   - pkg/controller/config
   - pkg/controller/machine
+  - pkg/controller/noderefutil
   - pkg/controller/sharedinformers
   - util
 testImports:

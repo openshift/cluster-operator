@@ -24,7 +24,9 @@ import (
 
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/cluster-api/cloud/google"
+	"sigs.k8s.io/cluster-api/cloud/google/machinesetup"
 	clusterv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	"sigs.k8s.io/cluster-api/pkg/cert"
 	"sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 	"sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset/typed/cluster/v1alpha1"
 	"sigs.k8s.io/cluster-api/util"
@@ -42,7 +44,7 @@ type deployer struct {
 
 // NewDeployer returns a cloud provider specific deployer and
 // sets kubeconfig path for the cluster to be deployed
-func NewDeployer(provider string, kubeConfigPath string, machineSetupConfigPath string) *deployer {
+func NewDeployer(provider string, kubeConfigPath string, machineSetupConfigPath string, ca *cert.CertificateAuthority) *deployer {
 	token := util.RandomToken()
 	if kubeConfigPath == "" {
 		kubeConfigPath = os.Getenv("KUBECONFIG")
@@ -56,7 +58,16 @@ func NewDeployer(provider string, kubeConfigPath string, machineSetupConfigPath 
 			glog.Exit(fmt.Sprintf("Failed to set Kubeconfig path err %v\n", err))
 		}
 	}
-	ma, err := google.NewMachineActuator(token, nil, machineSetupConfigPath)
+	configWatch, err := newConfigWatchOrNil(machineSetupConfigPath)
+	if err != nil {
+		glog.Exit(fmt.Sprintf("Could not create config watch: %v\n", err))
+	}
+	params := google.MachineActuatorParams{
+		CertificateAuthority:     ca,
+		MachineSetupConfigGetter: configWatch,
+		KubeadmToken:             token,
+	}
+	ma, err := google.NewMachineActuator(params)
 	if err != nil {
 		glog.Exit(err)
 	}
@@ -71,7 +82,7 @@ func (d *deployer) CreateCluster(c *clusterv1.Cluster, machines []*clusterv1.Mac
 	vmCreated := false
 	if err := d.createCluster(c, machines, &vmCreated); err != nil {
 		if vmCreated {
-			d.deleteMasterVM(machines)
+			d.deleteMasterVM(c, machines)
 		}
 		d.machineDeployer.PostDelete(c, machines)
 		return err
@@ -109,7 +120,8 @@ func (d *deployer) DeleteCluster() error {
 		return err
 	}
 
-	if err := d.deleteMasterVM(machines); err != nil {
+	glog.Info("Deleting master VM")
+	if err := d.deleteMasterVM(cluster, machines); err != nil {
 		glog.Errorf("Error deleting master vm", err)
 	}
 
@@ -121,15 +133,22 @@ func (d *deployer) DeleteCluster() error {
 	return nil
 }
 
-func (d *deployer) deleteMasterVM(machines []*clusterv1.Machine) error {
+func (d *deployer) deleteMasterVM(cluster *clusterv1.Cluster, machines []*clusterv1.Machine) error {
 	master := util.GetMaster(machines)
 	if master == nil {
 		return fmt.Errorf("error deleting master vm, no master found")
 	}
 
 	glog.Infof("Deleting master vm %s", master.Name)
-	if err := d.machineDeployer.Delete(master); err != nil {
+	if err := d.machineDeployer.Delete(cluster, master); err != nil {
 		return err
 	}
 	return nil
+}
+
+func newConfigWatchOrNil(machineSetupConfigPath string) (*machinesetup.ConfigWatch, error) {
+	if machineSetupConfigPath == "" {
+		return nil, nil
+	}
+	return machinesetup.NewConfigWatch(machineSetupConfigPath)
 }
