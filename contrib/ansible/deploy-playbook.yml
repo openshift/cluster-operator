@@ -34,12 +34,22 @@
     cluster_api_image: "registry.svc.ci.openshift.org/openshift-cluster-operator/kubernetes-cluster-api:latest"
     cluster_api_image_pull_policy: "Always"
 
+    fake_deployment: False
+    machine_controller_imagestream: "cluster-operator"
+    machine_controller_entrypoint: "/opt/services/aws-machine-controller"
+
   tasks:
   - import_role:
       name: kubectl-ansible
   - set_fact:
       cluster_operator_namespace: "{{ cli_cluster_operator_namespace }}"
     when: cli_cluster_operator_namespace is defined
+
+  - name: set AWS machine controller image
+    set_fact:
+      machine_controller_imagestream: "fake-machine-controller"
+      machine_controller_entrypoint: "/opt/services/fake-machine-controller"
+    when: fake_deployment | bool
 
   - name: check if cluster operator namespace exists
     command: "oc get namespace {{ cluster_operator_namespace }}"
@@ -158,6 +168,8 @@
       parameters:
         CLUSTER_API_NAMESPACE: "{{ cluster_operator_namespace }}"
         CLUSTER_API_IMAGE: "{{ cluster_api_image }}"
+        MACHINE_CONTROLLER_IMAGESTREAM: "{{ machine_controller_imagestream }}"
+        MACHINE_CONTROLLER_ENTRYPOINT: "{{ machine_controller_entrypoint }}"
         IMAGE_PULL_POLICY: "{{ cluster_api_image_pull_policy }}"
     register: cluster_api_controllers
 

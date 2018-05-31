@@ -45,6 +45,10 @@
 
 ## Deploy / Re-deploy Cluster Operator
 
+| **WARNING** |
+| ---- |
+| By default when using `deploy-devel-playbook.yml` to deploy cluster operator, fake images will be used. This means that no actual cluster will be created. If you want to create a real cluster, pass `-e fake_deployment=false` to the playbook invocation. |
+
   * Deploy cluster operator to the OpenShift cluster you are currently logged into. (see above for oc login instructions above)
     * `ansible-playbook contrib/ansible/deploy-devel-playbook.yml`
     * This creates an OpenShift BuildConfig and ImageStream for the cluster-operator image. (which does not yet exist)
@@ -64,7 +68,6 @@
 
   * `ansible-playbook contrib/ansible/create-cluster-playbook.yml`
     * This will create a cluster named after your username in your current context's namespace, using a fake ClusterVersion. (no actual resources will be provisioned, the Ansible image used will just verify the playbook called exists, and return indicating success)
-    * Specify `-e cluster_version` to use a real cluster version and provision an actual cluster in AWS. (see `oc get clusterversions -n openshift-cluster-operator` for list of the defaults we create)
     * Specify `-e cluster_name`, `-e cluster_namespace`, or other variables you can override as defined at the top of the playbook.
     * This command can be re-run to update the definition of the cluster and test how the cluster operator will respond to the change. (WARNING: do not try to change the name/namespace, as this will create a new cluster)
 
