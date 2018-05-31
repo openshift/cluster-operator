@@ -48,6 +48,7 @@ objects:
           args:
           - --log-level=debug
           - --default-availability-zone=${DEFAULT_AVAILABILITY_ZONE}
+          - --incluster=false
           volumeMounts:
           - name: bootstrap-kubeconfig
             mountPath: /etc/origin/master
@@ -92,6 +93,7 @@ objects:
           imagePullPolicy: ${IMAGE_PULL_POLICY}
           command:
           - "./controller-manager"
+          - --incluster=false
           resources:
             requests:
               cpu: 100m

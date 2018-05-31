@@ -93,6 +93,78 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 			Dependencies: []string{
 				"k8s.io/api/core/v1.LocalObjectReference"},
 		},
+		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.AWSMachineProviderStatus": {
+			Schema: spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Description: "AWSMachineProviderStatus is the AWS specific provider status for a cluster.k8s.io Machine.",
+					Properties: map[string]spec.Schema{
+						"kind": {
+							SchemaProps: spec.SchemaProps{
+								Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"apiVersion": {
+							SchemaProps: spec.SchemaProps{
+								Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"metadata": {
+							SchemaProps: spec.SchemaProps{
+								Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+							},
+						},
+						"instanceID": {
+							SchemaProps: spec.SchemaProps{
+								Description: "InstanceID is the AWS instance ID for this machine.",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"instanceState": {
+							SchemaProps: spec.SchemaProps{
+								Description: "InstanceState is the state of the AWS instance for this machine.",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"publicIP": {
+							SchemaProps: spec.SchemaProps{
+								Description: "PublicIP is the public IP address for this machine.",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"privateIP": {
+							SchemaProps: spec.SchemaProps{
+								Description: "PrivateIP is the internal IP address for this machine.",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"publicDNS": {
+							SchemaProps: spec.SchemaProps{
+								Description: "PublicDNS is the public DNS hostname for this machine.",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"privateDNS": {
+							SchemaProps: spec.SchemaProps{
+								Description: "PrivateDNS is the internal DNS hostname for this machine.",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+					},
+				},
+			},
+			Dependencies: []string{
+				"k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.AWSRegionAMIs": {
 			Schema: spec.Schema{
 				SchemaProps: spec.SchemaProps{

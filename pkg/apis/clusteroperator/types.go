@@ -564,6 +564,39 @@ type MachineSetAWSHardwareSpec struct {
 	InstanceType string
 }
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// AWSMachineProviderStatus is the AWS specific provider status for a cluster.k8s.io Machine.
+type AWSMachineProviderStatus struct {
+	// +optional
+	metav1.TypeMeta
+	// +optional
+	metav1.ObjectMeta
+
+	// InstanceID is the AWS instance ID for this machine.
+	// +optional
+	InstanceID *string
+
+	// InstanceState is the state of the AWS instance for this machine.
+	InstanceState *string
+
+	// PublicIP is the public IP address for this machine.
+	// +optional
+	PublicIP *string
+
+	// PrivateIP is the internal IP address for this machine.
+	// +optional
+	PrivateIP *string
+
+	// PublicDNS is the public DNS hostname for this machine.
+	// +optional
+	PublicDNS *string
+
+	// PrivateDNS is the internal DNS hostname for this machine.
+	// +optional
+	PrivateDNS *string
+}
+
 // NodeType is the type of the Node
 type NodeType string
 

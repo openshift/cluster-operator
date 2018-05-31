@@ -57,6 +57,7 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&ClusterProviderConfigSpec{},
 		&ClusterProviderStatus{},
 		&MachineSetProviderConfigSpec{},
+		&AWSMachineProviderStatus{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	scheme.AddKnownTypes(schema.GroupVersion{Version: "v1"}, &metav1.Status{})
