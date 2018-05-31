@@ -70,6 +70,7 @@ func NewCMServer() *CMServer {
 			ConcurrentComponentSyncs:         defaultConcurrentSyncs,
 			ConcurrentNodeConfigSyncs:        defaultConcurrentSyncs,
 			ConcurrentDeployClusterAPISyncs:  defaultConcurrentSyncs,
+			ConcurrentELBMachineSyncs:        defaultConcurrentSyncs,
 			ConcurrentClusterDeploymentSyncs: defaultConcurrentSyncs,
 			LeaderElection:                   leaderelectionconfig.DefaultLeaderElectionConfiguration(),
 			LeaderElectionNamespace:          defaultLeaderElectionNamespace,
@@ -104,6 +105,7 @@ func (s *CMServer) AddFlags(fs *pflag.FlagSet, allControllers []string, disabled
 	fs.Int32Var(&s.ConcurrentNodeConfigSyncs, "concurrent-nodeconfig-syncs", s.ConcurrentNodeConfigSyncs, "The number of clusters that are allowed to configure the node config daemonset concurrently. Larger number = more responsive node config jobs, but more CPU (and network) load")
 	fs.Int32Var(&s.ConcurrentDeployClusterAPISyncs, "concurrent-deploy-cluster-api-syncs", s.ConcurrentDeployClusterAPISyncs, "The number of master machine set objects that are allowed to install the upstream cluster API controllers concurrently. Larger number = more responsive accept jobs, but more CPU (and network) load")
 	fs.Int32Var(&s.ConcurrentClusterDeploymentSyncs, "concurrent-cluster-deployment-syncs", s.ConcurrentClusterDeploymentSyncs, "The number of cluster deployment objects that are allowed to sync concurrently. Larger number = more responsive accept jobs, but more CPU (and network) load")
+	fs.Int32Var(&s.ConcurrentELBMachineSyncs, "concurrent-elb-machine-syncs", s.ConcurrentELBMachineSyncs, "The number of master machine objects that are allowed to be added to the internal/external AWS ELB concurrently. Larger number = more responsive accept jobs, but more CPU (and network) load")
 	fs.BoolVar(&s.EnableProfiling, "profiling", s.EnableProfiling, "Enable profiling via web interface host:port/debug/pprof/")
 	fs.BoolVar(&s.EnableContentionProfiling, "contention-profiling", s.EnableContentionProfiling, "Enable lock contention profiling, if profiling is enabled")
 	leaderelectionconfig.BindFlags(&s.LeaderElection, fs)

@@ -46,6 +46,7 @@ import (
 	clustopclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
 	clustopinformers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions"
 	"github.com/openshift/cluster-operator/pkg/controller"
+	"github.com/openshift/cluster-operator/pkg/controller/awselb"
 	componentscontroller "github.com/openshift/cluster-operator/pkg/controller/components"
 	deployclusterapicontroller "github.com/openshift/cluster-operator/pkg/controller/deployclusterapi"
 	infracontroller "github.com/openshift/cluster-operator/pkg/controller/infra"
@@ -481,6 +482,15 @@ func startServerAndControllers(t *testing.T) (
 				fakeKubeClient,
 				clustopClient,
 				capiClient,
+			)
+			return func() { controller.Run(1, stopCh) }
+		}(),
+		// awselb
+		func() func() {
+			controller := awselb.NewController(
+				capiSharedInformers.Machines(),
+				fakeKubeClient,
+				clustopClient,
 			)
 			return func() { controller.Run(1, stopCh) }
 		}(),
