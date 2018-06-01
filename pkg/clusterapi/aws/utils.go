@@ -18,7 +18,6 @@ package aws
 
 import (
 	"fmt"
-	"sort"
 
 	log "github.com/sirupsen/logrus"
 
@@ -37,27 +36,48 @@ import (
 	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 )
 
-// SortInstances sorts the given slice of instances based on their launch time. The first item in the
-// slice after sorting will be the most recently launched, and can be considered the definitive instance
-// for the machine, a caller may wish to terminate all others. This function should only be called with
-// running instances, not those which are stopped or terminated.
-func SortInstances(instances []*ec2.Instance) {
-	sort.Slice(instances, func(i, j int) bool {
-		if instances[i].LaunchTime == nil && instances[j].LaunchTime == nil {
-			// No idea what to do here, should not be possible, just return the first.
-			return false
+// SortInstances will examine the given slice of instances and return the current active instance for
+// the machine, as well as a slice of all other instances which the caller may want to terminate. The
+// active instance is calculated as the most recently launched instance.
+// This function should only be called with running instances, not those which are stopped or
+// terminated.
+func SortInstances(instances []*ec2.Instance) (*ec2.Instance, []*ec2.Instance) {
+	if len(instances) == 0 {
+		return nil, []*ec2.Instance{}
+	}
+	var newestInstance *ec2.Instance
+	inactiveInstances := make([]*ec2.Instance, 0, len(instances)-1)
+	for _, i := range instances {
+		if newestInstance == nil {
+			newestInstance = i
+			continue
 		}
-		if instances[i].LaunchTime != nil && instances[j].LaunchTime == nil {
-			return true
+		tempInstance := chooseNewest(newestInstance, i)
+		if *tempInstance.InstanceId != *newestInstance.InstanceId {
+			inactiveInstances = append(inactiveInstances, newestInstance)
+		} else {
+			inactiveInstances = append(inactiveInstances, i)
 		}
-		if instances[i].LaunchTime == nil && instances[j].LaunchTime != nil {
-			return false
-		}
-		if (*instances[i].LaunchTime).After(*instances[j].LaunchTime) {
-			return true
-		}
-		return false
-	})
+		newestInstance = tempInstance
+	}
+	return newestInstance, inactiveInstances
+}
+
+func chooseNewest(instance1, instance2 *ec2.Instance) *ec2.Instance {
+	if instance1.LaunchTime == nil && instance2.LaunchTime == nil {
+		// No idea what to do here, should not be possible, just return the first.
+		return instance1
+	}
+	if instance1.LaunchTime != nil && instance2.LaunchTime == nil {
+		return instance1
+	}
+	if instance1.LaunchTime == nil && instance2.LaunchTime != nil {
+		return instance2
+	}
+	if (*instance1.LaunchTime).After(*instance2.LaunchTime) {
+		return instance1
+	}
+	return instance2
 }
 
 // GetInstance returns the AWS instance for a given machine. If multiple instances match our machine,
@@ -71,8 +91,8 @@ func GetInstance(machine *clusterv1.Machine, client ec2iface.EC2API) (*ec2.Insta
 		return nil, fmt.Errorf("no instance found for machine: %s", machine.Name)
 	}
 
-	SortInstances(instances)
-	return instances[0], nil
+	instance, _ := SortInstances(instances)
+	return instance, nil
 }
 
 // GetRunningInstances returns all running instances that have a tag matching our machine name,

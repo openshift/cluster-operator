@@ -390,16 +390,15 @@ func (a *Actuator) Update(cluster *clusterv1.Cluster, machine *clusterv1.Machine
 		// but instance could be deleted between the two calls.
 		return fmt.Errorf("attempted to update machine but no instances found")
 	}
-	SortInstances(instances)
+	newestInstance, terminateInstances := SortInstances(instances)
 
 	// In very unusual circumstances, there could be more than one machine running matching this
 	// machine name and cluster ID. In this scenario we will keep the newest, and delete all others.
-	newestInstance := instances[0]
 	mLog = mLog.WithField("instanceID", *newestInstance.InstanceId)
 	mLog.Debug("instance found")
 
 	if len(instances) > 1 {
-		err = TerminateInstances(client, instances[1:], mLog)
+		err = TerminateInstances(client, terminateInstances, mLog)
 		if err != nil {
 			return err
 		}

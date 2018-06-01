@@ -27,16 +27,24 @@ import (
 
 func TestSortInstances(t *testing.T) {
 	cases := []struct {
-		name                    string
-		instances               []*ec2.Instance
-		expectedFirstInstanceID string
+		name                        string
+		instances                   []*ec2.Instance
+		expectedActiveInstanceID    string
+		expectedInactiveInstanceIDs []string
 	}{
 		{
 			name: "only one",
 			instances: []*ec2.Instance{
 				buildInstance("i1", time.Now().Add(time.Minute*60)),
 			},
-			expectedFirstInstanceID: "i1",
+			expectedActiveInstanceID:    "i1",
+			expectedInactiveInstanceIDs: []string{},
+		},
+		{
+			name:                        "no instances given",
+			instances:                   []*ec2.Instance{},
+			expectedActiveInstanceID:    "",
+			expectedInactiveInstanceIDs: []string{},
 		},
 		{
 			name: "multiple running instances",
@@ -46,20 +54,59 @@ func TestSortInstances(t *testing.T) {
 				buildInstance("i3", time.Now().Add(-time.Minute*30)),
 				buildInstance("i4", time.Now().Add(-time.Minute*90)),
 			},
-			expectedFirstInstanceID: "i2",
+			expectedActiveInstanceID:    "i2",
+			expectedInactiveInstanceIDs: []string{"i1", "i3", "i4"},
+		},
+		{
+			name: "some instances missing launchtime",
+			instances: []*ec2.Instance{
+				buildInstance("i1", time.Now().Add(-time.Minute*60)),
+				buildInstance("i2", time.Time{}),
+				buildInstance("i3", time.Now().Add(-time.Minute*30)),
+				buildInstance("i4", time.Time{}),
+			},
+			expectedActiveInstanceID:    "i3",
+			expectedInactiveInstanceIDs: []string{"i1", "i2", "i4"},
+		},
+		{
+			name: "no instances with launchtime",
+			instances: []*ec2.Instance{
+				buildInstance("i1", time.Time{}),
+				buildInstance("i2", time.Time{}),
+				buildInstance("i3", time.Time{}),
+				buildInstance("i4", time.Time{}),
+			},
+			expectedActiveInstanceID:    "i1",
+			expectedInactiveInstanceIDs: []string{"i2", "i3", "i4"},
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			SortInstances(tc.instances)
-			assert.Equal(t, tc.expectedFirstInstanceID, *tc.instances[0].InstanceId)
+			activeInstance, inactiveInstances := SortInstances(tc.instances)
+			if tc.expectedActiveInstanceID != "" {
+				assert.Equal(t, tc.expectedActiveInstanceID, *activeInstance.InstanceId)
+			}
+			assert.Equal(t, len(tc.expectedInactiveInstanceIDs), len(inactiveInstances))
+			for _, iID := range tc.expectedInactiveInstanceIDs {
+				var found bool
+				for _, instance := range inactiveInstances {
+					if *instance.InstanceId == iID {
+						found = true
+					}
+				}
+				assert.True(t, found, "instance %s was not found in inactive instances", iID)
+			}
 		})
 	}
 }
 
 func buildInstance(instanceID string, launchTime time.Time) *ec2.Instance {
-	return &ec2.Instance{
+	instance := &ec2.Instance{
 		InstanceId: &instanceID,
-		LaunchTime: &launchTime,
 	}
+	// Use a zero value launchTime as an indicator for no launch time on the instance.
+	if !launchTime.Equal(time.Time{}) {
+		instance.LaunchTime = &launchTime
+	}
+	return instance
 }
