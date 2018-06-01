@@ -100,8 +100,7 @@ objects:
       aws:
         instanceType: "t2.xlarge"
     machineSets:
-    - shortName: master
-      nodeType: Master
+    - nodeType: Master
       size: 1
     - shortName: infra
       nodeType: Compute

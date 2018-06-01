@@ -63,6 +63,7 @@ import (
 	cov1alpha1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	clusteroperatorinformers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions"
 	"github.com/openshift/cluster-operator/pkg/controller"
+	"github.com/openshift/cluster-operator/pkg/controller/clusterdeployment"
 	"github.com/openshift/cluster-operator/pkg/controller/components"
 	"github.com/openshift/cluster-operator/pkg/controller/deployclusterapi"
 	"github.com/openshift/cluster-operator/pkg/controller/infra"
@@ -329,6 +330,7 @@ func NewControllerInitializers() map[string]InitFunc {
 	controllers["components"] = startComponentsController
 	controllers["nodeconfig"] = startNodeConfigController
 	controllers["deployclusterapi"] = startDeployClusterAPIController
+	controllers["clusterdeployment"] = startClusterDeploymentController
 
 	return controllers
 }
@@ -583,6 +585,22 @@ func startDeployClusterAPIController(ctx ControllerContext) (bool, error) {
 		ctx.ClientBuilder.ClientOrDie("clusteroperator-deployclusterapi-controller"),
 		ctx.ClientBuilder.ClusterAPIClientOrDie("clusteroperator-deployclusterapi-controller"),
 	).Run(int(ctx.Options.ConcurrentDeployClusterAPISyncs), ctx.Stop)
+	return true, nil
+}
+
+func startClusterDeploymentController(ctx ControllerContext) (bool, error) {
+	if !clusterAPIResourcesAvailable(ctx) || !clusterOperatorResourcesAvailable(ctx) {
+		return false, nil
+	}
+	go clusterdeployment.NewController(
+		ctx.InformerFactory.Clusteroperator().V1alpha1().ClusterDeployments(),
+		ctx.ClusterAPIInformerFactory.Cluster().V1alpha1().Clusters(),
+		ctx.ClusterAPIInformerFactory.Cluster().V1alpha1().MachineSets(),
+		ctx.InformerFactory.Clusteroperator().V1alpha1().ClusterVersions(),
+		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-clusterdeployment-controller"),
+		ctx.ClientBuilder.ClientOrDie("clusteroperator-clusterdeployment-controller"),
+		ctx.ClientBuilder.ClusterAPIClientOrDie("clusteroperator-clusterdeployment-controller"),
+	).Run(int(ctx.Options.ConcurrentClusterDeploymentSyncs), ctx.Stop)
 	return true, nil
 }
 

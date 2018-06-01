@@ -113,8 +113,7 @@ func newCluster() *clusterapi.Cluster {
 apiVersion: "clusteroperator.openshift.io/v1alpha1"
 kind: "ClusterProviderConfigSpec"
 machineSets:
-- shortName: master
-  nodeType: master
+- nodeType: master
   infra: true
   size: 3
 `

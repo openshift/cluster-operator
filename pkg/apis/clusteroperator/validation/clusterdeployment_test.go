@@ -40,7 +40,6 @@ func getValidClusterDeploymentSpec() clusteroperator.ClusterDeploymentSpec {
 	return clusteroperator.ClusterDeploymentSpec{
 		MachineSets: []clusteroperator.ClusterMachineSet{
 			{
-				ShortName: "master",
 				MachineSetConfig: clusteroperator.MachineSetConfig{
 					NodeType: clusteroperator.NodeTypeMaster,
 					Infra:    true,
@@ -224,7 +223,7 @@ func TestValidateClusterDeploymentSpec(t *testing.T) {
 			spec: func() *clusteroperator.ClusterDeploymentSpec {
 				cs := getValidClusterDeploymentSpec()
 				cs.MachineSets = []clusteroperator.ClusterMachineSet{
-					getTestMachineSet(0, "master", true, true),
+					getTestMachineSet(0, "", true, true),
 				}
 				return &cs
 			}(),
@@ -235,7 +234,7 @@ func TestValidateClusterDeploymentSpec(t *testing.T) {
 			spec: func() *clusteroperator.ClusterDeploymentSpec {
 				cs := getValidClusterDeploymentSpec()
 				cs.MachineSets = []clusteroperator.ClusterMachineSet{
-					getTestMachineSet(1, "master", true, false),
+					getTestMachineSet(1, "", true, false),
 					getTestMachineSet(1, "one", false, true),
 				}
 				return &cs
@@ -247,7 +246,7 @@ func TestValidateClusterDeploymentSpec(t *testing.T) {
 			spec: func() *clusteroperator.ClusterDeploymentSpec {
 				cs := getValidClusterDeploymentSpec()
 				cs.MachineSets = []clusteroperator.ClusterMachineSet{
-					getTestMachineSet(1, "master", true, true),
+					getTestMachineSet(1, "", true, true),
 					getTestMachineSet(1, "one", false, false),
 					getTestMachineSet(5, "two", false, false),
 					getTestMachineSet(2, "three", false, false),
@@ -261,7 +260,7 @@ func TestValidateClusterDeploymentSpec(t *testing.T) {
 			spec: func() *clusteroperator.ClusterDeploymentSpec {
 				cs := getValidClusterDeploymentSpec()
 				cs.MachineSets = []clusteroperator.ClusterMachineSet{
-					getTestMachineSet(1, "master", true, true),
+					getTestMachineSet(1, "", true, true),
 					getTestMachineSet(1, "one", false, false),
 					getTestMachineSet(5, "", false, false),
 					getTestMachineSet(2, "three", false, false),
@@ -275,7 +274,7 @@ func TestValidateClusterDeploymentSpec(t *testing.T) {
 			spec: func() *clusteroperator.ClusterDeploymentSpec {
 				cs := getValidClusterDeploymentSpec()
 				cs.MachineSets = []clusteroperator.ClusterMachineSet{
-					getTestMachineSet(1, "master", true, true),
+					getTestMachineSet(1, "", true, true),
 					getTestMachineSet(1, "one", false, false),
 					getTestMachineSet(0, "two", false, false),
 					getTestMachineSet(2, "three", false, false),
@@ -289,7 +288,7 @@ func TestValidateClusterDeploymentSpec(t *testing.T) {
 			spec: func() *clusteroperator.ClusterDeploymentSpec {
 				cs := getValidClusterDeploymentSpec()
 				cs.MachineSets = []clusteroperator.ClusterMachineSet{
-					getTestMachineSet(1, "master", true, true),
+					getTestMachineSet(1, "", true, true),
 					getTestMachineSet(1, "one", false, false),
 					getTestMachineSet(5, "one", false, false),
 					getTestMachineSet(2, "three", false, false),
@@ -316,7 +315,7 @@ func TestValidateClusterDeploymentSpec(t *testing.T) {
 			spec: func() *clusteroperator.ClusterDeploymentSpec {
 				cs := getValidClusterDeploymentSpec()
 				cs.MachineSets = []clusteroperator.ClusterMachineSet{
-					getTestMachineSet(1, "master", true, false),
+					getTestMachineSet(1, "", true, false),
 					getTestMachineSet(1, "one", false, false),
 					getTestMachineSet(5, "one", false, false),
 					getTestMachineSet(2, "three", false, false),
@@ -330,8 +329,8 @@ func TestValidateClusterDeploymentSpec(t *testing.T) {
 			spec: func() *clusteroperator.ClusterDeploymentSpec {
 				cs := getValidClusterDeploymentSpec()
 				cs.MachineSets = []clusteroperator.ClusterMachineSet{
-					getTestMachineSet(1, "master1", true, true),
-					getTestMachineSet(1, "master2", true, false),
+					getTestMachineSet(1, "", true, true),
+					getTestMachineSet(1, "", true, false),
 					getTestMachineSet(5, "one", false, false),
 					getTestMachineSet(2, "two", false, false),
 				}
@@ -344,7 +343,7 @@ func TestValidateClusterDeploymentSpec(t *testing.T) {
 			spec: func() *clusteroperator.ClusterDeploymentSpec {
 				cs := getValidClusterDeploymentSpec()
 				cs.MachineSets = []clusteroperator.ClusterMachineSet{
-					getTestMachineSet(1, "master1", true, false),
+					getTestMachineSet(1, "", true, false),
 					getTestMachineSet(1, "one", false, true),
 					getTestMachineSet(5, "two", false, true),
 					getTestMachineSet(2, "three", false, false),

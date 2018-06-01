@@ -116,7 +116,8 @@ func (a *Actuator) Create(cluster *clusterv1.Cluster, machine *clusterv1.Machine
 // CreateMachine starts a new AWS instance as described by the cluster and machine resources
 func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.Machine) (*ec2.Reservation, error) {
 	mLog := clustoplog.WithMachine(a.logger, machine)
-	clusterSpec, err := controller.ClusterSpecFromClusterAPI(cluster)
+	// Extract cluster operator cluster
+	clusterSpec, err := controller.ClusterDeploymentSpecFromCluster(cluster)
 	if err != nil {
 		return nil, err
 	}
@@ -363,7 +364,7 @@ func (a *Actuator) Update(cluster *clusterv1.Cluster, machine *clusterv1.Machine
 	mLog := clustoplog.WithMachine(a.logger, machine)
 	mLog.Debugf("updating machine")
 
-	clusterSpec, err := controller.ClusterSpecFromClusterAPI(cluster)
+	clusterSpec, err := controller.ClusterDeploymentSpecFromCluster(cluster)
 	if err != nil {
 		return err
 	}

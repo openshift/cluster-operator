@@ -22,7 +22,6 @@ import (
 	"fmt"
 
 	"github.com/golang/glog"
-	log "github.com/sirupsen/logrus"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -37,6 +36,7 @@ import (
 
 	"github.com/openshift/cluster-operator/pkg/api"
 	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	clustoplister "github.com/openshift/cluster-operator/pkg/client/listers_generated/clusteroperator/v1alpha1"
 	capicommon "sigs.k8s.io/cluster-api/pkg/apis/cluster/common"
 	clusterapi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	capilister "sigs.k8s.io/cluster-api/pkg/client/listers_generated/cluster/v1alpha1"
@@ -46,7 +46,9 @@ var (
 	// KeyFunc returns the key identifying a cluster-operator resource.
 	KeyFunc = cache.DeletionHandlingMetaNamespaceKeyFunc
 
-	clusterKind = clusteroperator.SchemeGroupVersion.WithKind("Cluster")
+	clusterDeploymentKind = clusteroperator.SchemeGroupVersion.WithKind("ClusterDeployment")
+
+	clusterKind = clusterapi.SchemeGroupVersion.WithKind("Cluster")
 
 	// ClusterUIDLabel is the label to apply to objects that belong to the cluster
 	// with the UID.
@@ -230,6 +232,50 @@ func MachineSetsForCluster(namespace string, clusterName string, machineSetsList
 	return machineSetsLister.MachineSets(namespace).List(labels.NewSelector().Add(*requirement))
 }
 
+// ClusterDeploymentForCluster retrieves the cluster deployment that owns the cluster.
+func ClusterDeploymentForCluster(cluster *clusterapi.Cluster, clusterDeploymentsLister clustoplister.ClusterDeploymentLister) (*clusteroperator.ClusterDeployment, error) {
+	controller, err := GetObjectController(
+		cluster,
+		clusterDeploymentKind,
+		func(name string) (metav1.Object, error) {
+			return clusterDeploymentsLister.ClusterDeployments(cluster.Namespace).Get(name)
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	if controller == nil {
+		return nil, nil
+	}
+	clusterDeployment, ok := controller.(*clusteroperator.ClusterDeployment)
+	if !ok {
+		return nil, fmt.Errorf("Could not convert controller into a ClusterDeployment")
+	}
+	return clusterDeployment, nil
+}
+
+// ClusterDeploymentForMachineSet retrieves the cluster deployment that owns the machine set.
+func ClusterDeploymentForMachineSet(machineSet *clusterapi.MachineSet, clusterDeploymentsLister clustoplister.ClusterDeploymentLister) (*clusteroperator.ClusterDeployment, error) {
+	controller, err := GetObjectController(
+		machineSet,
+		clusterDeploymentKind,
+		func(name string) (metav1.Object, error) {
+			return clusterDeploymentsLister.ClusterDeployments(machineSet.Namespace).Get(name)
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	if controller == nil {
+		return nil, nil
+	}
+	clusterDeployment, ok := controller.(*clusteroperator.ClusterDeployment)
+	if !ok {
+		return nil, fmt.Errorf("Could not convert controller into a ClusterDeployment")
+	}
+	return clusterDeployment, nil
+}
+
 // MachineSetLabels returns the labels to apply to a machine set belonging to the
 // specified cluster deployment and having the specified short name.
 func MachineSetLabels(clusterDeployment *clusteroperator.ClusterDeployment, machineSetShortName string) map[string]string {
@@ -264,9 +310,9 @@ func AddLabels(obj metav1.Object, additionalLabels map[string]string) {
 	}
 }
 
-// ClusterSpecFromClusterAPI gets the cluster-operator ClusterSpec from the
+// ClusterDeploymentSpecFromCluster gets the cluster-operator ClusterDeploymentSpec from the
 // specified cluster-api Cluster.
-func ClusterSpecFromClusterAPI(cluster *clusterapi.Cluster) (*clusteroperator.ClusterDeploymentSpec, error) {
+func ClusterDeploymentSpecFromCluster(cluster *clusterapi.Cluster) (*clusteroperator.ClusterDeploymentSpec, error) {
 	if cluster.Spec.ProviderConfig.Value == nil {
 		return nil, fmt.Errorf("No Value in ProviderConfig")
 	}
@@ -296,6 +342,26 @@ func ClusterStatusFromClusterAPI(cluster *clusterapi.Cluster) (*clusteroperator.
 		return nil, fmt.Errorf("Unexpected object: %#v", gvk)
 	}
 	return &status.ClusterDeploymentStatus, nil
+}
+
+// ClusterProviderConfigSpecFromClusterDeploymentSpec returns an encoded RawExtension with a ClusterProviderConfigSpec from a cluster deployment spec
+func ClusterProviderConfigSpecFromClusterDeploymentSpec(clusterDeploymentSpec *clusteroperator.ClusterDeploymentSpec) (*runtime.RawExtension, error) {
+	clusterProviderConfigSpec := &clusteroperator.ClusterProviderConfigSpec{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: clusteroperator.SchemeGroupVersion.String(),
+			Kind:       "ClusterProviderConfigSpec",
+		},
+		ClusterDeploymentSpec: *clusterDeploymentSpec,
+	}
+	serializer := jsonserializer.NewSerializer(jsonserializer.DefaultMetaFactory, api.Scheme, api.Scheme, false)
+	var buffer bytes.Buffer
+	err := serializer.Encode(clusterProviderConfigSpec, &buffer)
+	if err != nil {
+		return nil, err
+	}
+	return &runtime.RawExtension{
+		Raw: buffer.Bytes(),
+	}, nil
 }
 
 // ClusterAPIProviderStatusFromClusterStatus gets the cluster-api ProviderStatus
@@ -392,49 +458,28 @@ func ClusterAPIMachineProviderStatusFromAWSMachineProviderStatus(awsStatus *clus
 	}, nil
 }
 
-// PopulateMachineSpec ensures that the MachineSetSpec we use for the machine spec provider config is fully populated with defaults and calculated values based on Cluster Operator specific logic. This can be used both on individual machines, as well as on the MachineTemplateSpec used in MachineSets and MachineDeployments.
-func PopulateMachineSpec(machineSpec *clusterapi.MachineSpec, clusterSpec *clusteroperator.ClusterDeploymentSpec, clusterVersion *clusteroperator.ClusterVersion, mLog log.FieldLogger) error {
-	var msSpec *clusteroperator.MachineSetSpec
-	var err error
-	if machineSpec.ProviderConfig.Value == nil {
-		msSpec = &clusteroperator.MachineSetSpec{}
-	} else {
-		msSpec, err = MachineSetSpecFromClusterAPIMachineSpec(machineSpec)
-		if err != nil {
-			return err
-		}
+// MachineProviderConfigFromMachineSetConfig returns a RawExtension with a machine ProviderConfig from a MachineSetConfig
+func MachineProviderConfigFromMachineSetConfig(machineSetConfig *clusteroperator.MachineSetConfig, clusterDeploymentSpec *clusteroperator.ClusterDeploymentSpec, clusterVersion *clusteroperator.ClusterVersion) (*runtime.RawExtension, error) {
+	msSpec := &clusteroperator.MachineSetSpec{
+		MachineSetConfig: *machineSetConfig,
 	}
-
-	if msSpec.VMImage.AWSImage == nil {
-		mLog.Debugf("no VMImage set, using cluster version")
-
-		vmImage, err := getImage(clusterSpec, clusterVersion)
-		if err != nil {
-			return err
-		}
-		msSpec.VMImage = *vmImage
-		mLog.Debugf("machine spec VMImage set to: %s", *vmImage.AWSImage)
+	vmImage, err := getImage(clusterDeploymentSpec, clusterVersion)
+	if err != nil {
+		return nil, err
 	}
+	msSpec.VMImage = *vmImage
 
 	// use cluster defaults for hardware spec if unset:
-	hwSpec, err := ApplyDefaultMachineSetHardwareSpec(msSpec.Hardware, clusterSpec.DefaultHardwareSpec)
+	hwSpec, err := ApplyDefaultMachineSetHardwareSpec(msSpec.Hardware, clusterDeploymentSpec.DefaultHardwareSpec)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	msSpec.Hardware = hwSpec
 
 	// Copy cluster hardware onto the provider config as well. Needed when deleting a cluster in the actuator.
-	if (msSpec.ClusterHardware == clusteroperator.ClusterHardwareSpec{}) {
-		mLog.Debugf("cluster hardware not set, copying")
-		msSpec.ClusterHardware = clusterSpec.Hardware
-	}
+	msSpec.ClusterHardware = clusterDeploymentSpec.Hardware
 
-	providerConfig, err := ClusterAPIMachineProviderConfigFromMachineSetSpec(msSpec)
-	if err != nil {
-		return err
-	}
-	machineSpec.ProviderConfig.Value = providerConfig
-	return nil
+	return ClusterAPIMachineProviderConfigFromMachineSetSpec(msSpec)
 }
 
 // getImage returns a specific image for the given machine and cluster version.
