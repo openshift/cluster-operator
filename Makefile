@@ -208,7 +208,7 @@ verify: .init .generate_exes verify-generated verify-client-gen verify-mocks
 	@echo Running gofmt:
 	@$(DOCKER_CMD) gofmt -l -s $(TOP_SRC_DIRS)>.out 2>&1||true
 	@[ ! -s .out ] || \
-	  (echo && echo "*** Please 'gofmt' the following:" && \
+	  (echo && echo "*** Please 'gofmt -s -d' on the following:" && \
 	  cat .out && echo && rm .out && false)
 	@rm .out
 	@#

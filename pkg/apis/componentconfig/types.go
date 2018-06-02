@@ -103,6 +103,11 @@ type ControllerManagerConfiguration struct {
 	// sync concurrently. Larger number = more responsive processing but more CPU (and network) load.
 	ConcurrentClusterDeploymentSyncs int32
 
+	// ConcurrentELBMachineSyncs is the number of master machine objects that are
+	// allowed to sync concurrently in the controller which adds them to the internal/external master ELBs.
+	// Larger number = more responsive master machines, but more CPU (and network) load.
+	ConcurrentELBMachineSyncs int32
+
 	// leaderElection defines the configuration of leader election client.
 	LeaderElection componentconfig.LeaderElectionConfiguration
 

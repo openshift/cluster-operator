@@ -63,6 +63,7 @@ import (
 	cov1alpha1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	clusteroperatorinformers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions"
 	"github.com/openshift/cluster-operator/pkg/controller"
+	"github.com/openshift/cluster-operator/pkg/controller/awselb"
 	"github.com/openshift/cluster-operator/pkg/controller/clusterdeployment"
 	"github.com/openshift/cluster-operator/pkg/controller/components"
 	"github.com/openshift/cluster-operator/pkg/controller/deployclusterapi"
@@ -331,6 +332,7 @@ func NewControllerInitializers() map[string]InitFunc {
 	controllers["nodeconfig"] = startNodeConfigController
 	controllers["deployclusterapi"] = startDeployClusterAPIController
 	controllers["clusterdeployment"] = startClusterDeploymentController
+	controllers["awselb"] = startAWSELBController
 
 	return controllers
 }
@@ -601,6 +603,18 @@ func startClusterDeploymentController(ctx ControllerContext) (bool, error) {
 		ctx.ClientBuilder.ClientOrDie("clusteroperator-clusterdeployment-controller"),
 		ctx.ClientBuilder.ClusterAPIClientOrDie("clusteroperator-clusterdeployment-controller"),
 	).Run(int(ctx.Options.ConcurrentClusterDeploymentSyncs), ctx.Stop)
+	return true, nil
+}
+
+func startAWSELBController(ctx ControllerContext) (bool, error) {
+	if !clusterAPIResourcesAvailable(ctx) {
+		return false, nil
+	}
+	go awselb.NewController(
+		ctx.ClusterAPIInformerFactory.Cluster().V1alpha1().Machines(),
+		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-awselb-controller"),
+		ctx.ClientBuilder.ClientOrDie("clusteroperator-awselb-controller"),
+	).Run(int(ctx.Options.ConcurrentELBMachineSyncs), ctx.Stop)
 	return true, nil
 }
 
