@@ -90,7 +90,7 @@ func TestSync(t *testing.T) {
 			name:                "steady state",
 			clusterDeployment:   testClusterDeployment(),
 			clusterVersion:      testClusterVersion(),
-			existingCluster:     testCluster(),
+			existingCluster:     provisionedCluster(),
 			existingMachineSet:  testMasterMachineSet(),
 			expectedCAPIActions: []expectedClientAction{},
 		},
@@ -116,6 +116,23 @@ func TestSync(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:               "update cluster and master machineset",
+			clusterDeployment:  testClusterDeploymentWith3Masters(),
+			clusterVersion:     testClusterVersion(),
+			existingCluster:    testCluster(),
+			existingMachineSet: testMasterMachineSet(),
+			expectedCAPIActions: []expectedClientAction{
+				clusterUpdateAction{
+					clusterDeployment: testClusterDeploymentWith3Masters(),
+				},
+				machineSetUpdateAction{
+					clusterDeployment: testClusterDeploymentWith3Masters(),
+					machineSetConfig:  &testClusterDeploymentWith3Masters().Spec.MachineSets[0].MachineSetConfig,
+					clusterVersion:    testClusterVersion(),
+				},
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -129,7 +146,7 @@ func TestSync(t *testing.T) {
 			ctx.clusterStore.Add(tc.existingCluster)
 		}
 		if tc.existingMachineSet != nil {
-			ctx.clusterStore.Add(tc.existingMachineSet)
+			ctx.machineSetStore.Add(tc.existingMachineSet)
 		}
 		err := ctx.controller.syncClusterDeployment(getKey(clusterDeployment, t))
 		if err != nil {
@@ -146,7 +163,6 @@ func TestSync(t *testing.T) {
 		if tc.expectedClustopActions != nil {
 			validateClientActions(t, tc.name, &ctx.clustopClient.Fake, tc.expectedClustopActions...)
 		}
-
 	}
 }
 
@@ -282,6 +298,12 @@ func alternateRegionClusterDeployment() *clustop.ClusterDeployment {
 	return clusterDeployment
 }
 
+func testClusterDeploymentWith3Masters() *clustop.ClusterDeployment {
+	clusterDeployment := testClusterDeployment()
+	clusterDeployment.Spec.MachineSets[0].Size = 3
+	return clusterDeployment
+}
+
 func testCluster() *capi.Cluster {
 	clusterDeployment := testClusterDeployment()
 	cluster, _ := buildCluster(clusterDeployment)
@@ -387,6 +409,42 @@ func (a clusterCreatedAction) validate(t *testing.T, testName string, action cli
 	return true
 }
 
+type clusterUpdateAction struct {
+	clusterDeployment *clustop.ClusterDeployment
+}
+
+func (a clusterUpdateAction) resource() schema.GroupVersionResource {
+	return capi.SchemeGroupVersion.WithResource("clusters")
+}
+
+func (a clusterUpdateAction) verb() string {
+	return "update"
+}
+
+func (a clusterUpdateAction) validate(t *testing.T, testName string, action clientgotesting.Action) bool {
+	updateAction, ok := action.(clientgotesting.UpdateAction)
+	if !ok {
+		t.Errorf("%s: action is not a update action: %t", testName, action)
+		return false
+	}
+	updatedObject := updateAction.GetObject()
+	cluster, ok := updatedObject.(*capi.Cluster)
+	if !ok {
+		t.Errorf("%s: updated object is not a cluster: %t", testName, updatedObject)
+		return false
+	}
+	providerConfig, err := controller.ClusterProviderConfigSpecFromClusterDeploymentSpec(&a.clusterDeployment.Spec)
+	if err != nil {
+		t.Errorf("%s: cannot obtain provider config from cluster deployment: %v", testName, err)
+		return false
+	}
+	if !bytes.Equal(cluster.Spec.ProviderConfig.Value.Raw, providerConfig.Raw) {
+		t.Errorf("%s: provider config of updated cluster does not match expected deployment spec", testName)
+		return false
+	}
+	return true
+}
+
 type machineSetCreatedAction struct {
 	clusterDeployment *clustop.ClusterDeployment
 	clusterVersion    *clustop.ClusterVersion
@@ -432,6 +490,51 @@ func (a machineSetCreatedAction) validate(t *testing.T, testName string, action 
 		t.Errorf("%s: provider config of created machine set does not match the one calculated from the cluster deployment spec", testName)
 		return false
 	}
+	return true
+}
+
+type machineSetUpdateAction struct {
+	clusterDeployment *clustop.ClusterDeployment
+	machineSetConfig  *clustop.MachineSetConfig
+	clusterVersion    *clustop.ClusterVersion
+}
+
+func (a machineSetUpdateAction) resource() schema.GroupVersionResource {
+	return capi.SchemeGroupVersion.WithResource("machinesets")
+}
+
+func (a machineSetUpdateAction) verb() string {
+	return "update"
+}
+
+func (a machineSetUpdateAction) validate(t *testing.T, testName string, action clientgotesting.Action) bool {
+	updateAction, ok := action.(clientgotesting.UpdateAction)
+	if !ok {
+		t.Errorf("%s: action is not an update action: %t", testName, action)
+	}
+
+	updatedObject := updateAction.GetObject()
+	machineSet, ok := updatedObject.(*capi.MachineSet)
+	if !ok {
+		t.Errorf("%s: updated object is not a machineset: %t", testName, updatedObject)
+		return false
+	}
+
+	if *machineSet.Spec.Replicas != int32(a.machineSetConfig.Size) {
+		t.Errorf("%s: updated machineset does not have the expected replica size: %d", testName, machineSet.Spec.Replicas)
+		return false
+	}
+
+	providerConfig, err := controller.MachineProviderConfigFromMachineSetConfig(a.machineSetConfig, &a.clusterDeployment.Spec, a.clusterVersion)
+	if err != nil {
+		t.Errorf("%s: unable to get provider config from machineset config: %v", testName, err)
+		return false
+	}
+	if !bytes.Equal(machineSet.Spec.Template.Spec.ProviderConfig.Value.Raw, providerConfig.Raw) {
+		t.Errorf("%s: updated machineset's provider config is not a the expected value", testName)
+		return false
+	}
+
 	return true
 }
 
