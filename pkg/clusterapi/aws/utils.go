@@ -21,19 +21,10 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
 	clusterv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
-	"github.com/aws/aws-sdk-go/service/elb"
-	"github.com/aws/aws-sdk-go/service/elb/elbiface"
-
-	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 )
 
 // SortInstances will examine the given slice of instances and return the current active instance for
@@ -82,7 +73,7 @@ func chooseNewest(instance1, instance2 *ec2.Instance) *ec2.Instance {
 
 // GetInstance returns the AWS instance for a given machine. If multiple instances match our machine,
 // the most recently launched will be returned. If no instance exists, an error will be returned.
-func GetInstance(machine *clusterv1.Machine, client ec2iface.EC2API) (*ec2.Instance, error) {
+func GetInstance(machine *clusterv1.Machine, client AWSClient) (*ec2.Instance, error) {
 	instances, err := GetRunningInstances(machine, client)
 	if err != nil {
 		return nil, err
@@ -97,7 +88,7 @@ func GetInstance(machine *clusterv1.Machine, client ec2iface.EC2API) (*ec2.Insta
 
 // GetRunningInstances returns all running instances that have a tag matching our machine name,
 // and cluster ID.
-func GetRunningInstances(machine *clusterv1.Machine, client ec2iface.EC2API) ([]*ec2.Instance, error) {
+func GetRunningInstances(machine *clusterv1.Machine, client AWSClient) ([]*ec2.Instance, error) {
 
 	machineName := machine.Name
 
@@ -138,48 +129,8 @@ func GetRunningInstances(machine *clusterv1.Machine, client ec2iface.EC2API) ([]
 	return instances, nil
 }
 
-// CreateAWSClients creates clients for the AWS services we use, using either the cluster AWS credentials secret
-// if defined (i.e. in the root cluster), otherwise the IAM profile of the master where the
-// actuator will run. (target clusters)
-func CreateAWSClients(kubeClient kubernetes.Interface, mSpec *cov1.MachineSetSpec, namespace, region string) (ec2iface.EC2API, elbiface.ELBAPI, error) {
-	awsConfig := &aws.Config{Region: aws.String(region)}
-
-	if mSpec.ClusterHardware.AWS == nil {
-		return nil, nil, fmt.Errorf("no AWS cluster hardware set on machine spec")
-	}
-
-	// If the cluster specifies an AWS credentials secret and it exists, use it for our client credentials:
-	if mSpec.ClusterHardware.AWS.AccountSecret.Name != "" {
-		secret, err := kubeClient.CoreV1().Secrets(namespace).Get(
-			mSpec.ClusterHardware.AWS.AccountSecret.Name, metav1.GetOptions{})
-		if err != nil {
-			return nil, nil, err
-		}
-		accessKeyID, ok := secret.Data[awsCredsSecretIDKey]
-		if !ok {
-			return nil, nil, fmt.Errorf("AWS credentials secret %v did not contain key %v",
-				mSpec.ClusterHardware.AWS.AccountSecret.Name, awsCredsSecretIDKey)
-		}
-		secretAccessKey, ok := secret.Data[awsCredsSecretAccessKey]
-		if !ok {
-			return nil, nil, fmt.Errorf("AWS credentials secret %v did not contain key %v",
-				mSpec.ClusterHardware.AWS.AccountSecret.Name, awsCredsSecretAccessKey)
-		}
-
-		awsConfig.Credentials = credentials.NewStaticCredentials(
-			string(accessKeyID), string(secretAccessKey), "")
-	}
-
-	// Otherwise default to relying on the IAM role of the masters where the actuator is running:
-	s, err := session.NewSession(awsConfig)
-	if err != nil {
-		return nil, nil, err
-	}
-	return ec2.New(s), elb.New(s), nil
-}
-
 // TerminateInstances terminates all provided instances with a single EC2 request.
-func TerminateInstances(client ec2iface.EC2API, instances []*ec2.Instance, mLog log.FieldLogger) error {
+func TerminateInstances(client AWSClient, instances []*ec2.Instance, mLog log.FieldLogger) error {
 	instanceIDs := []*string{}
 	// Cleanup all older instances:
 	for _, instance := range instances {

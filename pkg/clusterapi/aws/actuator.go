@@ -132,7 +132,7 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 
 	region := clusterSpec.Hardware.AWS.Region
 	mLog.Debugf("Obtaining EC2 client for region %q", region)
-	client, _, err := CreateAWSClients(a.kubeClient, coMachineSetSpec, machine.Namespace, region)
+	client, err := NewAWSClient(a.kubeClient, coMachineSetSpec, machine.Namespace, region)
 	if err != nil {
 		return nil, fmt.Errorf("unable to obtain EC2 client: %v", err)
 	}
@@ -334,7 +334,7 @@ func (a *Actuator) DeleteMachine(machine *clusterv1.Machine) error {
 		return fmt.Errorf("machine does not contain AWS hardware spec")
 	}
 	region := coMachineSetSpec.ClusterHardware.AWS.Region
-	client, _, err := CreateAWSClients(a.kubeClient, coMachineSetSpec, machine.Namespace, region)
+	client, err := NewAWSClient(a.kubeClient, coMachineSetSpec, machine.Namespace, region)
 	if err != nil {
 		return fmt.Errorf("error getting EC2 client: %v", err)
 	}
@@ -374,7 +374,7 @@ func (a *Actuator) Update(cluster *clusterv1.Cluster, machine *clusterv1.Machine
 
 	region := clusterSpec.Hardware.AWS.Region
 	mLog.WithField("region", region).Debugf("obtaining EC2 client for region")
-	client, _, err := CreateAWSClients(a.kubeClient, coMachineSetSpec, machine.Namespace, region)
+	client, err := NewAWSClient(a.kubeClient, coMachineSetSpec, machine.Namespace, region)
 	if err != nil {
 		return fmt.Errorf("unable to obtain EC2 client: %v", err)
 	}
@@ -429,7 +429,7 @@ func (a *Actuator) Exists(cluster *clusterv1.Cluster, machine *clusterv1.Machine
 		return false, fmt.Errorf("machineSet does not contain AWS hardware spec")
 	}
 	region := coMachineSetSpec.ClusterHardware.AWS.Region
-	client, _, err := CreateAWSClients(a.kubeClient, coMachineSetSpec, machine.Namespace, region)
+	client, err := NewAWSClient(a.kubeClient, coMachineSetSpec, machine.Namespace, region)
 	if err != nil {
 		return false, fmt.Errorf("error getting EC2 client: %v", err)
 	}
