@@ -32,9 +32,9 @@ import (
 	"sigs.k8s.io/cluster-api/cloud/google/config"
 )
 
-var apiServerImage = "gcr.io/k8s-cluster-api/cluster-apiserver:0.0.4"
-var controllerManagerImage = "gcr.io/k8s-cluster-api/controller-manager:0.0.4"
-var machineControllerImage = "gcr.io/k8s-cluster-api/gce-machine-controller:0.0.11"
+var apiServerImage = "gcr.io/k8s-cluster-api/cluster-apiserver:0.0.5"
+var controllerManagerImage = "gcr.io/k8s-cluster-api/controller-manager:0.0.6"
+var machineControllerImage = "gcr.io/k8s-cluster-api/gce-machine-controller:0.0.13"
 
 func init() {
 	if img, ok := os.LookupEnv("MACHINE_CONTROLLER_IMAGE"); ok {
@@ -86,7 +86,7 @@ func getApiServerCerts() (*caCertParams, error) {
 	return certParams, nil
 }
 
-func CreateApiServerAndController(token string) error {
+func CreateApiServerAndController() error {
 	tmpl, err := template.New("config").Parse(config.ClusterAPIDeployConfigTemplate)
 	if err != nil {
 		return err
@@ -99,7 +99,6 @@ func CreateApiServerAndController(token string) error {
 	}
 
 	type params struct {
-		Token                  string
 		APIServerImage         string
 		ControllerManagerImage string
 		MachineControllerImage string
@@ -110,7 +109,6 @@ func CreateApiServerAndController(token string) error {
 
 	var tmplBuf bytes.Buffer
 	err = tmpl.Execute(&tmplBuf, params{
-		Token:                  token,
 		APIServerImage:         apiServerImage,
 		ControllerManagerImage: controllerManagerImage,
 		MachineControllerImage: machineControllerImage,
@@ -129,7 +127,7 @@ func CreateApiServerAndController(token string) error {
 			return nil
 		} else {
 			if tries < maxTries-1 {
-				glog.Info("Error scheduling machine controller. Will retry...\n")
+				glog.Infof("Retrying scheduling machine controller after encountering error: %v\n", err)
 				time.Sleep(3 * time.Second)
 			}
 		}

@@ -649,12 +649,10 @@ func buildMasterMachineSet(clusterDeployment *clustop.ClusterDeployment, cluster
 		machineSet.Labels = make(map[string]string)
 	}
 	machineSet.Labels[clusterDeploymentLabel] = clusterDeployment.Name
-	machineSet.Labels[clustop.ClusterNameLabel] = cluster.Name
 	machineSet.OwnerReferences = []metav1.OwnerReference{*metav1.NewControllerRef(clusterDeployment, controllerKind)}
 	machineSetLabels := map[string]string{
-		machineSetNameLabel:      machineSet.Name,
-		clusterDeploymentLabel:   clusterDeployment.Name,
-		clustop.ClusterNameLabel: cluster.Name,
+		machineSetNameLabel:    machineSet.Name,
+		clusterDeploymentLabel: clusterDeployment.Name,
 	}
 	machineSet.Spec.Selector.MatchLabels = machineSetLabels
 	replicas := int32(machineSetConfig.Size)
@@ -662,6 +660,7 @@ func buildMasterMachineSet(clusterDeployment *clustop.ClusterDeployment, cluster
 	machineSet.Spec.Template.Labels = machineSetLabels
 	machineSet.Spec.Template.Spec.Labels = machineSetLabels
 	machineSet.Spec.Template.Spec.Roles = []clustercommon.MachineRole{clustercommon.MasterRole}
+	machineSet.Spec.Template.Spec.ClusterRef.Name = cluster.Name
 
 	providerConfig, err := controller.MachineProviderConfigFromMachineSetConfig(machineSetConfig, &clusterDeployment.Spec, clusterVersion)
 	if err != nil {

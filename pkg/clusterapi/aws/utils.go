@@ -101,11 +101,6 @@ func GetRunningInstances(machine *clusterv1.Machine, client ec2iface.EC2API) ([]
 
 	machineName := machine.Name
 
-	clusterID, ok := getClusterID(machine)
-	if !ok {
-		return []*ec2.Instance{}, fmt.Errorf("unable to get cluster ID for machine: %s", machine.Name)
-	}
-
 	// Query instances with our machine's name, and in running/pending state.
 	request := &ec2.DescribeInstancesInput{
 		Filters: []*ec2.Filter{
@@ -119,7 +114,7 @@ func GetRunningInstances(machine *clusterv1.Machine, client ec2iface.EC2API) ([]
 			},
 			{
 				Name:   aws.String("tag:clusterid"),
-				Values: []*string{&clusterID},
+				Values: []*string{aws.String(machine.Spec.ClusterRef.Name)},
 			},
 		},
 	}

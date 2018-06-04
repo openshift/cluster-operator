@@ -129,9 +129,9 @@ objects:
   metadata:
     name: ${CLUSTER_NAME}-master
     namespace: ${CLUSTER_NAMESPACE}
-    labels:
-      clusteroperator.openshift.io/cluster: ${CLUSTER_NAME}
   spec:
+    clusterRef:
+      name: ${CLUSTER_NAME}
     replicas: 1
     selector:
       matchLabels:
@@ -176,6 +176,8 @@ objects:
     #name: ${CLUSTER_NAME}-infra
     #namespace: ${CLUSTER_NAMESPACE}
   #spec:
+    #clusterRef:
+      #name: ${CLUSTER_NAME}
     #replicas: 1
     #selector:
       #matchLabels:
@@ -195,6 +197,8 @@ objects:
     #name: ${CLUSTER_NAME}-compute
     #namespace: ${CLUSTER_NAMESPACE}
   #spec:
+    #clusterRef:
+      #name: ${CLUSTER_NAME}
     #replicas: 1
     #selector:
       #matchLabels:

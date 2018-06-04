@@ -186,20 +186,15 @@ type MachineSpec struct {
 	Roles          []clustercommon.MachineRole
 	Versions       MachineVersionInfo
 	ConfigSource   *corev1.NodeConfigSource
+	ClusterRef     corev1.LocalObjectReference
 }
 
 type ProviderConfigSource struct {
 }
 
 type MachineVersionInfo struct {
-	Kubelet          string
-	ControlPlane     string
-	ContainerRuntime ContainerRuntimeInfo
-}
-
-type ContainerRuntimeInfo struct {
-	Name    string
-	Version string
+	Kubelet      string
+	ControlPlane string
 }
 
 type ClusterNetworkingConfig struct {
