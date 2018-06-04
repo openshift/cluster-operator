@@ -607,14 +607,26 @@ func (c *Controller) syncControlPlane(clusterDeployment *clustop.ClusterDeployme
 	if !ok {
 		return fmt.Errorf("cluster deployment %s/%s does not have a master machineSetConfig", clusterDeployment.Namespace, clusterDeployment.Name)
 	}
+
+	needsUpdate := false
+	updatedMachineSet := machineSet.DeepCopy()
+
+	machineSetSize := int32(machineSetConfig.Size)
+	if machineSet.Spec.Replicas == nil || *machineSet.Spec.Replicas != machineSetSize {
+		needsUpdate = true
+		updatedMachineSet.Spec.Replicas = &machineSetSize
+	}
+
 	specProviderConfig, err := controller.MachineProviderConfigFromMachineSetConfig(machineSetConfig, &clusterDeployment.Spec, clusterVersion)
 	if err != nil {
 		return fmt.Errorf("cannot create a machine providerconfig from machineset config for cluster deployment %s/%s: %v", clusterDeployment.Namespace, clusterDeployment.Name, err)
 	}
 	if !bytes.Equal(machineSet.Spec.Template.Spec.ProviderConfig.Value.Raw, specProviderConfig.Raw) {
 		logger.Infof("master machineset config has changed, updating")
-		updatedMachineSet := machineSet.DeepCopy()
+		needsUpdate = true
 		updatedMachineSet.Spec.Template.Spec.ProviderConfig.Value = specProviderConfig
+	}
+	if needsUpdate {
 		_, err := c.capiClient.ClusterV1alpha1().MachineSets(updatedMachineSet.Namespace).Update(updatedMachineSet)
 		if err != nil {
 			return fmt.Errorf("error updating machineset %s/%s: %v", machineSet.Namespace, machineSet.Name, err)
