@@ -73,7 +73,7 @@ func chooseNewest(instance1, instance2 *ec2.Instance) *ec2.Instance {
 
 // GetInstance returns the AWS instance for a given machine. If multiple instances match our machine,
 // the most recently launched will be returned. If no instance exists, an error will be returned.
-func GetInstance(machine *clusterv1.Machine, client AWSClient) (*ec2.Instance, error) {
+func GetInstance(machine *clusterv1.Machine, client Client) (*ec2.Instance, error) {
 	instances, err := GetRunningInstances(machine, client)
 	if err != nil {
 		return nil, err
@@ -88,7 +88,7 @@ func GetInstance(machine *clusterv1.Machine, client AWSClient) (*ec2.Instance, e
 
 // GetRunningInstances returns all running instances that have a tag matching our machine name,
 // and cluster ID.
-func GetRunningInstances(machine *clusterv1.Machine, client AWSClient) ([]*ec2.Instance, error) {
+func GetRunningInstances(machine *clusterv1.Machine, client Client) ([]*ec2.Instance, error) {
 
 	machineName := machine.Name
 
@@ -130,7 +130,7 @@ func GetRunningInstances(machine *clusterv1.Machine, client AWSClient) ([]*ec2.I
 }
 
 // TerminateInstances terminates all provided instances with a single EC2 request.
-func TerminateInstances(client AWSClient, instances []*ec2.Instance, mLog log.FieldLogger) error {
+func TerminateInstances(client Client, instances []*ec2.Instance, mLog log.FieldLogger) error {
 	instanceIDs := []*string{}
 	// Cleanup all older instances:
 	for _, instance := range instances {

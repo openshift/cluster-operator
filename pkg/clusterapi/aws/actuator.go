@@ -58,7 +58,8 @@ const (
 	ec2InstanceIDNotFoundCode = "InvalidInstanceID.NotFound"
 )
 
-// Instance state constants
+// Instance tag constants
+// TODO: these do not match the case of the clustop or capi role names
 const (
 	hostTypeNode       = "node"
 	hostTypeMaster     = "master"
@@ -71,21 +72,23 @@ var stateMask int64 = 0xFF
 
 // Actuator is the AWS-specific actuator for the Cluster API machine controller
 type Actuator struct {
-	kubeClient              *kubernetes.Clientset
-	clusterClient           *clusterclient.Clientset
+	kubeClient              kubernetes.Interface
+	clusterClient           clusterclient.Interface
 	codecFactory            serializer.CodecFactory
 	defaultAvailabilityZone string
 	logger                  *log.Entry
+	clientBuilder           func(kubeClient kubernetes.Interface, mSpec *cov1.MachineSetSpec, namespace, region string) (Client, error)
 }
 
 // NewActuator returns a new AWS Actuator
-func NewActuator(kubeClient *kubernetes.Clientset, clusterClient *clusterclient.Clientset, logger *log.Entry, defaultAvailabilityZone string) *Actuator {
+func NewActuator(kubeClient kubernetes.Interface, clusterClient clusterclient.Interface, logger *log.Entry, defaultAvailabilityZone string) *Actuator {
 	actuator := &Actuator{
 		kubeClient:              kubeClient,
 		clusterClient:           clusterClient,
 		codecFactory:            coapi.Codecs,
 		defaultAvailabilityZone: defaultAvailabilityZone,
 		logger:                  logger,
+		clientBuilder:           NewClient,
 	}
 	return actuator
 }
@@ -94,15 +97,10 @@ func NewActuator(kubeClient *kubernetes.Clientset, clusterClient *clusterclient.
 func (a *Actuator) Create(cluster *clusterv1.Cluster, machine *clusterv1.Machine) error {
 	mLog := clustoplog.WithMachine(a.logger, machine)
 	mLog.Info("creating machine")
-	result, err := a.CreateMachine(cluster, machine)
+	instance, err := a.CreateMachine(cluster, machine)
 	if err != nil {
 		mLog.Errorf("error creating machine: %v", err)
 		return err
-	}
-
-	var instance *ec2.Instance
-	if result != nil && len(result.Instances) > 0 {
-		instance = result.Instances[0]
 	}
 
 	err = a.updateStatus(machine, instance, mLog)
@@ -113,7 +111,7 @@ func (a *Actuator) Create(cluster *clusterv1.Cluster, machine *clusterv1.Machine
 }
 
 // CreateMachine starts a new AWS instance as described by the cluster and machine resources
-func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.Machine) (*ec2.Reservation, error) {
+func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.Machine) (*ec2.Instance, error) {
 	mLog := clustoplog.WithMachine(a.logger, machine)
 	// Extract cluster operator cluster
 	clusterSpec, err := controller.ClusterDeploymentSpecFromCluster(cluster)
@@ -132,7 +130,7 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 
 	region := clusterSpec.Hardware.AWS.Region
 	mLog.Debugf("Obtaining EC2 client for region %q", region)
-	client, err := NewAWSClient(a.kubeClient, coMachineSetSpec, machine.Namespace, region)
+	client, err := a.clientBuilder(a.kubeClient, coMachineSetSpec, machine.Namespace, region)
 	if err != nil {
 		return nil, fmt.Errorf("unable to obtain EC2 client: %v", err)
 	}
@@ -192,29 +190,14 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 	}
 
 	// Determine security groups
-	var groupName, groupNameK8s string
-	if coMachineSetSpec.Infra {
-		groupName = vpcName + "_infra"
-		groupNameK8s = vpcName + "_infra_k8s"
-	} else {
-		groupName = vpcName + "_compute"
-		groupNameK8s = vpcName + "_compute_k8s"
-	}
-	securityGroupNames := []*string{&vpcName, &groupName, &groupNameK8s}
-	sgNameFilter := "group-name"
-	describeSecurityGroupsRequest := ec2.DescribeSecurityGroupsInput{
-		Filters: []*ec2.Filter{
-			{Name: aws.String("vpc-id"), Values: []*string{&vpcID}},
-			{Name: &sgNameFilter, Values: securityGroupNames},
-		},
-	}
-	describeSecurityGroupsResult, err := client.DescribeSecurityGroups(&describeSecurityGroupsRequest)
+	describeSecurityGroupsInput := buildDescribeSecurityGroupsInput(vpcID, vpcName, controller.MachineHasRole(machine, capicommon.MasterRole), coMachineSetSpec.Infra)
+	describeSecurityGroupsOutput, err := client.DescribeSecurityGroups(describeSecurityGroupsInput)
 	if err != nil {
 		return nil, err
 	}
 
 	var securityGroupIds []*string
-	for _, g := range describeSecurityGroupsResult.SecurityGroups {
+	for _, g := range describeSecurityGroupsOutput.SecurityGroups {
 		groupID := *g.GroupId
 		securityGroupIds = append(securityGroupIds, &groupID)
 	}
@@ -307,7 +290,11 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 		return nil, fmt.Errorf("cannot create EC2 instance: %v", err)
 	}
 
-	return runResult, nil
+	if runResult == nil || len(runResult.Instances) != 1 {
+		mLog.Errorf("unexpected reservation creating instances: %v", runResult)
+		return nil, fmt.Errorf("unexpected reservation creating instance")
+	}
+	return runResult.Instances[0], nil
 }
 
 // Delete deletes a machine and updates its finalizer
@@ -334,7 +321,7 @@ func (a *Actuator) DeleteMachine(machine *clusterv1.Machine) error {
 		return fmt.Errorf("machine does not contain AWS hardware spec")
 	}
 	region := coMachineSetSpec.ClusterHardware.AWS.Region
-	client, err := NewAWSClient(a.kubeClient, coMachineSetSpec, machine.Namespace, region)
+	client, err := a.clientBuilder(a.kubeClient, coMachineSetSpec, machine.Namespace, region)
 	if err != nil {
 		return fmt.Errorf("error getting EC2 client: %v", err)
 	}
@@ -374,7 +361,7 @@ func (a *Actuator) Update(cluster *clusterv1.Cluster, machine *clusterv1.Machine
 
 	region := clusterSpec.Hardware.AWS.Region
 	mLog.WithField("region", region).Debugf("obtaining EC2 client for region")
-	client, err := NewAWSClient(a.kubeClient, coMachineSetSpec, machine.Namespace, region)
+	client, err := a.clientBuilder(a.kubeClient, coMachineSetSpec, machine.Namespace, region)
 	if err != nil {
 		return fmt.Errorf("unable to obtain EC2 client: %v", err)
 	}
@@ -429,7 +416,7 @@ func (a *Actuator) Exists(cluster *clusterv1.Cluster, machine *clusterv1.Machine
 		return false, fmt.Errorf("machineSet does not contain AWS hardware spec")
 	}
 	region := coMachineSetSpec.ClusterHardware.AWS.Region
-	client, err := NewAWSClient(a.kubeClient, coMachineSetSpec, machine.Namespace, region)
+	client, err := a.clientBuilder(a.kubeClient, coMachineSetSpec, machine.Namespace, region)
 	if err != nil {
 		return false, fmt.Errorf("error getting EC2 client: %v", err)
 	}
@@ -541,4 +528,27 @@ func getBootstrapKubeconfig() (string, error) {
 
 func iamRole(cluster *clusterv1.Cluster) string {
 	return fmt.Sprintf("%s", defaultIAMRole)
+}
+
+func buildDescribeSecurityGroupsInput(vpcID, vpcName string, isMaster, isInfra bool) *ec2.DescribeSecurityGroupsInput {
+	groupNames := []*string{aws.String(vpcName)}
+	if isMaster {
+		groupNames = append(groupNames, aws.String(vpcName+"_master"))
+		groupNames = append(groupNames, aws.String(vpcName+"_master_k8s"))
+	}
+	if isInfra {
+		groupNames = append(groupNames, aws.String(vpcName+"_infra"))
+		groupNames = append(groupNames, aws.String(vpcName+"_infra_k8s"))
+	}
+	if !isMaster && !isInfra {
+		groupNames = append(groupNames, aws.String(vpcName+"_compute"))
+		groupNames = append(groupNames, aws.String(vpcName+"_compute_k8s"))
+	}
+
+	return &ec2.DescribeSecurityGroupsInput{
+		Filters: []*ec2.Filter{
+			{Name: aws.String("vpc-id"), Values: []*string{&vpcID}},
+			{Name: aws.String("group-name"), Values: groupNames},
+		},
+	}
 }

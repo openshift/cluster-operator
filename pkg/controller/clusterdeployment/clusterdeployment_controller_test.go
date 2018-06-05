@@ -306,7 +306,7 @@ func testClusterDeploymentWith3Masters() *clustop.ClusterDeployment {
 
 func testCluster() *capi.Cluster {
 	clusterDeployment := testClusterDeployment()
-	cluster, _ := buildCluster(clusterDeployment)
+	cluster, _ := BuildCluster(clusterDeployment)
 	return cluster
 }
 

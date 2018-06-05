@@ -59,7 +59,7 @@ func createClusterMachine(name string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Machine creation was successful! InstanceID: %s\n", *result.Instances[0].InstanceId)
+	fmt.Printf("Machine creation was successful! InstanceID: %s\n", *result.InstanceId)
 	return nil
 }
 

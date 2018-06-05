@@ -535,7 +535,7 @@ func (c *Controller) syncCluster(clusterDeployment *clustop.ClusterDeployment, l
 
 	if cluster == nil {
 		// cluster does not exist, it needs to be created
-		cluster, err = buildCluster(clusterDeployment)
+		cluster, err = BuildCluster(clusterDeployment)
 		if err != nil {
 			return nil, fmt.Errorf("cannot build cluster for cluster deployment %s/%s: %v", clusterDeployment.Namespace, clusterDeployment.Name, err)
 		}
@@ -671,7 +671,8 @@ func buildMasterMachineSet(clusterDeployment *clustop.ClusterDeployment, cluster
 	return machineSet, nil
 }
 
-func buildCluster(clusterDeployment *clustop.ClusterDeployment) (*capi.Cluster, error) {
+// BuildCluster builds a cluster for the given cluster deployment.
+func BuildCluster(clusterDeployment *clustop.ClusterDeployment) (*capi.Cluster, error) {
 	cluster := &capi.Cluster{}
 	cluster.Name = clusterDeployment.Name
 	cluster.Labels = clusterDeployment.Labels

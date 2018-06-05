@@ -271,7 +271,7 @@ func (c *Controller) syncMachine(key string) error {
 
 	region := coMachineSetSpec.ClusterHardware.AWS.Region
 	mLog.Debugf("Obtaining AWS clients for region %q", region)
-	client, err := clustopaws.NewAWSClient(c.kubeClient, coMachineSetSpec, machine.Namespace, region)
+	client, err := clustopaws.NewClient(c.kubeClient, coMachineSetSpec, machine.Namespace, region)
 	if err != nil {
 		return err
 	}
@@ -297,7 +297,7 @@ func (c *Controller) syncMachine(key string) error {
 func (c *Controller) addInstanceToELB(
 	instance *ec2.Instance,
 	elbName string,
-	client clustopaws.AWSClient,
+	client clustopaws.Client,
 	mLog log.FieldLogger) error {
 
 	registerInput := elb.RegisterInstancesWithLoadBalancerInput{
