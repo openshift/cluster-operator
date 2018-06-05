@@ -12,11 +12,9 @@ parameters:
 - name: ANSIBLE_IMAGE
   displayName: Openshift Ansible Image
   description: Name and tag of the Openshift Ansible image to use to run the ansible jobs
-  value: "cluster-operator-ansible:canary"
 - name: ANSIBLE_IMAGE_PULL_POLICY
   displayName: Openshift Ansible Image Pull Policy
   description: Policy to use when pulling the Openshift Ansible image
-  value: "Always"
 - name: CLUSTER_API_IMAGE
   displayName: Cluster API Image
   description: Name and tag of the image to use for the Cluster API on the target cluster
@@ -49,30 +47,8 @@ objects:
     deploymentType: origin
     version: "v3.10.0"
     # TODO: Update after jdiaz incoming work is merged:
-    openshiftAnsibleImage: cluster-operator-ansible:canary
-    openshiftAnsibleImagePullPolicy: Never
-    clusterAPIImage: "${CLUSTER_API_IMAGE}"
-    clusterAPIImagePullPolicy: "${CLUSTER_API_IMAGE_PULL_POLICY}"
-    machineControllerImage: "${MACHINE_CONTROLLER_IMAGE}"
-    machineControllerImagePullPolicy: "${MACHINE_CONTROLLER_IMAGE_PULL_POLICY}"
-
-
-- apiVersion: clusteroperator.openshift.io/v1alpha1
-  kind: ClusterVersion
-  metadata:
-    name: origin-v3-10-fake
-    namespace: ${CLUSTER_VERSION_NS}
-  spec:
-    imageFormat: "openshift/origin-${component}:v3.10.0"
-    vmImages:
-      awsVMImages:
-        regionAMIs:
-        - region: us-east-1
-          ami: ami-0e8468df91f4e8b6c
-    deploymentType: origin
-    version: "v3.10.0"
-    openshiftAnsibleImage: fake-openshift-ansible:canary
-    openshiftAnsibleImagePullPolicy: Never
+    openshiftAnsibleImage: "${ANSIBLE_IMAGE}"
+    openshiftAnsibleImagePullPolicy: "${ANSIBLE_IMAGE_PULL_POLICY}"
     clusterAPIImage: "${CLUSTER_API_IMAGE}"
     clusterAPIImagePullPolicy: "${CLUSTER_API_IMAGE_PULL_POLICY}"
     machineControllerImage: "${MACHINE_CONTROLLER_IMAGE}"

@@ -6,28 +6,43 @@
 # devel specific tasks.
 ---
 
+- hosts: localhost
+  connection: local
+  gather_facts: no
+  tasks:
+  - name: set default variable values
+    set_fact:
+      # Namespace to deploy CO to:
+      cluster_operator_namespace: "{{ cluster_operator_namespace | default('openshift-cluster-operator') }}"
+
+      # Namespace for cluster versions:
+      cluster_version_namespace: "{{ cluster_version_namespace | default('openshift-cluster-operator') }}"
+
+      # Images to deploy on target cluster
+      cluster_api_image: "{{ cluster_api_image | default('registry.svc.ci.openshift.org/openshift-cluster-operator/kubernetes-cluster-api:latest') }}"
+      cluster_api_image_pull_policy: "{{ cluster_api_image_pull_policy | default('Always') }}"
+      machine_controller_image: "{{ machine_controller_image | default('registry.svc.ci.openshift.org/openshift-cluster-operator/cluster-operator:latest') }}"
+      machine_controller_image_pull_policy: "{{ machine_controller_image_pull_policy | default('Always') }}"
+
+      fake_deployment: "{{ fake_deployment | default(True) }}"
+      ansible_image: "{{ ansible_image | default('cluster-operator-ansible:canary') }}"
+      ansible_image_pull_policy: "{{ ansible_image_pull_policy | default('Never') }}"
+
+      # Normally we assume to build and push images for devel deployments:
+      push_images: "{{ push_images | default(True) }}"
+
 # Perform a normal deployment:
 - import_playbook: deploy-playbook.yml
+
 
 - hosts: localhost
   connection: local
   gather_facts: no
-  vars:
-    # Namespace to deploy CO to:
-    cluster_operator_namespace: "openshift-cluster-operator"
-
-    # Namespace for cluster versions:
-    cluster_version_namespace: "openshift-cluster-operator"
-
-    # Images to deploy on target cluster
-    cluster_api_image: "registry.svc.ci.openshift.org/openshift-cluster-operator/kubernetes-cluster-api:latest"
-    cluster_api_image_pull_policy: "Always"
-    machine_controller_image: "registry.svc.ci.openshift.org/openshift-cluster-operator/cluster-operator:latest"
-    machine_controller_image_pull_policy: "Always"
-
-    # Normally we assume to build and push images for devel deployments:
-    push_images: True
   tasks:
+  - name: set ansible image name
+    set_fact:
+      ansible_image: "fake-openshift-ansible:canary"
+    when: fake_deployment | bool
 
   - name: build images off latest source
     shell: make images
@@ -66,6 +81,8 @@
         CLUSTER_API_IMAGE_PULL_POLICY: "{{ cluster_api_image_pull_policy }}"
         MACHINE_CONTROLLER_IMAGE: "{{ machine_controller_image }}"
         MACHINE_CONTROLLER_IMAGE_PULL_POLICY: "{{ machine_controller_image_pull_policy }}"
+        ANSIBLE_IMAGE: "{{ ansible_image }}"
+        ANSIBLE_IMAGE_PULL_POLICY: "{{ ansible_image_pull_policy }}"
     register: cluster_versions_reg
 
   - name: create/update cluster versions
@@ -86,3 +103,12 @@
       msg: 'Unable to create cluster versions'
     when: not create_versions_result is succeeded
 
+  - name: describe deployment
+    debug:
+      msg: "WARNING: You have created a cluster operator deployment with fake images. Clusters will not be created on your cloud provider."
+    when: fake_deployment | bool
+
+  - name: describe deployment
+    debug:
+      msg: "WARNING: You have created a cluster operator deployment with real images. Creating a cluster will result in artifacts provisioned to your cloud provider."
+    when: not (fake_deployment | bool)

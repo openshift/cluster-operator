@@ -77,6 +77,8 @@ PLAYBOOK_MOCK_MUTABLE_IMAGE          = $(REGISTRY)playbook-mock:$(MUTABLE_TAG)
 AWS_MACHINE_CONTROLLER_IMAGE         = $(REGISTRY)aws-machine-controller:$(VERSION)
 AWS_MACHINE_CONTROLLER_MUTABLE_IMAGE = $(REGISTRY)aws-machine-controller:$(MUTABLE_TAG)
 AWS_MACHINE_CONTROLLER_PUBLIC_IMAGE  = $(PUBLIC_REGISTRY)aws-machine-controller:latest
+FAKE_MACHINE_CONTROLLER_IMAGE         = $(REGISTRY)fake-machine-controller:$(VERSION)
+FAKE_MACHINE_CONTROLLER_MUTABLE_IMAGE = $(REGISTRY)fake-machine-controller:$(MUTABLE_TAG)
 
 
 $(if $(realpath vendor/k8s.io/apimachinery/vendor), \
@@ -111,6 +113,7 @@ build: .init .generate_files \
 	$(BINDIR)/fake-openshift-ansible \
 	$(BINDIR)/playbook-mock \
 	$(BINDIR)/aws-machine-controller \
+	$(BINDIR)/fake-machine-controller \
 	$(BINDIR)/aws-actuator-test \
 	$(BINDIR)/wait-for-cluster-ready
 
@@ -123,6 +126,11 @@ $(BINDIR)/cluster-operator: .init .generate_files
 aws-machine-controller: $(BINDIR)/aws-machine-controller
 $(BINDIR)/aws-machine-controller: .init
 	$(DOCKER_CMD) $(GO_BUILD) -o $@ $(CLUSTER_OPERATOR_PKG)/cmd/aws-machine-controller
+
+.PHONY: $(BINDIR)/fake-machine-controller
+fake-machine-controller: $(BINDIR)/fake-machine-controller
+$(BINDIR)/fake-machine-controller: .init
+	$(DOCKER_CMD) $(GO_BUILD) -o $@ $(CLUSTER_OPERATOR_PKG)/cmd/fake-machine-controller
 
 .PHONY: $(BINDIR)/wait-for-cluster-ready
 wait-for-cluster-ready: $(BINDIR)/wait-for-cluster-ready
@@ -326,7 +334,12 @@ clean-coverage:
 
 # Building Docker Images for our executables
 ############################################
-images: cluster-operator-image playbook-mock-image cluster-operator-ansible-images fake-openshift-ansible-image
+images: cluster-operator-image \
+        playbook-mock-image \
+	cluster-operator-ansible-images \
+	fake-openshift-ansible-image \
+	aws-machine-controller-image \
+	fake-machine-controller-image
 
 images-all: $(addprefix arch-image-,$(ALL_ARCH))
 arch-image-%:
@@ -398,6 +411,11 @@ aws-machine-controller-image: build/aws-machine-controller/Dockerfile $(BINDIR)/
 	docker tag $(AWS_MACHINE_CONTROLLER_IMAGE) $(AWS_MACHINE_CONTROLLER_MUTABLE_IMAGE)
 	docker tag $(AWS_MACHINE_CONTROLLER_IMAGE) $(AWS_MACHINE_CONTROLLER_PUBLIC_IMAGE)
 
+.PHONY: fake-machine-controller-image
+fake-machine-controller-image: build/fake-machine-controller/Dockerfile $(BINDIR)/fake-machine-controller
+	$(call build-and-tag,"fake-machine-controller",$(FAKE_MACHINE_CONTROLLER_IMAGE),$(FAKE_MACHINE_CONTROLLER_MUTABLE_IMAGE))
+	docker tag $(FAKE_MACHINE_CONTROLLER_IMAGE) $(FAKE_MACHINE_CONTROLLER_MUTABLE_IMAGE)
+
 # Push our Docker Images to the integrated registry:
 INTEGRATED_REGISTRY                         ?= 172.30.1.1
 integrated-registry-push:
@@ -409,6 +427,8 @@ integrated-registry-push:
 	docker tag cluster-operator:$(MUTABLE_TAG) $(INTEGRATED_REGISTRY):5000/openshift-cluster-operator/cluster-operator:latest
 	docker push $(INTEGRATED_REGISTRY):5000/openshift-cluster-operator/cluster-operator:latest
 
+	docker tag fake-machine-controller:$(MUTABLE_TAG) $(INTEGRATED_REGISTRY):5000/openshift-cluster-operator/fake-machine-controller:latest
+	docker push $(INTEGRATED_REGISTRY):5000/openshift-cluster-operator/fake-machine-controller:latest
 
 # Push our Docker Images to a registry
 ######################################

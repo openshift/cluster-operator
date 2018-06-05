@@ -15,9 +15,8 @@
     # ID for your cluster, defaults to current username:
     cluster_name: "{{ lookup ('env', 'USER') }}"
 
-    # ClusterVersion to use, default to fake so we don't actually create a cluster unless user
-    # explicitly opts-in:
-    cluster_version: origin-v3-10-fake
+    # ClusterVersion to use
+    cluster_version: origin-v3-10
 
     # Namespace where we expect cluster version to exist, does not have to match the cluster namespace
     # and generally this can be left as is:
@@ -163,5 +162,4 @@
     kubectl_apply:
       definition: "{{ new_cluster_reg.result | to_json }}"
     when: new_cluster_api
-
 

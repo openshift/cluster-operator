@@ -30,7 +30,7 @@ objects:
           from:
             # Uses the same ImageStream as our main controllers:
             kind: "ImageStreamTag"
-            name: "cluster-operator:latest"
+            name: "${MACHINE_CONTROLLER_IMAGESTREAM}:latest"
     replicas: 1
     revisionHistoryLimit: 4
     template:
@@ -41,10 +41,10 @@ objects:
         serviceAccountName: cluster-api-controller-manager
         containers:
         - name: machine-controller
-          image: cluster-operator:latest
+          image: " "
           imagePullPolicy: ${IMAGE_PULL_POLICY}
           command:
-          - /opt/services/aws-machine-controller
+          - ${MACHINE_CONTROLLER_ENTRYPOINT}
           args:
           - --log-level=debug
           - --default-availability-zone=${DEFAULT_AVAILABILITY_ZONE}
@@ -129,3 +129,7 @@ parameters:
   value: Always
 - name: BOOTSTRAP_KUBECONFIG
   value: ""
+- name: MACHINE_CONTROLLER_IMAGESTREAM
+  value: cluster-operator
+- name: MACHINE_CONTROLLER_ENTRYPOINT
+  value: /opt/services/aws-machine-controller
