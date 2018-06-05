@@ -182,7 +182,7 @@ func CreateAWSClients(kubeClient kubernetes.Interface, mSpec *cov1.MachineSetSpe
 func TerminateInstances(client ec2iface.EC2API, instances []*ec2.Instance, mLog log.FieldLogger) error {
 	instanceIDs := []*string{}
 	// Cleanup all older instances:
-	for _, instance := range instances[1:] {
+	for _, instance := range instances {
 		mLog.WithFields(log.Fields{
 			"instanceID": *instance.InstanceId,
 			"state":      *instance.State.Name,
