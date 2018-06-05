@@ -380,7 +380,7 @@ func (a *Actuator) Update(cluster *clusterv1.Cluster, machine *clusterv1.Machine
 	}
 
 	instances, err := GetRunningInstances(machine, client)
-	mLog.Debug("found %d instances for machine", len(instances))
+	mLog.Debugf("found %d instances for machine", len(instances))
 	if err != nil {
 		return err
 	}
