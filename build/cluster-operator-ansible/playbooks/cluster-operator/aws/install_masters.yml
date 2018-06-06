@@ -1,6 +1,22 @@
 ---
 # call openshift-ansible's master provisioning
-- import_playbook: ../../aws/openshift-cluster/install.yml
+# Skip setting up the master group
+- name: set the master facts for hostname to elb
+  hosts: masters
+  gather_facts: no
+  remote_user: root
+  tasks:
+  - import_role:
+      name: openshift_aws
+      tasks_from: master_facts.yml
+
+- name: run the init
+  import_playbook: ../../init/main.yml
+
+- import_playbook: ../../openshift-checks/private/install.yml
+
+- name: configure the control plane
+  import_playbook: ../../common/private/control_plane.yml
 
 # The below piece of ansible would be needed if we wanted to only
 # do the save-kubeconfig-from-target-cluster steps that follow.

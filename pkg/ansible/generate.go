@@ -24,6 +24,8 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
+	capi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+
 	coapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	"github.com/openshift/cluster-operator/pkg/controller"
 )
@@ -312,6 +314,20 @@ ansible_become=true
 
 [nodes]
 `
+	masterMachinesInventory = `
+[OSEv3:children]
+masters
+nodes
+etcd
+
+[OSEv3:vars]
+ansible_become=true
+[[ $machines := .MachineNames ]]
+[[ $sections := makeSlice "masters" "etcd" "nodes" ]][[ range $sections ]][[ . | printf "[%s]" ]]
+[[ range $machines ]][[ . ]]
+[[ end ]]
+[[ end ]]
+`
 )
 
 type clusterParams struct {
@@ -342,6 +358,10 @@ type clusterVersionParams struct {
 	Release     string
 	AMI         string
 	ImageFormat string
+}
+
+type inventoryParams struct {
+	MachineNames []string
 }
 
 // GenerateClusterWideVars generates the vars to pass to the ansible playbook
@@ -476,4 +496,50 @@ func GenerateClusterWideVarsForMachineSetWithInfraSize(
 		return "", err
 	}
 	return buf.String(), nil
+}
+
+func GenerateInventoryForMasterMachines(machines []*capi.Machine) (string, error) {
+
+	makeSlice := func(args ...interface{}) []interface{} {
+		return args
+	}
+	funcMap := map[string]interface{}{"makeSlice": makeSlice}
+	t, err := template.New("inventory").Delims("[[", "]]").Funcs(template.FuncMap(funcMap)).Parse(masterMachinesInventory)
+	if err != nil {
+		return "", err
+	}
+
+	machinePublicNames, err := getMachinePublicNames(machines)
+	if err != nil {
+		return "", err
+	}
+
+	params := &inventoryParams{
+		MachineNames: machinePublicNames,
+	}
+
+	var buf bytes.Buffer
+	err = t.Execute(&buf, params)
+	if err != nil {
+		return "", err
+	}
+	return buf.String(), nil
+}
+
+func getMachinePublicNames(machines []*capi.Machine) ([]string, error) {
+	result := []string{}
+	for _, m := range machines {
+		providerStatus, err := controller.AWSMachineProviderStatusFromClusterAPIMachine(m)
+		if err != nil {
+			return nil, err
+		}
+		if providerStatus == nil {
+			return nil, fmt.Errorf("no AWS provider status in machine %s/%s", m.Namespace, m.Name)
+		}
+		if providerStatus.PublicDNS == nil {
+			return nil, fmt.Errorf("no public DNS name is set for %s/%s", m.Namespace, m.Name)
+		}
+		result = append(result, *providerStatus.PublicDNS)
+	}
+	return result, nil
 }

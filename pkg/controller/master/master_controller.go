@@ -26,17 +26,23 @@ import (
 	v1rbac "k8s.io/api/rbac/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/util/errors"
 	batchinformers "k8s.io/client-go/informers/batch/v1"
 	kubeclientset "k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/cache"
+
+	capi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	capiclientset "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
+	capiinformers "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions/cluster/v1alpha1"
+	capilisters "sigs.k8s.io/cluster-api/pkg/client/listers_generated/cluster/v1alpha1"
 
 	"github.com/openshift/cluster-operator/pkg/ansible"
 	clustop "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	clustopclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
 	"github.com/openshift/cluster-operator/pkg/controller"
 	clusterinstallcontroller "github.com/openshift/cluster-operator/pkg/controller/clusterinstall"
-	capi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
-	capiclientset "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
-	capiinformers "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions/cluster/v1alpha1"
+	"github.com/openshift/cluster-operator/pkg/logging"
 )
 
 const (
@@ -55,13 +61,17 @@ const (
 func NewController(
 	clusterInformer capiinformers.ClusterInformer,
 	machineSetInformer capiinformers.MachineSetInformer,
+	machineInformer capiinformers.MachineInformer,
 	jobInformer batchinformers.JobInformer,
 	kubeClient kubeclientset.Interface,
 	clustopClient clustopclientset.Interface,
 	capiClient capiclientset.Interface,
 ) *clusterinstallcontroller.Controller {
 	installStrategy := &installStrategy{
-		kubeClient: kubeClient,
+		kubeClient:       kubeClient,
+		capiClient:       capiClient,
+		machineLister:    machineInformer.Lister(),
+		machineSetLister: machineSetInformer.Lister(),
 	}
 	controller := clusterinstallcontroller.NewController(
 		controllerName,
@@ -69,6 +79,7 @@ func NewController(
 		[]string{playbook},
 		clusterInformer,
 		machineSetInformer,
+		machineInformer,
 		jobInformer,
 		kubeClient,
 		clustopClient,
@@ -79,15 +90,18 @@ func NewController(
 }
 
 type installStrategy struct {
-	kubeClient kubeclientset.Interface
-	logger     log.FieldLogger
+	kubeClient       kubeclientset.Interface
+	capiClient       capiclientset.Interface
+	logger           log.FieldLogger
+	machineLister    capilisters.MachineLister
+	machineSetLister capilisters.MachineSetLister
 }
 
 var _ clusterinstallcontroller.InstallJobDecorationStrategy = (*installStrategy)(nil)
 
 func (s *installStrategy) ReadyToInstall(cluster *clustop.CombinedCluster, masterMachineSet *capi.MachineSet) bool {
-	return cluster.ClusterDeploymentStatus.ControlPlaneInstalledJobClusterGeneration != cluster.Generation ||
-		cluster.ClusterDeploymentStatus.ControlPlaneInstalledJobMachineSetGeneration != masterMachineSet.GetGeneration()
+	return s.machinesReadyToInstall(masterMachineSet) && (cluster.ClusterDeploymentStatus.ControlPlaneInstalledJobClusterGeneration != cluster.Generation ||
+		cluster.ClusterDeploymentStatus.ControlPlaneInstalledJobMachineSetGeneration != masterMachineSet.GetGeneration())
 }
 
 func (s *installStrategy) DecorateJobGeneratorExecutor(executor *ansible.JobGeneratorExecutor, cluster *clustop.CombinedCluster) error {
@@ -96,6 +110,17 @@ func (s *installStrategy) DecorateJobGeneratorExecutor(executor *ansible.JobGene
 		return fmt.Errorf("error creating or setting up service account %v", err)
 	}
 	executor.WithServiceAccount(serviceAccount)
+
+	machineSet, err := s.masterMachineSet(cluster)
+	if err != nil {
+		return fmt.Errorf("error fetching master machineset for cluster %s/%s: %v", cluster.Namespace, cluster.Name, err)
+	}
+	machines, err := s.availableMasterMachines(machineSet)
+	if err != nil {
+		return fmt.Errorf("error fetching machines for machineset %s/%s: %v", machineSet.Namespace, machineSet.Name, err)
+	}
+	executor.WithMasterMachines(machines)
+
 	return nil
 }
 
@@ -157,14 +182,112 @@ func (s *installStrategy) setupServiceAccountForJob(clusterNamespace string) (*k
 	return currentSA, nil
 }
 
+func (s *installStrategy) masterMachineSet(cluster *clustop.CombinedCluster) (*capi.MachineSet, error) {
+	masterMachineSetName := controller.MasterMachineSetName(cluster.Name)
+	return s.machineSetLister.MachineSets(cluster.Namespace).Get(masterMachineSetName)
+}
+
+func (s *installStrategy) availableMasterMachines(masterMachineSet *capi.MachineSet) ([]*capi.Machine, error) {
+	machines := []*capi.Machine{}
+	allMachines, err := s.machineLister.Machines(masterMachineSet.Namespace).List(labels.Everything())
+	if err != nil {
+		return nil, err
+	}
+	for _, machine := range allMachines {
+		if !metav1.IsControlledBy(machine, masterMachineSet) ||
+			machine.DeletionTimestamp != nil {
+			continue
+		}
+		hasPublicName, err := hasPublicDNS(machine)
+		if err != nil {
+			return nil, fmt.Errorf("error checking whether machine %s/%s has public DNS: %v", machine.Namespace, machine.Name, err)
+		}
+		if !hasPublicName {
+			continue
+		}
+		machines = append(machines, machine)
+	}
+	return machines, nil
+}
+
+func (s *installStrategy) machinesReadyToInstall(masterMachineSet *capi.MachineSet) bool {
+	logger := logging.WithMachineSet(s.logger, masterMachineSet)
+	machines, err := s.availableMasterMachines(masterMachineSet)
+	if err != nil {
+		logger.Errorf("error determining available master machines: %v", err)
+		return false
+	}
+	if masterMachineSet.Spec.Replicas == nil {
+		logger.Errorf("no replicas defined for master machineset")
+		return false
+	}
+	// Only start an install if we have the number of replicas specified in the machineset
+	if len(machines) < int(*masterMachineSet.Spec.Replicas) {
+		return false
+	}
+	// Of the available machines, determine if any has not had its control plane installed
+	// If all of them have a control plane, then no need to run this job.
+	// TODO: determine how to handle upgrades, if they require a job.
+	for _, m := range machines {
+		if m.Status.Versions == nil || len(m.Status.Versions.ControlPlane) == 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func hasPublicDNS(machine *capi.Machine) (bool, error) {
+	providerStatus, err := controller.AWSMachineProviderStatusFromClusterAPIMachine(machine)
+	if err != nil {
+		return false, err
+	}
+	return providerStatus.PublicDNS != nil && len(*providerStatus.PublicDNS) > 0, nil
+}
+
 func (s *installStrategy) IncludeInfraSizeInAnsibleVars() bool {
 	return false
 }
 
 func (s *installStrategy) OnInstall(succeeded bool, cluster *clustop.CombinedCluster, masterMachineSet *capi.MachineSet, job *batchv1.Job) {
+	if succeeded {
+		machineKeys := ansible.GetJobMachineKeys(job)
+		err := s.setMachineControlPlaneVersion(machineKeys)
+		if err != nil {
+			logging.WithMachineSet(s.logger, masterMachineSet).Errorf("error updating machine installed control plane version: %v", err)
+			return
+		}
+	}
 	cluster.ClusterDeploymentStatus.ControlPlaneInstalled = succeeded
 	cluster.ClusterDeploymentStatus.ControlPlaneInstalledJobClusterGeneration = cluster.Generation
 	cluster.ClusterDeploymentStatus.ControlPlaneInstalledJobMachineSetGeneration = masterMachineSet.GetGeneration()
+}
+
+func (s *installStrategy) setMachineControlPlaneVersion(machineKeys []string) error {
+	errs := []error{}
+	for _, machineKey := range machineKeys {
+		namespace, name, err := cache.SplitMetaNamespaceKey(machineKey)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("error splitting machine key (%s): %v", machineKey, err))
+		}
+		machine, err := s.machineLister.Machines(namespace).Get(name)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("error retrieving machine %s to update the control plane version", machineKey))
+		}
+		updatedMachine := machine.DeepCopy()
+		if updatedMachine.Status.Versions == nil {
+			updatedMachine.Status.Versions = &capi.MachineVersionInfo{}
+		}
+		updatedMachine.Status.Versions.ControlPlane = machine.Spec.Versions.ControlPlane
+		updatedMachine.Status.LastUpdated = metav1.Now()
+		_, err = s.capiClient.ClusterV1alpha1().Machines(machine.Namespace).UpdateStatus(updatedMachine)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("unable to update status of machine %s: %v", machineKey, err))
+		}
+	}
+	if len(errs) > 0 {
+		return errors.NewAggregate(errs)
+	}
+	return nil
 }
 
 func (s *installStrategy) ConvertJobSyncConditionType(conditionType controller.JobSyncConditionType) clustop.ClusterConditionType {
