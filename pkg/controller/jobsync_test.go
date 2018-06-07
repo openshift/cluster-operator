@@ -150,7 +150,7 @@ func TestJobSyncForDeletedOwner(t *testing.T) {
 			if tc.expectControl {
 				mockJobSyncStrategy.EXPECT().GetJobFactory(owner, true).
 					Return(mockJobFactory, nil)
-				mockJobControl.EXPECT().ControlJobs(testKey, owner, true, nil, nil, mockJobFactory).
+				mockJobControl.EXPECT().ControlJobs(testKey, owner, "undo", true, nil, nil, mockJobFactory).
 					Return(JobControlNoWork, nil, nil)
 			}
 
@@ -214,7 +214,7 @@ func TestJobSyncWithErrorControllingJobs(t *testing.T) {
 		Return(needsProcessing)
 	mockJobSyncStrategy.EXPECT().GetJobFactory(owner, false).
 		Return(mockJobFactory, nil)
-	mockJobControl.EXPECT().ControlJobs(testKey, owner, needsProcessing, nil, nil, mockJobFactory).
+	mockJobControl.EXPECT().ControlJobs(testKey, owner, "", needsProcessing, nil, nil, mockJobFactory).
 		Return(JobControlResult(""), nil, fmt.Errorf("error controlling jobs"))
 
 	jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, false, logger)
@@ -246,7 +246,7 @@ func TestJobSyncWithPendingExpectationsResult(t *testing.T) {
 		Return(needsProcessing)
 	mockJobSyncStrategy.EXPECT().GetJobFactory(owner, false).
 		Return(mockJobFactory, nil)
-	mockJobControl.EXPECT().ControlJobs(testKey, owner, needsProcessing, nil, nil, mockJobFactory).
+	mockJobControl.EXPECT().ControlJobs(testKey, owner, "", needsProcessing, nil, nil, mockJobFactory).
 		Return(JobControlPendingExpectations, nil, nil)
 
 	jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, false, logger)
@@ -278,7 +278,7 @@ func TestJobSyncWithNoWorkResult(t *testing.T) {
 		Return(needsProcessing)
 	mockJobSyncStrategy.EXPECT().GetJobFactory(owner, false).
 		Return(mockJobFactory, nil)
-	mockJobControl.EXPECT().ControlJobs(testKey, owner, needsProcessing, nil, nil, mockJobFactory).
+	mockJobControl.EXPECT().ControlJobs(testKey, owner, "", needsProcessing, nil, nil, mockJobFactory).
 		Return(JobControlNoWork, nil, nil)
 
 	jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, false, logger)
@@ -369,7 +369,11 @@ func TestJobSyncForCompletedJob(t *testing.T) {
 			}
 			mockJobSyncStrategy.EXPECT().GetJobFactory(owner, tc.deleting).
 				Return(mockJobFactory, nil)
-			mockJobControl.EXPECT().ControlJobs(testKey, owner, true, nil, nil, mockJobFactory).
+			extraJobIdentifier := ""
+			if tc.deleting {
+				extraJobIdentifier = "undo"
+			}
+			mockJobControl.EXPECT().ControlJobs(testKey, owner, extraJobIdentifier, true, nil, nil, mockJobFactory).
 				Return(JobControlJobSucceeded, job, nil)
 
 			// Update owner status to reflect completed job
@@ -480,7 +484,11 @@ func TestJobSyncForFailedJob(t *testing.T) {
 			}
 			mockJobSyncStrategy.EXPECT().GetJobFactory(owner, tc.deleting).
 				Return(mockJobFactory, nil)
-			mockJobControl.EXPECT().ControlJobs(testKey, owner, true, nil, nil, mockJobFactory).
+			extraJobIdentifier := ""
+			if tc.deleting {
+				extraJobIdentifier = "undo"
+			}
+			mockJobControl.EXPECT().ControlJobs(testKey, owner, extraJobIdentifier, true, nil, nil, mockJobFactory).
 				Return(JobControlJobFailed, job, nil)
 
 			// Update owner status to reflect failed job
@@ -536,7 +544,7 @@ func TestJobSyncForInProgressJob(t *testing.T) {
 		Return(needsProcessing)
 	mockJobSyncStrategy.EXPECT().GetJobFactory(owner, false).
 		Return(mockJobFactory, nil)
-	mockJobControl.EXPECT().ControlJobs(testKey, owner, needsProcessing, nil, nil, mockJobFactory).
+	mockJobControl.EXPECT().ControlJobs(testKey, owner, "", needsProcessing, nil, nil, mockJobFactory).
 		Return(JobControlJobWorking, job, nil)
 
 	// Update owner status to reflect in-progress job
@@ -574,7 +582,7 @@ func TestJobSyncWithJobWorkingResultButNoJobReturned(t *testing.T) {
 		Return(needsProcessing)
 	mockJobSyncStrategy.EXPECT().GetJobFactory(owner, false).
 		Return(mockJobFactory, nil)
-	mockJobControl.EXPECT().ControlJobs(testKey, owner, needsProcessing, nil, nil, mockJobFactory).
+	mockJobControl.EXPECT().ControlJobs(testKey, owner, "", needsProcessing, nil, nil, mockJobFactory).
 		Return(JobControlJobWorking, nil, nil)
 
 	jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, false, logger)
@@ -606,7 +614,7 @@ func TestJobSyncWithCreatingJobResult(t *testing.T) {
 		Return(needsProcessing)
 	mockJobSyncStrategy.EXPECT().GetJobFactory(owner, false).
 		Return(mockJobFactory, nil)
-	mockJobControl.EXPECT().ControlJobs(testKey, owner, needsProcessing, nil, nil, mockJobFactory).
+	mockJobControl.EXPECT().ControlJobs(testKey, owner, "", needsProcessing, nil, nil, mockJobFactory).
 		Return(JobControlCreatingJob, nil, nil)
 
 	jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, false, logger)
@@ -638,7 +646,7 @@ func TestJobSyncWithUnkownJobsResult(t *testing.T) {
 		Return(needsProcessing)
 	mockJobSyncStrategy.EXPECT().GetJobFactory(owner, false).
 		Return(mockJobFactory, nil)
-	mockJobControl.EXPECT().ControlJobs(testKey, owner, needsProcessing, nil, nil, mockJobFactory).
+	mockJobControl.EXPECT().ControlJobs(testKey, owner, "", needsProcessing, nil, nil, mockJobFactory).
 		Return(JobControlResult("other-result"), nil, nil)
 
 	jobSync := NewJobSync(mockJobControl, mockJobSyncStrategy, false, logger)

@@ -144,8 +144,13 @@ func (s *jobSync) Sync(key string) error {
 		lastJobSuccess = reprocessStrategy.GetLastJobSuccess(owner)
 	}
 
-	jobControlResult, job, err := s.jobControl.ControlJobs(key, owner, needsProcessing,
-		reprocessInterval, lastJobSuccess, jobFactory)
+	extraJobIdentifier := ""
+	if deleting {
+		extraJobIdentifier = "undo"
+	}
+
+	jobControlResult, job, err := s.jobControl.ControlJobs(key, owner, extraJobIdentifier,
+		needsProcessing, reprocessInterval, lastJobSuccess, jobFactory)
 	if err != nil {
 		return err
 	}
