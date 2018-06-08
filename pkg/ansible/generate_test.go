@@ -74,7 +74,7 @@ func testClusterVersion() *coapi.ClusterVersion {
 func TestGenerateClusterWideVars(t *testing.T) {
 	tests := []struct {
 		name             string
-		clusterName      string
+		clusterID        string
 		clusterSpec      *coapi.ClusterDeploymentSpec
 		infraSize        int
 		clusterVersion   *coapi.ClusterVersion
@@ -83,14 +83,16 @@ func TestGenerateClusterWideVars(t *testing.T) {
 	}{
 		{
 			name:           "cluster",
-			clusterName:    "testcluster",
+			clusterID:      "testcluster",
 			clusterSpec:    testClusterSpec(),
 			infraSize:      2,
 			clusterVersion: testClusterVersion(),
 			shouldInclude: []string{
 				"openshift_aws_clusterid: testcluster",
 				"openshift_aws_vpc_name: testcluster",
-				"openshift_aws_elb_basename: testcluster",
+				"openshift_aws_elb_master_external_name: testcluster-master-external",
+				"openshift_aws_elb_master_internal_name: testcluster-master-internal",
+				"openshift_aws_elb_infra_name: testcluster-infra",
 				"openshift_aws_ssh_key_name: mykey",
 				"openshift_aws_region: us-east-1",
 				"ansible_ssh_user: centos",
@@ -106,11 +108,28 @@ func TestGenerateClusterWideVars(t *testing.T) {
 				"oreg_url",
 			},
 		},
+		{
+			name:           "long clusterID",
+			clusterID:      "012345678901234567890123456789-abcde",
+			clusterSpec:    testClusterSpec(),
+			infraSize:      2,
+			clusterVersion: testClusterVersion(),
+			shouldInclude: []string{
+				"openshift_aws_clusterid: 012345678901234567890123456789-abcde",
+				"openshift_aws_elb_master_external_name: 0123456789-abcde-master-external",
+				"openshift_aws_elb_master_internal_name: 0123456789-abcde-master-internal",
+				"openshift_aws_elb_infra_name: 0123456789-abcde-infra",
+				// TODO: Use these instead when the ansible playbook is updated to support it.
+				// "openshift_aws_elb_master_external_name: 0123456789012345678-abcde-cp-ext",
+				// "openshift_aws_elb_master_internal_name: 0123456789012345678-abcde-cp-int",
+				// "openshift_aws_elb_infra_name: 0123456789012345678-abcde-infra",
+			},
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result, err := GenerateClusterWideVars(tc.clusterName, &tc.clusterSpec.Hardware, tc.clusterVersion, tc.infraSize)
+			result, err := GenerateClusterWideVars(tc.clusterID, &tc.clusterSpec.Hardware, tc.clusterVersion, tc.infraSize)
 			assert.Nil(t, err, "%s: unexpected: %v", tc.name, err)
 			for _, str := range tc.shouldInclude {
 				assert.Contains(t, result, str, "%s: result does not contain %q", tc.name, str)

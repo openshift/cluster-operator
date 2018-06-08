@@ -214,6 +214,7 @@ func TestClusterCreate(t *testing.T) {
 			clustopClient.ClusteroperatorV1alpha1().ClusterVersions(testNamespace).Create(clusterVersion)
 
 			clusterDeploymentSpec := &clustopv1alpha1.ClusterDeploymentSpec{
+				ClusterID: testClusterName + "-abcde",
 				ClusterVersionRef: clustopv1alpha1.ClusterVersionReference{
 					Namespace: clusterVersion.Namespace,
 					Name:      clusterVersion.Name,

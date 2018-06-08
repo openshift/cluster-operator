@@ -25,6 +25,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	coapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	"github.com/openshift/cluster-operator/pkg/controller"
 )
 
 // varsTemplate contains some hardcoded variables that are constant for all clusters,
@@ -231,10 +232,12 @@ openshift_aws_iam_cert_key_path: /ansible/ssl/server.key
 openshift_aws_create_iam_role: True
 openshift_node_use_instance_profiles: True
 
-openshift_aws_clusterid: [[ .Name ]]
-openshift_clusterid: [[ .Name ]]
-openshift_aws_elb_basename: [[ .Name ]]
-openshift_aws_vpc_name: [[ .Name ]]
+openshift_aws_clusterid: [[ .ClusterID ]]
+openshift_clusterid: [[ .ClusterID ]]
+openshift_aws_elb_master_external_name: [[ .ELBMasterExternalName ]]
+openshift_aws_elb_master_internal_name: [[ .ELBMasterInternalName ]]
+openshift_aws_elb_infra_name: [[ .ELBInfraName ]]
+openshift_aws_vpc_name: [[ .ClusterID ]]
 
 openshift_aws_vpc: [[ .VPCDefaults ]]
 
@@ -346,11 +349,14 @@ ansible_become=true
 )
 
 type clusterParams struct {
-	Name                             string
+	ClusterID                        string
 	Region                           string
 	SSHKeyName                       string
 	SSHUser                          string
 	VPCDefaults                      string
+	ELBMasterExternalName            string
+	ELBMasterInternalName            string
+	ELBInfraName                     string
 	DeploymentType                   coapi.ClusterDeploymentType
 	InfraSize                        int
 	ClusterAPIImage                  string
@@ -374,10 +380,12 @@ type clusterVersionParams struct {
 
 // GenerateClusterWideVars generates the vars to pass to the ansible playbook
 // that are set at the cluster level.
-func GenerateClusterWideVars(name string,
+func GenerateClusterWideVars(
+	clusterID string,
 	hardwareSpec *coapi.ClusterHardwareSpec,
 	clusterVersion *coapi.ClusterVersion,
-	infraSize int) (string, error) {
+	infraSize int,
+) (string, error) {
 
 	// Currently only AWS is supported. If we don't have an AWS cluster spec, return an error
 	if hardwareSpec.AWS == nil {
@@ -391,13 +399,16 @@ func GenerateClusterWideVars(name string,
 	}
 
 	params := clusterParams{
-		Name:           name,
-		Region:         hardwareSpec.AWS.Region,
-		SSHKeyName:     hardwareSpec.AWS.KeyPairName,
-		SSHUser:        hardwareSpec.AWS.SSHUser,
-		VPCDefaults:    vpcDefaults,
-		DeploymentType: clusterVersion.Spec.DeploymentType,
-		InfraSize:      infraSize,
+		ClusterID:             clusterID,
+		Region:                hardwareSpec.AWS.Region,
+		SSHKeyName:            hardwareSpec.AWS.KeyPairName,
+		SSHUser:               hardwareSpec.AWS.SSHUser,
+		ELBMasterExternalName: controller.ELBMasterExternalName(clusterID),
+		ELBMasterInternalName: controller.ELBMasterInternalName(clusterID),
+		ELBInfraName:          controller.ELBInfraName(clusterID),
+		VPCDefaults:           vpcDefaults,
+		DeploymentType:        clusterVersion.Spec.DeploymentType,
+		InfraSize:             infraSize,
 	}
 
 	if clusterVersion.Spec.ClusterAPIImage != nil {
@@ -452,9 +463,9 @@ func convertVersionToRelease(version string) (string, error) {
 // GenerateClusterWideVarsForMachineSet generates the vars to pass to the
 // ansible playbook that are set at the cluster level for a machine set in
 // that cluster.
-func GenerateClusterWideVarsForMachineSet(isMaster bool, clusterName string, clusterHardware *coapi.ClusterHardwareSpec, clusterVersion *coapi.ClusterVersion) (string, error) {
+func GenerateClusterWideVarsForMachineSet(isMaster bool, clusterID string, clusterHardware *coapi.ClusterHardwareSpec, clusterVersion *coapi.ClusterVersion) (string, error) {
 	// since we haven't been passed an infraSize, just assume minimum size of 1
-	return GenerateClusterWideVarsForMachineSetWithInfraSize(isMaster, clusterName, clusterHardware, clusterVersion, 1)
+	return GenerateClusterWideVarsForMachineSetWithInfraSize(isMaster, clusterID, clusterHardware, clusterVersion, 1)
 }
 
 // GenerateClusterWideVarsForMachineSetWithInfraSize generates the vars to pass to the
@@ -462,12 +473,12 @@ func GenerateClusterWideVarsForMachineSet(isMaster bool, clusterName string, clu
 // that cluster taking into account the size/count of infra nodes.
 func GenerateClusterWideVarsForMachineSetWithInfraSize(
 	isMaster bool,
-	clusterName string,
+	clusterID string,
 	clusterHardware *coapi.ClusterHardwareSpec,
 	clusterVersion *coapi.ClusterVersion,
 	infraSize int,
 ) (string, error) {
-	commonVars, err := GenerateClusterWideVars(clusterName, clusterHardware, clusterVersion, infraSize)
+	commonVars, err := GenerateClusterWideVars(clusterID, clusterHardware, clusterVersion, infraSize)
 
 	// Layer in the vars that depend on the ClusterVersion:
 	var buf bytes.Buffer

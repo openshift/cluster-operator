@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/golang/glog"
 
@@ -40,6 +41,13 @@ import (
 	capicommon "sigs.k8s.io/cluster-api/pkg/apis/cluster/common"
 	clusterapi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	capilister "sigs.k8s.io/cluster-api/pkg/client/listers_generated/cluster/v1alpha1"
+)
+
+const (
+	// 32 = maximum ELB name length
+	// 16 = length of longest ELB name suffic ("-master-external")
+	// TODO: 7  = length of longest ELB name suffix ("-cp-ext")
+	maxELBBasenameLen = 32 - 16
 )
 
 var (
@@ -497,6 +505,7 @@ func ClusterAPIMachineProviderStatusFromAWSMachineProviderStatus(awsStatus *clus
 // MachineProviderConfigFromMachineSetConfig returns a RawExtension with a machine ProviderConfig from a MachineSetConfig
 func MachineProviderConfigFromMachineSetConfig(machineSetConfig *clusteroperator.MachineSetConfig, clusterDeploymentSpec *clusteroperator.ClusterDeploymentSpec, clusterVersion *clusteroperator.ClusterVersion) (*runtime.RawExtension, error) {
 	msSpec := &clusteroperator.MachineSetSpec{
+		ClusterID:        clusterDeploymentSpec.ClusterID,
 		MachineSetConfig: *machineSetConfig,
 	}
 	vmImage, err := getImage(clusterDeploymentSpec, clusterVersion)
@@ -595,4 +604,44 @@ func MachineHasRole(machine *clusterapi.Machine, role capicommon.MachineRole) bo
 		}
 	}
 	return false
+}
+
+// ELBMasterExternalName gets the name of the external master ELB for the cluster
+// with the specified cluster ID.
+func ELBMasterExternalName(clusterID string) string {
+	// TODO: Change to "-cp-ext" when ansible playbook is updated to support it
+	return trimForELBBasename(clusterID, maxELBBasenameLen) + "-master-external"
+}
+
+// ELBMasterInternalName gets the name of the internal master ELB for the cluster
+// with the specified cluster ID.
+func ELBMasterInternalName(clusterID string) string {
+	// TODO: Change to "-cp-int" when ansible playbook is updated to support it
+	return trimForELBBasename(clusterID, maxELBBasenameLen) + "-master-internal"
+}
+
+// ELBInfraName gets the name of the infra ELB for the cluster
+// with the specified cluster ID.
+func ELBInfraName(clusterID string) string {
+	return trimForELBBasename(clusterID, maxELBBasenameLen) + "-infra"
+}
+
+// trimForELBBasename takes a string and trims it so that it can be used as the
+// basename for an ELB.
+func trimForELBBasename(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	lastHyphen := strings.LastIndexByte(s, '-')
+	if lastHyphen < 0 {
+		return s[:maxLen]
+	}
+	suffix := s[lastHyphen+1:]
+	if len(suffix) > maxLen {
+		return suffix[:maxLen]
+	}
+	if len(suffix)+1 >= maxLen {
+		return suffix
+	}
+	return s[:maxLen-len(suffix)-1] + "-" + suffix
 }

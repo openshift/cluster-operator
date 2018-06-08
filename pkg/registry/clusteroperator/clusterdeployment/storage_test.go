@@ -93,7 +93,11 @@ func TestUpdate(t *testing.T) {
 	test := genericregistrytest.New(t, storage)
 	test.TestUpdate(
 		// valid
-		validNewClusterDeployment("foo"),
+		func() runtime.Object {
+			cd := validNewClusterDeployment("foo")
+			cd.Spec.ClusterID = "cluster-id"
+			return cd
+		}(),
 		// updateFunc
 		func(obj runtime.Object) runtime.Object {
 			object := obj.(*clusteroperatorapi.ClusterDeployment)
