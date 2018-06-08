@@ -492,11 +492,6 @@ func (a *Actuator) updateStatus(machine *clusterv1.Machine, instance *ec2.Instan
 	return nil
 }
 
-func getClusterID(machine *clusterv1.Machine) (string, bool) {
-	clusterID, ok := machine.Labels[cov1.ClusterNameLabel]
-	return clusterID, ok
-}
-
 // template for user data
 // takes the following parameters:
 // 1 - type of machine (infra/compute)

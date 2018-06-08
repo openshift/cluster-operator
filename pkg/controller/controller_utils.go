@@ -29,7 +29,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	jsonserializer "k8s.io/apimachinery/pkg/runtime/serializer/json"
-	"k8s.io/apimachinery/pkg/selection"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/client-go/tools/cache"
@@ -212,24 +211,7 @@ func GetObjectController(
 
 // ClusterForMachineSet retrieves the cluster to which a machine set belongs.
 func ClusterForMachineSet(machineSet *clusterapi.MachineSet, clusterLister capilister.ClusterLister) (*clusterapi.Cluster, error) {
-	if machineSet.Labels == nil {
-		return nil, fmt.Errorf("missing %s label", clusteroperator.ClusterNameLabel)
-	}
-	clusterName, ok := machineSet.Labels[clusteroperator.ClusterNameLabel]
-	if !ok {
-		return nil, fmt.Errorf("missing %s label", clusteroperator.ClusterNameLabel)
-	}
-	return clusterLister.Clusters(machineSet.Namespace).Get(clusterName)
-}
-
-// MachineSetsForCluster retrieves the machinesets associated with the
-// specified cluster name.
-func MachineSetsForCluster(namespace string, clusterName string, machineSetsLister capilister.MachineSetLister) ([]*clusterapi.MachineSet, error) {
-	requirement, err := labels.NewRequirement(clusteroperator.ClusterNameLabel, selection.Equals, []string{clusterName})
-	if err != nil {
-		return nil, err
-	}
-	return machineSetsLister.MachineSets(namespace).List(labels.NewSelector().Add(*requirement))
+	return clusterLister.Clusters(machineSet.Namespace).Get(machineSet.Spec.Template.Spec.ClusterRef.Name)
 }
 
 // ClusterDeploymentForCluster retrieves the cluster deployment that owns the cluster.
@@ -537,23 +519,37 @@ func GetInfraSize(cluster *clusteroperator.CombinedCluster) (int, error) {
 
 // GetMasterMachineSet gets the master machine set for the cluster.
 func GetMasterMachineSet(cluster *clusteroperator.CombinedCluster, machineSetLister capilister.MachineSetLister) (*clusterapi.MachineSet, error) {
-	machineSets, err := MachineSetsForCluster(cluster.Namespace, cluster.Name, machineSetLister)
+	machineSets, err := machineSetLister.MachineSets(cluster.Namespace).List(labels.Everything())
 	if err != nil {
 		return nil, err
 	}
-	for _, ms := range machineSets {
-		for _, role := range ms.Spec.Template.Spec.Roles {
-			if role == capicommon.MasterRole {
-				return ms, nil
-			}
+	for _, machineSet := range machineSets {
+		if machineSet.Spec.Template.Spec.ClusterRef.Name != cluster.Name {
+			continue
 		}
+		if !MachineSetHasRole(machineSet, capicommon.MasterRole) {
+			continue
+		}
+		return machineSet, nil
 	}
 	return nil, fmt.Errorf("no master machineset found")
 }
 
 // MachineHasRole returns true if the machine has the given cluster-api role.
 func MachineHasRole(machine *clusterapi.Machine, role capicommon.MachineRole) bool {
-	for _, r := range machine.Spec.Roles {
+	return MachineSpecHasRole(&machine.Spec, role)
+}
+
+// MachineSetHasRole tests whether the specified MachineSet has the
+// specified cluster-api role.
+func MachineSetHasRole(machineSet *clusterapi.MachineSet, role capicommon.MachineRole) bool {
+	return MachineSpecHasRole(&machineSet.Spec.Template.Spec, role)
+}
+
+// MachineSpecHasRole tests whether the specified Machine spec has the
+// specified cluster-api role.
+func MachineSpecHasRole(machineSpec *clusterapi.MachineSpec, role capicommon.MachineRole) bool {
+	for _, r := range machineSpec.Roles {
 		if r == role {
 			return true
 		}

@@ -42,7 +42,6 @@ import (
 	informers "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions/cluster/v1alpha1"
 	lister "sigs.k8s.io/cluster-api/pkg/client/listers_generated/cluster/v1alpha1"
 
-	clustopv1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	clustopclient "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
 	clustopaws "github.com/openshift/cluster-operator/pkg/clusterapi/aws"
 	"github.com/openshift/cluster-operator/pkg/controller"
@@ -260,11 +259,6 @@ func (c *Controller) syncMachine(key string) error {
 
 	mLog := clustoplog.WithMachine(c.logger, machine)
 
-	clusterID, ok := machine.Labels[clustopv1.ClusterNameLabel]
-	if !ok {
-		return fmt.Errorf("unable to lookup cluster for machine: %s", machine.Name)
-	}
-
 	coMachineSetSpec, err := controller.MachineSetSpecFromClusterAPIMachineSpec(&machine.Spec)
 	if err != nil {
 		return err
@@ -283,11 +277,11 @@ func (c *Controller) syncMachine(key string) error {
 	}
 	mLog = mLog.WithField("instanceID", *instance.InstanceId)
 
-	err = c.addInstanceToELB(instance, fmt.Sprintf("%s-master-external", clusterID), elbClient, mLog)
+	err = c.addInstanceToELB(instance, fmt.Sprintf("%s-master-external", machine.Spec.ClusterRef.Name), elbClient, mLog)
 	if err != nil {
 		return err
 	}
-	err = c.addInstanceToELB(instance, fmt.Sprintf("%s-master-internal", clusterID), elbClient, mLog)
+	err = c.addInstanceToELB(instance, fmt.Sprintf("%s-master-internal", machine.Spec.ClusterRef.Name), elbClient, mLog)
 	if err != nil {
 		return err
 	}

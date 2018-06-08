@@ -26,12 +26,14 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	kbatch "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
 	kapi "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	serializer "k8s.io/apimachinery/pkg/runtime/serializer"
 	jsonserializer "k8s.io/apimachinery/pkg/runtime/serializer/json"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/watch"
 	kubeinformers "k8s.io/client-go/informers"
 	kubefake "k8s.io/client-go/kubernetes/fake"
@@ -70,9 +72,6 @@ func testMachineSet(name string, replicas int32, roles []capicommon.MachineRole,
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: testNamespace,
 			Name:      name,
-			Labels: map[string]string{
-				clustopv1alpha1.ClusterNameLabel: testClusterName,
-			},
 		},
 		Spec: capiv1alpha1.MachineSetSpec{
 			Replicas: func(n int32) *int32 { return &n }(3),
@@ -88,6 +87,9 @@ func testMachineSet(name string, replicas int32, roles []capicommon.MachineRole,
 					},
 				},
 				Spec: capiv1alpha1.MachineSpec{
+					ClusterRef: corev1.LocalObjectReference{
+						Name: testClusterName,
+					},
 					Roles: roles,
 					ProviderConfig: capiv1alpha1.ProviderConfig{
 						Value: func() *runtime.RawExtension {
@@ -253,6 +255,14 @@ func TestClusterCreate(t *testing.T) {
 
 			cluster, err := capiClient.ClusterV1alpha1().Clusters(testNamespace).Create(cluster)
 			if !assert.NoError(t, err, "could not create the cluster") {
+				return
+			}
+
+			// The cluster-api controllers are not running, so we need to manually
+			// remove the finalizer added to the Cluster by the cluster-api
+			// storage strategy.
+			err = removeCAPIClusterFinalizer(capiClient, cluster.Namespace, cluster.Name)
+			if !assert.NoError(t, err, "could not remove the cluster-api finalizer from the cluster") {
 				return
 			}
 
@@ -569,4 +579,16 @@ func setDeprovisionedComputeMachinesets(capiClient capiclientset.Interface, name
 		return err
 	}
 	return nil
+}
+
+func removeCAPIClusterFinalizer(capiClient capiclientset.Interface, namespace, name string) error {
+	cluster, err := getCluster(capiClient, namespace, name)
+	if err != nil {
+		return err
+	}
+	finalizers := sets.NewString(cluster.Finalizers...)
+	finalizers.Delete(capiv1alpha1.ClusterFinalizer)
+	cluster.Finalizers = finalizers.List()
+	_, err = capiClient.ClusterV1alpha1().Clusters(namespace).Update(cluster)
+	return err
 }

@@ -17,10 +17,13 @@ limitations under the License.
 package cmd
 
 import (
+	"fmt"
 	"github.com/ghodss/yaml"
 	"github.com/golang/glog"
 	"github.com/spf13/cobra"
 	"io/ioutil"
+	"sigs.k8s.io/cluster-api/cloud/google"
+	"sigs.k8s.io/cluster-api/cloud/vsphere"
 	"sigs.k8s.io/cluster-api/clusterctl/clusterdeployer"
 	"sigs.k8s.io/cluster-api/clusterctl/clusterdeployer/minikube"
 	clusterv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
@@ -28,10 +31,13 @@ import (
 )
 
 type CreateOptions struct {
-	Cluster string
-	Machine string
+	Cluster                string
+	Machine                string
+	ProviderComponents     string
 	CleanupExternalCluster bool
-	VmDriver string
+	VmDriver               string
+	Provider               string
+	KubeconfigOutput       string
 }
 
 var co = &CreateOptions{}
@@ -64,7 +70,21 @@ func RunCreate(co *CreateOptions) error {
 	}
 
 	mini := minikube.New(co.VmDriver)
-	d := clusterdeployer.New(mini, co.CleanupExternalCluster)
+	pd, err := getProvider(co.Provider)
+	if err != nil {
+		return err
+	}
+	pc, err := ioutil.ReadFile(co.ProviderComponents)
+	if err != nil {
+		return err
+	}
+	d := clusterdeployer.New(
+		mini,
+		clusterdeployer.NewClusterClientFactory(),
+		pd,
+		string(pc),
+		co.KubeconfigOutput,
+		co.CleanupExternalCluster)
 	err = d.Create(c, m)
 	return err
 }
@@ -73,10 +93,15 @@ func init() {
 	// Required flags
 	createClusterCmd.Flags().StringVarP(&co.Cluster, "cluster", "c", "", "A yaml file containing cluster object definition")
 	createClusterCmd.Flags().StringVarP(&co.Machine, "machines", "m", "", "A yaml file containing machine object definition(s)")
+	createClusterCmd.Flags().StringVarP(&co.ProviderComponents, "provider-components", "p", "", "A yaml file containing cluster api provider controllers and supporting objects")
+	// TODO: Remove as soon as code allows https://github.com/kubernetes-sigs/cluster-api/issues/157
+	createClusterCmd.Flags().StringVarP(&co.Provider, "provider", "", "", "Which provider deployment logic to use (google/vsphere)")
 
 	// Optional flags
 	createClusterCmd.Flags().BoolVarP(&co.CleanupExternalCluster, "cleanup-external-cluster", "", true, "Whether to cleanup the external cluster after bootstrap")
 	createClusterCmd.Flags().StringVarP(&co.VmDriver, "vm-driver", "", "", "Which vm driver to use for minikube")
+	createClusterCmd.Flags().StringVarP(&co.KubeconfigOutput, "kubeconfig-out", "", "kubeconfig", "where to output the kubeconfig for the provisioned cluster.")
+
 	createCmd.AddCommand(createClusterCmd)
 }
 
@@ -112,4 +137,34 @@ func parseMachinesYaml(file string) ([]*clusterv1.Machine, error) {
 	}
 
 	return util.MachineP(list.Items), nil
+}
+
+func getProvider(provider string) (clusterdeployer.ProviderDeployer, error) {
+	switch provider {
+	case "google":
+		return google.NewMachineActuator(google.MachineActuatorParams{})
+	case "vsphere":
+		t, err := vsphere.NewMachineActuator("", nil, "")
+		if err != nil {
+			return nil, err
+		}
+		return &vsphereAdapter{t}, nil
+	default:
+		return nil, fmt.Errorf("Unrecognized provider %v", provider)
+	}
+}
+
+// Adapt the vsphere methods calls since gcp/vsphere are not on the same page.
+// Long term, these providers should converge or the need for a provider will go away.
+// Whichever comes first.
+type vsphereAdapter struct {
+	*vsphere.VsphereClient
+}
+
+func (a *vsphereAdapter) GetIP(cluster *clusterv1.Cluster, machine *clusterv1.Machine) (string, error) {
+	return a.VsphereClient.GetIP(machine)
+}
+
+func (a *vsphereAdapter) GetKubeConfig(cluster *clusterv1.Cluster, master *clusterv1.Machine) (string, error) {
+	return a.VsphereClient.GetKubeConfig(master)
 }

@@ -209,7 +209,7 @@ func (c *Controller) deleteCluster(obj interface{}) {
 
 func (c *Controller) addMachineSet(obj interface{}) {
 	machineSet := obj.(*capi.MachineSet)
-	if !isMasterMachineSet(machineSet) {
+	if !controller.MachineSetHasRole(machineSet, capicommon.MasterRole) {
 		return
 	}
 	logging.WithMachineSet(c.Logger, machineSet).
@@ -219,7 +219,7 @@ func (c *Controller) addMachineSet(obj interface{}) {
 
 func (c *Controller) updateMachineSet(old, cur interface{}) {
 	machineSet := cur.(*capi.MachineSet)
-	if !isMasterMachineSet(machineSet) {
+	if !controller.MachineSetHasRole(machineSet, capicommon.MasterRole) {
 		return
 	}
 	logging.WithMachineSet(c.Logger, machineSet).
@@ -241,7 +241,7 @@ func (c *Controller) deleteMachineSet(obj interface{}) {
 			return
 		}
 	}
-	if !isMasterMachineSet(machineSet) {
+	if !controller.MachineSetHasRole(machineSet, capicommon.MasterRole) {
 		return
 	}
 	logging.WithMachineSet(c.Logger, machineSet).
@@ -295,7 +295,7 @@ func (c *Controller) enqueueClusterForMachineSet(machineSet *capi.MachineSet) {
 	cluster, err := controller.ClusterForMachineSet(machineSet, c.clusterLister)
 	if err != nil {
 		logging.WithMachineSet(c.Logger, machineSet).
-			Warnf("Error getting cluster for master machine set: %v")
+			Warnf("Error getting cluster for master machine set: %v", err)
 		return
 	}
 	if cluster == nil {
@@ -342,15 +342,6 @@ func (c *Controller) handleErr(err error, key interface{}) {
 	utilruntime.HandleError(err)
 	logger.Infof("Dropping cluster out of the queue: %v", err)
 	c.queue.Forget(key)
-}
-
-func isMasterMachineSet(machineSet *capi.MachineSet) bool {
-	for _, role := range machineSet.Spec.Template.Spec.Roles {
-		if role == capicommon.MasterRole {
-			return true
-		}
-	}
-	return false
 }
 
 type jobFactory func(string) (*v1batch.Job, *kapi.ConfigMap, error)

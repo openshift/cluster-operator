@@ -29,10 +29,6 @@ const (
 	// owner of a job
 	OwnerGenerationAnnotation = GroupName + "/owner.generation"
 
-	// ClusterNameLabel is the label that a machineset must have to identify the
-	// cluster to which it belongs.
-	ClusterNameLabel = "clusteroperator.openshift.io/cluster"
-
 	// MasterMachineSetName is the short name reserved for master machine sets.
 	// This cannot be used as the short name for a regular compute machine set.
 	MasterMachineSetName = "master"
