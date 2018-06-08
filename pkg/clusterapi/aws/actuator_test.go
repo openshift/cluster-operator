@@ -187,10 +187,20 @@ func TestCreateMachine(t *testing.T) {
 			actuator.clientBuilder = func(kubeClient kubernetes.Interface, mSpec *clustopv1.MachineSetSpec, namespace, region string) (Client, error) {
 				return mockAWSClient, nil
 			}
+			var userDataGeneratorCalled bool
+			actuator.userDataGenerator = func(infra bool) (string, error) {
+				userDataGeneratorCalled = true
+				return "fakeuserdata", nil
+			}
 
 			instance, err := actuator.CreateMachine(cluster, machine)
 			assert.NoError(t, err)
 			assert.NotNil(t, instance)
+			if isMaster {
+				assert.False(t, userDataGeneratorCalled, "user data was generated for a master machine")
+			} else {
+				assert.True(t, userDataGeneratorCalled, "user data was not generated for a compute node")
+			}
 		})
 	}
 }

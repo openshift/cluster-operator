@@ -78,6 +78,7 @@ type Actuator struct {
 	defaultAvailabilityZone string
 	logger                  *log.Entry
 	clientBuilder           func(kubeClient kubernetes.Interface, mSpec *cov1.MachineSetSpec, namespace, region string) (Client, error)
+	userDataGenerator       func(infra bool) (string, error)
 }
 
 // NewActuator returns a new AWS Actuator
@@ -89,6 +90,7 @@ func NewActuator(kubeClient kubernetes.Interface, clusterClient clusterclient.In
 		defaultAvailabilityZone: defaultAvailabilityZone,
 		logger:                  logger,
 		clientBuilder:           NewClient,
+		userDataGenerator:       generateUserData,
 	}
 	return actuator
 }
@@ -263,19 +265,11 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 		},
 	}
 
-	bootstrapKubeConfig, err := getBootstrapKubeconfig()
-	if err != nil {
-		return nil, fmt.Errorf("cannot get bootstrap kubeconfig: %v", err)
-	}
-	userData := getUserData(bootstrapKubeConfig, coMachineSetSpec.Infra)
-	userDataEnc := base64.StdEncoding.EncodeToString([]byte(userData))
-
 	inputConfig := ec2.RunInstancesInput{
 		ImageId:      describeAMIResult.Images[0].ImageId,
 		InstanceType: aws.String(coMachineSetSpec.Hardware.AWS.InstanceType),
 		MinCount:     aws.Int64(1),
 		MaxCount:     aws.Int64(1),
-		UserData:     &userDataEnc,
 		KeyName:      aws.String(clusterSpec.Hardware.AWS.KeyPairName),
 		IamInstanceProfile: &ec2.IamInstanceProfileSpecification{
 			Name: aws.String(iamRole(cluster)),
@@ -283,6 +277,18 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 		BlockDeviceMappings: blkDeviceMappings,
 		TagSpecifications:   []*ec2.TagSpecification{tagInstance, tagVolume},
 		NetworkInterfaces:   networkInterfaces,
+	}
+
+	// Only compute nodes should get user data, and it's quite important that masters do not as the
+	// AWS actuator for these is running on the root CO cluster currently, and we do not want to leak
+	// root CO cluster bootstrap kubeconfigs to the target cluster.
+	if !controller.MachineHasRole(machine, capicommon.MasterRole) {
+		userData, err := a.userDataGenerator(coMachineSetSpec.Infra)
+		if err != nil {
+			return nil, err
+		}
+		userDataEnc := base64.StdEncoding.EncodeToString([]byte(userData))
+		inputConfig.UserData = &userDataEnc
 	}
 
 	runResult, err := client.RunInstances(&inputConfig)
@@ -508,22 +514,20 @@ runcmd:
 - [ systemctl, start, origin-node]
 `
 
-func getUserData(bootstrapKubeConfig string, infra bool) string {
+func generateUserData(infra bool) (string, error) {
+	content, err := ioutil.ReadFile(bootstrapKubeConfig)
+	if err != nil {
+		return "", fmt.Errorf("cannot get bootstrap kubeconfig: %v", err)
+	}
+	bootstrapKubeConfig := base64.StdEncoding.EncodeToString(content)
+
 	var nodeType string
 	if infra {
 		nodeType = "infra"
 	} else {
 		nodeType = "compute"
 	}
-	return fmt.Sprintf(userDataTemplate, nodeType, bootstrapKubeConfig)
-}
-
-func getBootstrapKubeconfig() (string, error) {
-	content, err := ioutil.ReadFile(bootstrapKubeConfig)
-	if err != nil {
-		return "", err
-	}
-	return base64.StdEncoding.EncodeToString(content), nil
+	return fmt.Sprintf(userDataTemplate, nodeType, bootstrapKubeConfig), nil
 }
 
 func iamRole(cluster *clusterv1.Cluster) string {
