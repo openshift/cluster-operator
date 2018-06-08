@@ -19,9 +19,11 @@ package controller
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
 	log "github.com/sirupsen/logrus"
 	testlog "github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
@@ -77,31 +79,6 @@ func (c *testJobOwnerControl) OnOwnedJobEvent(owner metav1.Object) {
 		return
 	}
 	// Do nothing
-}
-
-type testJobFactory struct {
-	responseJob       *kbatch.Job
-	responseConfigMap *kapi.ConfigMap
-	responseError     error
-	calls             []string
-}
-
-func newTestJobFactory(job *kbatch.Job, configMap *kapi.ConfigMap, err error) *testJobFactory {
-	factory := &testJobFactory{
-		responseError: err,
-	}
-	if job != nil {
-		factory.responseJob = job.DeepCopy()
-	}
-	if configMap != nil {
-		factory.responseConfigMap = configMap.DeepCopy()
-	}
-	return factory
-}
-
-func (f *testJobFactory) BuildJob(name string) (*kbatch.Job, *kapi.ConfigMap, error) {
-	f.calls = append(f.calls, name)
-	return f.responseJob, f.responseConfigMap, f.responseError
 }
 
 func newTestJobControl(jobPrefix string, ownerKind schema.GroupVersionKind) (
@@ -202,7 +179,7 @@ func newTestConfigMap(name string) *kapi.ConfigMap {
 func TestJobControlWithoutNeedForNewJob(t *testing.T) {
 	jobControl, _, _, _, _, _, loggerHook := newTestJobControl(testJobPrefix, testOwnerKind)
 	testOwner := newTestOwner(1)
-	result, job, err := jobControl.ControlJobs(testOwnerKey, testOwner, false, nil, nil, nil)
+	result, job, err := jobControl.ControlJobs(testOwnerKey, testOwner, "", false, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("no error expected: %v", err)
 	}
@@ -249,6 +226,9 @@ func TestJobControlSuccessButOwnerNeedsReprocessing(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			mockCtrl := gomock.NewController(t)
+			defer mockCtrl.Finish()
+
 			jobControl, jobStore, _, _, _, _, loggerHook := newTestJobControl(testJobPrefix, testOwnerKind)
 
 			testOwner := newTestOwner(1)
@@ -257,9 +237,13 @@ func TestJobControlSuccessButOwnerNeedsReprocessing(t *testing.T) {
 			jobStore.Add(existingJob)
 			newJob := newTestJob("new-job")
 			newConfigMap := newTestConfigMap("new-configmap")
-			jobFactory := newTestJobFactory(newJob, newConfigMap, nil)
+			jobFactory := NewMockJobFactory(mockCtrl)
+			if !tc.jobExpected {
+				jobFactory.EXPECT().BuildJob(prefixMatcher{"test-job-test-owner-"}).
+					Return(newJob.DeepCopy(), newConfigMap.DeepCopy(), nil)
+			}
 
-			result, job, err := jobControl.ControlJobs(testOwnerKey, testOwner, false,
+			result, job, err := jobControl.ControlJobs(testOwnerKey, testOwner, "", false,
 				&tc.reprocessInterval, &tc.lastSuccess, jobFactory)
 			if err != nil {
 				t.Fatalf("no error expected: %v", err)
@@ -280,11 +264,14 @@ func TestJobControlSuccessButOwnerNeedsReprocessing(t *testing.T) {
 // TestJobControlWithPendingExpectations tests controlling jobs when there
 // are pending expectations that have not yet been met.
 func TestJobControlWithPendingExpectations(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+
 	jobControl, _, _, _, _, _, loggerHook := newTestJobControl(testJobPrefix, testOwnerKind)
 	testOwner := newTestOwner(1)
 	jobControl.expectations.ExpectCreations(testOwnerKey, 1)
-	jobFactory := newTestJobFactory(nil, nil, nil)
-	result, job, err := jobControl.ControlJobs(testOwnerKey, testOwner, true, nil, nil, jobFactory)
+	jobFactory := NewMockJobFactory(mockCtrl)
+	result, job, err := jobControl.ControlJobs(testOwnerKey, testOwner, "", true, nil, nil, jobFactory)
 	if err != nil {
 		t.Fatalf("no error expected: %v", err)
 	}
@@ -294,71 +281,94 @@ func TestJobControlWithPendingExpectations(t *testing.T) {
 	if job != nil {
 		t.Fatalf("no job expected: %v", job)
 	}
-	if len(jobFactory.calls) > 0 {
-		t.Fatalf("should not build new jobs while expectations pending")
-	}
 	assert.Empty(t, test.GetDireLogEntries(loggerHook), "unexpected dire log entries")
 }
 
 // TestJobControlForNewJob tests controlling jobs when there are no existing
 // jobs and a new job is needed.
 func TestJobControlForNewJob(t *testing.T) {
-	jobControl, _, kubeClient, _, _, _, loggerHook := newTestJobControl(testJobPrefix, testOwnerKind)
-	testOwner := newTestOwner(1)
-	newJob := newTestJob("new-job")
-	newConfigMap := newTestConfigMap("new-configmap")
-	jobFactory := newTestJobFactory(newJob, newConfigMap, nil)
-	result, job, err := jobControl.ControlJobs(testOwnerKey, testOwner, true, nil, nil, jobFactory)
-	if err != nil {
-		t.Fatalf("no error expected: %v", err)
+	cases := []struct {
+		name               string
+		extraJobIdentifier string
+	}{
+		{
+			name:               "no extra",
+			extraJobIdentifier: "",
+		},
+		{
+			name:               "extra",
+			extraJobIdentifier: "extra",
+		},
 	}
-	if e, a := JobControlCreatingJob, result; e != a {
-		t.Fatalf("unexpected job control result: expected %v, got %v", e, a)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mockCtrl := gomock.NewController(t)
+			defer mockCtrl.Finish()
+
+			jobControl, _, kubeClient, _, _, _, loggerHook := newTestJobControl(testJobPrefix, testOwnerKind)
+			testOwner := newTestOwner(1)
+			newJob := newTestJob("new-job")
+			newConfigMap := newTestConfigMap("new-configmap")
+			jobFactory := NewMockJobFactory(mockCtrl)
+			expectedJobNamePrefix := "test-job-test-owner"
+			if tc.extraJobIdentifier != "" {
+				expectedJobNamePrefix = fmt.Sprintf("test-job-%s-test-owner", tc.extraJobIdentifier)
+			}
+			jobFactory.EXPECT().BuildJob(prefixMatcher{expectedJobNamePrefix}).
+				Return(newJob.DeepCopy(), newConfigMap.DeepCopy(), nil)
+			result, job, err := jobControl.ControlJobs(testOwnerKey, testOwner, tc.extraJobIdentifier, true, nil, nil, jobFactory)
+			if err != nil {
+				t.Fatalf("no error expected: %v", err)
+			}
+			if e, a := JobControlCreatingJob, result; e != a {
+				t.Fatalf("unexpected job control result: expected %v, got %v", e, a)
+			}
+			if job != nil {
+				t.Fatalf("no job expected: %v", job)
+			}
+			actions := kubeClient.Actions()
+			if e, a := 2, len(actions); e != a {
+				t.Fatalf("unexpected number of kube client actions: expected %v, got %v", e, a)
+			}
+			{
+				createAction, ok := actions[0].(clientgotesting.CreateAction)
+				if !ok {
+					t.Fatalf("first action was not a create: %v", actions[0])
+				}
+				createdObject := createAction.GetObject()
+				configMap, ok := createdObject.(*kapi.ConfigMap)
+				if !ok {
+					t.Fatalf("first action created object is not a configmap")
+				}
+				if e, a := newConfigMap.Name, configMap.Name; e != a {
+					t.Fatalf("created configmap does not match expected: expected %v, got %v", e, a)
+				}
+			}
+			{
+				createAction, ok := actions[1].(clientgotesting.CreateAction)
+				if !ok {
+					t.Fatalf("second action was not a create: %v", actions[0])
+				}
+				createdObject := createAction.GetObject()
+				createdJob, ok := createdObject.(*kbatch.Job)
+				if !ok {
+					t.Fatalf("second action created object is not a job")
+				}
+				if e, a := newJob.Name, createdJob.Name; e != a {
+					t.Fatalf("created job does not match expected: expected %v, got %v", e, a)
+				}
+			}
+			assert.Empty(t, test.GetDireLogEntries(loggerHook), "unexpected dire log entries")
+		})
 	}
-	if job != nil {
-		t.Fatalf("no job expected: %v", job)
-	}
-	if e, a := 1, len(jobFactory.calls); e != a {
-		t.Fatalf("unexpected number of calls to build jobs: expected %v, got %v", e, a)
-	}
-	actions := kubeClient.Actions()
-	if e, a := 2, len(actions); e != a {
-		t.Fatalf("unexpected number of kube client actions: expected %v, got %v", e, a)
-	}
-	{
-		createAction, ok := actions[0].(clientgotesting.CreateAction)
-		if !ok {
-			t.Fatalf("first action was not a create: %v", actions[0])
-		}
-		createdObject := createAction.GetObject()
-		configMap, ok := createdObject.(*kapi.ConfigMap)
-		if !ok {
-			t.Fatalf("first action created object is not a configmap")
-		}
-		if e, a := newConfigMap.Name, configMap.Name; e != a {
-			t.Fatalf("created configmap does not match expected: expected %v, got %v", e, a)
-		}
-	}
-	{
-		createAction, ok := actions[1].(clientgotesting.CreateAction)
-		if !ok {
-			t.Fatalf("second action was not a create: %v", actions[0])
-		}
-		createdObject := createAction.GetObject()
-		createdJob, ok := createdObject.(*kbatch.Job)
-		if !ok {
-			t.Fatalf("second action created object is not a job")
-		}
-		if e, a := newJob.Name, createdJob.Name; e != a {
-			t.Fatalf("created job does not match expected: expected %v, got %v", e, a)
-		}
-	}
-	assert.Empty(t, test.GetDireLogEntries(loggerHook), "unexpected dire log entries")
 }
 
 // TestJobControlWhenJobDeleteFails tests controlling jobs when the delete
 // of an old existing job fails.
 func TestJobControlWhenJobDeleteFails(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+
 	jobControl, jobStore, kubeClient, _, _, _, loggerHook := newTestJobControl(testJobPrefix, testOwnerKind)
 	kubeClient.AddReactor("delete", "jobs", func(action clientgotesting.Action) (bool, kruntime.Object, error) {
 		return true, nil, fmt.Errorf("delete failed")
@@ -366,10 +376,8 @@ func TestJobControlWhenJobDeleteFails(t *testing.T) {
 	testOwner := newTestOwner(2)
 	existingJob := newTestControlledJob(testJobPrefix, "existing-job", testOwner, testOwnerKind, 1)
 	jobStore.Add(existingJob)
-	newJob := newTestJob("new-job")
-	newConfigMap := newTestConfigMap("new-configmap")
-	jobFactory := newTestJobFactory(newJob, newConfigMap, nil)
-	result, _, err := jobControl.ControlJobs(testOwnerKey, testOwner, true, nil, nil, jobFactory)
+	jobFactory := NewMockJobFactory(mockCtrl)
+	result, _, err := jobControl.ControlJobs(testOwnerKey, testOwner, "", true, nil, nil, jobFactory)
 	if err == nil {
 		t.Fatalf("error expected")
 	}
@@ -551,4 +559,21 @@ func TestJobControlWhenControlledJobDeletedWithMissingOwner(t *testing.T) {
 	jobControl.OnDelete(newJob)
 	assert.False(t, ownerEnqueued, "owner enqueued unexpectedly")
 	assert.NotEmpty(t, test.GetDireLogEntries(loggerHook), "expected dire log entries")
+}
+
+type prefixMatcher struct {
+	prefix string
+}
+
+func (m prefixMatcher) Matches(x interface{}) bool {
+	switch s := x.(type) {
+	case string:
+		return strings.HasPrefix(s, m.prefix)
+	default:
+		return false
+	}
+}
+
+func (m prefixMatcher) String() string {
+	return fmt.Sprintf("prefix %q", m.prefix)
 }

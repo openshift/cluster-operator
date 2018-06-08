@@ -81,6 +81,8 @@ type JobControl interface {
 	//
 	// ownerKey: key to identify the owner (namespace/name)
 	// owner: owner owning the jobs
+	// extraJobIdentifier: extra text to include in the job name. This will be
+	//   included after the job prefix and before the owner name.
 	// buildNewJob: true if a new job should be built if one does not already
 	//   exist
 	// reprocessInterval: approximate period of time after which we would like
@@ -96,6 +98,7 @@ type JobControl interface {
 	ControlJobs(
 		ownerKey string,
 		owner metav1.Object,
+		extraJobIdentifier string,
 		buildNewJob bool,
 		reprocessInterval *time.Duration,
 		lastJobSuccess *time.Time,
@@ -169,6 +172,7 @@ func NewJobControl(
 func (c *jobControl) ControlJobs(
 	ownerKey string,
 	owner metav1.Object,
+	extraJobIdentifier string,
 	buildNewJob bool,
 	reprocessInterval *time.Duration,
 	lastJobSuccess *time.Time,
@@ -258,7 +262,7 @@ func (c *jobControl) ControlJobs(
 				} else if time.Since(*lastJobSuccess) > *reprocessInterval {
 					// Interval exceeded, a new job is required:
 					loggerForJob(logger, generationJob).Debug("reprocess job required")
-					_, err := c.createJob(ownerKey, owner, jobFactory, logger)
+					_, err := c.createJob(ownerKey, owner, extraJobIdentifier, jobFactory, logger)
 					return JobControlCreatingJob, nil, err
 				}
 			}
@@ -279,7 +283,7 @@ func (c *jobControl) ControlJobs(
 
 	if buildNewJob {
 		logger.Debugf("building new job")
-		_, err := c.createJob(ownerKey, owner, jobFactory, logger)
+		_, err := c.createJob(ownerKey, owner, extraJobIdentifier, jobFactory, logger)
 		return JobControlCreatingJob, nil, err
 	}
 
@@ -403,10 +407,13 @@ func (c *jobControl) onJobEvent(obj interface{}, eventType string) {
 	c.ownerControl.OnOwnedJobEvent(owner)
 }
 
-func (c *jobControl) createJob(ownerKey string, owner metav1.Object, jobFactory JobFactory, logger log.FieldLogger) (*kbatch.Job, error) {
-	logger.Infof("Creating new %q job", c.jobPrefix)
+func (c *jobControl) createJob(ownerKey string, owner metav1.Object, extraJobIdentifier string, jobFactory JobFactory, logger log.FieldLogger) (*kbatch.Job, error) {
+	if extraJobIdentifier != "" {
+		extraJobIdentifier = extraJobIdentifier + "-"
+	}
+	name := names.SimpleNameGenerator.GenerateName(fmt.Sprintf("%s-%s%s-", c.jobPrefix, extraJobIdentifier, owner.GetName()))
 
-	name := names.SimpleNameGenerator.GenerateName(fmt.Sprintf("%s-%s-", c.jobPrefix, owner.GetName()))
+	logger.Infof("Creating new %q job", name)
 
 	if jobFactory == nil {
 		logger.Warn("asked to build new job but no job factory supplied")
