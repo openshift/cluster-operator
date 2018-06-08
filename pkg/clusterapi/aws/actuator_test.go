@@ -54,6 +54,102 @@ const (
 	testAZ                    = "us-east-1c"
 )
 
+func TestUserDataTemplate(t *testing.T) {
+	cases := []struct {
+		name                string
+		isMaster            bool
+		isInfra             bool
+		bootstrapKubeconfig string
+		expectedUserData    string
+	}{
+		{
+			name:     "master",
+			isMaster: true,
+			isInfra:  false,
+			expectedUserData: `#cloud-config
+write_files:
+- path: /root/openshift_bootstrap/openshift_settings.yaml
+  owner: 'root:root'
+  permissions: '0640'
+  content: |
+    openshift_group_type: master
+runcmd:
+- [ ansible-playbook, /root/openshift_bootstrap/bootstrap.yml]`,
+		},
+		{
+			name:     "master and infra",
+			isMaster: true,
+			isInfra:  true,
+			expectedUserData: `#cloud-config
+write_files:
+- path: /root/openshift_bootstrap/openshift_settings.yaml
+  owner: 'root:root'
+  permissions: '0640'
+  content: |
+    openshift_group_type: master
+runcmd:
+- [ ansible-playbook, /root/openshift_bootstrap/bootstrap.yml]`,
+		},
+		{
+			name:                "compute node",
+			isMaster:            false,
+			isInfra:             false,
+			bootstrapKubeconfig: "testkubeconfig",
+			expectedUserData: `#cloud-config
+write_files:
+- path: /root/openshift_bootstrap/openshift_settings.yaml
+  owner: 'root:root'
+  permissions: '0640'
+  content: |
+    openshift_group_type: compute
+- path: /etc/origin/node/bootstrap.kubeconfig
+  owner: 'root:root'
+  permissions: '0640'
+  encoding: b64
+  content: testkubeconfig
+runcmd:
+- [ ansible-playbook, /root/openshift_bootstrap/bootstrap.yml]
+- [ systemctl, restart, systemd-hostnamed]
+- [ systemctl, restart, NetworkManager]
+- [ systemctl, enable, origin-node]
+- [ systemctl, start, origin-node]`,
+		},
+		{
+			name:                "infra node",
+			isMaster:            false,
+			isInfra:             true,
+			bootstrapKubeconfig: "testkubeconfig",
+			expectedUserData: `#cloud-config
+write_files:
+- path: /root/openshift_bootstrap/openshift_settings.yaml
+  owner: 'root:root'
+  permissions: '0640'
+  content: |
+    openshift_group_type: infra
+- path: /etc/origin/node/bootstrap.kubeconfig
+  owner: 'root:root'
+  permissions: '0640'
+  encoding: b64
+  content: testkubeconfig
+runcmd:
+- [ ansible-playbook, /root/openshift_bootstrap/bootstrap.yml]
+- [ systemctl, restart, systemd-hostnamed]
+- [ systemctl, restart, NetworkManager]
+- [ systemctl, enable, origin-node]
+- [ systemctl, start, origin-node]`,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			parsedTemplate, err := executeTemplate(tc.isMaster, tc.isInfra, tc.bootstrapKubeconfig)
+			if assert.NoError(t, err) {
+				assert.Equal(t, tc.expectedUserData, parsedTemplate)
+			}
+		})
+	}
+
+}
+
 func TestBuildDescribeSecurityGroupsInput(t *testing.T) {
 	cases := []struct {
 		name               string
@@ -187,20 +283,13 @@ func TestCreateMachine(t *testing.T) {
 			actuator.clientBuilder = func(kubeClient kubernetes.Interface, mSpec *clustopv1.MachineSetSpec, namespace, region string) (Client, error) {
 				return mockAWSClient, nil
 			}
-			var userDataGeneratorCalled bool
-			actuator.userDataGenerator = func(infra bool) (string, error) {
-				userDataGeneratorCalled = true
+			actuator.userDataGenerator = func(master, infra bool) (string, error) {
 				return "fakeuserdata", nil
 			}
 
 			instance, err := actuator.CreateMachine(cluster, machine)
 			assert.NoError(t, err)
 			assert.NotNil(t, instance)
-			if isMaster {
-				assert.False(t, userDataGeneratorCalled, "user data was generated for a master machine")
-			} else {
-				assert.True(t, userDataGeneratorCalled, "user data was not generated for a compute node")
-			}
 		})
 	}
 }

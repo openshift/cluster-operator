@@ -17,9 +17,11 @@ limitations under the License.
 package aws
 
 import (
+	"bytes"
 	"encoding/base64"
 	"fmt"
 	"io/ioutil"
+	"text/template"
 
 	log "github.com/sirupsen/logrus"
 
@@ -78,7 +80,7 @@ type Actuator struct {
 	defaultAvailabilityZone string
 	logger                  *log.Entry
 	clientBuilder           func(kubeClient kubernetes.Interface, mSpec *cov1.MachineSetSpec, namespace, region string) (Client, error)
-	userDataGenerator       func(infra bool) (string, error)
+	userDataGenerator       func(master, infra bool) (string, error)
 }
 
 // NewActuator returns a new AWS Actuator
@@ -265,6 +267,15 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 		},
 	}
 
+	// Only compute nodes should get user data, and it's quite important that masters do not as the
+	// AWS actuator for these is running on the root CO cluster currently, and we do not want to leak
+	// root CO cluster bootstrap kubeconfigs to the target cluster.
+	userData, err := a.userDataGenerator(controller.MachineHasRole(machine, capicommon.MasterRole), coMachineSetSpec.Infra)
+	if err != nil {
+		return nil, err
+	}
+	userDataEnc := base64.StdEncoding.EncodeToString([]byte(userData))
+
 	inputConfig := ec2.RunInstancesInput{
 		ImageId:      describeAMIResult.Images[0].ImageId,
 		InstanceType: aws.String(coMachineSetSpec.Hardware.AWS.InstanceType),
@@ -277,18 +288,7 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 		BlockDeviceMappings: blkDeviceMappings,
 		TagSpecifications:   []*ec2.TagSpecification{tagInstance, tagVolume},
 		NetworkInterfaces:   networkInterfaces,
-	}
-
-	// Only compute nodes should get user data, and it's quite important that masters do not as the
-	// AWS actuator for these is running on the root CO cluster currently, and we do not want to leak
-	// root CO cluster bootstrap kubeconfigs to the target cluster.
-	if !controller.MachineHasRole(machine, capicommon.MasterRole) {
-		userData, err := a.userDataGenerator(coMachineSetSpec.Infra)
-		if err != nil {
-			return nil, err
-		}
-		userDataEnc := base64.StdEncoding.EncodeToString([]byte(userData))
-		inputConfig.UserData = &userDataEnc
+		UserData:            &userDataEnc,
 	}
 
 	runResult, err := client.RunInstances(&inputConfig)
@@ -500,34 +500,79 @@ write_files:
   owner: 'root:root'
   permissions: '0640'
   content: |
-    openshift_group_type: %[1]s
+    openshift_group_type: {{ .NodeType }}
+{{- if .IsNode }}
 - path: /etc/origin/node/bootstrap.kubeconfig
   owner: 'root:root'
   permissions: '0640'
   encoding: b64
-  content: %[2]s
+  content: {{ .BootstrapKubeconfig }}
+{{- end }}
 runcmd:
 - [ ansible-playbook, /root/openshift_bootstrap/bootstrap.yml]
+{{- if .IsNode }}
 - [ systemctl, restart, systemd-hostnamed]
 - [ systemctl, restart, NetworkManager]
 - [ systemctl, enable, origin-node]
 - [ systemctl, start, origin-node]
-`
+{{- end }}`
 
-func generateUserData(infra bool) (string, error) {
-	content, err := ioutil.ReadFile(bootstrapKubeConfig)
-	if err != nil {
-		return "", fmt.Errorf("cannot get bootstrap kubeconfig: %v", err)
-	}
-	bootstrapKubeConfig := base64.StdEncoding.EncodeToString(content)
+type userDataParams struct {
+	NodeType            string
+	BootstrapKubeconfig string
+	IsNode              bool
+}
 
+func executeTemplate(isMaster, isInfra bool, bootstrapKubeconfig string) (string, error) {
 	var nodeType string
-	if infra {
+	if isMaster {
+		nodeType = "master"
+	} else if isInfra {
 		nodeType = "infra"
 	} else {
 		nodeType = "compute"
 	}
-	return fmt.Sprintf(userDataTemplate, nodeType, bootstrapKubeConfig), nil
+	params := userDataParams{
+		NodeType:            nodeType,
+		BootstrapKubeconfig: bootstrapKubeconfig,
+		IsNode:              !isMaster,
+	}
+
+	t, err := template.New("userdata").Parse(userDataTemplate)
+	if err != nil {
+		return "", err
+	}
+	var buf bytes.Buffer
+	err = t.Execute(&buf, params)
+	if err != nil {
+		return "", err
+	}
+	return buf.String(), nil
+}
+
+// generateUserData is a generator function used in the actuator to create the user data for a
+// specific type of machine.
+func generateUserData(isMaster, isInfra bool) (string, error) {
+	var bootstrapKubeconfig string
+	var err error
+	if !isMaster {
+		bootstrapKubeconfig, err = getBootstrapKubeconfig()
+		if err != nil {
+			return "", fmt.Errorf("cannot get bootstrap kubeconfig: %v", err)
+		}
+	}
+
+	return executeTemplate(isMaster, isInfra, bootstrapKubeconfig)
+}
+
+// getBootstrapKubeconfig reads the bootstrap kubeconfig expected to be mounted into the pod. This assumes
+// the actuator runs on a master which has such a kubeconfig for joining nodes to the cluster.
+func getBootstrapKubeconfig() (string, error) {
+	content, err := ioutil.ReadFile(bootstrapKubeConfig)
+	if err != nil {
+		return "", err
+	}
+	return base64.StdEncoding.EncodeToString(content), nil
 }
 
 func iamRole(cluster *clusterv1.Cluster) string {
