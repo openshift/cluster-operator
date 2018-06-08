@@ -33,6 +33,9 @@ const (
 	// cluster to which it belongs.
 	ClusterNameLabel = "clusteroperator.openshift.io/cluster"
 
+	// ClusterDeploymentLabel is the label used on clusters to link to the ClusterDeployment that sourced it.
+	ClusterDeploymentLabel = "clusteroperator.openshift.io/cluster-deployment"
+
 	// MasterMachineSetName is the short name reserved for master machine sets.
 	// This cannot be used as the short name for a regular compute machine set.
 	MasterMachineSetName = "master"

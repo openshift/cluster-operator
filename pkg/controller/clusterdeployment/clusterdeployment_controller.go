@@ -52,9 +52,6 @@ import (
 	clustoplog "github.com/openshift/cluster-operator/pkg/logging"
 )
 
-// controllerKind contains the schema.GroupVersionKind for this controller type.
-var controllerKind = clustop.SchemeGroupVersion.WithKind("ClusterDeployment")
-
 const (
 	controllerLogName = "clusterdeployment"
 
@@ -69,19 +66,6 @@ const (
 
 	// versionExists indicates that the cluster's desired version does exist
 	versionExists = "VersionExists"
-
-	clusterDeploymentLabel = "clusteroperator.openshift.io/cluster-deployment"
-
-	// Domain for service names in the cluster. This is not configurable for OpenShift clusters.
-	defaultServiceDomain = "svc.cluster.local"
-
-	// CIDR for service IPs. This is configured in Ansible via openshift_portal_net. However, it is not yet
-	// configurable via cluster operator.
-	defaultServiceCIDR = "172.30.0.0/16"
-
-	// CIDR for pod IPs. This is configured in Ansible via osm_cluster_network_cidr. However, it is not yet
-	// configurable via cluster operator.
-	defaultPodCIDR = "10.128.0.0/14"
 
 	machineSetNameLabel = "clusteroperator.openshift.io/machineset"
 )
@@ -535,7 +519,7 @@ func (c *Controller) syncCluster(clusterDeployment *clustop.ClusterDeployment, l
 
 	if cluster == nil {
 		// cluster does not exist, it needs to be created
-		cluster, err = BuildCluster(clusterDeployment)
+		cluster, err = controller.BuildCluster(clusterDeployment)
 		if err != nil {
 			return nil, fmt.Errorf("cannot build cluster for cluster deployment %s/%s: %v", clusterDeployment.Namespace, clusterDeployment.Name, err)
 		}
@@ -648,13 +632,13 @@ func buildMasterMachineSet(clusterDeployment *clustop.ClusterDeployment, cluster
 	if machineSet.Labels == nil {
 		machineSet.Labels = make(map[string]string)
 	}
-	machineSet.Labels[clusterDeploymentLabel] = clusterDeployment.Name
+	machineSet.Labels[clustop.ClusterDeploymentLabel] = clusterDeployment.Name
 	machineSet.Labels[clustop.ClusterNameLabel] = cluster.Name
-	machineSet.OwnerReferences = []metav1.OwnerReference{*metav1.NewControllerRef(clusterDeployment, controllerKind)}
+	machineSet.OwnerReferences = []metav1.OwnerReference{*metav1.NewControllerRef(clusterDeployment, controller.ClusterDeploymentKind)}
 	machineSetLabels := map[string]string{
-		machineSetNameLabel:      machineSet.Name,
-		clusterDeploymentLabel:   clusterDeployment.Name,
-		clustop.ClusterNameLabel: cluster.Name,
+		machineSetNameLabel:            machineSet.Name,
+		clustop.ClusterDeploymentLabel: clusterDeployment.Name,
+		clustop.ClusterNameLabel:       cluster.Name,
 	}
 	machineSet.Spec.Selector.MatchLabels = machineSetLabels
 	replicas := int32(machineSetConfig.Size)
@@ -669,30 +653,6 @@ func buildMasterMachineSet(clusterDeployment *clustop.ClusterDeployment, cluster
 	}
 	machineSet.Spec.Template.Spec.ProviderConfig.Value = providerConfig
 	return machineSet, nil
-}
-
-// BuildCluster builds a cluster for the given cluster deployment.
-func BuildCluster(clusterDeployment *clustop.ClusterDeployment) (*capi.Cluster, error) {
-	cluster := &capi.Cluster{}
-	cluster.Name = clusterDeployment.Name
-	cluster.Labels = clusterDeployment.Labels
-	cluster.Namespace = clusterDeployment.Namespace
-	if cluster.Labels == nil {
-		cluster.Labels = make(map[string]string)
-	}
-	cluster.Labels[clusterDeploymentLabel] = clusterDeployment.Name
-	cluster.OwnerReferences = []metav1.OwnerReference{*metav1.NewControllerRef(clusterDeployment, controllerKind)}
-	providerConfig, err := controller.ClusterProviderConfigSpecFromClusterDeploymentSpec(&clusterDeployment.Spec)
-	if err != nil {
-		return nil, err
-	}
-	cluster.Spec.ProviderConfig.Value = providerConfig
-
-	// Set networking defaults
-	cluster.Spec.ClusterNetwork.ServiceDomain = defaultServiceDomain
-	cluster.Spec.ClusterNetwork.Pods.CIDRBlocks = []string{defaultPodCIDR}
-	cluster.Spec.ClusterNetwork.Services.CIDRBlocks = []string{defaultServiceCIDR}
-	return cluster, nil
 }
 
 // validateAWSRegion will check that the cluster's version has an AMI defined for its region. If not, an error will be returned.

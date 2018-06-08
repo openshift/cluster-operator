@@ -29,7 +29,6 @@ import (
 
 	clustopv1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	"github.com/openshift/cluster-operator/pkg/controller"
-	"github.com/openshift/cluster-operator/pkg/controller/clusterdeployment"
 
 	capicommon "sigs.k8s.io/cluster-api/pkg/apis/cluster/common"
 	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
@@ -311,7 +310,7 @@ func testClusterDeployment() *clustopv1.ClusterDeployment {
 
 func testCluster(t *testing.T) *capiv1.Cluster {
 	clusterDeployment := testClusterDeployment()
-	cluster, err := clusterdeployment.BuildCluster(clusterDeployment)
+	cluster, err := controller.BuildCluster(clusterDeployment)
 	assert.NoError(t, err)
 	return cluster
 }
