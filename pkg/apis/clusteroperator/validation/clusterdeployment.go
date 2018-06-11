@@ -43,6 +43,9 @@ func ValidateClusterDeployment(cluster *clusteroperator.ClusterDeployment) field
 // validateClusterDeploymentSpec validates the spec of a cluster.
 func validateClusterDeploymentSpec(spec *clusteroperator.ClusterDeploymentSpec, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
+	if spec.ClusterID == "" {
+		allErrs = append(allErrs, field.Required(fldPath.Child("clusterID"), "clusterID must be set"))
+	}
 	machineSetsPath := fldPath.Child("machineSets")
 	versionPath := fldPath.Child("clusterVersionRef")
 	masterCount := 0
@@ -132,6 +135,8 @@ func ValidateClusterDeploymentUpdate(new *clusteroperator.ClusterDeployment, old
 	allErrs := field.ErrorList{}
 
 	allErrs = append(allErrs, validateClusterDeploymentSpec(&new.Spec, field.NewPath("spec"))...)
+
+	allErrs = append(allErrs, apivalidation.ValidateImmutableField(new.Spec.ClusterID, old.Spec.ClusterID, field.NewPath("spec", "clusterID"))...)
 
 	return allErrs
 }

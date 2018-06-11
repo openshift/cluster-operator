@@ -44,6 +44,7 @@ const (
 	testNamespace             = "test-namespace"
 	testClusterDeploymentName = "test-cluster-deployment"
 	testClusterDeploymentUUID = types.UID("test-cluster-deployment-uuid")
+	testClusterID             = "test-cluster-id"
 	testClusterVerName        = "v3-10"
 	testClusterVerNS          = "cluster-operator"
 	testClusterVerUID         = types.UID("test-cluster-version")
@@ -250,13 +251,13 @@ func TestCreateMachine(t *testing.T) {
 
 			mockAWSClient := NewMockClient(mockCtrl)
 			addDescribeImagesMock(mockAWSClient, testImage)
-			addDescribeVpcsMock(mockAWSClient, cluster.Name, testVPCID)
+			addDescribeVpcsMock(mockAWSClient, testClusterID, testVPCID)
 			addDescribeSubnetsMock(mockAWSClient, testAZ, testVPCID, testSubnetID)
-			addDescribeSecurityGroupsMock(t, mockAWSClient, testVPCID, cluster.Name, isMaster, tc.isInfra)
+			addDescribeSecurityGroupsMock(t, mockAWSClient, testVPCID, testClusterID, isMaster, tc.isInfra)
 			mockAWSClient.EXPECT().RunInstances(gomock.Any()).Do(func(input interface{}) {
 				runInput, ok := input.(*ec2.RunInstancesInput)
 				assert.True(t, ok)
-				assertRunInstancesInputHasTag(t, runInput, "clusterid", cluster.Name)
+				assertRunInstancesInputHasTag(t, runInput, "clusterid", testClusterID)
 				if isMaster {
 					assertRunInstancesInputHasTag(t, runInput, "host-type", "master")
 				} else {
@@ -271,7 +272,7 @@ func TestCreateMachine(t *testing.T) {
 					assertRunInstancesInputHasTag(t, runInput, "sub-host-type", "compute")
 				}
 
-				assertRunInstancesInputHasTag(t, runInput, "kubernetes.io/cluster/"+cluster.Name, cluster.Name)
+				assertRunInstancesInputHasTag(t, runInput, "kubernetes.io/cluster/"+testClusterID, testClusterID)
 				assertRunInstancesInputHasTag(t, runInput, "Name", machine.Name)
 
 				assert.Equal(t, testImage, *runInput.ImageId)
@@ -373,6 +374,7 @@ func testClusterDeployment() *clustopv1.ClusterDeployment {
 			Namespace: testNamespace,
 		},
 		Spec: clustopv1.ClusterDeploymentSpec{
+			ClusterID: testClusterID,
 			MachineSets: []clustopv1.ClusterMachineSet{
 				{
 					ShortName: "",
@@ -417,6 +419,7 @@ func testCluster(t *testing.T) *capiv1.Cluster {
 func testMachine(name string, nodeType clustopv1.NodeType, isInfra bool) *capiv1.Machine {
 	testAMI := testImage
 	msSpec := clustopv1.MachineSetSpec{
+		ClusterID: testClusterID,
 		MachineSetConfig: clustopv1.MachineSetConfig{
 			Infra:    isInfra,
 			Size:     3,

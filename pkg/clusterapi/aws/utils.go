@@ -92,9 +92,9 @@ func GetRunningInstances(machine *clusterv1.Machine, client Client) ([]*ec2.Inst
 
 	machineName := machine.Name
 
-	clusterID, ok := getClusterID(machine)
-	if !ok {
-		return []*ec2.Instance{}, fmt.Errorf("unable to get cluster ID for machine: %s", machine.Name)
+	clusterID, err := getClusterID(machine)
+	if err != nil {
+		return []*ec2.Instance{}, fmt.Errorf("unable to get cluster ID for machine %q: %v", machine.Name, err)
 	}
 
 	// Query instances with our machine's name, and in running/pending state.

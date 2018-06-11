@@ -81,11 +81,27 @@ func (e *JobGeneratorExecutor) Execute(name string) (*kbatch.Job, *kapi.ConfigMa
 	)
 	switch {
 	case e.forCluster:
-		vars, err = GenerateClusterWideVars(e.cluster.Name, &e.cluster.ClusterDeploymentSpec.Hardware, e.clusterVersion, *e.infraSize)
+		vars, err = GenerateClusterWideVars(
+			e.cluster.ClusterDeploymentSpec.ClusterID,
+			&e.cluster.ClusterDeploymentSpec.Hardware,
+			e.clusterVersion,
+			*e.infraSize,
+		)
 	case e.infraSize == nil:
-		vars, err = GenerateClusterWideVarsForMachineSet(e.forMasterMachineSet, e.cluster.Name, &e.cluster.ClusterDeploymentSpec.Hardware, e.clusterVersion)
+		vars, err = GenerateClusterWideVarsForMachineSet(
+			e.forMasterMachineSet,
+			e.cluster.ClusterDeploymentSpec.ClusterID,
+			&e.cluster.ClusterDeploymentSpec.Hardware,
+			e.clusterVersion,
+		)
 	default:
-		vars, err = GenerateClusterWideVarsForMachineSetWithInfraSize(e.forMasterMachineSet, e.cluster.Name, &e.cluster.ClusterDeploymentSpec.Hardware, e.clusterVersion, *e.infraSize)
+		vars, err = GenerateClusterWideVarsForMachineSetWithInfraSize(
+			e.forMasterMachineSet,
+			e.cluster.ClusterDeploymentSpec.ClusterID,
+			&e.cluster.ClusterDeploymentSpec.Hardware,
+			e.clusterVersion,
+			*e.infraSize,
+		)
 	}
 	if err != nil {
 		return nil, nil, err

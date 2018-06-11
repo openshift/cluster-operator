@@ -20,6 +20,7 @@ import (
 	"github.com/openshift/cluster-operator/pkg/api"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/runtime"
+	utilrand "k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/registry/rest"
@@ -87,6 +88,8 @@ func (clusterDeploymentRESTStrategy) PrepareForCreate(ctx genericapirequest.Cont
 	if !ok {
 		glog.Fatal("received a non-cluster object to create")
 	}
+
+	clusterDeployment.Spec.ClusterID = clusterDeployment.Name + "-" + utilrand.String(5)
 
 	// Creating a brand new object, thus it must have no
 	// status. We can't fail here if they passed a status in, so

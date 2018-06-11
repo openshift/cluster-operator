@@ -928,3 +928,61 @@ func TestApplyDefaultMachineSetHardwareSpec(t *testing.T) {
 		}
 	}
 }
+
+func TestELBBasenameFromClusterID(t *testing.T) {
+	cases := []struct {
+		name     string
+		basename string
+		maxLen   int
+		expected string
+	}{
+		{
+			name:     "short",
+			basename: "short",
+			maxLen:   6,
+			expected: "short",
+		},
+		{
+			name:     "max len",
+			basename: "maxlen",
+			maxLen:   6,
+			expected: "maxlen",
+		},
+		{
+			name:     "long",
+			basename: "toolong",
+			maxLen:   6,
+			expected: "toolon",
+		},
+		{
+			name:     "trim on hyphen",
+			basename: "abcd-1234",
+			maxLen:   8,
+			expected: "abc-1234",
+		},
+		{
+			name:     "remove entire beginning",
+			basename: "abcd-123456",
+			maxLen:   6,
+			expected: "123456",
+		},
+		{
+			name:     "remove entire beginning would start at hyphen",
+			basename: "abcd-123456",
+			maxLen:   7,
+			expected: "123456",
+		},
+		{
+			name:     "trim off ending",
+			basename: "abcd-123456",
+			maxLen:   5,
+			expected: "12345",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			actual := trimForELBBasename(tc.basename, tc.maxLen)
+			assert.Equal(t, tc.expected, actual)
+		})
+	}
+}

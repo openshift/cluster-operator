@@ -160,7 +160,7 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 	}
 
 	// Describe VPC
-	vpcName := cluster.Name
+	vpcName := clusterSpec.ClusterID
 	vpcNameFilter := "tag:Name"
 	describeVpcsRequest := ec2.DescribeVpcsInput{
 		Filters: []*ec2.Filter{{Name: &vpcNameFilter, Values: []*string{&vpcName}}},
@@ -232,10 +232,10 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 
 	// Add tags to the created machine
 	tagList := []*ec2.Tag{
-		{Key: aws.String("clusterid"), Value: aws.String(cluster.Name)},
+		{Key: aws.String("clusterid"), Value: aws.String(clusterSpec.ClusterID)},
 		{Key: aws.String("host-type"), Value: aws.String(hostType)},
 		{Key: aws.String("sub-host-type"), Value: aws.String(subHostType)},
-		{Key: aws.String("kubernetes.io/cluster/" + cluster.Name), Value: aws.String(cluster.Name)},
+		{Key: aws.String("kubernetes.io/cluster/" + clusterSpec.ClusterID), Value: aws.String(clusterSpec.ClusterID)},
 		{Key: aws.String("Name"), Value: aws.String(machine.Name)},
 	}
 	tagInstance := &ec2.TagSpecification{
@@ -485,9 +485,12 @@ func (a *Actuator) updateStatus(machine *clusterv1.Machine, instance *ec2.Instan
 	return nil
 }
 
-func getClusterID(machine *clusterv1.Machine) (string, bool) {
-	clusterID, ok := machine.Labels[cov1.ClusterNameLabel]
-	return clusterID, ok
+func getClusterID(machine *clusterv1.Machine) (string, error) {
+	coMachineSetSpec, err := controller.MachineSetSpecFromClusterAPIMachineSpec(&machine.Spec)
+	if err != nil {
+		return "", err
+	}
+	return coMachineSetSpec.ClusterID, nil
 }
 
 // template for user data

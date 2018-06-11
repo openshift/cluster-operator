@@ -38,6 +38,7 @@ func getValidClusterDeployment() *clusteroperator.ClusterDeployment {
 
 func getValidClusterDeploymentSpec() clusteroperator.ClusterDeploymentSpec {
 	return clusteroperator.ClusterDeploymentSpec{
+		ClusterID: "cluster-id",
 		MachineSets: []clusteroperator.ClusterMachineSet{
 			{
 				MachineSetConfig: clusteroperator.MachineSetConfig{
@@ -153,6 +154,16 @@ func TestValidateClusterDeploymentUpdate(t *testing.T) {
 			}(),
 			valid: false,
 		},
+		{
+			name: "mutated clusterID",
+			old:  getValidClusterDeployment(),
+			new: func() *clusteroperator.ClusterDeployment {
+				c := getValidClusterDeployment()
+				c.Spec.ClusterID = "mutated-cluster-id"
+				return c
+			}(),
+			valid: false,
+		},
 	}
 
 	for _, tc := range cases {
@@ -210,6 +221,15 @@ func TestValidateClusterDeploymentSpec(t *testing.T) {
 		spec  *clusteroperator.ClusterDeploymentSpec
 		valid bool
 	}{
+		{
+			name: "missing clusterID",
+			spec: func() *clusteroperator.ClusterDeploymentSpec {
+				cs := getValidClusterDeploymentSpec()
+				cs.ClusterID = ""
+				return &cs
+			}(),
+			valid: false,
+		},
 		{
 			name: "valid master only",
 			spec: func() *clusteroperator.ClusterDeploymentSpec {
