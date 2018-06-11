@@ -19,6 +19,7 @@ package aws
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/golang/mock/gomock"
 	log "github.com/sirupsen/logrus"
@@ -38,7 +39,12 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	clientgofake "k8s.io/client-go/kubernetes/fake"
+	clientgotesting "k8s.io/client-go/testing"
 )
+
+func init() {
+	log.SetLevel(log.DebugLevel)
+}
 
 const (
 	testNamespace             = "test-namespace"
@@ -53,6 +59,7 @@ const (
 	testVPCID                 = "testVPCID"
 	testSubnetID              = "testSubnetID"
 	testAZ                    = "us-east-1c"
+	testMachineName           = "testmachine"
 )
 
 func TestUserDataTemplate(t *testing.T) {
@@ -247,7 +254,7 @@ func TestCreateMachine(t *testing.T) {
 			isMaster := tc.nodeType == clustopv1.NodeTypeMaster
 
 			cluster := testCluster(t)
-			machine := testMachine("testmachine", tc.nodeType, tc.isInfra)
+			machine := testMachine(testMachineName, cluster.Name, tc.nodeType, tc.isInfra, nil)
 
 			mockAWSClient := NewMockClient(mockCtrl)
 			addDescribeImagesMock(mockAWSClient, testImage)
@@ -295,6 +302,121 @@ func TestCreateMachine(t *testing.T) {
 	}
 }
 
+func TestUpdate(t *testing.T) {
+	cases := []struct {
+		name               string
+		instances          []*ec2.Instance
+		currentStatus      *clustopv1.AWSMachineProviderStatus
+		expectedInstanceID string
+		// expectedUpdate should be true if we expect a cluster-api client update to be executed for changing machine status.
+		expectedUpdate bool
+	}{
+		{
+			name: "one instance running no status change",
+			instances: []*ec2.Instance{
+				testInstance("i1", testMachineName, "master", "running", testClusterID, 30*time.Minute),
+			},
+			currentStatus:      testAWSStatus("i1"),
+			expectedInstanceID: "i1",
+			expectedUpdate:     false,
+		},
+		{
+			name: "one instance running ip changed",
+			instances: []*ec2.Instance{
+				testInstance("i1", testMachineName, "master", "running", testClusterID, 30*time.Minute),
+			},
+			currentStatus: func() *clustopv1.AWSMachineProviderStatus {
+				status := testAWSStatus("i1")
+				status.PublicIP = aws.String("fake old IP")
+				return status
+			}(),
+			expectedInstanceID: "i1",
+			expectedUpdate:     true,
+		},
+		{
+			name: "multiple instance running no status change",
+			instances: []*ec2.Instance{
+				testInstance("i1", testMachineName, "master", "running", testClusterID, 30*time.Minute),
+				testInstance("i2", testMachineName, "master", "running", testClusterID, 120*time.Minute),
+				testInstance("i3", testMachineName, "master", "running", testClusterID, 90*time.Minute),
+				testInstance("i4", testMachineName, "master", "running", testClusterID, 5*time.Minute),
+			},
+			currentStatus:      testAWSStatus("i4"),
+			expectedInstanceID: "i4",
+			expectedUpdate:     false,
+		},
+		{
+			name: "multiple instance running with status change",
+			instances: []*ec2.Instance{
+				testInstance("i1", testMachineName, "master", "running", testClusterID, 30*time.Minute),
+				testInstance("i2", testMachineName, "master", "running", testClusterID, 120*time.Minute),
+				testInstance("i3", testMachineName, "master", "running", testClusterID, 90*time.Minute),
+				testInstance("i4", testMachineName, "master", "running", testClusterID, 5*time.Minute),
+			},
+			currentStatus:      testAWSStatus("i1"),
+			expectedInstanceID: "i4",
+			expectedUpdate:     true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mockCtrl := gomock.NewController(t)
+			defer mockCtrl.Finish()
+
+			kubeClient := &clientgofake.Clientset{}
+			capiClient := &capiclientfake.Clientset{}
+
+			cluster := testCluster(t)
+			machine := testMachine(testMachineName, cluster.Name, clustopv1.NodeTypeMaster, true, tc.currentStatus)
+
+			mockAWSClient := NewMockClient(mockCtrl)
+			addDescribeInstancesMock(mockAWSClient, tc.instances)
+			if len(tc.instances) > 1 {
+				mockAWSClient.EXPECT().TerminateInstances(gomock.Any()).Do(func(input interface{}) {
+					runInput, ok := input.(*ec2.TerminateInstancesInput)
+					assert.True(t, ok)
+					expectedTerminateIDs := []*string{}
+					for _, i := range tc.instances {
+						if *i.InstanceId != tc.expectedInstanceID {
+							expectedTerminateIDs = append(expectedTerminateIDs, i.InstanceId)
+						}
+					}
+					assert.ElementsMatch(t, expectedTerminateIDs, runInput.InstanceIds)
+				}).Return(&ec2.TerminateInstancesOutput{}, nil)
+			}
+
+			actuator := NewActuator(kubeClient, capiClient, log.WithField("test", "TestActuator"), "us-east-1c")
+			actuator.clientBuilder = func(kubeClient kubernetes.Interface, mSpec *clustopv1.MachineSetSpec, namespace, region string) (Client, error) {
+				return mockAWSClient, nil
+			}
+
+			err := actuator.Update(cluster, machine)
+			if !assert.NoError(t, err) {
+				return
+			}
+
+			if tc.expectedUpdate {
+				assert.Equal(t, 1, len(capiClient.Actions()))
+				action := capiClient.Actions()[0]
+				assert.Equal(t, "update", action.GetVerb())
+
+				updateAction, ok := action.(clientgotesting.UpdateAction)
+				assert.True(t, ok)
+
+				updatedObject := updateAction.GetObject()
+				machine, ok := updatedObject.(*capiv1.Machine)
+				clustopStatus, err := controller.AWSMachineProviderStatusFromClusterAPIMachine(machine)
+				if !assert.NoError(t, err) {
+					return
+				}
+				assert.Equal(t, tc.expectedInstanceID, *clustopStatus.InstanceID)
+			} else {
+				assert.Equal(t, 0, len(capiClient.Actions()))
+			}
+		})
+	}
+}
+
 func assertRunInstancesInputHasTag(t *testing.T, input *ec2.RunInstancesInput, key, value string) {
 	for _, tag := range input.TagSpecifications[0].Tags {
 		if *tag.Key == key {
@@ -315,6 +437,52 @@ func addDescribeImagesMock(mockAWSClient *MockClient, imageID string) {
 					ImageId: aws.String(testImage),
 				},
 			},
+		}, nil)
+}
+
+func testInstance(instanceID, machineName, hostType, instanceState, clusterID string, age time.Duration) *ec2.Instance {
+	tagList := []*ec2.Tag{
+		{Key: aws.String("host-type"), Value: aws.String(hostType)},
+		{Key: aws.String("sub-host-type"), Value: aws.String("default")},
+		{Key: aws.String("kubernetes.io/cluster/" + clusterID), Value: aws.String(clusterID)},
+		{Key: aws.String("clusterid"), Value: aws.String(clusterID)},
+		{Key: aws.String("Name"), Value: aws.String(machineName)},
+	}
+	launchTime := time.Now().Add(-age)
+	return &ec2.Instance{
+		InstanceId:       &instanceID,
+		Tags:             tagList,
+		State:            &ec2.InstanceState{Name: &instanceState},
+		PublicIpAddress:  aws.String(fmt.Sprintf("%s-publicip", instanceID)),
+		PrivateIpAddress: aws.String(fmt.Sprintf("%s-privateip", instanceID)),
+		PublicDnsName:    aws.String(fmt.Sprintf("%s-publicdns", instanceID)),
+		PrivateDnsName:   aws.String(fmt.Sprintf("%s-privatednf", instanceID)),
+		LaunchTime:       &launchTime,
+	}
+}
+
+func testAWSStatus(instanceID string) *clustopv1.AWSMachineProviderStatus {
+	return &clustopv1.AWSMachineProviderStatus{
+		InstanceID:    aws.String(instanceID),
+		InstanceState: aws.String("running"),
+		// Match the assumptions made in testInstance based on instance ID.
+		PublicIP:   aws.String(fmt.Sprintf("%s-publicip", instanceID)),
+		PrivateIP:  aws.String(fmt.Sprintf("%s-privateip", instanceID)),
+		PublicDNS:  aws.String(fmt.Sprintf("%s-publicdns", instanceID)),
+		PrivateDNS: aws.String(fmt.Sprintf("%s-privatednf", instanceID)),
+	}
+}
+
+func addDescribeInstancesMock(mockAWSClient *MockClient, instances []*ec2.Instance) {
+	// Wrap each instance in a reservation:
+	reservations := make([]*ec2.Reservation, len(instances))
+	for i, inst := range instances {
+		reservations[i] = &ec2.Reservation{Instances: []*ec2.Instance{inst}}
+	}
+
+	mockAWSClient.EXPECT().DescribeInstances(gomock.Any()).Return(
+		&ec2.DescribeInstancesOutput{
+			Reservations: reservations,
 		}, nil)
 }
 
@@ -416,7 +584,7 @@ func testCluster(t *testing.T) *capiv1.Cluster {
 	return cluster
 }
 
-func testMachine(name string, nodeType clustopv1.NodeType, isInfra bool) *capiv1.Machine {
+func testMachine(name, clusterName string, nodeType clustopv1.NodeType, isInfra bool, currentStatus *clustopv1.AWSMachineProviderStatus) *capiv1.Machine {
 	testAMI := testImage
 	msSpec := clustopv1.MachineSetSpec{
 		ClusterID: testClusterID,
@@ -444,6 +612,9 @@ func testMachine(name string, nodeType clustopv1.NodeType, isInfra bool) *capiv1
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: testNamespace,
+			Labels: map[string]string{
+				clustopv1.ClusterNameLabel: clusterName,
+			},
 		},
 		Spec: capiv1.MachineSpec{
 			ProviderConfig: capiv1.ProviderConfig{
@@ -455,6 +626,10 @@ func testMachine(name string, nodeType clustopv1.NodeType, isInfra bool) *capiv1
 		machine.Spec.Roles = []capicommon.MachineRole{capicommon.MasterRole}
 	} else {
 		machine.Spec.Roles = []capicommon.MachineRole{capicommon.NodeRole}
+	}
+	if currentStatus != nil {
+		rawStatus, _ := controller.ClusterAPIMachineProviderStatusFromAWSMachineProviderStatus(currentStatus)
+		machine.Status.ProviderStatus = rawStatus
 	}
 	return machine
 }
