@@ -46,7 +46,19 @@ var (
 	// KeyFunc returns the key identifying a cluster-operator resource.
 	KeyFunc = cache.DeletionHandlingMetaNamespaceKeyFunc
 
-	clusterDeploymentKind = clusteroperator.SchemeGroupVersion.WithKind("ClusterDeployment")
+	// ClusterDeploymentKind is the GVK for a ClusterDeployment.
+	ClusterDeploymentKind = clusteroperator.SchemeGroupVersion.WithKind("ClusterDeployment")
+
+	// Domain for service names in the cluster. This is not configurable for OpenShift clusters.
+	defaultServiceDomain = "svc.cluster.local"
+
+	// CIDR for service IPs. This is configured in Ansible via openshift_portal_net. However, it is not yet
+	// configurable via cluster operator.
+	defaultServiceCIDR = "172.30.0.0/16"
+
+	// CIDR for pod IPs. This is configured in Ansible via osm_cluster_network_cidr. However, it is not yet
+	// configurable via cluster operator.
+	defaultPodCIDR = "10.128.0.0/14"
 
 	clusterKind = clusterapi.SchemeGroupVersion.WithKind("Cluster")
 
@@ -236,7 +248,7 @@ func MachineSetsForCluster(namespace string, clusterName string, machineSetsList
 func ClusterDeploymentForCluster(cluster *clusterapi.Cluster, clusterDeploymentsLister clustoplister.ClusterDeploymentLister) (*clusteroperator.ClusterDeployment, error) {
 	controller, err := GetObjectController(
 		cluster,
-		clusterDeploymentKind,
+		ClusterDeploymentKind,
 		func(name string) (metav1.Object, error) {
 			return clusterDeploymentsLister.ClusterDeployments(cluster.Namespace).Get(name)
 		},
@@ -258,7 +270,7 @@ func ClusterDeploymentForCluster(cluster *clusterapi.Cluster, clusterDeployments
 func ClusterDeploymentForMachineSet(machineSet *clusterapi.MachineSet, clusterDeploymentsLister clustoplister.ClusterDeploymentLister) (*clusteroperator.ClusterDeployment, error) {
 	controller, err := GetObjectController(
 		machineSet,
-		clusterDeploymentKind,
+		ClusterDeploymentKind,
 		func(name string) (metav1.Object, error) {
 			return clusterDeploymentsLister.ClusterDeployments(machineSet.Namespace).Get(name)
 		},
@@ -400,6 +412,30 @@ func MachineSetSpecFromClusterAPIMachineSpec(ms *clusterapi.MachineSpec) (*clust
 		return nil, fmt.Errorf("Unexpected object: %#v", gvk)
 	}
 	return &spec.MachineSetSpec, nil
+}
+
+// BuildCluster builds a cluster for the given cluster deployment.
+func BuildCluster(clusterDeployment *clusteroperator.ClusterDeployment) (*clusterapi.Cluster, error) {
+	cluster := &clusterapi.Cluster{}
+	cluster.Name = clusterDeployment.Name
+	cluster.Labels = clusterDeployment.Labels
+	cluster.Namespace = clusterDeployment.Namespace
+	if cluster.Labels == nil {
+		cluster.Labels = make(map[string]string)
+	}
+	cluster.Labels[clusteroperator.ClusterDeploymentLabel] = clusterDeployment.Name
+	cluster.OwnerReferences = []metav1.OwnerReference{*metav1.NewControllerRef(clusterDeployment, ClusterDeploymentKind)}
+	providerConfig, err := ClusterProviderConfigSpecFromClusterDeploymentSpec(&clusterDeployment.Spec)
+	if err != nil {
+		return nil, err
+	}
+	cluster.Spec.ProviderConfig.Value = providerConfig
+
+	// Set networking defaults
+	cluster.Spec.ClusterNetwork.ServiceDomain = defaultServiceDomain
+	cluster.Spec.ClusterNetwork.Pods.CIDRBlocks = []string{defaultPodCIDR}
+	cluster.Spec.ClusterNetwork.Services.CIDRBlocks = []string{defaultServiceCIDR}
+	return cluster, nil
 }
 
 // ClusterAPIMachineProviderConfigFromMachineSetSpec gets the cluster-api ProviderConfig for a Machine template

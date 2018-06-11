@@ -23,3 +23,4 @@ set -o nounset
 set -o pipefail
 
 go generate ./pkg/controller
+go generate ./pkg/clusterapi/aws

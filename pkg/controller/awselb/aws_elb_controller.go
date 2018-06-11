@@ -35,7 +35,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/elb"
-	"github.com/aws/aws-sdk-go/service/elb/elbiface"
 
 	capicommon "sigs.k8s.io/cluster-api/pkg/apis/cluster/common"
 	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
@@ -272,22 +271,22 @@ func (c *Controller) syncMachine(key string) error {
 
 	region := coMachineSetSpec.ClusterHardware.AWS.Region
 	mLog.Debugf("Obtaining AWS clients for region %q", region)
-	ec2Client, elbClient, err := clustopaws.CreateAWSClients(c.kubeClient, coMachineSetSpec, machine.Namespace, region)
+	client, err := clustopaws.NewClient(c.kubeClient, coMachineSetSpec, machine.Namespace, region)
 	if err != nil {
 		return err
 	}
 
-	instance, err := clustopaws.GetInstance(machine, ec2Client)
+	instance, err := clustopaws.GetInstance(machine, client)
 	if err != nil {
 		return err
 	}
 	mLog = mLog.WithField("instanceID", *instance.InstanceId)
 
-	err = c.addInstanceToELB(instance, fmt.Sprintf("%s-master-external", clusterID), elbClient, mLog)
+	err = c.addInstanceToELB(instance, fmt.Sprintf("%s-master-external", clusterID), client, mLog)
 	if err != nil {
 		return err
 	}
-	err = c.addInstanceToELB(instance, fmt.Sprintf("%s-master-internal", clusterID), elbClient, mLog)
+	err = c.addInstanceToELB(instance, fmt.Sprintf("%s-master-internal", clusterID), client, mLog)
 	if err != nil {
 		return err
 	}
@@ -298,7 +297,7 @@ func (c *Controller) syncMachine(key string) error {
 func (c *Controller) addInstanceToELB(
 	instance *ec2.Instance,
 	elbName string,
-	elbClient elbiface.ELBAPI,
+	client clustopaws.Client,
 	mLog log.FieldLogger) error {
 
 	registerInput := elb.RegisterInstancesWithLoadBalancerInput{
@@ -308,7 +307,7 @@ func (c *Controller) addInstanceToELB(
 
 	// This API call appears to be idempotent, so for now no need to check if the instance is
 	// registered first, we can just request that it be added.
-	_, err := elbClient.RegisterInstancesWithLoadBalancer(&registerInput)
+	_, err := client.RegisterInstancesWithLoadBalancer(&registerInput)
 	if err != nil {
 		return err
 	}

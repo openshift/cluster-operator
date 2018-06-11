@@ -306,7 +306,7 @@ func testClusterDeploymentWith3Masters() *clustop.ClusterDeployment {
 
 func testCluster() *capi.Cluster {
 	clusterDeployment := testClusterDeployment()
-	cluster, _ := buildCluster(clusterDeployment)
+	cluster, _ := controller.BuildCluster(clusterDeployment)
 	return cluster
 }
 
@@ -388,7 +388,7 @@ func (a clusterCreatedAction) validate(t *testing.T, testName string, action cli
 		t.Errorf("%s: created object is not a cluster: %t", testName, createdObject)
 		return false
 	}
-	clusterDeploymentLabel, ok := cluster.Labels[clusterDeploymentLabel]
+	clusterDeploymentLabel, ok := cluster.Labels[clustop.ClusterDeploymentLabel]
 	if !ok {
 		t.Errorf("%s: no cluster deployment label present in cluster %s/%s", testName, cluster.Namespace, cluster.Name)
 		return false
@@ -471,7 +471,7 @@ func (a machineSetCreatedAction) validate(t *testing.T, testName string, action 
 		t.Errorf("%s: created object is not a machineset: %t", testName, createdObject)
 		return false
 	}
-	clusterDeploymentLabel, ok := machineSet.Labels[clusterDeploymentLabel]
+	clusterDeploymentLabel, ok := machineSet.Labels[clustop.ClusterDeploymentLabel]
 	if !ok {
 		t.Errorf("%s: no cluster deployment label present in machineset %s/%s", testName, machineSet.Namespace, machineSet.Name)
 		return false

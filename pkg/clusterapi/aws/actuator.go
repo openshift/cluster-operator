@@ -17,9 +17,11 @@ limitations under the License.
 package aws
 
 import (
+	"bytes"
 	"encoding/base64"
 	"fmt"
 	"io/ioutil"
+	"text/template"
 
 	log "github.com/sirupsen/logrus"
 
@@ -58,7 +60,8 @@ const (
 	ec2InstanceIDNotFoundCode = "InvalidInstanceID.NotFound"
 )
 
-// Instance state constants
+// Instance tag constants
+// TODO: these do not match the case of the clustop or capi role names
 const (
 	hostTypeNode       = "node"
 	hostTypeMaster     = "master"
@@ -71,21 +74,25 @@ var stateMask int64 = 0xFF
 
 // Actuator is the AWS-specific actuator for the Cluster API machine controller
 type Actuator struct {
-	kubeClient              *kubernetes.Clientset
-	clusterClient           *clusterclient.Clientset
+	kubeClient              kubernetes.Interface
+	clusterClient           clusterclient.Interface
 	codecFactory            serializer.CodecFactory
 	defaultAvailabilityZone string
 	logger                  *log.Entry
+	clientBuilder           func(kubeClient kubernetes.Interface, mSpec *cov1.MachineSetSpec, namespace, region string) (Client, error)
+	userDataGenerator       func(master, infra bool) (string, error)
 }
 
 // NewActuator returns a new AWS Actuator
-func NewActuator(kubeClient *kubernetes.Clientset, clusterClient *clusterclient.Clientset, logger *log.Entry, defaultAvailabilityZone string) *Actuator {
+func NewActuator(kubeClient kubernetes.Interface, clusterClient clusterclient.Interface, logger *log.Entry, defaultAvailabilityZone string) *Actuator {
 	actuator := &Actuator{
 		kubeClient:              kubeClient,
 		clusterClient:           clusterClient,
 		codecFactory:            coapi.Codecs,
 		defaultAvailabilityZone: defaultAvailabilityZone,
 		logger:                  logger,
+		clientBuilder:           NewClient,
+		userDataGenerator:       generateUserData,
 	}
 	return actuator
 }
@@ -94,15 +101,10 @@ func NewActuator(kubeClient *kubernetes.Clientset, clusterClient *clusterclient.
 func (a *Actuator) Create(cluster *clusterv1.Cluster, machine *clusterv1.Machine) error {
 	mLog := clustoplog.WithMachine(a.logger, machine)
 	mLog.Info("creating machine")
-	result, err := a.CreateMachine(cluster, machine)
+	instance, err := a.CreateMachine(cluster, machine)
 	if err != nil {
 		mLog.Errorf("error creating machine: %v", err)
 		return err
-	}
-
-	var instance *ec2.Instance
-	if result != nil && len(result.Instances) > 0 {
-		instance = result.Instances[0]
 	}
 
 	err = a.updateStatus(machine, instance, mLog)
@@ -113,7 +115,7 @@ func (a *Actuator) Create(cluster *clusterv1.Cluster, machine *clusterv1.Machine
 }
 
 // CreateMachine starts a new AWS instance as described by the cluster and machine resources
-func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.Machine) (*ec2.Reservation, error) {
+func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.Machine) (*ec2.Instance, error) {
 	mLog := clustoplog.WithMachine(a.logger, machine)
 	// Extract cluster operator cluster
 	clusterSpec, err := controller.ClusterDeploymentSpecFromCluster(cluster)
@@ -132,7 +134,7 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 
 	region := clusterSpec.Hardware.AWS.Region
 	mLog.Debugf("Obtaining EC2 client for region %q", region)
-	client, _, err := CreateAWSClients(a.kubeClient, coMachineSetSpec, machine.Namespace, region)
+	client, err := a.clientBuilder(a.kubeClient, coMachineSetSpec, machine.Namespace, region)
 	if err != nil {
 		return nil, fmt.Errorf("unable to obtain EC2 client: %v", err)
 	}
@@ -192,29 +194,14 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 	}
 
 	// Determine security groups
-	var groupName, groupNameK8s string
-	if coMachineSetSpec.Infra {
-		groupName = vpcName + "_infra"
-		groupNameK8s = vpcName + "_infra_k8s"
-	} else {
-		groupName = vpcName + "_compute"
-		groupNameK8s = vpcName + "_compute_k8s"
-	}
-	securityGroupNames := []*string{&vpcName, &groupName, &groupNameK8s}
-	sgNameFilter := "group-name"
-	describeSecurityGroupsRequest := ec2.DescribeSecurityGroupsInput{
-		Filters: []*ec2.Filter{
-			{Name: aws.String("vpc-id"), Values: []*string{&vpcID}},
-			{Name: &sgNameFilter, Values: securityGroupNames},
-		},
-	}
-	describeSecurityGroupsResult, err := client.DescribeSecurityGroups(&describeSecurityGroupsRequest)
+	describeSecurityGroupsInput := buildDescribeSecurityGroupsInput(vpcID, vpcName, controller.MachineHasRole(machine, capicommon.MasterRole), coMachineSetSpec.Infra)
+	describeSecurityGroupsOutput, err := client.DescribeSecurityGroups(describeSecurityGroupsInput)
 	if err != nil {
 		return nil, err
 	}
 
 	var securityGroupIds []*string
-	for _, g := range describeSecurityGroupsResult.SecurityGroups {
+	for _, g := range describeSecurityGroupsOutput.SecurityGroups {
 		groupID := *g.GroupId
 		securityGroupIds = append(securityGroupIds, &groupID)
 	}
@@ -280,11 +267,13 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 		},
 	}
 
-	bootstrapKubeConfig, err := getBootstrapKubeconfig()
+	// Only compute nodes should get user data, and it's quite important that masters do not as the
+	// AWS actuator for these is running on the root CO cluster currently, and we do not want to leak
+	// root CO cluster bootstrap kubeconfigs to the target cluster.
+	userData, err := a.userDataGenerator(controller.MachineHasRole(machine, capicommon.MasterRole), coMachineSetSpec.Infra)
 	if err != nil {
-		return nil, fmt.Errorf("cannot get bootstrap kubeconfig: %v", err)
+		return nil, err
 	}
-	userData := getUserData(bootstrapKubeConfig, coMachineSetSpec.Infra)
 	userDataEnc := base64.StdEncoding.EncodeToString([]byte(userData))
 
 	inputConfig := ec2.RunInstancesInput{
@@ -292,7 +281,6 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 		InstanceType: aws.String(coMachineSetSpec.Hardware.AWS.InstanceType),
 		MinCount:     aws.Int64(1),
 		MaxCount:     aws.Int64(1),
-		UserData:     &userDataEnc,
 		KeyName:      aws.String(clusterSpec.Hardware.AWS.KeyPairName),
 		IamInstanceProfile: &ec2.IamInstanceProfileSpecification{
 			Name: aws.String(iamRole(cluster)),
@@ -300,6 +288,7 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 		BlockDeviceMappings: blkDeviceMappings,
 		TagSpecifications:   []*ec2.TagSpecification{tagInstance, tagVolume},
 		NetworkInterfaces:   networkInterfaces,
+		UserData:            &userDataEnc,
 	}
 
 	runResult, err := client.RunInstances(&inputConfig)
@@ -307,7 +296,11 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 		return nil, fmt.Errorf("cannot create EC2 instance: %v", err)
 	}
 
-	return runResult, nil
+	if runResult == nil || len(runResult.Instances) != 1 {
+		mLog.Errorf("unexpected reservation creating instances: %v", runResult)
+		return nil, fmt.Errorf("unexpected reservation creating instance")
+	}
+	return runResult.Instances[0], nil
 }
 
 // Delete deletes a machine and updates its finalizer
@@ -334,7 +327,7 @@ func (a *Actuator) DeleteMachine(machine *clusterv1.Machine) error {
 		return fmt.Errorf("machine does not contain AWS hardware spec")
 	}
 	region := coMachineSetSpec.ClusterHardware.AWS.Region
-	client, _, err := CreateAWSClients(a.kubeClient, coMachineSetSpec, machine.Namespace, region)
+	client, err := a.clientBuilder(a.kubeClient, coMachineSetSpec, machine.Namespace, region)
 	if err != nil {
 		return fmt.Errorf("error getting EC2 client: %v", err)
 	}
@@ -374,7 +367,7 @@ func (a *Actuator) Update(cluster *clusterv1.Cluster, machine *clusterv1.Machine
 
 	region := clusterSpec.Hardware.AWS.Region
 	mLog.WithField("region", region).Debugf("obtaining EC2 client for region")
-	client, _, err := CreateAWSClients(a.kubeClient, coMachineSetSpec, machine.Namespace, region)
+	client, err := a.clientBuilder(a.kubeClient, coMachineSetSpec, machine.Namespace, region)
 	if err != nil {
 		return fmt.Errorf("unable to obtain EC2 client: %v", err)
 	}
@@ -429,7 +422,7 @@ func (a *Actuator) Exists(cluster *clusterv1.Cluster, machine *clusterv1.Machine
 		return false, fmt.Errorf("machineSet does not contain AWS hardware spec")
 	}
 	region := coMachineSetSpec.ClusterHardware.AWS.Region
-	client, _, err := CreateAWSClients(a.kubeClient, coMachineSetSpec, machine.Namespace, region)
+	client, err := a.clientBuilder(a.kubeClient, coMachineSetSpec, machine.Namespace, region)
 	if err != nil {
 		return false, fmt.Errorf("error getting EC2 client: %v", err)
 	}
@@ -507,30 +500,73 @@ write_files:
   owner: 'root:root'
   permissions: '0640'
   content: |
-    openshift_group_type: %[1]s
+    openshift_group_type: {{ .NodeType }}
+{{- if .IsNode }}
 - path: /etc/origin/node/bootstrap.kubeconfig
   owner: 'root:root'
   permissions: '0640'
   encoding: b64
-  content: %[2]s
+  content: {{ .BootstrapKubeconfig }}
+{{- end }}
 runcmd:
 - [ ansible-playbook, /root/openshift_bootstrap/bootstrap.yml]
+{{- if .IsNode }}
 - [ systemctl, restart, systemd-hostnamed]
 - [ systemctl, restart, NetworkManager]
 - [ systemctl, enable, origin-node]
 - [ systemctl, start, origin-node]
-`
+{{- end }}`
 
-func getUserData(bootstrapKubeConfig string, infra bool) string {
+type userDataParams struct {
+	NodeType            string
+	BootstrapKubeconfig string
+	IsNode              bool
+}
+
+func executeTemplate(isMaster, isInfra bool, bootstrapKubeconfig string) (string, error) {
 	var nodeType string
-	if infra {
+	if isMaster {
+		nodeType = "master"
+	} else if isInfra {
 		nodeType = "infra"
 	} else {
 		nodeType = "compute"
 	}
-	return fmt.Sprintf(userDataTemplate, nodeType, bootstrapKubeConfig)
+	params := userDataParams{
+		NodeType:            nodeType,
+		BootstrapKubeconfig: bootstrapKubeconfig,
+		IsNode:              !isMaster,
+	}
+
+	t, err := template.New("userdata").Parse(userDataTemplate)
+	if err != nil {
+		return "", err
+	}
+	var buf bytes.Buffer
+	err = t.Execute(&buf, params)
+	if err != nil {
+		return "", err
+	}
+	return buf.String(), nil
 }
 
+// generateUserData is a generator function used in the actuator to create the user data for a
+// specific type of machine.
+func generateUserData(isMaster, isInfra bool) (string, error) {
+	var bootstrapKubeconfig string
+	var err error
+	if !isMaster {
+		bootstrapKubeconfig, err = getBootstrapKubeconfig()
+		if err != nil {
+			return "", fmt.Errorf("cannot get bootstrap kubeconfig: %v", err)
+		}
+	}
+
+	return executeTemplate(isMaster, isInfra, bootstrapKubeconfig)
+}
+
+// getBootstrapKubeconfig reads the bootstrap kubeconfig expected to be mounted into the pod. This assumes
+// the actuator runs on a master which has such a kubeconfig for joining nodes to the cluster.
 func getBootstrapKubeconfig() (string, error) {
 	content, err := ioutil.ReadFile(bootstrapKubeConfig)
 	if err != nil {
@@ -541,4 +577,27 @@ func getBootstrapKubeconfig() (string, error) {
 
 func iamRole(cluster *clusterv1.Cluster) string {
 	return fmt.Sprintf("%s", defaultIAMRole)
+}
+
+func buildDescribeSecurityGroupsInput(vpcID, vpcName string, isMaster, isInfra bool) *ec2.DescribeSecurityGroupsInput {
+	groupNames := []*string{aws.String(vpcName)}
+	if isMaster {
+		groupNames = append(groupNames, aws.String(vpcName+"_master"))
+		groupNames = append(groupNames, aws.String(vpcName+"_master_k8s"))
+	}
+	if isInfra {
+		groupNames = append(groupNames, aws.String(vpcName+"_infra"))
+		groupNames = append(groupNames, aws.String(vpcName+"_infra_k8s"))
+	}
+	if !isMaster && !isInfra {
+		groupNames = append(groupNames, aws.String(vpcName+"_compute"))
+		groupNames = append(groupNames, aws.String(vpcName+"_compute_k8s"))
+	}
+
+	return &ec2.DescribeSecurityGroupsInput{
+		Filters: []*ec2.Filter{
+			{Name: aws.String("vpc-id"), Values: []*string{&vpcID}},
+			{Name: aws.String("group-name"), Values: groupNames},
+		},
+	}
 }
