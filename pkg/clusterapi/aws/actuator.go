@@ -48,8 +48,11 @@ const (
 	// as a secret when running this controller.
 	bootstrapKubeConfig = "/etc/origin/master/bootstrap.kubeconfig"
 
-	// Hardcode IAM role for infra/compute for now
+	// IAM role for infra/compute
 	defaultIAMRole = "openshift_node_describe_instances"
+
+	// IAM role for master
+	masterIAMRole = "openshift_master_launch_instances"
 
 	// Instance ID annotation
 	instanceIDAnnotation = "cluster-operator.openshift.io/aws-instance-id"
@@ -279,7 +282,7 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 		MaxCount:     aws.Int64(1),
 		KeyName:      aws.String(clusterSpec.Hardware.AWS.KeyPairName),
 		IamInstanceProfile: &ec2.IamInstanceProfileSpecification{
-			Name: aws.String(iamRole(cluster)),
+			Name: aws.String(iamRole(machine)),
 		},
 		BlockDeviceMappings: blkDeviceMappings,
 		TagSpecifications:   []*ec2.TagSpecification{tagInstance, tagVolume},
@@ -569,8 +572,11 @@ func getBootstrapKubeconfig() (string, error) {
 	return base64.StdEncoding.EncodeToString(content), nil
 }
 
-func iamRole(cluster *clusterv1.Cluster) string {
-	return fmt.Sprintf("%s", defaultIAMRole)
+func iamRole(machine *clusterv1.Machine) string {
+	if controller.MachineHasRole(machine, capicommon.MasterRole) {
+		return masterIAMRole
+	}
+	return defaultIAMRole
 }
 
 func buildDescribeSecurityGroupsInput(vpcID, vpcName string, isMaster, isInfra bool) *ec2.DescribeSecurityGroupsInput {
