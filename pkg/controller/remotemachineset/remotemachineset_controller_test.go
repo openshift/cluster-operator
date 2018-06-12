@@ -468,10 +468,10 @@ type expectedRemoteAction struct {
 	gvr       schema.GroupVersionResource
 }
 
-func getKey(cluster *cov1.ClusterDeployment, t *testing.T) string {
-	key, err := controller.KeyFunc(cluster)
+func getKey(clusterDeployment *cov1.ClusterDeployment, t *testing.T) string {
+	key, err := controller.KeyFunc(clusterDeployment)
 	if err != nil {
-		t.Errorf("Unexpected error getting key for cluster %v: %v", cluster.Name, err)
+		t.Errorf("Unexpected error getting key for clusterdeployment %v: %v", clusterDeployment.Name, err)
 		return ""
 	}
 	return key
@@ -480,7 +480,7 @@ func getKey(cluster *cov1.ClusterDeployment, t *testing.T) string {
 func newCapiCluster(t *testing.T, clusterDeployment *cov1.ClusterDeployment) clusterapiv1.Cluster {
 	cluster := clusterapiv1.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      clusterDeployment.Name,
+			Name:      clusterDeployment.Spec.ClusterID,
 			Namespace: clusterDeployment.Namespace,
 		},
 		Spec: clusterapiv1.ClusterSpec{

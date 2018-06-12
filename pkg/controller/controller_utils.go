@@ -438,7 +438,7 @@ func MachineSetSpecFromClusterAPIMachineSpec(ms *clusterapi.MachineSpec) (*clust
 // BuildCluster builds a cluster for the given cluster deployment.
 func BuildCluster(clusterDeployment *clusteroperator.ClusterDeployment) (*clusterapi.Cluster, error) {
 	cluster := &clusterapi.Cluster{}
-	cluster.Name = clusterDeployment.Name
+	cluster.Name = clusterDeployment.Spec.ClusterID
 	cluster.Labels = clusterDeployment.Labels
 	cluster.Namespace = clusterDeployment.Namespace
 	if cluster.Labels == nil {

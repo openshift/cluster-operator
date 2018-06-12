@@ -316,7 +316,7 @@ func (c *Controller) syncClusterDeployment(key string) error {
 		return err
 	}
 
-	cluster, err := c.clusterInformer.Clusters(clusterDeployment.Namespace).Get(clusterDeployment.Name)
+	cluster, err := c.clusterInformer.Clusters(clusterDeployment.Namespace).Get(clusterDeployment.Spec.ClusterID)
 	if err != nil {
 		return fmt.Errorf("error retrieving cluster object: %v", err)
 	}

@@ -512,7 +512,7 @@ func (c *Controller) updateClusterDeploymentStatus(original, clusterDeployment *
 // syncCluster takes a cluster deployment and ensures that a corresponding cluster exists and that
 // it reflects the spec of the cluster deployment
 func (c *Controller) syncCluster(clusterDeployment *clustop.ClusterDeployment, logger log.FieldLogger) (*capi.Cluster, error) {
-	cluster, err := c.clustersLister.Clusters(clusterDeployment.Namespace).Get(clusterDeployment.Name)
+	cluster, err := c.clustersLister.Clusters(clusterDeployment.Namespace).Get(clusterDeployment.Spec.ClusterID)
 	if err != nil && !errors.IsNotFound(err) {
 		return nil, fmt.Errorf("cannot retrieve cluster for cluster deployment %s/%s: %v", clusterDeployment.Namespace, clusterDeployment.Name, err)
 	}
@@ -555,7 +555,7 @@ func (c *Controller) syncCluster(clusterDeployment *clustop.ClusterDeployment, l
 // syncControlPlane takes a cluster deployment and ensures that a corresponding master machine set
 // exists and that its spec reflects the spec of the master machineset in the cluster deployment spec.
 func (c *Controller) syncControlPlane(clusterDeployment *clustop.ClusterDeployment, cluster *capi.Cluster, clusterVersion *clustop.ClusterVersion, logger log.FieldLogger) error {
-	machineSetName := masterMachineSetName(clusterDeployment.Name)
+	machineSetName := masterMachineSetName(cluster.Name)
 	machineSet, err := c.machineSetsLister.MachineSets(clusterDeployment.Namespace).Get(machineSetName)
 	if err != nil && !errors.IsNotFound(err) {
 		return fmt.Errorf("error retrieving master machineset %s/%s: %v", clusterDeployment.Namespace, machineSetName, err)
@@ -626,7 +626,7 @@ func buildMasterMachineSet(clusterDeployment *clustop.ClusterDeployment, cluster
 	}
 
 	machineSet := &capi.MachineSet{}
-	machineSet.Name = masterMachineSetName(clusterDeployment.Name)
+	machineSet.Name = masterMachineSetName(cluster.Name)
 	machineSet.Namespace = clusterDeployment.Namespace
 	machineSet.Labels = clusterDeployment.Labels
 	if machineSet.Labels == nil {
@@ -728,8 +728,8 @@ func (c *Controller) getClusterVersion(clusterDeployment *clustop.ClusterDeploym
 	return c.clusterVersionsLister.ClusterVersions(versionNS).Get(clusterVersionRef.Name)
 }
 
-func masterMachineSetName(clusterDeploymentName string) string {
-	return fmt.Sprintf("%s-%s", clusterDeploymentName, clustop.MasterMachineSetName)
+func masterMachineSetName(clusterName string) string {
+	return fmt.Sprintf("%s-%s", clusterName, clustop.MasterMachineSetName)
 }
 
 // masterMachineSetConfig finds the MachineSetConfig in a cluster deployment spec with node type Master.
