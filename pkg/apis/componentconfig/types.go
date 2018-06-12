@@ -94,6 +94,10 @@ type ControllerManagerConfiguration struct {
 	// but more CPU (and network) load.
 	ConcurrentNodeConfigSyncs int32
 
+	// ConcurrentRemoteMachineSetSyncs is the number of machinesets we can be syncing out to remote clusters
+	// concurrently. Larger number = more responsive processing but more CPU (and network) load.
+	ConcurrentRemoteMachineSetSyncs int32
+
 	// ConcurrentDeployClusterAPISyncs is the number of clusters that are allowed to be deploying
 	// the upstream cluster API controllers concurrently. Larger number = more responsive processing
 	// but more CPU (and network) load.

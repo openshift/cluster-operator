@@ -48,6 +48,19 @@ const (
 	// 16 = length of longest ELB name suffic ("-master-external")
 	// TODO: 7  = length of longest ELB name suffix ("-cp-ext")
 	maxELBBasenameLen = 32 - 16
+
+	clusterDeploymentLabel = "clusteroperator.openshift.io/cluster-deployment"
+
+	// Domain for service names in the cluster. This is not configurable for OpenShift clusters.
+	defaultClusterServiceDomain = "svc.cluster.local"
+
+	// CIDR for service IPs. This is configured in Ansible via openshift_portal_net. However, it is not yet
+	// configurable via cluster operator.
+	defaultClusterServiceCIDR = "172.30.0.0/16"
+
+	// CIDR for pod IPs. This is configured in Ansible via osm_cluster_network_cidr. However, it is not yet
+	// configurable via cluster operator.
+	defaultClusterPodCIDR = "10.128.0.0/14"
 )
 
 var (
@@ -644,4 +657,29 @@ func trimForELBBasename(s string, maxLen int) string {
 		return suffix
 	}
 	return s[:maxLen-len(suffix)-1] + "-" + suffix
+}
+
+// BuildClusterAPIMachineSet returns a clusterapi.MachineSet from the combination of various clusteroperator
+// objects (ClusterMachineSet/ClusterDeploymentSpec/ClusterVersion) in the provided 'namespace'
+func BuildClusterAPIMachineSet(ms *clusteroperator.ClusterMachineSet, clusterDeploymentSpec *clusteroperator.ClusterDeploymentSpec, clusterVersion *clusteroperator.ClusterVersion, namespace string) (*clusterapi.MachineSet, error) {
+	capiMachineSet := clusterapi.MachineSet{}
+	capiMachineSet.Name = ms.ShortName
+	capiMachineSet.Namespace = namespace
+	replicas := int32(ms.Size)
+	capiMachineSet.Spec.Replicas = &replicas
+	capiMachineSet.Spec.Selector.MatchLabels = map[string]string{"machineset": ms.ShortName}
+
+	machineTemplate := clusterapi.MachineTemplateSpec{}
+	machineTemplate.Labels = map[string]string{"machineset": ms.ShortName}
+	machineTemplate.Spec.Labels = map[string]string{"machineset": ms.ShortName}
+
+	capiMachineSet.Spec.Template = machineTemplate
+
+	providerConfig, err := MachineProviderConfigFromMachineSetConfig(&ms.MachineSetConfig, clusterDeploymentSpec, clusterVersion)
+	if err != nil {
+		return nil, err
+	}
+	capiMachineSet.Spec.Template.Spec.ProviderConfig.Value = providerConfig
+
+	return &capiMachineSet, nil
 }
