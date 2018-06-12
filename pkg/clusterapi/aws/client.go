@@ -33,7 +33,7 @@ import (
 	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 )
 
-//go:generate mockgen -source=./client.go -destination=./client_generated_test.go -package=aws
+//go:generate mockgen -source=./client.go -destination=./mock/client_generated.go -package=mock
 
 // Client is a wrapper object for actual AWS SDK clients to allow for easier testing.
 type Client interface {

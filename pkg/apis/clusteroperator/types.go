@@ -612,6 +612,10 @@ type AWSMachineProviderStatus struct {
 	// PrivateDNS is the internal DNS hostname for this machine.
 	// +optional
 	PrivateDNS *string
+
+	// LastELBSync stores when we last successfully ensured a master machine is added to relevant load balancers.
+	// +optional
+	LastELBSync *metav1.Time
 }
 
 // NodeType is the type of the Node
