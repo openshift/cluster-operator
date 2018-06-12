@@ -417,6 +417,67 @@ func TestUpdate(t *testing.T) {
 	}
 }
 
+func TestDeleteMachine(t *testing.T) {
+	cases := []struct {
+		name      string
+		instances []*ec2.Instance
+	}{
+		{
+			name:      "no instances",
+			instances: []*ec2.Instance{},
+		},
+		{
+			name: "one instance running",
+			instances: []*ec2.Instance{
+				testInstance("i1", testMachineName, "master", "running", testClusterID, 30*time.Minute),
+			},
+		},
+		{
+			name: "multiple instances running",
+			instances: []*ec2.Instance{
+				testInstance("i1", testMachineName, "master", "running", testClusterID, 30*time.Minute),
+				testInstance("i2", testMachineName, "master", "running", testClusterID, 120*time.Minute),
+				testInstance("i3", testMachineName, "master", "running", testClusterID, 90*time.Minute),
+				testInstance("i4", testMachineName, "master", "running", testClusterID, 5*time.Minute),
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mockCtrl := gomock.NewController(t)
+			defer mockCtrl.Finish()
+
+			kubeClient := &clientgofake.Clientset{}
+			capiClient := &capiclientfake.Clientset{}
+
+			cluster := testCluster(t)
+			machine := testMachine(testMachineName, cluster.Name, clustopv1.NodeTypeMaster, true, nil)
+
+			mockAWSClient := NewMockClient(mockCtrl)
+			addDescribeInstancesMock(mockAWSClient, tc.instances)
+			if len(tc.instances) > 0 {
+				mockAWSClient.EXPECT().TerminateInstances(gomock.Any()).Do(func(input interface{}) {
+					runInput, ok := input.(*ec2.TerminateInstancesInput)
+					assert.True(t, ok)
+					expectedTerminateIDs := make([]*string, len(tc.instances))
+					for i, instance := range tc.instances {
+						expectedTerminateIDs[i] = instance.InstanceId
+					}
+					assert.ElementsMatch(t, expectedTerminateIDs, runInput.InstanceIds)
+				}).Return(&ec2.TerminateInstancesOutput{}, nil)
+			}
+
+			actuator := NewActuator(kubeClient, capiClient, log.WithField("test", "TestActuator"), "us-east-1c")
+			actuator.clientBuilder = func(kubeClient kubernetes.Interface, mSpec *clustopv1.MachineSetSpec, namespace, region string) (Client, error) {
+				return mockAWSClient, nil
+			}
+
+			err := actuator.DeleteMachine(machine)
+			assert.NoError(t, err)
+		})
+	}
+}
+
 func assertRunInstancesInputHasTag(t *testing.T, input *ec2.RunInstancesInput, key, value string) {
 	for _, tag := range input.TagSpecifications[0].Tags {
 		if *tag.Key == key {
