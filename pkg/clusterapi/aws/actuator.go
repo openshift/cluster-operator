@@ -107,11 +107,7 @@ func (a *Actuator) Create(cluster *clusterv1.Cluster, machine *clusterv1.Machine
 		return err
 	}
 
-	err = a.updateStatus(machine, instance, mLog)
-	if err != nil {
-		return err
-	}
-	return nil
+	return a.updateStatus(machine, instance, mLog)
 }
 
 // CreateMachine starts a new AWS instance as described by the cluster and machine resources
@@ -399,12 +395,7 @@ func (a *Actuator) Update(cluster *clusterv1.Cluster, machine *clusterv1.Machine
 	}
 
 	// We do not support making changes to pre-existing instances, just update status.
-	statusErr := a.updateStatus(machine, newestInstance, mLog)
-	if statusErr != nil {
-		return statusErr
-	}
-
-	return nil
+	return a.updateStatus(machine, newestInstance, mLog)
 }
 
 // Exists determines if the given machine currently exists. For AWS we query for instances in
