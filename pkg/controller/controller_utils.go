@@ -663,7 +663,7 @@ func trimForELBBasename(s string, maxLen int) string {
 // objects (ClusterMachineSet/ClusterDeploymentSpec/ClusterVersion) in the provided 'namespace'
 func BuildClusterAPIMachineSet(ms *clusteroperator.ClusterMachineSet, clusterDeploymentSpec *clusteroperator.ClusterDeploymentSpec, clusterVersion *clusteroperator.ClusterVersion, namespace string) (*clusterapi.MachineSet, error) {
 	capiMachineSet := clusterapi.MachineSet{}
-	capiMachineSet.Name = ms.ShortName
+	capiMachineSet.Name = fmt.Sprintf("%s-%s", clusterDeploymentSpec.ClusterID, ms.ShortName)
 	capiMachineSet.Namespace = namespace
 	replicas := int32(ms.Size)
 	capiMachineSet.Spec.Replicas = &replicas

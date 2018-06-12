@@ -49,6 +49,7 @@ const (
 	testClusterVerNS     = "cluster-operator"
 	testClusterUUID      = types.UID("test-cluster-uuid")
 	testClusterName      = "testcluster"
+	testClusterID        = "testcluster-id"
 	testClusterNamespace = "testsyncns"
 )
 
@@ -283,7 +284,7 @@ func TestMachineSetSyncing(t *testing.T) {
 			remoteMachineSets: []clusterapiv1.MachineSet{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "compute",
+						Name:      testClusterID + "-compute",
 						Namespace: remoteClusterAPINamespace,
 					},
 					Spec: clusterapiv1.MachineSetSpec{
@@ -305,7 +306,7 @@ func TestMachineSetSyncing(t *testing.T) {
 			remoteMachineSets: []clusterapiv1.MachineSet{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "compute",
+						Name:      testClusterID + "-compute",
 						Namespace: remoteClusterAPINamespace,
 					},
 					Spec: clusterapiv1.MachineSetSpec{
@@ -353,7 +354,7 @@ func TestMachineSetSyncing(t *testing.T) {
 			remoteMachineSets: []clusterapiv1.MachineSet{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "compute",
+						Name:      testClusterID + "-compute",
 						Namespace: remoteClusterAPINamespace,
 					},
 					Spec: clusterapiv1.MachineSetSpec{
@@ -362,7 +363,7 @@ func TestMachineSetSyncing(t *testing.T) {
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "compute2",
+						Name:      testClusterID + "-compute2",
 						Namespace: remoteClusterAPINamespace,
 					},
 					Spec: clusterapiv1.MachineSetSpec{
@@ -565,6 +566,7 @@ func newTestClusterDeployment(controlPlaneReady bool) *cov1.ClusterDeployment {
 			UID:       testClusterUUID,
 		},
 		Spec: cov1.ClusterDeploymentSpec{
+			ClusterID: testClusterID,
 			Hardware: cov1.ClusterHardwareSpec{
 				AWS: &cov1.AWSClusterSpec{
 					Region: testRegion,

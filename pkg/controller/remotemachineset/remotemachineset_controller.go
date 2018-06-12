@@ -388,6 +388,10 @@ func (c *Controller) syncCluster(cluster *clusterapiv1.Cluster, clusterDeploymen
 // create new cluster from cluster deployment and update the namespace to the
 // remote namespace
 func createRemoteClusterAPICluster(clusterDeployment *cov1.ClusterDeployment) (*clusterapiv1.Cluster, error) {
+	if clusterDeployment.Spec.Hardware.AWS != nil {
+		clusterDeployment = clusterDeployment.DeepCopy()
+		clusterDeployment.Spec.Hardware.AWS.AccountSecret.Name = ""
+	}
 	remoteCluster, err := controller.BuildCluster(clusterDeployment)
 	if err != nil {
 		return nil, err
@@ -493,6 +497,10 @@ func (c *Controller) syncMachineSets(clusterDeployment *cov1.ClusterDeployment, 
 // return list of non-master machinesets from a given ClusterDeployment
 func computeClusterAPIMachineSetsFromClusterDeployment(clusterDeployment *cov1.ClusterDeployment, coClusterVersion *cov1.ClusterVersion) ([]*clusterapiv1.MachineSet, error) {
 	machineSets := []*clusterapiv1.MachineSet{}
+	if clusterDeployment.Spec.Hardware.AWS != nil {
+		clusterDeployment = clusterDeployment.DeepCopy()
+		clusterDeployment.Spec.Hardware.AWS.AccountSecret.Name = ""
+	}
 
 	for _, ms := range clusterDeployment.Spec.MachineSets {
 		if ms.NodeType == cov1.NodeTypeMaster {
