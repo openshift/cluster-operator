@@ -65,23 +65,38 @@ const (
 
 func TestSyncMachine(t *testing.T) {
 	cases := []struct {
-		name               string
-		lastSuccessfulSync time.Time
-		resyncExpected     bool
+		name                         string
+		generation                   int64
+		lastSuccessfulSyncGeneration int64
+		lastSuccessfulSync           time.Time
+		resyncExpected               bool
 	}{
 		{
-			name:           "no last sync",
-			resyncExpected: true,
+			name:                         "no last sync",
+			generation:                   int64(1),
+			lastSuccessfulSyncGeneration: int64(1),
+			resyncExpected:               true,
 		},
 		{
-			name:               "no re-sync required",
-			lastSuccessfulSync: time.Now().Add(-5 * time.Second),
-			resyncExpected:     false,
+			name:                         "no re-sync required",
+			lastSuccessfulSync:           time.Now().Add(-5 * time.Second),
+			generation:                   int64(1),
+			lastSuccessfulSyncGeneration: int64(1),
+			resyncExpected:               false,
 		},
 		{
-			name:               "re-sync required",
-			lastSuccessfulSync: time.Now().Add(-9 * time.Hour),
-			resyncExpected:     true,
+			name:                         "re-sync due",
+			lastSuccessfulSync:           time.Now().Add(-9 * time.Hour),
+			generation:                   int64(1),
+			lastSuccessfulSyncGeneration: int64(1),
+			resyncExpected:               true,
+		},
+		{
+			name:                         "re-sync for generation change",
+			lastSuccessfulSync:           time.Now().Add(-5 * time.Second),
+			generation:                   int64(4),
+			lastSuccessfulSyncGeneration: int64(1),
+			resyncExpected:               true,
 		},
 	}
 	for _, tc := range cases {
@@ -99,8 +114,9 @@ func TestSyncMachine(t *testing.T) {
 			if !tc.lastSuccessfulSync.IsZero() {
 				status.LastELBSync = &metav1.Time{Time: tc.lastSuccessfulSync}
 			}
+			status.LastELBSyncGeneration = tc.lastSuccessfulSyncGeneration
 			cluster := testCluster(t)
-			machine := testMachine(testMachineName, cluster.Name, clustopv1.NodeTypeMaster, true, &status)
+			machine := testMachine(tc.generation, testMachineName, cluster.Name, clustopv1.NodeTypeMaster, true, &status)
 
 			mockAWSClient := mockaws.NewMockClient(mockCtrl)
 			if tc.resyncExpected {
@@ -133,7 +149,8 @@ func TestSyncMachine(t *testing.T) {
 				clustopStatus, err := controller.AWSMachineProviderStatusFromClusterAPIMachine(machine)
 				assert.NoError(t, err)
 				assert.NotNil(t, clustopStatus.LastELBSync)
-				assert.NotEqual(t, tc.lastSuccessfulSync, clustopStatus.LastELBSync.Time)
+				assert.True(t, clustopStatus.LastELBSync.Time.After(tc.lastSuccessfulSync))
+				assert.NotEqual(t, int64(0), clustopStatus.LastELBSyncGeneration)
 				assert.Equal(t, "preserveme", *clustopStatus.InstanceID)
 			} else {
 				assert.Equal(t, 0, len(capiClient.Actions()))
@@ -229,7 +246,7 @@ func testCluster(t *testing.T) *capiv1.Cluster {
 	return cluster
 }
 
-func testMachine(name, clusterName string, nodeType clustopv1.NodeType, isInfra bool, currentStatus *clustopv1.AWSMachineProviderStatus) *capiv1.Machine {
+func testMachine(generation int64, name, clusterName string, nodeType clustopv1.NodeType, isInfra bool, currentStatus *clustopv1.AWSMachineProviderStatus) *capiv1.Machine {
 	testAMI := testImage
 	msSpec := clustopv1.MachineSetSpec{
 		ClusterID: testClusterID,
@@ -255,8 +272,9 @@ func testMachine(name, clusterName string, nodeType clustopv1.NodeType, isInfra 
 	rawProviderConfig, _ := controller.ClusterAPIMachineProviderConfigFromMachineSetSpec(&msSpec)
 	machine := &capiv1.Machine{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: testNamespace,
+			Name:       name,
+			Namespace:  testNamespace,
+			Generation: generation,
 			Labels: map[string]string{
 				clustopv1.ClusterNameLabel: clusterName,
 			},

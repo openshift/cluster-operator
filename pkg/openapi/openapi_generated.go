@@ -165,7 +165,15 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
 							},
 						},
+						"lastELBSyncGeneration": {
+							SchemaProps: spec.SchemaProps{
+								Description: "LastELBSyncGeneration is the generation of the machine resource last added to the ELB.",
+								Type:        []string{"integer"},
+								Format:      "int64",
+							},
+						},
 					},
+					Required: []string{"lastELBSyncGeneration"},
 				},
 			},
 			Dependencies: []string{

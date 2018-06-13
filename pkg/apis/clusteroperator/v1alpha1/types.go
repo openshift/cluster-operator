@@ -618,6 +618,9 @@ type AWSMachineProviderStatus struct {
 	// LastELBSync stores when we last successfully ensured a master machine is added to relevant load balancers.
 	// +optional
 	LastELBSync *metav1.Time `json:"lastELBSync,omitempty"`
+
+	// LastELBSyncGeneration is the generation of the machine resource last added to the ELB.
+	LastELBSyncGeneration int64 `json:"lastELBSyncGeneration"`
 }
 
 // NodeType is the type of the Node

@@ -289,10 +289,18 @@ func (c *Controller) processMachine(machine *capiv1.Machine) error {
 		return err
 	}
 
-	if status.LastELBSync != nil {
+	mLog.WithFields(log.Fields{
+		"currentGen":    machine.Generation,
+		"lastSyncedGen": status.LastELBSyncGeneration,
+	}).Debugf("checking if re-sync is required")
+	if status.LastELBSync != nil && status.LastELBSyncGeneration == machine.Generation {
 		delta := time.Now().Sub(status.LastELBSync.Time)
 		if delta < elbResyncDuration {
-			mLog.WithField("delta", delta).Debugf("no resync needed")
+			mLog.WithFields(log.Fields{
+				"delta":         delta,
+				"currentGen":    machine.Generation,
+				"lastSyncedGen": status.LastELBSyncGeneration,
+			}).Debugf("no resync needed")
 			return nil
 		}
 	}
@@ -330,6 +338,7 @@ func (c *Controller) updateStatus(machine *capiv1.Machine, mLog log.FieldLogger)
 		return err
 	}
 	awsStatus.LastELBSync = &metav1.Time{Time: time.Now()}
+	awsStatus.LastELBSyncGeneration = machine.Generation
 	awsStatusRaw, err := controller.ClusterAPIMachineProviderStatusFromAWSMachineProviderStatus(awsStatus)
 	if err != nil {
 		mLog.Errorf("error encoding AWS provider status: %v", err)
