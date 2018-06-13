@@ -630,6 +630,7 @@ func startAWSELBController(ctx ControllerContext) (bool, error) {
 		ctx.ClusterAPIInformerFactory.Cluster().V1alpha1().Machines(),
 		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-awselb-controller"),
 		ctx.ClientBuilder.ClientOrDie("clusteroperator-awselb-controller"),
+		ctx.ClientBuilder.ClusterAPIClientOrDie("clusteroperator-awselb-controller"),
 	).Run(int(ctx.Options.ConcurrentELBMachineSyncs), ctx.Stop)
 	return true, nil
 }

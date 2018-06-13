@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
@@ -39,6 +40,7 @@ import (
 
 	capicommon "sigs.k8s.io/cluster-api/pkg/apis/cluster/common"
 	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	capiclient "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 	informers "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions/cluster/v1alpha1"
 	lister "sigs.k8s.io/cluster-api/pkg/client/listers_generated/cluster/v1alpha1"
 
@@ -67,7 +69,7 @@ const (
 )
 
 // NewController returns a new *Controller.
-func NewController(machineInformer informers.MachineInformer, kubeClient kubeclientset.Interface, clustopClient clustopclient.Interface) *Controller {
+func NewController(machineInformer informers.MachineInformer, kubeClient kubeclientset.Interface, clustopClient clustopclient.Interface, capiClient capiclient.Interface) *Controller {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(glog.Infof)
 	// TODO: remove the wrapper when every clients have moved to use the clientset.
@@ -79,6 +81,7 @@ func NewController(machineInformer informers.MachineInformer, kubeClient kubecli
 
 	c := &Controller{
 		client:        clustopClient,
+		capiClient:    capiClient,
 		kubeClient:    kubeClient,
 		queue:         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "awselb"),
 		clientBuilder: clustopaws.NewClient,
@@ -102,6 +105,7 @@ func NewController(machineInformer informers.MachineInformer, kubeClient kubecli
 // Controller monitors master machines and adds to ELBs as appropriate.
 type Controller struct {
 	client     clustopclient.Interface
+	capiClient capiclient.Interface
 	kubeClient kubeclientset.Interface
 
 	// To allow injection of syncMachine for testing.
@@ -279,10 +283,6 @@ func (c *Controller) processMachine(machine *capiv1.Machine) error {
 
 	region := coMachineSetSpec.ClusterHardware.AWS.Region
 	mLog.Debugf("Obtaining AWS clients for region %q", region)
-	client, err := c.clientBuilder(c.kubeClient, coMachineSetSpec, machine.Namespace, region)
-	if err != nil {
-		return err
-	}
 
 	status, err := controller.AWSMachineProviderStatusFromClusterAPIMachine(machine)
 	if err != nil {
@@ -295,6 +295,11 @@ func (c *Controller) processMachine(machine *capiv1.Machine) error {
 			mLog.WithField("delta", delta).Debugf("no resync needed")
 			return nil
 		}
+	}
+
+	client, err := c.clientBuilder(c.kubeClient, coMachineSetSpec, machine.Namespace, region)
+	if err != nil {
+		return err
 	}
 
 	instance, err := clustopaws.GetInstance(machine, client)
@@ -312,6 +317,35 @@ func (c *Controller) processMachine(machine *capiv1.Machine) error {
 		return err
 	}
 
+	return c.updateStatus(machine, mLog)
+}
+
+// updateStatus sets the LastELBSync time in status to now, and updates the machine.
+func (c *Controller) updateStatus(machine *capiv1.Machine, mLog log.FieldLogger) error {
+
+	mLog.Debug("updating machine status")
+
+	awsStatus, err := controller.AWSMachineProviderStatusFromClusterAPIMachine(machine)
+	if err != nil {
+		return err
+	}
+	awsStatus.LastELBSync = &metav1.Time{Time: time.Now()}
+	awsStatusRaw, err := controller.ClusterAPIMachineProviderStatusFromAWSMachineProviderStatus(awsStatus)
+	if err != nil {
+		mLog.Errorf("error encoding AWS provider status: %v", err)
+		return err
+	}
+
+	machineCopy := machine.DeepCopy()
+	machineCopy.Status.ProviderStatus = awsStatusRaw
+
+	machineCopy.Status.LastUpdated = metav1.Now()
+
+	_, err = c.capiClient.ClusterV1alpha1().Machines(machineCopy.Namespace).UpdateStatus(machineCopy)
+	if err != nil {
+		mLog.Errorf("error updating machine status: %v", err)
+		return err
+	}
 	return nil
 }
 

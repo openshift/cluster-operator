@@ -44,6 +44,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	clientgofake "k8s.io/client-go/kubernetes/fake"
+	clientgotesting "k8s.io/client-go/testing"
 )
 
 func init() {
@@ -94,6 +95,7 @@ func TestSyncMachine(t *testing.T) {
 			capiInformers := capiinformers.NewSharedInformerFactory(capiClient, 0)
 
 			status := clustopv1.AWSMachineProviderStatus{}
+			status.InstanceID = aws.String("preserveme")
 			if !tc.lastSuccessfulSync.IsZero() {
 				status.LastELBSync = &metav1.Time{Time: tc.lastSuccessfulSync}
 			}
@@ -107,13 +109,35 @@ func TestSyncMachine(t *testing.T) {
 				mockRegisterInstancesWithELB(mockAWSClient, "i1", controller.ELBMasterInternalName(testClusterID))
 			}
 
-			ctrlr := NewController(capiInformers.Cluster().V1alpha1().Machines(), kubeClient, clustopClient)
+			ctrlr := NewController(capiInformers.Cluster().V1alpha1().Machines(),
+				kubeClient, clustopClient, capiClient)
 			ctrlr.clientBuilder = func(kubeClient kubernetes.Interface, mSpec *clustopv1.MachineSetSpec, namespace, region string) (clustopaws.Client, error) {
 				return mockAWSClient, nil
 			}
 
 			err := ctrlr.processMachine(machine)
 			assert.NoError(t, err)
+
+			if tc.resyncExpected {
+				if !assert.Equal(t, 1, len(capiClient.Actions())) {
+					return
+				}
+				action := capiClient.Actions()[0]
+				assert.Equal(t, "update", action.GetVerb())
+
+				updateAction, ok := action.(clientgotesting.UpdateAction)
+				assert.True(t, ok)
+
+				updatedObject := updateAction.GetObject()
+				machine, ok := updatedObject.(*capiv1.Machine)
+				clustopStatus, err := controller.AWSMachineProviderStatusFromClusterAPIMachine(machine)
+				assert.NoError(t, err)
+				assert.NotNil(t, clustopStatus.LastELBSync)
+				assert.NotEqual(t, tc.lastSuccessfulSync, clustopStatus.LastELBSync.Time)
+				assert.Equal(t, "preserveme", *clustopStatus.InstanceID)
+			} else {
+				assert.Equal(t, 0, len(capiClient.Actions()))
+			}
 		})
 	}
 }
