@@ -986,3 +986,52 @@ func TestELBBasenameFromClusterID(t *testing.T) {
 		})
 	}
 }
+
+func TestStringPtrsEqual(t *testing.T) {
+	cases := []struct {
+		name  string
+		s1    *string
+		s2    *string
+		equal bool
+	}{
+		{
+			name:  "both nil",
+			s1:    nil,
+			s2:    nil,
+			equal: true,
+		},
+		{
+			name:  "s1 nil",
+			s1:    nil,
+			s2:    stringPtr("a"),
+			equal: false,
+		},
+		{
+			name:  "s2 nil",
+			s1:    stringPtr("a"),
+			s2:    nil,
+			equal: false,
+		},
+		{
+			name:  "strings equal",
+			s1:    stringPtr("aaa"),
+			s2:    stringPtr("aaa"),
+			equal: true,
+		},
+		{
+			name:  "strings not equal",
+			s1:    stringPtr("aaa"),
+			s2:    stringPtr("bbb"),
+			equal: false,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.equal, StringPtrsEqual(tc.s1, tc.s2))
+		})
+	}
+}
+
+func stringPtr(s string) *string {
+	return &s
+}

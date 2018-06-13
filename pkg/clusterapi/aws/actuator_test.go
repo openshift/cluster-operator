@@ -411,6 +411,12 @@ func TestUpdate(t *testing.T) {
 					return
 				}
 				assert.Equal(t, tc.expectedInstanceID, *clustopStatus.InstanceID)
+				// LastELBSync should be cleared if our instance ID changed to trigger the ELB controller:
+				if *tc.currentStatus.InstanceID != tc.expectedInstanceID {
+					assert.Nil(t, clustopStatus.LastELBSync)
+				} else {
+					assert.NotNil(t, clustopStatus.LastELBSync)
+				}
 			} else {
 				assert.Equal(t, 0, len(capiClient.Actions()))
 			}
@@ -528,10 +534,11 @@ func testAWSStatus(instanceID string) *clustopv1.AWSMachineProviderStatus {
 		InstanceID:    aws.String(instanceID),
 		InstanceState: aws.String("running"),
 		// Match the assumptions made in testInstance based on instance ID.
-		PublicIP:   aws.String(fmt.Sprintf("%s-publicip", instanceID)),
-		PrivateIP:  aws.String(fmt.Sprintf("%s-privateip", instanceID)),
-		PublicDNS:  aws.String(fmt.Sprintf("%s-publicdns", instanceID)),
-		PrivateDNS: aws.String(fmt.Sprintf("%s-privatednf", instanceID)),
+		PublicIP:    aws.String(fmt.Sprintf("%s-publicip", instanceID)),
+		PrivateIP:   aws.String(fmt.Sprintf("%s-privateip", instanceID)),
+		PublicDNS:   aws.String(fmt.Sprintf("%s-publicdns", instanceID)),
+		PrivateDNS:  aws.String(fmt.Sprintf("%s-privatednf", instanceID)),
+		LastELBSync: &metav1.Time{Time: time.Now().Add(-30 * time.Minute)},
 	}
 }
 
