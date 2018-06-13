@@ -19,3 +19,25 @@
 - import_playbook: ../../aws/openshift-cluster/provision_s3.yml
 
 - import_playbook: ../../aws/openshift-cluster/provision_elb.yml
+
+- name: Create iam roles
+  hosts: localhost
+  roles:
+  - openshift_aws
+  tasks:
+  - include_role:
+      name: openshift_aws
+      tasks_from: iam_role
+    vars:
+      l_node_group_config: "{{ openshift_aws_node_group_config }}"
+    loop_control:
+      loop_var: openshift_aws_node_group
+    with_items: "{{ openshift_aws_node_groups }}"
+  - include_role:
+      name: openshift_aws
+      tasks_from:  iam_role
+    vars:
+      l_node_group_config: "{{ openshift_aws_master_group_config }}"
+    loop_control:
+      loop_var: openshift_aws_node_group
+    with_items: "{{ openshift_aws_master_group }}"
