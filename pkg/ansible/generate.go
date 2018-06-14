@@ -254,10 +254,6 @@ machine_controller_image: [[ .MachineControllerImage ]]
 machine_controller_image_pull_policy: [[ .MachineControllerImagePullPolicy ]]
 [[end]]
 
-openshift_aws_iam_master_role_name: "openshift_master_launch_instances"
-openshift_aws_iam_master_role_policy_name: "launch_instances"
-openshift_aws_iam_master_role_policy_json: "{{ lookup('template', 'launchinstances.json.j2') }}"
-
 openshift_aws_master_group:
 - name: "{{ openshift_aws_clusterid }} master group"
   group: master
@@ -266,10 +262,6 @@ openshift_aws_master_group:
     sub-host-type: default
     runtime: docker
     Name: "{{ openshift_aws_clusterid }}-master"
-
-openshift_aws_iam_node_role_name: "openshift_node_describe_instances"
-openshift_aws_iam_node_role_policy_json: "{{ lookup('file', 'describeinstances.json') }}"
-openshift_aws_iam_node_role_policy_name: "describe_instances"
 
 openshift_aws_node_groups:
 - name: "{{ openshift_aws_clusterid }} infra group"
