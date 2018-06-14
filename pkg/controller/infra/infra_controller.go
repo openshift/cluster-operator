@@ -407,16 +407,6 @@ func (s *jobSyncStrategy) UpdateOwnerStatus(original, owner metav1.Object) error
 	return controller.UpdateClusterStatus(s.controller.caClient, cluster)
 }
 
-func (s *jobSyncStrategy) CanUndo(owner metav1.Object) bool {
-	_, ok := owner.(*clusteroperator.CombinedCluster)
-	if !ok {
-		return false
-	}
-	// TODO: re-enable as soon as remote machine sets are operational again.
-	// return cluster.ClusterDeploymentStatus.DeprovisionedComputeMachinesets
-	return true
-}
-
 func convertJobSyncConditionType(conditionType controller.JobSyncConditionType) clusteroperator.ClusterConditionType {
 	switch conditionType {
 	case controller.JobSyncProcessing:

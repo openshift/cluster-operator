@@ -463,6 +463,18 @@ func (c *Controller) syncClusterDeployment(key string) error {
 
 	clusterDeploymentLog := clustoplog.WithClusterDeployment(c.logger, clusterDeployment)
 
+	if clusterDeployment.DeletionTimestamp != nil {
+		if !hasClusterDeploymentFinalizer(clusterDeployment) {
+			return nil
+		}
+		return c.syncDeletedClusterDeployment(clusterDeployment, clusterDeploymentLog)
+	}
+
+	if !hasClusterDeploymentFinalizer(clusterDeployment) {
+		clusterDeploymentLog.Debugf("adding clusterdeployment finalizer")
+		return c.addFinalizer(clusterDeployment)
+	}
+
 	// Only attempt to manage clusterdeployments if the version they should run is fully resolvable
 	updatedClusterDeployment := clusterDeployment.DeepCopy()
 	clusterVersion, err := c.getClusterVersion(clusterDeployment)
@@ -507,6 +519,58 @@ func (c *Controller) syncClusterDeployment(key string) error {
 // updateClusterDeploymentStatus updates the status of the cluster deployment
 func (c *Controller) updateClusterDeploymentStatus(original, clusterDeployment *clustop.ClusterDeployment) error {
 	return controller.PatchClusterDeploymentStatus(c.clustopClient, original, clusterDeployment)
+}
+
+func (c *Controller) syncDeletedClusterDeployment(clusterDeployment *clustop.ClusterDeployment, clusterDeploymentLog log.FieldLogger) error {
+	// If remote machinesets have not been removed, wait until they are
+	// When the cluster deployment is updated to remove them, it will be queued again.
+	if hasRemoteMachineSetsFinalizer(clusterDeployment) {
+		clusterDeploymentLog.Debugf("clusterdeployment still has remote machinesets finalizer, will wait until that is removed.")
+		return nil
+	}
+	// Ensure that the master machineset is deleted
+	machineSetName := masterMachineSetName(clusterDeployment.Spec.ClusterID)
+	machineSet, err := c.machineSetsLister.MachineSets(clusterDeployment.Namespace).Get(machineSetName)
+
+	// If there's an arbitrary error retrieving the machineset, return the error and retry
+	if err != nil && !errors.IsNotFound(err) {
+		return fmt.Errorf("error retrieving master machineset %s/%s: %v", clusterDeployment.Namespace, machineSetName, err)
+	}
+	// If the machineSet was found, but its DeletionTimestamp is already set, return and wait
+	// for it to actually go away.
+	if err == nil && machineSet.DeletionTimestamp != nil {
+		clustoplog.WithMachineSet(clusterDeploymentLog, machineSet).Debugf("master machineset has been deleted, waiting until it goes away")
+		return nil
+	}
+	// If the DeletionTimestamp is not set, then delete the machineset
+	if err == nil {
+		clustoplog.WithMachineSet(clusterDeploymentLog, machineSet).Debugf("deleting master machineset")
+		return c.capiClient.ClusterV1alpha1().MachineSets(clusterDeployment.Namespace).Delete(machineSetName, &metav1.DeleteOptions{})
+	}
+
+	// If we've reached this point, the master machineset no longer exists, clean up the cluster
+	cluster, err := c.clustersLister.Clusters(clusterDeployment.Namespace).Get(clusterDeployment.Spec.ClusterID)
+
+	// If there's an arbitrary error retrieving the cluster, return the error and retry
+	if err != nil && !errors.IsNotFound(err) {
+		return fmt.Errorf("error retrieving the cluster %s/%s: %v", clusterDeployment.Namespace, clusterDeployment.Spec.ClusterID, err)
+	}
+
+	// If the cluster was found, but its DeletionTimestamp is already set, return and wait
+	// for it to actually go away.
+	if err == nil && cluster.DeletionTimestamp != nil {
+		clustoplog.WithCluster(clusterDeploymentLog, cluster).Debugf("cluster has been deleted, waiting until it goes away")
+		return nil
+	}
+	// If the DeletionTimestamp is not set, then delete the cluster
+	if err == nil {
+		clustoplog.WithCluster(clusterDeploymentLog, cluster).Debugf("deleting cluster")
+		return c.capiClient.ClusterV1alpha1().Clusters(clusterDeployment.Namespace).Delete(clusterDeployment.Spec.ClusterID, &metav1.DeleteOptions{})
+	}
+
+	// If we've reached this point, the cluster no longer exists, remove the cluster deployment finalizer
+	clusterDeploymentLog.Debugf("Dependent objects have been deleted. Removing finalizer")
+	return c.deleteFinalizer(clusterDeployment)
 }
 
 // syncCluster takes a cluster deployment and ensures that a corresponding cluster exists and that
@@ -634,7 +698,10 @@ func buildMasterMachineSet(clusterDeployment *clustop.ClusterDeployment, cluster
 	}
 	machineSet.Labels[clustop.ClusterDeploymentLabel] = clusterDeployment.Name
 	machineSet.Labels[clustop.ClusterNameLabel] = cluster.Name
-	machineSet.OwnerReferences = []metav1.OwnerReference{*metav1.NewControllerRef(clusterDeployment, controller.ClusterDeploymentKind)}
+	doNotBlockOwnerDeletion := false
+	ownerRef := metav1.NewControllerRef(clusterDeployment, controller.ClusterDeploymentKind)
+	ownerRef.BlockOwnerDeletion = &doNotBlockOwnerDeletion
+	machineSet.OwnerReferences = []metav1.OwnerReference{*ownerRef}
 	machineSetLabels := map[string]string{
 		machineSetNameLabel:            machineSet.Name,
 		clustop.ClusterDeploymentLabel: clusterDeployment.Name,
@@ -741,4 +808,26 @@ func masterMachineSetConfig(clusterDeployment *clustop.ClusterDeployment) (*clus
 		}
 	}
 	return nil, false
+}
+
+func hasClusterDeploymentFinalizer(clusterDeployment *clustop.ClusterDeployment) bool {
+	return controller.HasFinalizer(clusterDeployment, clustop.FinalizerClusterDeployment)
+}
+
+func hasRemoteMachineSetsFinalizer(clusterDeployment *clustop.ClusterDeployment) bool {
+	return controller.HasFinalizer(clusterDeployment, clustop.FinalizerRemoteMachineSets)
+}
+
+func (c *Controller) deleteFinalizer(clusterDeployment *clustop.ClusterDeployment) error {
+	clusterDeployment = clusterDeployment.DeepCopy()
+	controller.DeleteFinalizer(clusterDeployment, clustop.FinalizerClusterDeployment)
+	_, err := c.clustopClient.ClusteroperatorV1alpha1().ClusterDeployments(clusterDeployment.Namespace).UpdateStatus(clusterDeployment)
+	return err
+}
+
+func (c *Controller) addFinalizer(clusterDeployment *clustop.ClusterDeployment) error {
+	clusterDeployment = clusterDeployment.DeepCopy()
+	controller.AddFinalizer(clusterDeployment, clustop.FinalizerClusterDeployment)
+	_, err := c.clustopClient.ClusteroperatorV1alpha1().ClusterDeployments(clusterDeployment.Namespace).UpdateStatus(clusterDeployment)
+	return err
 }

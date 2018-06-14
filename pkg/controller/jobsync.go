@@ -282,12 +282,7 @@ func (s *jobSync) setOwnerStatusForInProgressJob(original metav1.Object, job *v1
 
 func (s *jobSync) hasFinalizer(owner metav1.Object) bool {
 	finalizer := s.getFinalizerName()
-	for _, f := range owner.GetFinalizers() {
-		if f == finalizer {
-			return true
-		}
-	}
-	return false
+	return HasFinalizer(owner, finalizer)
 }
 
 func (s *jobSync) addFinalizer(original metav1.Object) error {
