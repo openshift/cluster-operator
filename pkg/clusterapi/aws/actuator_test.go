@@ -48,19 +48,21 @@ func init() {
 }
 
 const (
-	testNamespace             = "test-namespace"
-	testClusterDeploymentName = "test-cluster-deployment"
-	testClusterDeploymentUUID = types.UID("test-cluster-deployment-uuid")
-	testClusterID             = "test-cluster-id"
-	testClusterVerName        = "v3-10"
-	testClusterVerNS          = "cluster-operator"
-	testClusterVerUID         = types.UID("test-cluster-version")
-	testRegion                = "us-east-1"
-	testImage                 = "testAMI"
-	testVPCID                 = "testVPCID"
-	testSubnetID              = "testSubnetID"
-	testAZ                    = "us-east-1c"
-	testMachineName           = "testmachine"
+	testNamespace              = "test-namespace"
+	testClusterDeploymentName  = "test-cluster-deployment"
+	testClusterDeploymentUUID  = types.UID("test-cluster-deployment-uuid")
+	testClusterID              = "test-cluster-id"
+	testClusterVerName         = "v3-10"
+	testClusterVerNS           = "cluster-operator"
+	testClusterVerUID          = types.UID("test-cluster-version")
+	testRegion                 = "us-east-1"
+	testImage                  = "testAMI"
+	testVPCID                  = "testVPCID"
+	testSubnetID               = "testSubnetID"
+	testAZ                     = "us-east-1c"
+	testMachineName            = "testmachine"
+	testShutdownBehaviorNodes  = "terminate"
+	testShutdownBehaviorMaster = "stop"
 )
 
 func TestUserDataTemplate(t *testing.T) {
@@ -268,8 +270,10 @@ func TestCreateMachine(t *testing.T) {
 				assertRunInstancesInputHasTag(t, runInput, "clusterid", testClusterID)
 				if isMaster {
 					assertRunInstancesInputHasTag(t, runInput, "host-type", "master")
+					assert.Equal(t, *runInput.InstanceInitiatedShutdownBehavior, testShutdownBehaviorMaster)
 				} else {
 					assertRunInstancesInputHasTag(t, runInput, "host-type", "node")
+					assert.Equal(t, *runInput.InstanceInitiatedShutdownBehavior, testShutdownBehaviorNodes)
 				}
 
 				if tc.isInfra {
