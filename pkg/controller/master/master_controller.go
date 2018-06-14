@@ -79,12 +79,12 @@ func NewController(
 		[]string{playbook},
 		clusterInformer,
 		machineSetInformer,
-		machineInformer,
 		jobInformer,
 		kubeClient,
 		clustopClient,
 		capiClient,
 	)
+	controller.SetMachineInformer(machineInformer)
 	installStrategy.logger = controller.Logger
 	return controller
 }

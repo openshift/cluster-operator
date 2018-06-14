@@ -631,6 +631,16 @@ func MachineHasRole(machine *clusterapi.Machine, role capicommon.MachineRole) bo
 	return false
 }
 
+// MachineSetHasRole returns true if the machine set has the given cluster-api role.
+func MachineSetHasRole(machineSet *clusterapi.MachineSet, role capicommon.MachineRole) bool {
+	for _, r := range machineSet.Spec.Template.Spec.Roles {
+		if r == role {
+			return true
+		}
+	}
+	return false
+}
+
 // ELBMasterExternalName gets the name of the external master ELB for the cluster
 // with the specified cluster ID.
 func ELBMasterExternalName(clusterID string) string {
@@ -696,6 +706,7 @@ func BuildClusterAPIMachineSet(ms *clusteroperator.ClusterMachineSet, clusterDep
 	return &capiMachineSet, nil
 }
 
+// MasterMachineSetName returns the name of the master machineset for the given cluster deployment name
 func MasterMachineSetName(clusterDeploymentName string) string {
 	return fmt.Sprintf("%s-%s", clusterDeploymentName, clusteroperator.MasterMachineSetName)
 }

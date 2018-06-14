@@ -467,6 +467,11 @@ func (a *Actuator) updateStatus(machine *clusterv1.Machine, instance *ec2.Instan
 	if !equality.Semantic.DeepEqual(machine.Status, machineCopy.Status) {
 		mLog.Info("machine status has changed, updating")
 		machineCopy.Status.LastUpdated = metav1.Now()
+		// If machine is part of the control plane machineset and its status has changed, ensure that
+		// the control plane gets reinstalled by clearing the ControlPlane version in its status.
+		if machineCopy.Status.Versions != nil {
+			machineCopy.Status.Versions.ControlPlane = ""
+		}
 
 		_, err := a.clusterClient.ClusterV1alpha1().Machines(machineCopy.Namespace).UpdateStatus(machineCopy)
 		if err != nil {
