@@ -89,7 +89,7 @@ If you are actively working on controller code you can save some time by compili
 
 ## Developing With OpenShift Ansible
 
-The Cluster Operator uses its own Ansible image which layers our playbooks and roles on top of the upstream (https://github.com/openshift/openshift-ansible)[OpenShift Ansible] images. Typically our Ansible changes only require work in this repo. See the `build/cluster-operator-ansible` directory for the Dockerfile and playbooks we layer in.
+The Cluster Operator uses its own Ansible image which layers our playbooks and roles on top of the upstream [OpenShift Ansible](https://github.com/openshift/openshift-ansible) images. Typically our Ansible changes only require work in this repo. See the `build/cluster-operator-ansible` directory for the Dockerfile and playbooks we layer in.
 
 To build the *cluster-operator-ansible* image you can just run `make images` normally.
 
