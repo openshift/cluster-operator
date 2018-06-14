@@ -63,7 +63,6 @@ func NewController(
 		playbooks,
 		clusterInformer,
 		machineSetInformer,
-		nil,
 		jobInformer,
 		kubeClient,
 		clustopClient,

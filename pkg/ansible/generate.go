@@ -322,10 +322,15 @@ etcd
 
 [OSEv3:vars]
 ansible_become=true
-[[ $machines := .MachineNames ]]
-[[ $sections := makeSlice "masters" "etcd" "nodes" ]][[ range $sections ]][[ . | printf "[%s]" ]]
-[[ range $machines ]][[ . ]]
+
+[masters]
+[[ range .MachineNames ]][[ . ]]
 [[ end ]]
+[etcd]
+[[ range .MachineNames ]][[ . ]]
+[[ end ]]
+[nodes]
+[[ range .MachineNames ]][[ . ]]
 [[ end ]]
 `
 )
@@ -498,13 +503,9 @@ func GenerateClusterWideVarsForMachineSetWithInfraSize(
 	return buf.String(), nil
 }
 
+// GenerateInventoryForMasterMachines generates an inventory for the given master machines
 func GenerateInventoryForMasterMachines(machines []*capi.Machine) (string, error) {
-
-	makeSlice := func(args ...interface{}) []interface{} {
-		return args
-	}
-	funcMap := map[string]interface{}{"makeSlice": makeSlice}
-	t, err := template.New("inventory").Delims("[[", "]]").Funcs(template.FuncMap(funcMap)).Parse(masterMachinesInventory)
+	t, err := template.New("inventory").Delims("[[", "]]").Parse(masterMachinesInventory)
 	if err != nil {
 		return "", err
 	}

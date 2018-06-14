@@ -68,7 +68,6 @@ func NewController(
 	playbooks []string,
 	clusterInformer capiinformers.ClusterInformer,
 	machineSetInformer capiinformers.MachineSetInformer,
-	machineInformer capiinformers.MachineInformer,
 	jobInformer batchinformers.JobInformer,
 	kubeClient kubeclientset.Interface,
 	clustopClient clustopclientset.Interface,
@@ -113,15 +112,6 @@ func NewController(
 		UpdateFunc: c.updateMachineSet,
 		DeleteFunc: c.deleteMachineSet,
 	})
-
-	if machineInformer != nil {
-		machineInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-			AddFunc:    c.addMachine,
-			UpdateFunc: c.updateMachine,
-			DeleteFunc: c.deleteMachine,
-		})
-		c.machinesSynced = machineInformer.Informer().HasSynced
-	}
 
 	jobOwnerControl := &jobOwnerControl{controller: c}
 	c.jobControl = controller.NewJobControl(controllerName, clusterKind, kubeClient, jobInformer.Lister(), jobOwnerControl, logger)
@@ -185,6 +175,17 @@ type Controller struct {
 	queue workqueue.RateLimitingInterface
 
 	Logger log.FieldLogger
+}
+
+// SetMachineInformer allows to optionally set a machine informer on the controller so that
+// machine events will also result in queues of their corresponding machine deployments.
+func (c *Controller) SetMachineInformer(machineInformer capiinformers.MachineInformer) {
+	machineInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    c.addMachine,
+		UpdateFunc: c.updateMachine,
+		DeleteFunc: c.deleteMachine,
+	})
+	c.machinesSynced = machineInformer.Informer().HasSynced
 }
 
 func (c *Controller) addCluster(obj interface{}) {
@@ -421,21 +422,11 @@ func (c *Controller) handleErr(err error, key interface{}) {
 }
 
 func isMasterMachineSet(machineSet *capi.MachineSet) bool {
-	for _, role := range machineSet.Spec.Template.Spec.Roles {
-		if role == capicommon.MasterRole {
-			return true
-		}
-	}
-	return false
+	return controller.MachineSetHasRole(capicommon.MasterRole)
 }
 
 func isMasterMachine(machine *capi.Machine) bool {
-	for _, role := range machine.Spec.Roles {
-		if role == capicommon.MasterRole {
-			return true
-		}
-	}
-	return false
+	return controller.MachineHasRole(capicommon.MasterRole)
 }
 
 type jobFactory func(string) (*v1batch.Job, *kapi.ConfigMap, error)

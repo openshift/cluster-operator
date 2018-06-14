@@ -170,19 +170,23 @@ func (e *JobGeneratorExecutor) WithServiceAccount(serviceAccount *kapi.ServiceAc
 	return e
 }
 
+// WithMasterMachines sets a set of master machines so that the job will run
+// with an inventory generated from those machines. It also annotates the job
+// with the list of machines used.
 func (e *JobGeneratorExecutor) WithMasterMachines(machines []*capi.Machine) *JobGeneratorExecutor {
 	e.masterMachines = machines
 	return e
 }
 
 func serializeMachineKeys(machines []*capi.Machine) string {
-	keys := []string{}
-	for _, m := range machines {
-		keys = append(keys, fmt.Sprintf("%s/%s", m.Namespace, m.Name))
+	keys := make([]string, len(machines))
+	for i, m := range machines {
+		keys[i] = fmt.Sprintf("%s/%s", m.Namespace, m.Name)
 	}
 	return strings.Join(keys, ",")
 }
 
+// SetJobMachineKeys sets an annotation on the job that contains a comma-separated list of machine keys
 func SetJobMachineKeys(job *kbatch.Job, machines []*capi.Machine) {
 	if job.Annotations == nil {
 		job.Annotations = map[string]string{}
@@ -190,6 +194,7 @@ func SetJobMachineKeys(job *kbatch.Job, machines []*capi.Machine) {
 	job.Annotations[machineKeysAnnotation] = serializeMachineKeys(machines)
 }
 
+// GetJobMachineKeys retrieves a list of machine keys from an annotation on the job
 func GetJobMachineKeys(job *kbatch.Job) []string {
 	result := []string{}
 	value, ok := job.Annotations[machineKeysAnnotation]
