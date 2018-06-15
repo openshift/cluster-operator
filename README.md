@@ -9,16 +9,16 @@
     * Mac OSX:
       * [Go](https://golang.org/doc/install#osx)
       * [Ansible](http://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html#latest-releases-via-pip)
-  * Change docker to allow insecure pulls (required for `oc cluster up`):
+  * Change docker to allow insecure pulls (required for `oc cluster up`) and change the log driver to json-file (more reliable):
     * Edit `/etc/sysconfig/docker`
-    * Change `OPTIONS=` to include `--insecure-registry 172.30.0.0/16`
+    * Change `OPTIONS=` to include `--insecure-registry 172.30.0.0/16 --log-driver=json-file`
   * Enable and Start docker:
-    * `sudo systemctl enable docker`
-    * `sudo systemctl start docker`
+    * `sudo systemctl enable --now docker`
   * Install the OpenShift and Kubernetes Python clients:
     * `sudo pip install kubernetes openshift`
   * Install python SELinux libraries
-    * `dnf install python2-libselinux`
+    * Fedora 27: `sudo dnf install libselinux-python`
+    * Fedora 28 (and later): `sudo dnf install python2-libselinux`
   * Clone this repo to `$HOME/go/src/github.com/openshift/cluster-operator`
   * Get cfssl:
     * `go get -u github.com/cloudflare/cfssl/cmd/...`
@@ -28,6 +28,9 @@
       * Alternatively, you can also compile `oc` from source.
       * Note: It is recommended to put the `oc` binary somewhere in your path.
     * Mac OSX: [Minishift](https://github.com/minishift/minishift/releases) is the recommended development environment
+  * Create a `kubectl` symlink to the `oc` binary (if you don't already have it). This is necessary for the `kubectl_apply` ansible module to work.
+    * Note: It is recommended to put the `kubectl` symlink somewhere in your path.
+    * `ln -s oc kubectl`
   * Start an OpenShift cluster:
     * Fedora: `oc cluster up --image="docker.io/openshift/origin"`
     * Mac OSX: Follow the Minishift [Getting Started Guide](https://docs.openshift.org/latest/minishift/getting-started/index.html)
@@ -52,7 +55,7 @@
   * Deploy cluster operator to the OpenShift cluster you are currently logged into. (see above for oc login instructions above)
     * `ansible-playbook contrib/ansible/deploy-devel-playbook.yml`
     * This creates an OpenShift BuildConfig and ImageStream for the cluster-operator image. (which does not yet exist)
-  * Compile and push an image.
+  * `deploy-devel-playbook.yml` automatically kicks off an image compile. To re-compile and push a new image:
     * If you would just like to deploy Cluster Operator from the latest code in git:
       * `oc start-build cluster-operator -n openshift-cluster-operator`
     * If you are a developer and would like to quickly compile code locally and deploy to your cluster:
