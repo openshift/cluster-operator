@@ -22,8 +22,8 @@ package v1alpha1
 
 import (
 	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
-	v1 "k8s.io/api/core/v1"
-	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	core_v1 "k8s.io/api/core/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	conversion "k8s.io/apimachinery/pkg/conversion"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	unsafe "unsafe"
@@ -134,6 +134,8 @@ func autoConvert_v1alpha1_AWSMachineProviderStatus_To_clusteroperator_AWSMachine
 	out.PrivateIP = (*string)(unsafe.Pointer(in.PrivateIP))
 	out.PublicDNS = (*string)(unsafe.Pointer(in.PublicDNS))
 	out.PrivateDNS = (*string)(unsafe.Pointer(in.PrivateDNS))
+	out.LastELBSync = (*v1.Time)(unsafe.Pointer(in.LastELBSync))
+	out.LastELBSyncGeneration = in.LastELBSyncGeneration
 	return nil
 }
 
@@ -150,6 +152,8 @@ func autoConvert_clusteroperator_AWSMachineProviderStatus_To_v1alpha1_AWSMachine
 	out.PrivateIP = (*string)(unsafe.Pointer(in.PrivateIP))
 	out.PublicDNS = (*string)(unsafe.Pointer(in.PublicDNS))
 	out.PrivateDNS = (*string)(unsafe.Pointer(in.PrivateDNS))
+	out.LastELBSync = (*v1.Time)(unsafe.Pointer(in.LastELBSync))
+	out.LastELBSyncGeneration = in.LastELBSyncGeneration
 	return nil
 }
 
@@ -204,7 +208,7 @@ func Convert_clusteroperator_AWSVMImages_To_v1alpha1_AWSVMImages(in *clusteroper
 
 func autoConvert_v1alpha1_ClusterCondition_To_clusteroperator_ClusterCondition(in *ClusterCondition, out *clusteroperator.ClusterCondition, s conversion.Scope) error {
 	out.Type = clusteroperator.ClusterConditionType(in.Type)
-	out.Status = v1.ConditionStatus(in.Status)
+	out.Status = core_v1.ConditionStatus(in.Status)
 	out.LastProbeTime = in.LastProbeTime
 	out.LastTransitionTime = in.LastTransitionTime
 	out.Reason = in.Reason
@@ -219,7 +223,7 @@ func Convert_v1alpha1_ClusterCondition_To_clusteroperator_ClusterCondition(in *C
 
 func autoConvert_clusteroperator_ClusterCondition_To_v1alpha1_ClusterCondition(in *clusteroperator.ClusterCondition, out *ClusterCondition, s conversion.Scope) error {
 	out.Type = ClusterConditionType(in.Type)
-	out.Status = v1.ConditionStatus(in.Status)
+	out.Status = core_v1.ConditionStatus(in.Status)
 	out.LastProbeTime = in.LastProbeTime
 	out.LastTransitionTime = in.LastTransitionTime
 	out.Reason = in.Reason
@@ -356,7 +360,7 @@ func autoConvert_v1alpha1_ClusterDeploymentStatus_To_clusteroperator_ClusterDepl
 	out.MachineSetCount = in.MachineSetCount
 	out.MasterMachineSetName = in.MasterMachineSetName
 	out.InfraMachineSetName = in.InfraMachineSetName
-	out.AdminKubeconfig = (*v1.LocalObjectReference)(unsafe.Pointer(in.AdminKubeconfig))
+	out.AdminKubeconfig = (*core_v1.LocalObjectReference)(unsafe.Pointer(in.AdminKubeconfig))
 	out.Provisioned = in.Provisioned
 	out.ProvisionedJobGeneration = in.ProvisionedJobGeneration
 	out.ControlPlaneInstalled = in.ControlPlaneInstalled
@@ -368,14 +372,14 @@ func autoConvert_v1alpha1_ClusterDeploymentStatus_To_clusteroperator_ClusterDepl
 	out.NodeConfigInstalled = in.NodeConfigInstalled
 	out.NodeConfigInstalledJobClusterGeneration = in.NodeConfigInstalledJobClusterGeneration
 	out.NodeConfigInstalledJobMachineSetGeneration = in.NodeConfigInstalledJobMachineSetGeneration
-	out.NodeConfigInstalledTime = (*meta_v1.Time)(unsafe.Pointer(in.NodeConfigInstalledTime))
+	out.NodeConfigInstalledTime = (*v1.Time)(unsafe.Pointer(in.NodeConfigInstalledTime))
 	out.ClusterAPIInstalled = in.ClusterAPIInstalled
 	out.ClusterAPIInstalledJobClusterGeneration = in.ClusterAPIInstalledJobClusterGeneration
 	out.ClusterAPIInstalledJobMachineSetGeneration = in.ClusterAPIInstalledJobMachineSetGeneration
-	out.ClusterAPIInstalledTime = (*meta_v1.Time)(unsafe.Pointer(in.ClusterAPIInstalledTime))
+	out.ClusterAPIInstalledTime = (*v1.Time)(unsafe.Pointer(in.ClusterAPIInstalledTime))
 	out.Ready = in.Ready
 	out.Conditions = *(*[]clusteroperator.ClusterCondition)(unsafe.Pointer(&in.Conditions))
-	out.ClusterVersionRef = (*v1.ObjectReference)(unsafe.Pointer(in.ClusterVersionRef))
+	out.ClusterVersionRef = (*core_v1.ObjectReference)(unsafe.Pointer(in.ClusterVersionRef))
 	out.DeprovisionedComputeMachinesets = in.DeprovisionedComputeMachinesets
 	return nil
 }
@@ -389,7 +393,7 @@ func autoConvert_clusteroperator_ClusterDeploymentStatus_To_v1alpha1_ClusterDepl
 	out.MachineSetCount = in.MachineSetCount
 	out.MasterMachineSetName = in.MasterMachineSetName
 	out.InfraMachineSetName = in.InfraMachineSetName
-	out.AdminKubeconfig = (*v1.LocalObjectReference)(unsafe.Pointer(in.AdminKubeconfig))
+	out.AdminKubeconfig = (*core_v1.LocalObjectReference)(unsafe.Pointer(in.AdminKubeconfig))
 	out.Provisioned = in.Provisioned
 	out.ProvisionedJobGeneration = in.ProvisionedJobGeneration
 	out.ControlPlaneInstalled = in.ControlPlaneInstalled
@@ -401,14 +405,14 @@ func autoConvert_clusteroperator_ClusterDeploymentStatus_To_v1alpha1_ClusterDepl
 	out.NodeConfigInstalled = in.NodeConfigInstalled
 	out.NodeConfigInstalledJobClusterGeneration = in.NodeConfigInstalledJobClusterGeneration
 	out.NodeConfigInstalledJobMachineSetGeneration = in.NodeConfigInstalledJobMachineSetGeneration
-	out.NodeConfigInstalledTime = (*meta_v1.Time)(unsafe.Pointer(in.NodeConfigInstalledTime))
+	out.NodeConfigInstalledTime = (*v1.Time)(unsafe.Pointer(in.NodeConfigInstalledTime))
 	out.ClusterAPIInstalled = in.ClusterAPIInstalled
 	out.ClusterAPIInstalledJobClusterGeneration = in.ClusterAPIInstalledJobClusterGeneration
 	out.ClusterAPIInstalledJobMachineSetGeneration = in.ClusterAPIInstalledJobMachineSetGeneration
-	out.ClusterAPIInstalledTime = (*meta_v1.Time)(unsafe.Pointer(in.ClusterAPIInstalledTime))
+	out.ClusterAPIInstalledTime = (*v1.Time)(unsafe.Pointer(in.ClusterAPIInstalledTime))
 	out.Ready = in.Ready
 	out.Conditions = *(*[]ClusterCondition)(unsafe.Pointer(&in.Conditions))
-	out.ClusterVersionRef = (*v1.ObjectReference)(unsafe.Pointer(in.ClusterVersionRef))
+	out.ClusterVersionRef = (*core_v1.ObjectReference)(unsafe.Pointer(in.ClusterVersionRef))
 	out.DeprovisionedComputeMachinesets = in.DeprovisionedComputeMachinesets
 	return nil
 }
@@ -600,11 +604,11 @@ func autoConvert_v1alpha1_ClusterVersionSpec_To_clusteroperator_ClusterVersionSp
 	out.DeploymentType = clusteroperator.ClusterDeploymentType(in.DeploymentType)
 	out.Version = in.Version
 	out.OpenshiftAnsibleImage = (*string)(unsafe.Pointer(in.OpenshiftAnsibleImage))
-	out.OpenshiftAnsibleImagePullPolicy = (*v1.PullPolicy)(unsafe.Pointer(in.OpenshiftAnsibleImagePullPolicy))
+	out.OpenshiftAnsibleImagePullPolicy = (*core_v1.PullPolicy)(unsafe.Pointer(in.OpenshiftAnsibleImagePullPolicy))
 	out.ClusterAPIImage = (*string)(unsafe.Pointer(in.ClusterAPIImage))
-	out.ClusterAPIImagePullPolicy = (*v1.PullPolicy)(unsafe.Pointer(in.ClusterAPIImagePullPolicy))
+	out.ClusterAPIImagePullPolicy = (*core_v1.PullPolicy)(unsafe.Pointer(in.ClusterAPIImagePullPolicy))
 	out.MachineControllerImage = (*string)(unsafe.Pointer(in.MachineControllerImage))
-	out.MachineControllerImagePullPolicy = (*v1.PullPolicy)(unsafe.Pointer(in.MachineControllerImagePullPolicy))
+	out.MachineControllerImagePullPolicy = (*core_v1.PullPolicy)(unsafe.Pointer(in.MachineControllerImagePullPolicy))
 	return nil
 }
 
@@ -621,11 +625,11 @@ func autoConvert_clusteroperator_ClusterVersionSpec_To_v1alpha1_ClusterVersionSp
 	out.DeploymentType = ClusterDeploymentType(in.DeploymentType)
 	out.Version = in.Version
 	out.OpenshiftAnsibleImage = (*string)(unsafe.Pointer(in.OpenshiftAnsibleImage))
-	out.OpenshiftAnsibleImagePullPolicy = (*v1.PullPolicy)(unsafe.Pointer(in.OpenshiftAnsibleImagePullPolicy))
+	out.OpenshiftAnsibleImagePullPolicy = (*core_v1.PullPolicy)(unsafe.Pointer(in.OpenshiftAnsibleImagePullPolicy))
 	out.ClusterAPIImage = (*string)(unsafe.Pointer(in.ClusterAPIImage))
-	out.ClusterAPIImagePullPolicy = (*v1.PullPolicy)(unsafe.Pointer(in.ClusterAPIImagePullPolicy))
+	out.ClusterAPIImagePullPolicy = (*core_v1.PullPolicy)(unsafe.Pointer(in.ClusterAPIImagePullPolicy))
 	out.MachineControllerImage = (*string)(unsafe.Pointer(in.MachineControllerImage))
-	out.MachineControllerImagePullPolicy = (*v1.PullPolicy)(unsafe.Pointer(in.MachineControllerImagePullPolicy))
+	out.MachineControllerImagePullPolicy = (*core_v1.PullPolicy)(unsafe.Pointer(in.MachineControllerImagePullPolicy))
 	return nil
 }
 

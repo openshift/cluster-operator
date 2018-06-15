@@ -21,8 +21,10 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/kubernetes"
 	kubeclientset "k8s.io/client-go/kubernetes"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/cache"
@@ -38,9 +40,11 @@ import (
 
 	capicommon "sigs.k8s.io/cluster-api/pkg/apis/cluster/common"
 	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	capiclient "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 	informers "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions/cluster/v1alpha1"
 	lister "sigs.k8s.io/cluster-api/pkg/client/listers_generated/cluster/v1alpha1"
 
+	clustopv1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	clustopclient "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
 	clustopaws "github.com/openshift/cluster-operator/pkg/clusterapi/aws"
 	"github.com/openshift/cluster-operator/pkg/controller"
@@ -56,10 +60,16 @@ const (
 	// 5ms, 10ms, 20ms, 40ms, 80ms, 160ms, 320ms, 640ms, 1.3s, 2.6s, 5.1s, 10.2s, 20.4s, 41s, 82s
 	maxRetries     = 15
 	controllerName = "awselb"
+
+	// elbResyncDuration represents period of time after which we will re-add machines to the ELBs.
+	// Once successfully added we add a timestamp to status, each time the machine is synced we check if
+	// this duration is exceeded and if so, re-add to the ELB to ensure we repair any machines
+	// accidentally taken out of rotation.
+	elbResyncDuration = 2 * time.Hour
 )
 
 // NewController returns a new *Controller.
-func NewController(machineInformer informers.MachineInformer, kubeClient kubeclientset.Interface, clustopClient clustopclient.Interface) *Controller {
+func NewController(machineInformer informers.MachineInformer, kubeClient kubeclientset.Interface, clustopClient clustopclient.Interface, capiClient capiclient.Interface) *Controller {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(glog.Infof)
 	// TODO: remove the wrapper when every clients have moved to use the clientset.
@@ -70,9 +80,11 @@ func NewController(machineInformer informers.MachineInformer, kubeClient kubecli
 	}
 
 	c := &Controller{
-		client:     clustopClient,
-		kubeClient: kubeClient,
-		queue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "awselb"),
+		client:        clustopClient,
+		capiClient:    capiClient,
+		kubeClient:    kubeClient,
+		queue:         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "awselb"),
+		clientBuilder: clustopaws.NewClient,
 	}
 
 	machineInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -93,6 +105,7 @@ func NewController(machineInformer informers.MachineInformer, kubeClient kubecli
 // Controller monitors master machines and adds to ELBs as appropriate.
 type Controller struct {
 	client     clustopclient.Interface
+	capiClient capiclient.Interface
 	kubeClient kubeclientset.Interface
 
 	// To allow injection of syncMachine for testing.
@@ -110,7 +123,8 @@ type Controller struct {
 	// Machines that need to be synced
 	queue workqueue.RateLimitingInterface
 
-	logger log.FieldLogger
+	logger        log.FieldLogger
+	clientBuilder func(kubeClient kubernetes.Interface, mSpec *clustopv1.MachineSetSpec, namespace, region string) (clustopaws.Client, error)
 }
 
 func (c *Controller) addMachine(obj interface{}) {
@@ -256,6 +270,10 @@ func (c *Controller) syncMachine(key string) error {
 		return err
 	}
 
+	return c.processMachine(machine)
+}
+
+func (c *Controller) processMachine(machine *capiv1.Machine) error {
 	mLog := clustoplog.WithMachine(c.logger, machine)
 
 	coMachineSetSpec, err := controller.MachineSetSpecFromClusterAPIMachineSpec(&machine.Spec)
@@ -265,7 +283,29 @@ func (c *Controller) syncMachine(key string) error {
 
 	region := coMachineSetSpec.ClusterHardware.AWS.Region
 	mLog.Debugf("Obtaining AWS clients for region %q", region)
-	client, err := clustopaws.NewClient(c.kubeClient, coMachineSetSpec, machine.Namespace, region)
+
+	status, err := controller.AWSMachineProviderStatusFromClusterAPIMachine(machine)
+	if err != nil {
+		return err
+	}
+
+	mLog.WithFields(log.Fields{
+		"currentGen":    machine.Generation,
+		"lastSyncedGen": status.LastELBSyncGeneration,
+	}).Debugf("checking if re-sync is required")
+	if status.LastELBSync != nil && status.LastELBSyncGeneration == machine.Generation {
+		delta := time.Now().Sub(status.LastELBSync.Time)
+		if delta < elbResyncDuration {
+			mLog.WithFields(log.Fields{
+				"delta":         delta,
+				"currentGen":    machine.Generation,
+				"lastSyncedGen": status.LastELBSyncGeneration,
+			}).Debugf("no resync needed")
+			return nil
+		}
+	}
+
+	client, err := c.clientBuilder(c.kubeClient, coMachineSetSpec, machine.Namespace, region)
 	if err != nil {
 		return err
 	}
@@ -285,6 +325,37 @@ func (c *Controller) syncMachine(key string) error {
 		return err
 	}
 
+	return c.updateStatus(machine, mLog)
+}
+
+// updateStatus sets the LastELBSync time in status to now, and updates the machine.
+func (c *Controller) updateStatus(machine *capiv1.Machine, mLog log.FieldLogger) error {
+
+	mLog.Debug("updating machine status")
+
+	awsStatus, err := controller.AWSMachineProviderStatusFromClusterAPIMachine(machine)
+	if err != nil {
+		return err
+	}
+	now := metav1.Now()
+	awsStatus.LastELBSync = &now
+	awsStatus.LastELBSyncGeneration = machine.Generation
+	awsStatusRaw, err := controller.ClusterAPIMachineProviderStatusFromAWSMachineProviderStatus(awsStatus)
+	if err != nil {
+		mLog.Errorf("error encoding AWS provider status: %v", err)
+		return err
+	}
+
+	machineCopy := machine.DeepCopy()
+	machineCopy.Status.ProviderStatus = awsStatusRaw
+
+	machineCopy.Status.LastUpdated = now
+
+	_, err = c.capiClient.ClusterV1alpha1().Machines(machineCopy.Namespace).UpdateStatus(machineCopy)
+	if err != nil {
+		mLog.Errorf("error updating machine status: %v", err)
+		return err
+	}
 	return nil
 }
 

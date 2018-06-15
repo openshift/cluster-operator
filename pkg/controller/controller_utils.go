@@ -683,3 +683,14 @@ func BuildClusterAPIMachineSet(ms *clusteroperator.ClusterMachineSet, clusterDep
 
 	return &capiMachineSet, nil
 }
+
+// StringPtrsEqual safely returns true if the value for each string pointer is equal, or both are nil.
+func StringPtrsEqual(s1, s2 *string) bool {
+	if s1 == s2 {
+		return true
+	}
+	if s1 == nil || s2 == nil {
+		return false
+	}
+	return *s1 == *s2
+}

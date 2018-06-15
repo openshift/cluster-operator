@@ -29,6 +29,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 
 	clustopv1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	mockaws "github.com/openshift/cluster-operator/pkg/clusterapi/aws/mock"
 	"github.com/openshift/cluster-operator/pkg/controller"
 
 	capicommon "sigs.k8s.io/cluster-api/pkg/apis/cluster/common"
@@ -256,7 +257,7 @@ func TestCreateMachine(t *testing.T) {
 			cluster := testCluster(t)
 			machine := testMachine(testMachineName, cluster.Name, tc.nodeType, tc.isInfra, nil)
 
-			mockAWSClient := NewMockClient(mockCtrl)
+			mockAWSClient := mockaws.NewMockClient(mockCtrl)
 			addDescribeImagesMock(mockAWSClient, testImage)
 			addDescribeVpcsMock(mockAWSClient, testClusterID, testVPCID)
 			addDescribeSubnetsMock(mockAWSClient, testAZ, testVPCID, testSubnetID)
@@ -310,6 +311,7 @@ func TestUpdate(t *testing.T) {
 		expectedInstanceID string
 		// expectedUpdate should be true if we expect a cluster-api client update to be executed for changing machine status.
 		expectedUpdate bool
+		expectedError  bool
 	}{
 		{
 			name: "one instance running no status change",
@@ -332,6 +334,14 @@ func TestUpdate(t *testing.T) {
 			}(),
 			expectedInstanceID: "i1",
 			expectedUpdate:     true,
+		},
+		{
+			name:               "instance deleted",
+			instances:          []*ec2.Instance{},
+			currentStatus:      testAWSStatus("i1"),
+			expectedInstanceID: "",
+			expectedUpdate:     true,
+			expectedError:      true,
 		},
 		{
 			name: "multiple instance running no status change",
@@ -369,7 +379,7 @@ func TestUpdate(t *testing.T) {
 			cluster := testCluster(t)
 			machine := testMachine(testMachineName, cluster.Name, clustopv1.NodeTypeMaster, true, tc.currentStatus)
 
-			mockAWSClient := NewMockClient(mockCtrl)
+			mockAWSClient := mockaws.NewMockClient(mockCtrl)
 			addDescribeInstancesMock(mockAWSClient, tc.instances)
 			if len(tc.instances) > 1 {
 				mockAWSClient.EXPECT().TerminateInstances(gomock.Any()).Do(func(input interface{}) {
@@ -391,8 +401,10 @@ func TestUpdate(t *testing.T) {
 			}
 
 			err := actuator.Update(cluster, machine)
-			if !assert.NoError(t, err) {
-				return
+			if tc.expectedError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
 			}
 
 			if tc.expectedUpdate {
@@ -409,7 +421,21 @@ func TestUpdate(t *testing.T) {
 				if !assert.NoError(t, err) {
 					return
 				}
-				assert.Equal(t, tc.expectedInstanceID, *clustopStatus.InstanceID)
+				if tc.expectedInstanceID == "" {
+					assert.Nil(t, clustopStatus.InstanceID)
+					assert.Nil(t, clustopStatus.PublicIP)
+					assert.Nil(t, clustopStatus.PublicDNS)
+					assert.Nil(t, clustopStatus.PrivateIP)
+					assert.Nil(t, clustopStatus.PrivateDNS)
+				} else {
+					assert.Equal(t, tc.expectedInstanceID, *clustopStatus.InstanceID)
+				}
+				// LastELBSync should be cleared if our instance ID changed to trigger the ELB controller:
+				if *tc.currentStatus.InstanceID != tc.expectedInstanceID {
+					assert.Nil(t, clustopStatus.LastELBSync)
+				} else {
+					assert.NotNil(t, clustopStatus.LastELBSync)
+				}
 			} else {
 				assert.Equal(t, 0, len(capiClient.Actions()))
 			}
@@ -453,7 +479,7 @@ func TestDeleteMachine(t *testing.T) {
 			cluster := testCluster(t)
 			machine := testMachine(testMachineName, cluster.Name, clustopv1.NodeTypeMaster, true, nil)
 
-			mockAWSClient := NewMockClient(mockCtrl)
+			mockAWSClient := mockaws.NewMockClient(mockCtrl)
 			addDescribeInstancesMock(mockAWSClient, tc.instances)
 			if len(tc.instances) > 0 {
 				mockAWSClient.EXPECT().TerminateInstances(gomock.Any()).Do(func(input interface{}) {
@@ -488,7 +514,7 @@ func assertRunInstancesInputHasTag(t *testing.T, input *ec2.RunInstancesInput, k
 	t.Errorf("tag not found on RunInstancesInput: %s", key)
 }
 
-func addDescribeImagesMock(mockAWSClient *MockClient, imageID string) {
+func addDescribeImagesMock(mockAWSClient *mockaws.MockClient, imageID string) {
 	mockAWSClient.EXPECT().DescribeImages(&ec2.DescribeImagesInput{
 		ImageIds: []*string{aws.String(testImage)},
 	}).Return(
@@ -527,14 +553,15 @@ func testAWSStatus(instanceID string) *clustopv1.AWSMachineProviderStatus {
 		InstanceID:    aws.String(instanceID),
 		InstanceState: aws.String("running"),
 		// Match the assumptions made in testInstance based on instance ID.
-		PublicIP:   aws.String(fmt.Sprintf("%s-publicip", instanceID)),
-		PrivateIP:  aws.String(fmt.Sprintf("%s-privateip", instanceID)),
-		PublicDNS:  aws.String(fmt.Sprintf("%s-publicdns", instanceID)),
-		PrivateDNS: aws.String(fmt.Sprintf("%s-privatednf", instanceID)),
+		PublicIP:    aws.String(fmt.Sprintf("%s-publicip", instanceID)),
+		PrivateIP:   aws.String(fmt.Sprintf("%s-privateip", instanceID)),
+		PublicDNS:   aws.String(fmt.Sprintf("%s-publicdns", instanceID)),
+		PrivateDNS:  aws.String(fmt.Sprintf("%s-privatednf", instanceID)),
+		LastELBSync: &metav1.Time{Time: time.Now().Add(-30 * time.Minute)},
 	}
 }
 
-func addDescribeInstancesMock(mockAWSClient *MockClient, instances []*ec2.Instance) {
+func addDescribeInstancesMock(mockAWSClient *mockaws.MockClient, instances []*ec2.Instance) {
 	// Wrap each instance in a reservation:
 	reservations := make([]*ec2.Reservation, len(instances))
 	for i, inst := range instances {
@@ -547,7 +574,7 @@ func addDescribeInstancesMock(mockAWSClient *MockClient, instances []*ec2.Instan
 		}, nil)
 }
 
-func addDescribeVpcsMock(mockAWSClient *MockClient, vpcName, vpcID string) {
+func addDescribeVpcsMock(mockAWSClient *mockaws.MockClient, vpcName, vpcID string) {
 	describeVpcsInput := ec2.DescribeVpcsInput{
 		Filters: []*ec2.Filter{{Name: aws.String("tag:Name"), Values: []*string{&vpcName}}},
 	}
@@ -561,7 +588,7 @@ func addDescribeVpcsMock(mockAWSClient *MockClient, vpcName, vpcID string) {
 	mockAWSClient.EXPECT().DescribeVpcs(&describeVpcsInput).Return(&describeVpcsOutput, nil)
 }
 
-func addDescribeSubnetsMock(mockAWSClient *MockClient, az, vpcID, subnetID string) {
+func addDescribeSubnetsMock(mockAWSClient *mockaws.MockClient, az, vpcID, subnetID string) {
 	input := ec2.DescribeSubnetsInput{
 		Filters: []*ec2.Filter{
 			{Name: aws.String("vpc-id"), Values: []*string{aws.String(vpcID)}},
@@ -578,7 +605,7 @@ func addDescribeSubnetsMock(mockAWSClient *MockClient, az, vpcID, subnetID strin
 	mockAWSClient.EXPECT().DescribeSubnets(&input).Return(&output, nil)
 }
 
-func addDescribeSecurityGroupsMock(t *testing.T, mockAWSClient *MockClient, vpcID, vpcName string, isMaster, isInfra bool) {
+func addDescribeSecurityGroupsMock(t *testing.T, mockAWSClient *mockaws.MockClient, vpcID, vpcName string, isMaster, isInfra bool) {
 	// Using the input builder from the production code. Behavior of this function is tested separately.
 	input := buildDescribeSecurityGroupsInput(vpcID, vpcName, isMaster, isInfra)
 	output := ec2.DescribeSecurityGroupsOutput{

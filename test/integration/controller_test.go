@@ -492,6 +492,7 @@ func startServerAndControllers(t *testing.T) (
 				capiSharedInformers.Machines(),
 				fakeKubeClient,
 				clustopClient,
+				capiClient,
 			)
 			return func() { controller.Run(1, stopCh) }
 		}(),

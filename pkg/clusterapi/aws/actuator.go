@@ -377,9 +377,15 @@ func (a *Actuator) Update(cluster *clusterv1.Cluster, machine *clusterv1.Machine
 		return err
 	}
 
+	// Parent controller should prevent this from ever happening by calling Exists and then Create,
+	// but instance could be deleted between the two calls.
 	if len(instances) == 0 {
-		// Parent controller should prevent this from ever happening by calling Exists and then Create,
-		// but instance could be deleted between the two calls.
+		mLog.Warnf("attempted to update machine but no instances found")
+		// Update status to clear out machine details.
+		err := a.updateStatus(machine, nil, mLog)
+		if err != nil {
+			return err
+		}
 		return fmt.Errorf("attempted to update machine but no instances found")
 	}
 	newestInstance, terminateInstances := SortInstances(instances)
@@ -441,10 +447,22 @@ func (a *Actuator) updateStatus(machine *clusterv1.Machine, instance *ec2.Instan
 	mLog.Debug("updating status")
 
 	// Starting with a fresh status as we assume full control of it here.
-	awsStatus := &cov1.AWSMachineProviderStatus{}
+	awsStatus, err := controller.AWSMachineProviderStatusFromClusterAPIMachine(machine)
+	if err != nil {
+		return err
+	}
+	// Save this, we need to check if it changed later.
+	origInstanceID := awsStatus.InstanceID
 
 	// Instance may have existed but been deleted outside our control, clear it's status if so:
-	if instance != nil {
+	if instance == nil {
+		awsStatus.InstanceID = nil
+		awsStatus.InstanceState = nil
+		awsStatus.PublicIP = nil
+		awsStatus.PublicDNS = nil
+		awsStatus.PrivateIP = nil
+		awsStatus.PrivateDNS = nil
+	} else {
 		awsStatus.InstanceID = instance.InstanceId
 		awsStatus.InstanceState = instance.State.Name
 		// Some of these pointers may still be nil (public IP and DNS):
@@ -454,6 +472,11 @@ func (a *Actuator) updateStatus(machine *clusterv1.Machine, instance *ec2.Instan
 		awsStatus.PrivateDNS = instance.PrivateDnsName
 	}
 	mLog.Debug("finished calculating AWS status")
+
+	if !controller.StringPtrsEqual(origInstanceID, awsStatus.InstanceID) {
+		mLog.Debug("AWS instance ID changed, clearing LastELBSync to trigger adding to ELBs")
+		awsStatus.LastELBSync = nil
+	}
 
 	awsStatusRaw, err := controller.ClusterAPIMachineProviderStatusFromAWSMachineProviderStatus(awsStatus)
 	if err != nil {

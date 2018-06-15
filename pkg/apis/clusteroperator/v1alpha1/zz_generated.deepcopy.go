@@ -21,8 +21,8 @@ limitations under the License.
 package v1alpha1
 
 import (
-	v1 "k8s.io/api/core/v1"
-	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	core_v1 "k8s.io/api/core/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	cluster_v1alpha1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 )
@@ -103,6 +103,15 @@ func (in *AWSMachineProviderStatus) DeepCopyInto(out *AWSMachineProviderStatus) 
 		} else {
 			*out = new(string)
 			**out = **in
+		}
+	}
+	if in.LastELBSync != nil {
+		in, out := &in.LastELBSync, &out.LastELBSync
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(v1.Time)
+			(*in).DeepCopyInto(*out)
 		}
 	}
 	return
@@ -315,7 +324,7 @@ func (in *ClusterDeploymentStatus) DeepCopyInto(out *ClusterDeploymentStatus) {
 		if *in == nil {
 			*out = nil
 		} else {
-			*out = new(v1.LocalObjectReference)
+			*out = new(core_v1.LocalObjectReference)
 			**out = **in
 		}
 	}
@@ -324,7 +333,7 @@ func (in *ClusterDeploymentStatus) DeepCopyInto(out *ClusterDeploymentStatus) {
 		if *in == nil {
 			*out = nil
 		} else {
-			*out = new(meta_v1.Time)
+			*out = new(v1.Time)
 			(*in).DeepCopyInto(*out)
 		}
 	}
@@ -333,7 +342,7 @@ func (in *ClusterDeploymentStatus) DeepCopyInto(out *ClusterDeploymentStatus) {
 		if *in == nil {
 			*out = nil
 		} else {
-			*out = new(meta_v1.Time)
+			*out = new(v1.Time)
 			(*in).DeepCopyInto(*out)
 		}
 	}
@@ -349,7 +358,7 @@ func (in *ClusterDeploymentStatus) DeepCopyInto(out *ClusterDeploymentStatus) {
 		if *in == nil {
 			*out = nil
 		} else {
-			*out = new(v1.ObjectReference)
+			*out = new(core_v1.ObjectReference)
 			**out = **in
 		}
 	}
@@ -561,7 +570,7 @@ func (in *ClusterVersionSpec) DeepCopyInto(out *ClusterVersionSpec) {
 		if *in == nil {
 			*out = nil
 		} else {
-			*out = new(v1.PullPolicy)
+			*out = new(core_v1.PullPolicy)
 			**out = **in
 		}
 	}
@@ -579,7 +588,7 @@ func (in *ClusterVersionSpec) DeepCopyInto(out *ClusterVersionSpec) {
 		if *in == nil {
 			*out = nil
 		} else {
-			*out = new(v1.PullPolicy)
+			*out = new(core_v1.PullPolicy)
 			**out = **in
 		}
 	}
@@ -597,7 +606,7 @@ func (in *ClusterVersionSpec) DeepCopyInto(out *ClusterVersionSpec) {
 		if *in == nil {
 			*out = nil
 		} else {
-			*out = new(v1.PullPolicy)
+			*out = new(core_v1.PullPolicy)
 			**out = **in
 		}
 	}

@@ -159,11 +159,25 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Format:      "",
 							},
 						},
+						"lastELBSync": {
+							SchemaProps: spec.SchemaProps{
+								Description: "LastELBSync stores when we last successfully ensured a master machine is added to relevant load balancers.",
+								Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+							},
+						},
+						"lastELBSyncGeneration": {
+							SchemaProps: spec.SchemaProps{
+								Description: "LastELBSyncGeneration is the generation of the machine resource last added to the ELB.",
+								Type:        []string{"integer"},
+								Format:      "int64",
+							},
+						},
 					},
+					Required: []string{"lastELBSyncGeneration"},
 				},
 			},
 			Dependencies: []string{
-				"k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+				"k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta", "k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
 		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.AWSRegionAMIs": {
 			Schema: spec.Schema{
