@@ -377,9 +377,15 @@ func (a *Actuator) Update(cluster *clusterv1.Cluster, machine *clusterv1.Machine
 		return err
 	}
 
+	// Parent controller should prevent this from ever happening by calling Exists and then Create,
+	// but instance could be deleted between the two calls.
 	if len(instances) == 0 {
-		// Parent controller should prevent this from ever happening by calling Exists and then Create,
-		// but instance could be deleted between the two calls.
+		mLog.Warnf("attempted to update machine but no instances found")
+		// Update status to clear out machine details.
+		err := a.updateStatus(machine, nil, mLog)
+		if err != nil {
+			return err
+		}
 		return fmt.Errorf("attempted to update machine but no instances found")
 	}
 	newestInstance, terminateInstances := SortInstances(instances)

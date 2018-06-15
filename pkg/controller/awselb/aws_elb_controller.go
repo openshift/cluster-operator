@@ -337,7 +337,8 @@ func (c *Controller) updateStatus(machine *capiv1.Machine, mLog log.FieldLogger)
 	if err != nil {
 		return err
 	}
-	awsStatus.LastELBSync = &metav1.Time{Time: time.Now()}
+	now := metav1.Now()
+	awsStatus.LastELBSync = &now
 	awsStatus.LastELBSyncGeneration = machine.Generation
 	awsStatusRaw, err := controller.ClusterAPIMachineProviderStatusFromAWSMachineProviderStatus(awsStatus)
 	if err != nil {
@@ -348,7 +349,7 @@ func (c *Controller) updateStatus(machine *capiv1.Machine, mLog log.FieldLogger)
 	machineCopy := machine.DeepCopy()
 	machineCopy.Status.ProviderStatus = awsStatusRaw
 
-	machineCopy.Status.LastUpdated = metav1.Now()
+	machineCopy.Status.LastUpdated = now
 
 	_, err = c.capiClient.ClusterV1alpha1().Machines(machineCopy.Namespace).UpdateStatus(machineCopy)
 	if err != nil {

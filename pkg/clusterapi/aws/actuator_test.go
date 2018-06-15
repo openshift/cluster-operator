@@ -311,6 +311,7 @@ func TestUpdate(t *testing.T) {
 		expectedInstanceID string
 		// expectedUpdate should be true if we expect a cluster-api client update to be executed for changing machine status.
 		expectedUpdate bool
+		expectedError  bool
 	}{
 		{
 			name: "one instance running no status change",
@@ -333,6 +334,14 @@ func TestUpdate(t *testing.T) {
 			}(),
 			expectedInstanceID: "i1",
 			expectedUpdate:     true,
+		},
+		{
+			name:               "instance deleted",
+			instances:          []*ec2.Instance{},
+			currentStatus:      testAWSStatus("i1"),
+			expectedInstanceID: "",
+			expectedUpdate:     true,
+			expectedError:      true,
 		},
 		{
 			name: "multiple instance running no status change",
@@ -392,8 +401,10 @@ func TestUpdate(t *testing.T) {
 			}
 
 			err := actuator.Update(cluster, machine)
-			if !assert.NoError(t, err) {
-				return
+			if tc.expectedError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
 			}
 
 			if tc.expectedUpdate {
@@ -410,7 +421,15 @@ func TestUpdate(t *testing.T) {
 				if !assert.NoError(t, err) {
 					return
 				}
-				assert.Equal(t, tc.expectedInstanceID, *clustopStatus.InstanceID)
+				if tc.expectedInstanceID == "" {
+					assert.Nil(t, clustopStatus.InstanceID)
+					assert.Nil(t, clustopStatus.PublicIP)
+					assert.Nil(t, clustopStatus.PublicDNS)
+					assert.Nil(t, clustopStatus.PrivateIP)
+					assert.Nil(t, clustopStatus.PrivateDNS)
+				} else {
+					assert.Equal(t, tc.expectedInstanceID, *clustopStatus.InstanceID)
+				}
 				// LastELBSync should be cleared if our instance ID changed to trigger the ELB controller:
 				if *tc.currentStatus.InstanceID != tc.expectedInstanceID {
 					assert.Nil(t, clustopStatus.LastELBSync)

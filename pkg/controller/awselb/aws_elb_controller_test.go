@@ -73,29 +73,29 @@ func TestSyncMachine(t *testing.T) {
 	}{
 		{
 			name:                         "no last sync",
-			generation:                   int64(1),
-			lastSuccessfulSyncGeneration: int64(1),
+			generation:                   1,
+			lastSuccessfulSyncGeneration: 1,
 			resyncExpected:               true,
 		},
 		{
 			name:                         "no re-sync required",
 			lastSuccessfulSync:           time.Now().Add(-5 * time.Second),
-			generation:                   int64(1),
-			lastSuccessfulSyncGeneration: int64(1),
+			generation:                   1,
+			lastSuccessfulSyncGeneration: 1,
 			resyncExpected:               false,
 		},
 		{
 			name:                         "re-sync due",
 			lastSuccessfulSync:           time.Now().Add(-9 * time.Hour),
-			generation:                   int64(1),
-			lastSuccessfulSyncGeneration: int64(1),
+			generation:                   1,
+			lastSuccessfulSyncGeneration: 1,
 			resyncExpected:               true,
 		},
 		{
 			name:                         "re-sync for generation change",
 			lastSuccessfulSync:           time.Now().Add(-5 * time.Second),
-			generation:                   int64(4),
-			lastSuccessfulSyncGeneration: int64(1),
+			generation:                   4,
+			lastSuccessfulSyncGeneration: 1,
 			resyncExpected:               true,
 		},
 	}
@@ -150,7 +150,7 @@ func TestSyncMachine(t *testing.T) {
 				assert.NoError(t, err)
 				assert.NotNil(t, clustopStatus.LastELBSync)
 				assert.True(t, clustopStatus.LastELBSync.Time.After(tc.lastSuccessfulSync))
-				assert.NotEqual(t, int64(0), clustopStatus.LastELBSyncGeneration)
+				assert.Equal(t, machine.Generation, clustopStatus.LastELBSyncGeneration)
 				assert.Equal(t, "preserveme", *clustopStatus.InstanceID)
 			} else {
 				assert.Equal(t, 0, len(capiClient.Actions()))
