@@ -17,13 +17,18 @@ limitations under the License.
 package ansible
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	capi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+
 	coapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	"github.com/openshift/cluster-operator/pkg/controller"
 )
 
 const (
@@ -235,5 +240,61 @@ func TestConvertVersionToRelease(t *testing.T) {
 				assert.Error(t, err)
 			}
 		})
+	}
+}
+
+func TestGenerateInventoryForMasterMachines(t *testing.T) {
+	count := 0
+	machine := func(publicName string) *capi.Machine {
+		count++
+		m := &capi.Machine{}
+		m.Name = fmt.Sprintf("count-%d", count)
+		m.Namespace = "default"
+
+		awsStatus := &coapi.AWSMachineProviderStatus{
+			PublicDNS: &publicName,
+		}
+		providerStatus, err := controller.ClusterAPIMachineProviderStatusFromAWSMachineProviderStatus(awsStatus)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		m.Status.ProviderStatus = providerStatus
+		return m
+	}
+	machines := []*capi.Machine{
+		machine("first.public.ip"),
+		machine("second.public.ip"),
+		machine("third.public.ip"),
+	}
+	actual, err := GenerateInventoryForMasterMachines(machines)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	expected := `
+[OSEv3:children]
+masters
+nodes
+etcd
+
+[OSEv3:vars]
+ansible_become=true
+
+[masters]
+first.public.ip
+second.public.ip
+third.public.ip
+
+[etcd]
+first.public.ip
+second.public.ip
+third.public.ip
+
+[nodes]
+first.public.ip
+second.public.ip
+third.public.ip
+`
+	if strings.TrimSpace(actual) != strings.TrimSpace(expected) {
+		t.Errorf("unexpected result:\n%s", actual)
 	}
 }

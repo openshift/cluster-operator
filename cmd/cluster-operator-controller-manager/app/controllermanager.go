@@ -539,6 +539,7 @@ func startMasterController(ctx ControllerContext) (bool, error) {
 	go master.NewController(
 		ctx.ClusterAPIInformerFactory.Cluster().V1alpha1().Clusters(),
 		ctx.ClusterAPIInformerFactory.Cluster().V1alpha1().MachineSets(),
+		ctx.ClusterAPIInformerFactory.Cluster().V1alpha1().Machines(),
 		ctx.KubeInformerFactory.Batch().V1().Jobs(),
 		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-master-controller"),
 		ctx.ClientBuilder.ClientOrDie("clusteroperator-master-controller"),

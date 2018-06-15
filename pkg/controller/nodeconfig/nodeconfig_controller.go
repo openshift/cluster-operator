@@ -57,6 +57,7 @@ func NewController(
 		[]string{playbook},
 		clusterInformer,
 		machineSetInformer,
+		nil,
 		jobInformer,
 		kubeClient,
 		clustopClient,

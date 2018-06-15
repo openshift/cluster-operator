@@ -168,10 +168,24 @@ type Controller struct {
 	// jobsSynced returns true if the job shared informer has been synced at least once.
 	jobsSynced cache.InformerSynced
 
+	// machinesSynced returns true if the machine shared informer has been synced at least once.
+	machinesSynced cache.InformerSynced
+
 	// Machines that need to be synced
 	queue workqueue.RateLimitingInterface
 
 	Logger log.FieldLogger
+}
+
+// SetMachineInformer allows to optionally set a machine informer on the controller so that
+// machine events will also result in queues of their corresponding machine deployments.
+func (c *Controller) SetMachineInformer(machineInformer capiinformers.MachineInformer) {
+	machineInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    c.addMachine,
+		UpdateFunc: c.updateMachine,
+		DeleteFunc: c.deleteMachine,
+	})
+	c.machinesSynced = machineInformer.Informer().HasSynced
 }
 
 func (c *Controller) addCluster(obj interface{}) {
@@ -249,6 +263,48 @@ func (c *Controller) deleteMachineSet(obj interface{}) {
 	c.enqueueClusterForMachineSet(machineSet)
 }
 
+func (c *Controller) addMachine(obj interface{}) {
+	machine := obj.(*capi.Machine)
+	if !isMasterMachine(machine) {
+		return
+	}
+	logging.WithMachine(c.Logger, machine).
+		Debugf("Adding master machine")
+	c.enqueueClusterForMachine(machine)
+}
+
+func (c *Controller) updateMachine(old, cur interface{}) {
+	machine := cur.(*capi.Machine)
+	if !isMasterMachine(machine) {
+		return
+	}
+	logging.WithMachine(c.Logger, machine).
+		Debugf("Updating master machine")
+	c.enqueueClusterForMachine(machine)
+}
+
+func (c *Controller) deleteMachine(obj interface{}) {
+	machine, ok := obj.(*capi.Machine)
+	if !ok {
+		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			utilruntime.HandleError(fmt.Errorf("Couldn't get object from tombstone %#v", obj))
+			return
+		}
+		machine, ok = tombstone.Obj.(*capi.Machine)
+		if !ok {
+			utilruntime.HandleError(fmt.Errorf("Tombstone contained object that is not a Machine %#v", obj))
+			return
+		}
+	}
+	if !isMasterMachine(machine) {
+		return
+	}
+	logging.WithMachine(c.Logger, machine).
+		Debugf("Deleting master machine")
+	c.enqueueClusterForMachine(machine)
+}
+
 // Run runs c; will not return until stopCh is closed. workers determines how
 // many clusters will be handled in parallel.
 func (c *Controller) Run(workers int, stopCh <-chan struct{}) {
@@ -258,7 +314,12 @@ func (c *Controller) Run(workers int, stopCh <-chan struct{}) {
 	c.Logger.Infof("Starting controller")
 	defer c.Logger.Infof("Shutting down controller")
 
-	if !controller.WaitForCacheSync(c.controllerName, stopCh, c.clustersSynced, c.machineSetsSynced, c.jobsSynced) {
+	syncFuncs := []cache.InformerSynced{c.clustersSynced, c.machineSetsSynced, c.jobsSynced}
+	if c.machinesSynced != nil {
+		syncFuncs = append(syncFuncs, c.machinesSynced)
+	}
+
+	if !controller.WaitForCacheSync(c.controllerName, stopCh, syncFuncs...) {
 		c.Logger.Errorf("Could not sync caches for controller")
 		return
 	}
@@ -301,6 +362,22 @@ func (c *Controller) enqueueClusterForMachineSet(machineSet *capi.MachineSet) {
 	if cluster == nil {
 		logging.WithMachineSet(c.Logger, machineSet).
 			Infof("No cluster for master machine set")
+		return
+	}
+	c.enqueueCluster(cluster)
+}
+
+func (c *Controller) enqueueClusterForMachine(machine *capi.Machine) {
+	cluster, err := controller.ClusterForMachine(machine, c.clusterLister)
+	if err != nil {
+		logging.WithMachine(c.Logger, machine).
+			Warnf("Error getting cluster for master machine: %v")
+		return
+	}
+	if cluster == nil {
+		logging.WithMachine(c.Logger, machine).
+			Infof("No cluster for master machine")
+		return
 	}
 	c.enqueueCluster(cluster)
 }
@@ -345,12 +422,11 @@ func (c *Controller) handleErr(err error, key interface{}) {
 }
 
 func isMasterMachineSet(machineSet *capi.MachineSet) bool {
-	for _, role := range machineSet.Spec.Template.Spec.Roles {
-		if role == capicommon.MasterRole {
-			return true
-		}
-	}
-	return false
+	return controller.MachineSetHasRole(capicommon.MasterRole)
+}
+
+func isMasterMachine(machine *capi.Machine) bool {
+	return controller.MachineHasRole(capicommon.MasterRole)
 }
 
 type jobFactory func(string) (*v1batch.Job, *kapi.ConfigMap, error)

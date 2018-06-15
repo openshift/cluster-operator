@@ -555,7 +555,7 @@ func (c *Controller) syncCluster(clusterDeployment *clustop.ClusterDeployment, l
 // syncControlPlane takes a cluster deployment and ensures that a corresponding master machine set
 // exists and that its spec reflects the spec of the master machineset in the cluster deployment spec.
 func (c *Controller) syncControlPlane(clusterDeployment *clustop.ClusterDeployment, cluster *capi.Cluster, clusterVersion *clustop.ClusterVersion, logger log.FieldLogger) error {
-	machineSetName := masterMachineSetName(cluster.Name)
+	machineSetName := controller.MasterMachineSetName(cluster.Name)
 	machineSet, err := c.machineSetsLister.MachineSets(clusterDeployment.Namespace).Get(machineSetName)
 	if err != nil && !errors.IsNotFound(err) {
 		return fmt.Errorf("error retrieving master machineset %s/%s: %v", clusterDeployment.Namespace, machineSetName, err)
@@ -626,7 +626,7 @@ func buildMasterMachineSet(clusterDeployment *clustop.ClusterDeployment, cluster
 	}
 
 	machineSet := &capi.MachineSet{}
-	machineSet.Name = masterMachineSetName(cluster.Name)
+	machineSet.Name = controller.MasterMachineSetName(cluster.Name)
 	machineSet.Namespace = clusterDeployment.Namespace
 	machineSet.Labels = clusterDeployment.Labels
 	if machineSet.Labels == nil {
@@ -646,6 +646,7 @@ func buildMasterMachineSet(clusterDeployment *clustop.ClusterDeployment, cluster
 	machineSet.Spec.Template.Labels = machineSetLabels
 	machineSet.Spec.Template.Spec.Labels = machineSetLabels
 	machineSet.Spec.Template.Spec.Roles = []clustercommon.MachineRole{clustercommon.MasterRole}
+	machineSet.Spec.Template.Spec.Versions.ControlPlane = clusterVersion.Spec.Version
 
 	providerConfig, err := controller.MachineProviderConfigFromMachineSetConfig(machineSetConfig, &clusterDeployment.Spec, clusterVersion)
 	if err != nil {
@@ -726,10 +727,6 @@ func (c *Controller) getClusterVersion(clusterDeployment *clustop.ClusterDeploym
 		versionNS = clusterDeployment.Namespace
 	}
 	return c.clusterVersionsLister.ClusterVersions(versionNS).Get(clusterVersionRef.Name)
-}
-
-func masterMachineSetName(clusterName string) string {
-	return fmt.Sprintf("%s-%s", clusterName, clustop.MasterMachineSetName)
 }
 
 // masterMachineSetConfig finds the MachineSetConfig in a cluster deployment spec with node type Master.

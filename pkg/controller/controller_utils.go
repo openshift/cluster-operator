@@ -255,6 +255,18 @@ func ClusterForMachineSet(machineSet *clusterapi.MachineSet, clusterLister capil
 	return clusterLister.Clusters(machineSet.Namespace).Get(clusterName)
 }
 
+// ClusterForMachine retrieves the cluster to which a machine belongs.
+func ClusterForMachine(machine *clusterapi.Machine, clusterLister capilister.ClusterLister) (*clusterapi.Cluster, error) {
+	if machine.Labels == nil {
+		return nil, fmt.Errorf("missing %s label", clusteroperator.ClusterNameLabel)
+	}
+	clusterName, ok := machine.Labels[clusteroperator.ClusterNameLabel]
+	if !ok {
+		return nil, fmt.Errorf("missing %s label", clusteroperator.ClusterNameLabel)
+	}
+	return clusterLister.Clusters(machine.Namespace).Get(clusterName)
+}
+
 // MachineSetsForCluster retrieves the machinesets associated with the
 // specified cluster name.
 func MachineSetsForCluster(namespace string, clusterName string, machineSetsLister capilister.MachineSetLister) ([]*clusterapi.MachineSet, error) {
@@ -619,6 +631,16 @@ func MachineHasRole(machine *clusterapi.Machine, role capicommon.MachineRole) bo
 	return false
 }
 
+// MachineSetHasRole returns true if the machine set has the given cluster-api role.
+func MachineSetHasRole(machineSet *clusterapi.MachineSet, role capicommon.MachineRole) bool {
+	for _, r := range machineSet.Spec.Template.Spec.Roles {
+		if r == role {
+			return true
+		}
+	}
+	return false
+}
+
 // ELBMasterExternalName gets the name of the external master ELB for the cluster
 // with the specified cluster ID.
 func ELBMasterExternalName(clusterID string) string {
@@ -682,4 +704,9 @@ func BuildClusterAPIMachineSet(ms *clusteroperator.ClusterMachineSet, clusterDep
 	capiMachineSet.Spec.Template.Spec.ProviderConfig.Value = providerConfig
 
 	return &capiMachineSet, nil
+}
+
+// MasterMachineSetName returns the name of the master machineset for the given cluster deployment name
+func MasterMachineSetName(clusterDeploymentName string) string {
+	return fmt.Sprintf("%s-%s", clusterDeploymentName, clusteroperator.MasterMachineSetName)
 }
