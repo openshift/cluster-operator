@@ -544,7 +544,7 @@ func (c *Controller) syncDeletedClusterDeployment(clusterDeployment *clustop.Clu
 	}
 	// If the DeletionTimestamp is not set, then delete the machineset
 	if err == nil {
-		clustoplog.WithMachineSet(clusterDeploymentLog, machineSet).Debugf("deleting master machineset")
+		clustoplog.WithMachineSet(clusterDeploymentLog, machineSet).Infof("deleting master machineset")
 		return c.capiClient.ClusterV1alpha1().MachineSets(clusterDeployment.Namespace).Delete(machineSetName, &metav1.DeleteOptions{})
 	}
 
@@ -698,9 +698,9 @@ func buildMasterMachineSet(clusterDeployment *clustop.ClusterDeployment, cluster
 	}
 	machineSet.Labels[clustop.ClusterDeploymentLabel] = clusterDeployment.Name
 	machineSet.Labels[clustop.ClusterNameLabel] = cluster.Name
-	doNotBlockOwnerDeletion := false
+	blockOwnerDeletion := false
 	ownerRef := metav1.NewControllerRef(clusterDeployment, controller.ClusterDeploymentKind)
-	ownerRef.BlockOwnerDeletion = &doNotBlockOwnerDeletion
+	ownerRef.BlockOwnerDeletion = &blockOwnerDeletion
 	machineSet.OwnerReferences = []metav1.OwnerReference{*ownerRef}
 	machineSetLabels := map[string]string{
 		machineSetNameLabel:            machineSet.Name,

@@ -60,7 +60,6 @@ type ClusterDeployment struct {
 
 // finalizer values unique to cluster-operator
 const (
-	FinalizerClusterOperator   string = "openshift/cluster-operator"
 	FinalizerClusterDeployment string = "clusteroperator.openshift.io/clusterdeployment"
 	FinalizerRemoteMachineSets string = "clusteroperator.openshift.io/remotemachinesets"
 )

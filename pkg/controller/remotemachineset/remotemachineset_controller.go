@@ -571,7 +571,7 @@ func (c *Controller) deleteFinalizer(clusterDeployment *cov1.ClusterDeployment) 
 
 func (c *Controller) addFinalizer(clusterDeployment *cov1.ClusterDeployment) error {
 	clusterDeployment = clusterDeployment.DeepCopy()
-	controller.AddFinalizer(clusterDeployment, cov1.FinalizerClusterDeployment)
+	controller.AddFinalizer(clusterDeployment, cov1.FinalizerRemoteMachineSets)
 	_, err := c.client.ClusteroperatorV1alpha1().ClusterDeployments(clusterDeployment.Namespace).UpdateStatus(clusterDeployment)
 	return err
 }

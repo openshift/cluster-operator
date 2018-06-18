@@ -99,7 +99,7 @@ func setupTest() *testContext {
 	return ctx
 }
 
-func _TestClusterSyncing(t *testing.T) {
+func TestClusterSyncing(t *testing.T) {
 
 	cases := []struct {
 		name                   string
@@ -177,6 +177,13 @@ func _TestClusterSyncing(t *testing.T) {
 					namespace: newTestClusterDeploymentWithoutFinalizer().Namespace,
 					verb:      "update",
 					gvr:       cov1.SchemeGroupVersion.WithResource("clusterdeployments"),
+					validate: func(t *testing.T, action clientgotesting.Action) {
+						updateAction := action.(clientgotesting.UpdateAction)
+						clusterDeployment := updateAction.GetObject().(*cov1.ClusterDeployment)
+						if !hasFinalizer(clusterDeployment) {
+							t.Errorf("add finalizer - no finalizer found on updated cluster deployment")
+						}
+					},
 				},
 			},
 		},
@@ -481,6 +488,9 @@ func validateExpectedActions(t *testing.T, tLog log.FieldLogger, actions []clien
 				res == ea.gvr &&
 				verb == ea.verb {
 				found = true
+				if ea.validate != nil {
+					ea.validate(t, a)
+				}
 			}
 		}
 		if !found {
@@ -512,6 +522,7 @@ type expectedAction struct {
 	namespace string
 	verb      string
 	gvr       schema.GroupVersionResource
+	validate  func(t *testing.T, action clientgotesting.Action)
 }
 
 func getKey(clusterDeployment *cov1.ClusterDeployment, t *testing.T) string {

@@ -329,10 +329,6 @@ func TestClusterCreate(t *testing.T) {
 				t.Fatalf("could not delete cluster: %v", err)
 			}
 
-			if err := setDeprovisionedComputeMachinesets(capiClient, cluster.Namespace, cluster.Name); err != nil {
-				t.Fatalf("could not set DeprovisionedComputeMachinesets: %v", err)
-			}
-
 			if !completeInfraDeprovision(t, kubeClient, capiClient, cluster) {
 				return
 			}
@@ -549,26 +545,4 @@ func clusterAPIProviderConfigFromClusterSpec(clusterSpec *clustopv1alpha1.Cluste
 	return &runtime.RawExtension{
 		Raw: buffer.Bytes(),
 	}
-}
-
-func setDeprovisionedComputeMachinesets(capiClient capiclientset.Interface, namespace, name string) error {
-	cluster, err := getCluster(capiClient, namespace, name)
-	if err != nil {
-		return fmt.Errorf("could not get cluster %s/%s", namespace, name)
-	}
-	status, err := controller.ClusterStatusFromClusterAPI(cluster)
-	if err != nil {
-		return err
-	}
-	status.DeprovisionedComputeMachinesets = true
-	providerStatus, err := controller.ClusterAPIProviderStatusFromClusterStatus(status)
-	if err != nil {
-		return err
-	}
-	cluster.Status.ProviderStatus = providerStatus
-	_, err = capiClient.ClusterV1alpha1().Clusters(namespace).UpdateStatus(cluster)
-	if err != nil {
-		return err
-	}
-	return nil
 }

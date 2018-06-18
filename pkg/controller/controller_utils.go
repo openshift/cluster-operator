@@ -446,9 +446,9 @@ func BuildCluster(clusterDeployment *clusteroperator.ClusterDeployment) (*cluste
 		cluster.Labels = make(map[string]string)
 	}
 	cluster.Labels[clusteroperator.ClusterDeploymentLabel] = clusterDeployment.Name
-	doNotBlockDeletion := false
+	blockOwnerDeletion := false
 	controllerRef := metav1.NewControllerRef(clusterDeployment, ClusterDeploymentKind)
-	controllerRef.BlockOwnerDeletion = &doNotBlockDeletion
+	controllerRef.BlockOwnerDeletion = &blockOwnerDeletion
 	cluster.OwnerReferences = []metav1.OwnerReference{*controllerRef}
 	providerConfig, err := ClusterProviderConfigSpecFromClusterDeploymentSpec(&clusterDeployment.Spec)
 	if err != nil {
@@ -676,6 +676,7 @@ func BuildClusterAPIMachineSet(ms *clusteroperator.ClusterMachineSet, clusterDep
 		"machineset": machineSetName,
 		"cluster":    clusterDeploymentSpec.ClusterID,
 	}
+	capiMachineSet.Labels = labels
 	capiMachineSet.Spec.Selector.MatchLabels = labels
 
 	machineTemplate := clusterapi.MachineTemplateSpec{}
@@ -714,12 +715,14 @@ func HasFinalizer(object metav1.Object, finalizer string) bool {
 	return false
 }
 
+// AddFinalizer adds a finalizer to the given object
 func AddFinalizer(object metav1.Object, finalizer string) {
 	finalizers := sets.NewString(object.GetFinalizers()...)
 	finalizers.Insert(finalizer)
 	object.SetFinalizers(finalizers.List())
 }
 
+// DeleteFinalizer removes a finalizer from the given object
 func DeleteFinalizer(object metav1.Object, finalizer string) {
 	finalizers := sets.NewString(object.GetFinalizers()...)
 	finalizers.Delete(finalizer)
