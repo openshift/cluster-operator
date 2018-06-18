@@ -21,6 +21,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -28,14 +29,15 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/clientcmd"
 
+	clustopclient "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
 	"github.com/openshift/cluster-operator/pkg/controller"
 	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	capiclient "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 )
 
 func main() {
-	pflag.Parse()
 	cmd := NewWaitForClusterCommand()
+	pflag.Parse()
 	err := cmd.Execute()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error occurred: %v\n", err)
@@ -45,22 +47,31 @@ func main() {
 
 func NewWaitForClusterCommand() *cobra.Command {
 	var namespace string
+	var timeoutSeconds int
 	pflag.StringVarP(&namespace, "namespace", "n", "", "namespace for cluster")
+	pflag.IntVar(&timeoutSeconds, "timeout", 0, "seconds to wait for cluster to be ready. If exceeded, exits with error")
 	return &cobra.Command{
-		Use:   "wait-for-cluster CLUSTER-NAME",
-		Short: "Wait for a cluster to finish installing",
+		Use:   "wait-for-cluster CLUSTERDEPLOYMENT-NAME",
+		Short: "Wait for a cluster deployment to have installed the cluster API on the target cluster",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				cmd.Usage()
 				return nil
+			}
+			if timeoutSeconds > 0 {
+				go func() {
+					time.Sleep(time.Duration(timeoutSeconds) * time.Second)
+					fmt.Printf("timeout occurred")
+					os.Exit(1)
+				}()
 			}
 			return waitForCluster(namespace, args[0])
 		},
 	}
 }
 
-func waitForCluster(clusterNamespace, clusterName string) error {
-	capiClient, namespace, err := client()
+func waitForCluster(clusterNamespace string, clusterDeploymentName string) error {
+	capiClient, clustopClient, namespace, err := client()
 	if err != nil {
 		return fmt.Errorf("cannot obtain client: %v", err)
 	}
@@ -68,6 +79,11 @@ func waitForCluster(clusterNamespace, clusterName string) error {
 		clusterNamespace = namespace
 	}
 
+	clusterDeployment, err := clustopClient.ClusteroperatorV1alpha1().ClusterDeployments(clusterNamespace).Get(clusterDeploymentName, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("cannot retrieve cluster deploymentd %s/%s: %v", namespace, clusterDeploymentName, err)
+	}
+	clusterName := clusterDeployment.Spec.ClusterID
 	cluster, err := capiClient.ClusterV1alpha1().Clusters(clusterNamespace).Get(clusterName, metav1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("cannot retrieve cluster %s/%s: %v", namespace, clusterName, err)
@@ -76,7 +92,7 @@ func waitForCluster(clusterNamespace, clusterName string) error {
 	return waitForClusterReady(capiClient, cluster)
 }
 
-func waitForClusterReady(capiClient *capiclient.Clientset, cluster *capiv1.Cluster) error {
+func waitForClusterReady(capiClient capiclient.Interface, cluster *capiv1.Cluster) error {
 	for {
 		w, err := capiClient.ClusterV1alpha1().Clusters(cluster.Namespace).Watch(metav1.ListOptions{})
 		if err != nil {
@@ -89,8 +105,8 @@ func waitForClusterReady(capiClient *capiclient.Clientset, cluster *capiv1.Clust
 				if err != nil {
 					continue
 				}
-				if status.Ready {
-					fmt.Printf("Cluster %s/%s is ready.\n", cluster.Namespace, cluster.Name)
+				if status.ClusterAPIInstalled {
+					fmt.Printf("Cluster %s/%s has cluster API installed.\n", cluster.Namespace, cluster.Name)
 					return nil
 				}
 			}
@@ -98,20 +114,24 @@ func waitForClusterReady(capiClient *capiclient.Clientset, cluster *capiv1.Clust
 	}
 }
 
-func client() (*capiclient.Clientset, string, error) {
+func client() (capiclient.Interface, clustopclient.Interface, string, error) {
 	rules := clientcmd.NewDefaultClientConfigLoadingRules()
 	kubeconfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(rules, &clientcmd.ConfigOverrides{})
 	cfg, err := kubeconfig.ClientConfig()
 	if err != nil {
-		return nil, "", err
+		return nil, nil, "", err
 	}
 	namespace, _, err := kubeconfig.Namespace()
 	if err != nil {
-		return nil, "", err
+		return nil, nil, "", err
 	}
 	capiClient, err := capiclient.NewForConfig(cfg)
 	if err != nil {
-		return nil, "", err
+		return nil, nil, "", err
 	}
-	return capiClient, namespace, nil
+	clustopClient, err := clustopclient.NewForConfig(cfg)
+	if err != nil {
+		return nil, nil, "", err
+	}
+	return capiClient, clustopClient, namespace, nil
 }
