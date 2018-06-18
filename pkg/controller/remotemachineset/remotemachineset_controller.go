@@ -62,6 +62,12 @@ const (
 	errorMsgClusterAPINotInstalled = "cannot sync until cluster API is installed and ready"
 )
 
+var (
+	// deletionSyncInterval is the amount of time to wait between checks of remote machinesets to ensure
+	// they are deleted.
+	deletionSyncInterval = 10 * time.Second
+)
+
 // NewController returns a new *Controller.
 func NewController(
 	clusterDeploymentInformer informers.ClusterDeploymentInformer,
@@ -201,6 +207,15 @@ func (c *Controller) Run(workers int, stopCh <-chan struct{}) {
 	<-stopCh
 }
 
+func (c *Controller) enqueueAfter(clusterDeployment *cov1.ClusterDeployment, after time.Duration) {
+	key, err := controller.KeyFunc(clusterDeployment)
+	if err != nil {
+		utilruntime.HandleError(fmt.Errorf("couldn't get key for object %#v: %v", clusterDeployment, err))
+		return
+	}
+	c.queue.AddAfter(key, after)
+}
+
 func (c *Controller) enqueue(clusterDeployment *cov1.ClusterDeployment) {
 	key, err := controller.KeyFunc(clusterDeployment)
 	if err != nil {
@@ -316,6 +331,17 @@ func (c *Controller) syncClusterDeployment(key string) error {
 		return err
 	}
 
+	if clusterDeployment.DeletionTimestamp != nil {
+		if !hasFinalizer(clusterDeployment) {
+			return nil
+		}
+		return c.syncDeletedClusterDeployment(clusterDeployment)
+	}
+
+	if !hasFinalizer(clusterDeployment) {
+		return c.addFinalizer(clusterDeployment)
+	}
+
 	cluster, err := c.clusterInformer.Clusters(clusterDeployment.Namespace).Get(clusterDeployment.Spec.ClusterID)
 	if err != nil {
 		return fmt.Errorf("error retrieving cluster object: %v", err)
@@ -344,6 +370,27 @@ func (c *Controller) syncClusterDeployment(key string) error {
 	err = c.syncMachineSets(clusterDeployment, remoteClusterAPIClient)
 
 	return err
+}
+
+func (c *Controller) syncDeletedClusterDeployment(clusterDeployment *cov1.ClusterDeployment) error {
+	remoteClusterAPIClient, err := c.buildRemoteClient(clusterDeployment)
+	if err != nil {
+		return fmt.Errorf("error bulding remoteclusterclient connection: %v", err)
+	}
+	labelSelector := fmt.Sprintf("cluster=%s", clusterDeployment.Spec.ClusterID)
+	remoteMachineSets, err := remoteClusterAPIClient.ClusterV1alpha1().MachineSets(remoteClusterAPINamespace).List(metav1.ListOptions{LabelSelector: labelSelector})
+	if err != nil {
+		return fmt.Errorf("error retrieving remote machinesets: %v", err)
+	}
+	if len(remoteMachineSets.Items) == 0 {
+		return c.deleteFinalizer(clusterDeployment)
+	}
+	err = remoteClusterAPIClient.ClusterV1alpha1().MachineSets(remoteClusterAPINamespace).DeleteCollection(&metav1.DeleteOptions{}, metav1.ListOptions{LabelSelector: labelSelector})
+	if err != nil {
+		return err
+	}
+	c.enqueueAfter(clusterDeployment, deletionSyncInterval)
+	return nil
 }
 
 func (c *Controller) syncCluster(cluster *clusterapiv1.Cluster, clusterDeployment *cov1.ClusterDeployment, remoteClusterAPIClient clusterapiclient.Interface) error {
@@ -513,4 +560,22 @@ func computeClusterAPIMachineSetsFromClusterDeployment(clusterDeployment *cov1.C
 		machineSets = append(machineSets, newMS)
 	}
 	return machineSets, nil
+}
+
+func (c *Controller) deleteFinalizer(clusterDeployment *cov1.ClusterDeployment) error {
+	clusterDeployment = clusterDeployment.DeepCopy()
+	controller.DeleteFinalizer(clusterDeployment, cov1.FinalizerRemoteMachineSets)
+	_, err := c.client.ClusteroperatorV1alpha1().ClusterDeployments(clusterDeployment.Namespace).UpdateStatus(clusterDeployment)
+	return err
+}
+
+func (c *Controller) addFinalizer(clusterDeployment *cov1.ClusterDeployment) error {
+	clusterDeployment = clusterDeployment.DeepCopy()
+	controller.AddFinalizer(clusterDeployment, cov1.FinalizerRemoteMachineSets)
+	_, err := c.client.ClusteroperatorV1alpha1().ClusterDeployments(clusterDeployment.Namespace).UpdateStatus(clusterDeployment)
+	return err
+}
+
+func hasFinalizer(clusterDeployment *cov1.ClusterDeployment) bool {
+	return controller.HasFinalizer(clusterDeployment, cov1.FinalizerRemoteMachineSets)
 }

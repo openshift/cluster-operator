@@ -625,15 +625,8 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Ref:         ref("k8s.io/api/core/v1.ObjectReference"),
 							},
 						},
-						"deprovisionedComputeMachineSets": {
-							SchemaProps: spec.SchemaProps{
-								Description: "DeprovisionedComputeMachinesets is true if the compute machinesets of this cluster have been deprovisioned.",
-								Type:        []string{"boolean"},
-								Format:      "",
-							},
-						},
 					},
-					Required: []string{"machineSetCount", "provisioned", "provisionedJobGeneration", "controlPlaneInstalled", "controlPlaneInstalledJobClusterGeneration", "controlPlaneInstalledJobMachineSetGeneration", "componentsInstalled", "componentsInstalledJobClusterGeneration", "componentsInstalledJobMachineSetGeneration", "nodeConfigInstalled", "nodeConfigInstalledJobClusterGeneration", "nodeConfigInstalledJobMachineSetGeneration", "nodeConfigLastInstalled", "clusterAPIInstalled", "clusterAPIInstalledJobClusterGeneration", "clusterAPIInstalledJobMachineSetGeneration", "clusterAPIInstalledTime", "ready", "conditions", "deprovisionedComputeMachineSets"},
+					Required: []string{"machineSetCount", "provisioned", "provisionedJobGeneration", "controlPlaneInstalled", "controlPlaneInstalledJobClusterGeneration", "controlPlaneInstalledJobMachineSetGeneration", "componentsInstalled", "componentsInstalledJobClusterGeneration", "componentsInstalledJobMachineSetGeneration", "nodeConfigInstalled", "nodeConfigInstalledJobClusterGeneration", "nodeConfigInstalledJobMachineSetGeneration", "nodeConfigLastInstalled", "clusterAPIInstalled", "clusterAPIInstalledJobClusterGeneration", "clusterAPIInstalledJobMachineSetGeneration", "clusterAPIInstalledTime", "ready", "conditions"},
 				},
 			},
 			Dependencies: []string{
@@ -978,15 +971,8 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Ref:         ref("k8s.io/api/core/v1.ObjectReference"),
 							},
 						},
-						"deprovisionedComputeMachineSets": {
-							SchemaProps: spec.SchemaProps{
-								Description: "DeprovisionedComputeMachinesets is true if the compute machinesets of this cluster have been deprovisioned.",
-								Type:        []string{"boolean"},
-								Format:      "",
-							},
-						},
 					},
-					Required: []string{"machineSetCount", "provisioned", "provisionedJobGeneration", "controlPlaneInstalled", "controlPlaneInstalledJobClusterGeneration", "controlPlaneInstalledJobMachineSetGeneration", "componentsInstalled", "componentsInstalledJobClusterGeneration", "componentsInstalledJobMachineSetGeneration", "nodeConfigInstalled", "nodeConfigInstalledJobClusterGeneration", "nodeConfigInstalledJobMachineSetGeneration", "nodeConfigLastInstalled", "clusterAPIInstalled", "clusterAPIInstalledJobClusterGeneration", "clusterAPIInstalledJobMachineSetGeneration", "clusterAPIInstalledTime", "ready", "conditions", "deprovisionedComputeMachineSets"},
+					Required: []string{"machineSetCount", "provisioned", "provisionedJobGeneration", "controlPlaneInstalled", "controlPlaneInstalledJobClusterGeneration", "controlPlaneInstalledJobMachineSetGeneration", "componentsInstalled", "componentsInstalledJobClusterGeneration", "componentsInstalledJobMachineSetGeneration", "nodeConfigInstalled", "nodeConfigInstalledJobClusterGeneration", "nodeConfigInstalledJobMachineSetGeneration", "nodeConfigLastInstalled", "clusterAPIInstalled", "clusterAPIInstalledJobClusterGeneration", "clusterAPIInstalledJobMachineSetGeneration", "clusterAPIInstalledTime", "ready", "conditions"},
 				},
 			},
 			Dependencies: []string{

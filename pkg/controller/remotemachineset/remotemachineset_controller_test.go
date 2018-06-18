@@ -102,17 +102,18 @@ func setupTest() *testContext {
 func TestClusterSyncing(t *testing.T) {
 
 	cases := []struct {
-		name              string
-		controlPlaneReady bool
-		errorExpected     string
-		expectedActions   []expectedRemoteAction
-		unexpectedActions []expectedRemoteAction
-		clusterDeployment *cov1.ClusterDeployment
-		remoteClusters    func(*testing.T, *cov1.ClusterDeployment) []clusterapiv1.Cluster
+		name                   string
+		controlPlaneReady      bool
+		errorExpected          string
+		expectedActions        []expectedAction
+		unexpectedActions      []expectedAction
+		expectedClustopActions []expectedAction
+		clusterDeployment      *cov1.ClusterDeployment
+		remoteClusters         func(*testing.T, *cov1.ClusterDeployment) []clusterapiv1.Cluster
 	}{
 		{
 			name: "no-op cluster already exists",
-			unexpectedActions: []expectedRemoteAction{
+			unexpectedActions: []expectedAction{
 				{
 					namespace: remoteClusterAPINamespace,
 					verb:      "create",
@@ -136,7 +137,7 @@ func TestClusterSyncing(t *testing.T) {
 		},
 		{
 			name: "test cluster create",
-			expectedActions: []expectedRemoteAction{
+			expectedActions: []expectedAction{
 				{
 					namespace: remoteClusterAPINamespace,
 					verb:      "create",
@@ -147,7 +148,7 @@ func TestClusterSyncing(t *testing.T) {
 		},
 		{
 			name: "remote cluster difference",
-			expectedActions: []expectedRemoteAction{
+			expectedActions: []expectedAction{
 				{
 					namespace: remoteClusterAPINamespace,
 					verb:      "update",
@@ -166,6 +167,24 @@ func TestClusterSyncing(t *testing.T) {
 				}
 				clusterList = append(clusterList, cluster)
 				return clusterList
+			},
+		},
+		{
+			name:              "add finalizer",
+			clusterDeployment: newTestClusterDeploymentWithoutFinalizer(),
+			expectedClustopActions: []expectedAction{
+				{
+					namespace: newTestClusterDeploymentWithoutFinalizer().Namespace,
+					verb:      "update",
+					gvr:       cov1.SchemeGroupVersion.WithResource("clusterdeployments"),
+					validate: func(t *testing.T, action clientgotesting.Action) {
+						updateAction := action.(clientgotesting.UpdateAction)
+						clusterDeployment := updateAction.GetObject().(*cov1.ClusterDeployment)
+						if !hasFinalizer(clusterDeployment) {
+							t.Errorf("add finalizer - no finalizer found on updated cluster deployment")
+						}
+					},
+				},
 			},
 		},
 	}
@@ -233,7 +252,7 @@ func TestClusterSyncing(t *testing.T) {
 				err = nil
 			}
 			validateUnexpectedActions(t, tLog, remoteClusterAPIClient.Actions(), tc.unexpectedActions)
-
+			validateExpectedActions(t, tLog, ctx.clusteropclient.Actions(), tc.expectedClustopActions)
 		})
 	}
 }
@@ -243,15 +262,15 @@ func TestMachineSetSyncing(t *testing.T) {
 		name              string
 		controlPlaneReady bool
 		errorExpected     string
-		expectedActions   []expectedRemoteAction
-		unexpectedActions []expectedRemoteAction
+		expectedActions   []expectedAction
+		unexpectedActions []expectedAction
 		clusterDeployment *cov1.ClusterDeployment
 		remoteMachineSets []clusterapiv1.MachineSet
 		remoteClusters    []clusterapiv1.Cluster
 	}{
 		{
 			name: "no-op when control plane not yet ready",
-			unexpectedActions: []expectedRemoteAction{
+			unexpectedActions: []expectedAction{
 				{
 					namespace: remoteClusterAPINamespace,
 					verb:      "create",
@@ -262,7 +281,7 @@ func TestMachineSetSyncing(t *testing.T) {
 		},
 		{
 			name: "creates initial machine set",
-			expectedActions: []expectedRemoteAction{
+			expectedActions: []expectedAction{
 				{
 					namespace: remoteClusterAPINamespace,
 					verb:      "create",
@@ -273,7 +292,7 @@ func TestMachineSetSyncing(t *testing.T) {
 		},
 		{
 			name: "no-op when machineset already on remote",
-			unexpectedActions: []expectedRemoteAction{
+			unexpectedActions: []expectedAction{
 				{
 					namespace: remoteClusterAPINamespace,
 					verb:      "create",
@@ -295,7 +314,7 @@ func TestMachineSetSyncing(t *testing.T) {
 		},
 		{
 			name: "update when remote machineset is outdated",
-			expectedActions: []expectedRemoteAction{
+			expectedActions: []expectedAction{
 				{
 					namespace: remoteClusterAPINamespace,
 					verb:      "update",
@@ -317,7 +336,7 @@ func TestMachineSetSyncing(t *testing.T) {
 		},
 		{
 			name: "create when additional machineset appears",
-			expectedActions: []expectedRemoteAction{
+			expectedActions: []expectedAction{
 				{
 					namespace: remoteClusterAPINamespace,
 					verb:      "create",
@@ -343,7 +362,7 @@ func TestMachineSetSyncing(t *testing.T) {
 		},
 		{
 			name: "delete extra remote machineset",
-			expectedActions: []expectedRemoteAction{
+			expectedActions: []expectedAction{
 				{
 					namespace: remoteClusterAPINamespace,
 					verb:      "delete",
@@ -356,6 +375,10 @@ func TestMachineSetSyncing(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      testClusterID + "-compute",
 						Namespace: remoteClusterAPINamespace,
+						Labels: map[string]string{
+							"cluster":    testClusterID,
+							"machineset": testClusterID + "-compute",
+						},
 					},
 					Spec: clusterapiv1.MachineSetSpec{
 						Replicas: func() *int32 { x := int32(1); return &x }(),
@@ -365,10 +388,40 @@ func TestMachineSetSyncing(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      testClusterID + "-compute2",
 						Namespace: remoteClusterAPINamespace,
+						Labels: map[string]string{
+							"cluster":    testClusterID,
+							"machineset": testClusterID + "-compute2",
+						},
 					},
 					Spec: clusterapiv1.MachineSetSpec{
 						Replicas: func() *int32 { x := int32(1); return &x }(),
 					},
+				},
+			},
+		},
+		{
+			name:              "delete remote machinesets",
+			clusterDeployment: newDeletedTestClusterWithCompute(),
+			remoteMachineSets: []clusterapiv1.MachineSet{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      testClusterID + "-compute",
+						Namespace: remoteClusterAPINamespace,
+						Labels: map[string]string{
+							"cluster":    testClusterID,
+							"machineset": testClusterID + "-compute",
+						},
+					},
+					Spec: clusterapiv1.MachineSetSpec{
+						Replicas: func() *int32 { x := int32(1); return &x }(),
+					},
+				},
+			},
+			expectedActions: []expectedAction{
+				{
+					namespace: remoteClusterAPINamespace,
+					verb:      "delete-collection",
+					gvr:       clusterapiv1.SchemeGroupVersion.WithResource("machinesets"),
 				},
 			},
 		},
@@ -423,7 +476,7 @@ func TestMachineSetSyncing(t *testing.T) {
 	}
 }
 
-func validateExpectedActions(t *testing.T, tLog log.FieldLogger, actions []clientgotesting.Action, expectedActions []expectedRemoteAction) {
+func validateExpectedActions(t *testing.T, tLog log.FieldLogger, actions []clientgotesting.Action, expectedActions []expectedAction) {
 	anyMissing := false
 	for _, ea := range expectedActions {
 		found := false
@@ -435,19 +488,22 @@ func validateExpectedActions(t *testing.T, tLog log.FieldLogger, actions []clien
 				res == ea.gvr &&
 				verb == ea.verb {
 				found = true
+				if ea.validate != nil {
+					ea.validate(t, a)
+				}
 			}
 		}
 		if !found {
 			anyMissing = true
-			assert.True(t, found, "unable to find expected remote client action: %v", ea)
+			assert.True(t, found, "unable to find expected action: %v", ea)
 		}
 	}
 	if anyMissing {
-		tLog.Warnf("remote client actions found: %v", actions)
+		tLog.Warnf("actions found: %v", actions)
 	}
 }
 
-func validateUnexpectedActions(t *testing.T, tLog log.FieldLogger, actions []clientgotesting.Action, unexpectedActions []expectedRemoteAction) {
+func validateUnexpectedActions(t *testing.T, tLog log.FieldLogger, actions []clientgotesting.Action, unexpectedActions []expectedAction) {
 	for _, uea := range unexpectedActions {
 		for _, a := range actions {
 			ns := a.GetNamespace()
@@ -462,10 +518,11 @@ func validateUnexpectedActions(t *testing.T, tLog log.FieldLogger, actions []cli
 	}
 }
 
-type expectedRemoteAction struct {
+type expectedAction struct {
 	namespace string
 	verb      string
 	gvr       schema.GroupVersionResource
+	validate  func(t *testing.T, action clientgotesting.Action)
 }
 
 func getKey(clusterDeployment *cov1.ClusterDeployment, t *testing.T) string {
@@ -558,12 +615,20 @@ func newTestClusterWithCompute(controlPlaneReady bool) *cov1.ClusterDeployment {
 	return cluster
 }
 
+func newDeletedTestClusterWithCompute() *cov1.ClusterDeployment {
+	clusterDeployment := newTestClusterDeployment(true)
+	now := metav1.Now()
+	clusterDeployment.DeletionTimestamp = &now
+	return clusterDeployment
+}
+
 func newTestClusterDeployment(controlPlaneReady bool) *cov1.ClusterDeployment {
 	clusterDeployment := &cov1.ClusterDeployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      testClusterName,
-			Namespace: testClusterNamespace,
-			UID:       testClusterUUID,
+			Name:       testClusterName,
+			Namespace:  testClusterNamespace,
+			UID:        testClusterUUID,
+			Finalizers: []string{cov1.FinalizerRemoteMachineSets},
 		},
 		Spec: cov1.ClusterDeploymentSpec{
 			ClusterID: testClusterID,
@@ -592,6 +657,12 @@ func newTestClusterDeployment(controlPlaneReady bool) *cov1.ClusterDeployment {
 			ControlPlaneInstalled: controlPlaneReady,
 		},
 	}
+	return clusterDeployment
+}
+
+func newTestClusterDeploymentWithoutFinalizer() *cov1.ClusterDeployment {
+	clusterDeployment := newTestClusterDeployment(false)
+	clusterDeployment.Finalizers = []string{}
 	return clusterDeployment
 }
 

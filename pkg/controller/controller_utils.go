@@ -32,6 +32,7 @@ import (
 	jsonserializer "k8s.io/apimachinery/pkg/runtime/serializer/json"
 	"k8s.io/apimachinery/pkg/selection"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/client-go/tools/cache"
 
@@ -445,7 +446,10 @@ func BuildCluster(clusterDeployment *clusteroperator.ClusterDeployment) (*cluste
 		cluster.Labels = make(map[string]string)
 	}
 	cluster.Labels[clusteroperator.ClusterDeploymentLabel] = clusterDeployment.Name
-	cluster.OwnerReferences = []metav1.OwnerReference{*metav1.NewControllerRef(clusterDeployment, ClusterDeploymentKind)}
+	blockOwnerDeletion := false
+	controllerRef := metav1.NewControllerRef(clusterDeployment, ClusterDeploymentKind)
+	controllerRef.BlockOwnerDeletion = &blockOwnerDeletion
+	cluster.OwnerReferences = []metav1.OwnerReference{*controllerRef}
 	providerConfig, err := ClusterProviderConfigSpecFromClusterDeploymentSpec(&clusterDeployment.Spec)
 	if err != nil {
 		return nil, err
@@ -662,16 +666,22 @@ func trimForELBBasename(s string, maxLen int) string {
 // BuildClusterAPIMachineSet returns a clusterapi.MachineSet from the combination of various clusteroperator
 // objects (ClusterMachineSet/ClusterDeploymentSpec/ClusterVersion) in the provided 'namespace'
 func BuildClusterAPIMachineSet(ms *clusteroperator.ClusterMachineSet, clusterDeploymentSpec *clusteroperator.ClusterDeploymentSpec, clusterVersion *clusteroperator.ClusterVersion, namespace string) (*clusterapi.MachineSet, error) {
+	machineSetName := fmt.Sprintf("%s-%s", clusterDeploymentSpec.ClusterID, ms.ShortName)
 	capiMachineSet := clusterapi.MachineSet{}
-	capiMachineSet.Name = fmt.Sprintf("%s-%s", clusterDeploymentSpec.ClusterID, ms.ShortName)
+	capiMachineSet.Name = machineSetName
 	capiMachineSet.Namespace = namespace
 	replicas := int32(ms.Size)
 	capiMachineSet.Spec.Replicas = &replicas
-	capiMachineSet.Spec.Selector.MatchLabels = map[string]string{"machineset": ms.ShortName}
+	labels := map[string]string{
+		"machineset": machineSetName,
+		"cluster":    clusterDeploymentSpec.ClusterID,
+	}
+	capiMachineSet.Labels = labels
+	capiMachineSet.Spec.Selector.MatchLabels = labels
 
 	machineTemplate := clusterapi.MachineTemplateSpec{}
-	machineTemplate.Labels = map[string]string{"machineset": ms.ShortName}
-	machineTemplate.Spec.Labels = map[string]string{"machineset": ms.ShortName}
+	machineTemplate.Labels = labels
+	machineTemplate.Spec.Labels = labels
 
 	capiMachineSet.Spec.Template = machineTemplate
 
@@ -693,4 +703,28 @@ func StringPtrsEqual(s1, s2 *string) bool {
 		return false
 	}
 	return *s1 == *s2
+}
+
+// HasFinalizer returns true if the given object has the given finalizer
+func HasFinalizer(object metav1.Object, finalizer string) bool {
+	for _, f := range object.GetFinalizers() {
+		if f == finalizer {
+			return true
+		}
+	}
+	return false
+}
+
+// AddFinalizer adds a finalizer to the given object
+func AddFinalizer(object metav1.Object, finalizer string) {
+	finalizers := sets.NewString(object.GetFinalizers()...)
+	finalizers.Insert(finalizer)
+	object.SetFinalizers(finalizers.List())
+}
+
+// DeleteFinalizer removes a finalizer from the given object
+func DeleteFinalizer(object metav1.Object, finalizer string) {
+	finalizers := sets.NewString(object.GetFinalizers()...)
+	finalizers.Delete(finalizer)
+	object.SetFinalizers(finalizers.List())
 }

@@ -133,6 +133,40 @@ func TestSync(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:              "add finalizer",
+			clusterDeployment: testClusterDeploymentWithoutFinalizers(),
+			expectedClustopActions: []expectedClientAction{
+				clusterDeploymentFinalizerAddedAction{},
+			},
+		},
+		{
+			name:               "delete master machineset",
+			clusterDeployment:  testDeletedClusterDeployment(),
+			existingCluster:    testCluster(),
+			existingMachineSet: testMasterMachineSet(),
+			expectedCAPIActions: []expectedClientAction{
+				machineSetDeleteAction{
+					name: testMasterMachineSet().Name,
+				},
+			},
+		},
+		{
+			name:              "delete cluster",
+			clusterDeployment: testDeletedClusterDeployment(),
+			existingCluster:   testCluster(),
+			expectedCAPIActions: []expectedClientAction{
+				clusterDeleteAction{
+					name: testCluster().Name,
+				},
+			},
+		},
+		{
+			name:               "steady state when remote machinesets not deleted",
+			clusterDeployment:  testClusterDeploymentWithRemoteMachineSetFinalizer(),
+			existingCluster:    testCluster(),
+			existingMachineSet: testMasterMachineSet(),
+		},
 	}
 
 	for _, tc := range tests {
@@ -254,9 +288,10 @@ type expectedClientAction interface {
 func testClusterDeployment() *clustop.ClusterDeployment {
 	clusterDeployment := &clustop.ClusterDeployment{
 		ObjectMeta: metav1.ObjectMeta{
-			UID:       testClusterDeploymentUUID,
-			Name:      testClusterDeploymentName,
-			Namespace: testNamespace,
+			UID:        testClusterDeploymentUUID,
+			Name:       testClusterDeploymentName,
+			Namespace:  testNamespace,
+			Finalizers: []string{clustop.FinalizerClusterDeployment},
 		},
 		Spec: clustop.ClusterDeploymentSpec{
 			MachineSets: []clustop.ClusterMachineSet{
@@ -301,6 +336,25 @@ func alternateRegionClusterDeployment() *clustop.ClusterDeployment {
 func testClusterDeploymentWith3Masters() *clustop.ClusterDeployment {
 	clusterDeployment := testClusterDeployment()
 	clusterDeployment.Spec.MachineSets[0].Size = 3
+	return clusterDeployment
+}
+
+func testClusterDeploymentWithoutFinalizers() *clustop.ClusterDeployment {
+	clusterDeployment := testClusterDeployment()
+	clusterDeployment.Finalizers = []string{}
+	return clusterDeployment
+}
+
+func testClusterDeploymentWithRemoteMachineSetFinalizer() *clustop.ClusterDeployment {
+	clusterDeployment := testClusterDeployment()
+	clusterDeployment.Finalizers = append(clusterDeployment.Finalizers, clustop.FinalizerRemoteMachineSets)
+	return clusterDeployment
+}
+
+func testDeletedClusterDeployment() *clustop.ClusterDeployment {
+	clusterDeployment := testClusterDeployment()
+	now := metav1.Now()
+	clusterDeployment.DeletionTimestamp = &now
 	return clusterDeployment
 }
 
@@ -538,6 +592,36 @@ func (a machineSetUpdateAction) validate(t *testing.T, testName string, action c
 	return true
 }
 
+type clusterDeploymentFinalizerAddedAction struct {
+}
+
+func (a clusterDeploymentFinalizerAddedAction) resource() schema.GroupVersionResource {
+	return clustop.SchemeGroupVersion.WithResource("clusterdeployments")
+}
+
+func (a clusterDeploymentFinalizerAddedAction) verb() string {
+	return "update"
+}
+
+func (a clusterDeploymentFinalizerAddedAction) validate(t *testing.T, testName string, action clientgotesting.Action) bool {
+	updateAction, ok := action.(clientgotesting.UpdateAction)
+	if !ok {
+		t.Errorf("%s: action is not a update action: %t", testName, action)
+		return false
+	}
+	updatedObject := updateAction.GetObject()
+	clusterDeployment, ok := updatedObject.(*clustop.ClusterDeployment)
+	if !ok {
+		t.Errorf("%s: updated object is not a cluster deployment: %t", testName, updatedObject)
+		return false
+	}
+	if !controller.HasFinalizer(clusterDeployment, clustop.FinalizerClusterDeployment) {
+		t.Errorf("%s: cluster deployment does not have the expected finalizer", testName)
+		return false
+	}
+	return true
+}
+
 type clusterDeploymentStatusUpdateAction struct {
 	clusterDeployment *clustop.ClusterDeployment
 	condition         clustop.ClusterConditionType
@@ -585,6 +669,58 @@ func (a clusterDeploymentStatusUpdateAction) validate(t *testing.T, testName str
 	}
 	if clusterDeploymentCondition.Status != corev1.ConditionTrue {
 		t.Errorf("%s: condition %s is not set to true", testName, a.condition)
+	}
+	return true
+}
+
+type machineSetDeleteAction struct {
+	name string
+}
+
+func (a machineSetDeleteAction) resource() schema.GroupVersionResource {
+	return capi.SchemeGroupVersion.WithResource("machinesets")
+}
+
+func (a machineSetDeleteAction) verb() string {
+	return "delete"
+}
+
+func (a machineSetDeleteAction) validate(t *testing.T, testName string, action clientgotesting.Action) bool {
+	deleteAction, ok := action.(clientgotesting.DeleteAction)
+	if !ok {
+		t.Errorf("%s: action is not a delete action: %t", testName, action)
+		return false
+	}
+
+	if deleteAction.GetName() != a.name {
+		t.Errorf("%s: did not get expected name, actual: %s, expected: %s", testName, deleteAction.GetName(), a.name)
+		return false
+	}
+	return true
+}
+
+type clusterDeleteAction struct {
+	name string
+}
+
+func (a clusterDeleteAction) resource() schema.GroupVersionResource {
+	return capi.SchemeGroupVersion.WithResource("clusters")
+}
+
+func (a clusterDeleteAction) verb() string {
+	return "delete"
+}
+
+func (a clusterDeleteAction) validate(t *testing.T, testName string, action clientgotesting.Action) bool {
+	deleteAction, ok := action.(clientgotesting.DeleteAction)
+	if !ok {
+		t.Errorf("%s: action is not a delete action: %t", testName, action)
+		return false
+	}
+
+	if deleteAction.GetName() != a.name {
+		t.Errorf("%s: did not get expected name, actual: %s, expected: %s", testName, deleteAction.GetName(), a.name)
+		return false
 	}
 	return true
 }

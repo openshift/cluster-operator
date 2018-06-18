@@ -58,7 +58,8 @@ type ClusterDeployment struct {
 
 // finalizer values unique to cluster-operator
 const (
-	FinalizerClusterOperator string = "openshift/cluster-operator"
+	FinalizerClusterDeployment string = "clusteroperator.openshift.io/clusterdeployment"
+	FinalizerRemoteMachineSets string = "clusteroperator.openshift.io/remotemachinesets"
 )
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -412,10 +413,6 @@ type ClusterDeploymentStatus struct {
 	// ClusterVersionRef references the resolved clusterversion the cluster should be running.
 	// +optional
 	ClusterVersionRef *corev1.ObjectReference
-
-	// DeprovisionedComputeMachinesets is true if the compute machinesets of this cluster
-	// have been deprovisioned.
-	DeprovisionedComputeMachinesets bool
 }
 
 // ClusterCondition contains details for the current condition of a cluster
