@@ -22,5 +22,6 @@ contrib/examples/*-cluster.yaml
 .kube
 .var
 .vscode
+debug.test
 *.retry
 certs/**
