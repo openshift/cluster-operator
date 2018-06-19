@@ -46,9 +46,8 @@ import (
 
 const (
 	// 32 = maximum ELB name length
-	// 16 = length of longest ELB name suffic ("-master-external")
-	// TODO: 7  = length of longest ELB name suffix ("-cp-ext")
-	maxELBBasenameLen = 32 - 16
+	// 7 = length of longest ELB name suffix ("-cp-ext")
+	maxELBBasenameLen = 32 - 7
 
 	clusterDeploymentLabel = "clusteroperator.openshift.io/cluster-deployment"
 
@@ -626,15 +625,13 @@ func MachineHasRole(machine *clusterapi.Machine, role capicommon.MachineRole) bo
 // ELBMasterExternalName gets the name of the external master ELB for the cluster
 // with the specified cluster ID.
 func ELBMasterExternalName(clusterID string) string {
-	// TODO: Change to "-cp-ext" when ansible playbook is updated to support it
-	return trimForELBBasename(clusterID, maxELBBasenameLen) + "-master-external"
+	return trimForELBBasename(clusterID, maxELBBasenameLen) + "-cp-ext"
 }
 
 // ELBMasterInternalName gets the name of the internal master ELB for the cluster
 // with the specified cluster ID.
 func ELBMasterInternalName(clusterID string) string {
-	// TODO: Change to "-cp-int" when ansible playbook is updated to support it
-	return trimForELBBasename(clusterID, maxELBBasenameLen) + "-master-internal"
+	return trimForELBBasename(clusterID, maxELBBasenameLen) + "-cp-int"
 }
 
 // ELBInfraName gets the name of the infra ELB for the cluster

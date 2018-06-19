@@ -90,8 +90,8 @@ func TestGenerateClusterWideVars(t *testing.T) {
 			shouldInclude: []string{
 				"openshift_aws_clusterid: testcluster",
 				"openshift_aws_vpc_name: testcluster",
-				"openshift_aws_elb_master_external_name: testcluster-master-external",
-				"openshift_aws_elb_master_internal_name: testcluster-master-internal",
+				"openshift_aws_elb_master_external_name: testcluster-cp-ext",
+				"openshift_aws_elb_master_internal_name: testcluster-cp-int",
 				"openshift_aws_elb_infra_name: testcluster-infra",
 				"openshift_aws_ssh_key_name: mykey",
 				"openshift_aws_region: us-east-1",
@@ -116,13 +116,9 @@ func TestGenerateClusterWideVars(t *testing.T) {
 			clusterVersion: testClusterVersion(),
 			shouldInclude: []string{
 				"openshift_aws_clusterid: 012345678901234567890123456789-abcde",
-				"openshift_aws_elb_master_external_name: 0123456789-abcde-master-external",
-				"openshift_aws_elb_master_internal_name: 0123456789-abcde-master-internal",
-				"openshift_aws_elb_infra_name: 0123456789-abcde-infra",
-				// TODO: Use these instead when the ansible playbook is updated to support it.
-				// "openshift_aws_elb_master_external_name: 0123456789012345678-abcde-cp-ext",
-				// "openshift_aws_elb_master_internal_name: 0123456789012345678-abcde-cp-int",
-				// "openshift_aws_elb_infra_name: 0123456789012345678-abcde-infra",
+				"openshift_aws_elb_master_external_name: 0123456789012345678-abcde-cp-ext",
+				"openshift_aws_elb_master_internal_name: 0123456789012345678-abcde-cp-int",
+				"openshift_aws_elb_infra_name: 0123456789012345678-abcde-infra",
 			},
 		},
 	}
