@@ -89,6 +89,20 @@ func GetInstance(machine *clusterv1.Machine, client Client) (*ec2.Instance, erro
 // GetRunningInstances returns all running instances that have a tag matching our machine name,
 // and cluster ID.
 func GetRunningInstances(machine *clusterv1.Machine, client Client) ([]*ec2.Instance, error) {
+	runningInstanceStateFilter := []*string{aws.String(ec2.InstanceStateNameRunning), aws.String(ec2.InstanceStateNamePending)}
+	return GetInstances(machine, client, runningInstanceStateFilter)
+}
+
+// GetStoppedInstances returns all stopped instances that have a tag matching our machine name,
+// and cluster ID.
+func GetStoppedInstances(machine *clusterv1.Machine, client Client) ([]*ec2.Instance, error) {
+	stoppedInstanceStateFilter := []*string{aws.String(ec2.InstanceStateNameStopped), aws.String(ec2.InstanceStateNameStopping)}
+	return GetInstances(machine, client, stoppedInstanceStateFilter)
+}
+
+// GetInstances returns all instances that have a tag matching our machine name,
+// and cluster ID.
+func GetInstances(machine *clusterv1.Machine, client Client, instanceStateFilter []*string) ([]*ec2.Instance, error) {
 
 	machineName := machine.Name
 
@@ -97,23 +111,29 @@ func GetRunningInstances(machine *clusterv1.Machine, client Client) ([]*ec2.Inst
 		return []*ec2.Instance{}, fmt.Errorf("unable to get cluster ID for machine %q: %v", machine.Name, err)
 	}
 
-	// Query instances with our machine's name, and in running/pending state.
-	request := &ec2.DescribeInstancesInput{
-		Filters: []*ec2.Filter{
-			{
-				Name:   aws.String("tag:Name"),
-				Values: []*string{&machineName},
-			},
-			{
-				Name:   aws.String("instance-state-name"),
-				Values: []*string{aws.String("running"), aws.String("pending")},
-			},
-			{
-				Name:   aws.String("tag:clusterid"),
-				Values: []*string{&clusterID},
-			},
+	requestFilters := []*ec2.Filter{
+		{
+			Name:   aws.String("tag:Name"),
+			Values: []*string{&machineName},
+		},
+		{
+			Name:   aws.String("tag:clusterid"),
+			Values: []*string{&clusterID},
 		},
 	}
+
+	if instanceStateFilter != nil {
+		requestFilters = append(requestFilters, &ec2.Filter{
+			Name:   aws.String("instance-state-name"),
+			Values: instanceStateFilter,
+		})
+	}
+
+	// Query instances with our machine's name, and in running/pending state.
+	request := &ec2.DescribeInstancesInput{
+		Filters: requestFilters,
+	}
+
 	result, err := client.DescribeInstances(request)
 	if err != nil {
 		return []*ec2.Instance{}, err

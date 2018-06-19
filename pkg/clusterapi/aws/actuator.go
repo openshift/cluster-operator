@@ -113,9 +113,27 @@ func (a *Actuator) Create(cluster *clusterv1.Cluster, machine *clusterv1.Machine
 	return a.updateStatus(machine, instance, mLog)
 }
 
+// removeStoppedMachine removes all instances of a specific machine that are in a stopped state.
+func (a *Actuator) removeStoppedMachine(machine *clusterv1.Machine, client Client, mLog log.FieldLogger) error {
+	instances, err := GetStoppedInstances(machine, client)
+	if err != nil {
+		return fmt.Errorf("Error getting stopped instances: %v", err)
+	}
+
+	if len(instances) == 0 {
+		mLog.Infof("no stopped instances found for machine %v", machine.Name)
+		return nil
+	}
+
+	return TerminateInstances(client, instances, mLog)
+}
+
 // CreateMachine starts a new AWS instance as described by the cluster and machine resources
 func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.Machine) (*ec2.Instance, error) {
 	mLog := clustoplog.WithMachine(a.logger, machine)
+
+	isMaster := controller.MachineHasRole(machine, capicommon.MasterRole)
+
 	// Extract cluster operator cluster
 	clusterSpec, err := controller.ClusterDeploymentSpecFromCluster(cluster)
 	if err != nil {
@@ -136,6 +154,15 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 	client, err := a.clientBuilder(a.kubeClient, coMachineSetSpec, machine.Namespace, region)
 	if err != nil {
 		return nil, fmt.Errorf("unable to obtain EC2 client: %v", err)
+	}
+
+	// We explicitly do NOT want to remove stopped masters.
+	if !isMaster {
+		// Prevent having a lot of stopped nodes sitting around.
+		err = a.removeStoppedMachine(machine, client, mLog)
+		if err != nil {
+			return nil, fmt.Errorf("unable to remove stopped nodes: %v", err)
+		}
 	}
 
 	if coMachineSetSpec.VMImage.AWSImage == nil {
@@ -220,7 +247,7 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 	// AWS tags.
 	hostType := hostTypeNode
 	subHostType := subHostTypeCompute
-	if controller.MachineHasRole(machine, capicommon.MasterRole) {
+	if isMaster {
 		hostType = hostTypeMaster
 		subHostType = subHostTypeDefault
 	}

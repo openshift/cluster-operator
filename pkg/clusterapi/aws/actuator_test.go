@@ -219,29 +219,68 @@ func findFilter(filters []*ec2.Filter, name string) (*ec2.Filter, error) {
 
 func TestCreateMachine(t *testing.T) {
 	cases := []struct {
-		name     string
-		nodeType clustopv1.NodeType
-		isInfra  bool
+		name      string
+		nodeType  clustopv1.NodeType
+		isInfra   bool
+		instances []*ec2.Instance
 	}{
 		{
-			name:     "master",
+			name:      "master",
+			nodeType:  clustopv1.NodeTypeMaster,
+			isInfra:   false,
+			instances: []*ec2.Instance{},
+		},
+		{
+			name:     "master w/ stopped instance",
 			nodeType: clustopv1.NodeTypeMaster,
 			isInfra:  false,
+			instances: []*ec2.Instance{
+				testInstance("i1", testMachineName, "master", "stopped", testClusterID, 30*time.Minute),
+			},
 		},
 		{
-			name:     "master and infra",
+			name:     "master w/ multiple stopped instances",
 			nodeType: clustopv1.NodeTypeMaster,
-			isInfra:  true,
-		},
-		{
-			name:     "infra node",
-			nodeType: clustopv1.NodeTypeCompute,
-			isInfra:  true,
-		},
-		{
-			name:     "compute node",
-			nodeType: clustopv1.NodeTypeCompute,
 			isInfra:  false,
+			instances: []*ec2.Instance{
+				testInstance("i1", testMachineName, "master", "stopped", testClusterID, 30*time.Minute),
+				testInstance("i2", testMachineName, "master", "stopped", testClusterID, 30*time.Minute),
+			},
+		},
+		{
+			name:      "master and infra",
+			nodeType:  clustopv1.NodeTypeMaster,
+			isInfra:   true,
+			instances: []*ec2.Instance{},
+		},
+		{
+			name:      "infra node",
+			nodeType:  clustopv1.NodeTypeCompute,
+			isInfra:   true,
+			instances: []*ec2.Instance{},
+		},
+		{
+			name:     "infra node w/ stopped instance",
+			nodeType: clustopv1.NodeTypeCompute,
+			isInfra:  true,
+			instances: []*ec2.Instance{
+				testInstance("i1", testMachineName, "node", "stopped", testClusterID, 30*time.Minute),
+			},
+		},
+		{
+			name:     "infra node w/ multiple stopped instances",
+			nodeType: clustopv1.NodeTypeCompute,
+			isInfra:  true,
+			instances: []*ec2.Instance{
+				testInstance("i1", testMachineName, "node", "stopped", testClusterID, 30*time.Minute),
+				testInstance("i2", testMachineName, "node", "stopped", testClusterID, 30*time.Minute),
+			},
+		},
+		{
+			name:      "compute node",
+			nodeType:  clustopv1.NodeTypeCompute,
+			isInfra:   false,
+			instances: []*ec2.Instance{},
 		},
 	}
 	for _, tc := range cases {
@@ -262,6 +301,23 @@ func TestCreateMachine(t *testing.T) {
 			addDescribeVpcsMock(mockAWSClient, testClusterID, testVPCID)
 			addDescribeSubnetsMock(mockAWSClient, testAZ, testVPCID, testSubnetID)
 			addDescribeSecurityGroupsMock(t, mockAWSClient, testVPCID, testClusterID, isMaster, tc.isInfra)
+
+			if !isMaster {
+				addDescribeInstancesMock(mockAWSClient, tc.instances)
+
+				if len(tc.instances) > 0 {
+					mockAWSClient.EXPECT().TerminateInstances(gomock.Any()).Do(func(input interface{}) {
+						runInput, ok := input.(*ec2.TerminateInstancesInput)
+						assert.True(t, ok)
+						expectedTerminateIDs := []*string{}
+						for _, i := range tc.instances {
+							expectedTerminateIDs = append(expectedTerminateIDs, i.InstanceId)
+						}
+						assert.ElementsMatch(t, expectedTerminateIDs, runInput.InstanceIds)
+					}).Return(&ec2.TerminateInstancesOutput{}, nil)
+				}
+			}
+
 			mockAWSClient.EXPECT().RunInstances(gomock.Any()).Do(func(input interface{}) {
 				runInput, ok := input.(*ec2.RunInstancesInput)
 				assert.True(t, ok)
