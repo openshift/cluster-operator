@@ -66,13 +66,11 @@ const (
 // Instance tag constants
 // TODO: these do not match the case of the clustop or capi role names
 const (
-	hostTypeNode              = "node"
-	hostTypeMaster            = "master"
-	subHostTypeDefault        = "default"
-	subHostTypeInfra          = "infra"
-	subHostTypeCompute        = "compute"
-	shutdownBehaviorTerminate = "terminate"
-	shutdownBehaviorStop      = "stop"
+	hostTypeNode       = "node"
+	hostTypeMaster     = "master"
+	subHostTypeDefault = "default"
+	subHostTypeInfra   = "infra"
+	subHostTypeCompute = "compute"
 )
 
 var stateMask int64 = 0xFF
@@ -222,11 +220,9 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 	// AWS tags.
 	hostType := hostTypeNode
 	subHostType := subHostTypeCompute
-	shutdownBehavior := shutdownBehaviorTerminate
 	if controller.MachineHasRole(machine, capicommon.MasterRole) {
 		hostType = hostTypeMaster
 		subHostType = subHostTypeDefault
-		shutdownBehavior = shutdownBehaviorStop
 	}
 	if coMachineSetSpec.Infra {
 		subHostType = subHostTypeInfra
@@ -292,7 +288,6 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 		TagSpecifications:   []*ec2.TagSpecification{tagInstance, tagVolume},
 		NetworkInterfaces:   networkInterfaces,
 		UserData:            &userDataEnc,
-		InstanceInitiatedShutdownBehavior: aws.String(shutdownBehavior),
 	}
 
 	runResult, err := client.RunInstances(&inputConfig)
