@@ -39,6 +39,7 @@ import (
 
 	clusterv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 
+	awsutil "github.com/aws/aws-sdk-go/aws"
 	"github.com/openshift/cluster-operator/pkg/clusterapi/aws"
 )
 
@@ -152,11 +153,9 @@ func testClusterAPIResources(name string) (*clusterv1.Cluster, *clusterv1.Machin
 			Kind:       "ClusterProviderConfigSpec",
 		},
 		ClusterDeploymentSpec: cov1.ClusterDeploymentSpec{
+			ClusterID: name,
 			Hardware: cov1.ClusterHardwareSpec{
 				AWS: &cov1.AWSClusterSpec{
-					AccountSecret: corev1.LocalObjectReference{
-						Name: "aws-credentials",
-					},
 					SSHSecret: corev1.LocalObjectReference{
 						Name: "ssh-private-key",
 					},
@@ -182,6 +181,9 @@ func testClusterAPIResources(name string) (*clusterv1.Cluster, *clusterv1.Machin
 			Kind:       "MachineSetProviderConfigSpec",
 		},
 		MachineSetSpec: cov1.MachineSetSpec{
+			VMImage: cov1.VMImage{
+				AWSImage: awsutil.String("ami-0e8468df91f4e8b6c"),
+			},
 			MachineSetConfig: cov1.MachineSetConfig{
 				NodeType: cov1.NodeTypeCompute,
 				Size:     1,
