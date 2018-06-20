@@ -26,7 +26,9 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/clientcmd"
 
 	clustopclient "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
@@ -84,11 +86,24 @@ func waitForCluster(clusterNamespace string, clusterDeploymentName string) error
 		return fmt.Errorf("cannot retrieve cluster deploymentd %s/%s: %v", namespace, clusterDeploymentName, err)
 	}
 	clusterName := clusterDeployment.Spec.ClusterID
-	cluster, err := capiClient.ClusterV1alpha1().Clusters(clusterNamespace).Get(clusterName, metav1.GetOptions{})
+
+	var cluster *capiv1.Cluster
+	// Wait for cluster to be created
+	err = wait.PollImmediate(time.Second, 5*time.Minute, func() (bool, error) {
+		var err error
+		cluster, err = capiClient.ClusterV1alpha1().Clusters(clusterNamespace).Get(clusterName, metav1.GetOptions{})
+		if errors.IsNotFound(err) {
+			return false, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		return true, nil
+	})
+
 	if err != nil {
 		return fmt.Errorf("cannot retrieve cluster %s/%s: %v", namespace, clusterName, err)
 	}
-
 	return waitForClusterReady(capiClient, cluster)
 }
 
