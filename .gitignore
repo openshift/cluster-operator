@@ -23,5 +23,6 @@ contrib/examples/*-cluster.yaml
 .var
 .vscode
 debug.test
+debug
 *.retry
 certs/**

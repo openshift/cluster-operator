@@ -27,7 +27,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -64,10 +63,10 @@ func createClusterMachine(name string) error {
 	return nil
 }
 
-func deleteClusterMachine(instanceId string) error {
+func deleteClusterMachine(instanceID string) error {
 	_, machine := testClusterAPIResources("any")
 	machine.Annotations = map[string]string{
-		instanceIDAnnotation: instanceId,
+		instanceIDAnnotation: instanceID,
 	}
 	actuator := aws.NewActuator(nil, nil, log.WithField("example", "delete-machine"), "us-east-1c")
 	err := actuator.DeleteMachine(machine)
@@ -78,10 +77,10 @@ func deleteClusterMachine(instanceId string) error {
 	return nil
 }
 
-func clusterMachineExists(instanceId string) error {
+func clusterMachineExists(instanceID string) error {
 	cluster, machine := testClusterAPIResources("any")
 	machine.Annotations = map[string]string{
-		instanceIDAnnotation: instanceId,
+		instanceIDAnnotation: instanceID,
 	}
 	actuator := aws.NewActuator(nil, nil, log.WithField("example", "delete-machine"), "us-east-1c")
 	exists, err := actuator.Exists(cluster, machine)
@@ -92,7 +91,7 @@ func clusterMachineExists(instanceId string) error {
 	return nil
 }
 
-func NewActuatorTestCommand() *cobra.Command {
+func newActuatorTestCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "aws-actuator-test",
 		Short: "Test for Cluster API AWS actuator",
@@ -134,11 +133,10 @@ func NewActuatorTestCommand() *cobra.Command {
 }
 
 func main() {
-	pflag.Parse()
 	log.SetOutput(os.Stdout)
 	log.SetLevel(log.DebugLevel)
 
-	cmd := NewActuatorTestCommand()
+	cmd := newActuatorTestCommand()
 	err := cmd.Execute()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error occurred: %v\n", err)
@@ -181,6 +179,7 @@ func testClusterAPIResources(name string) (*clusterv1.Cluster, *clusterv1.Machin
 			Kind:       "MachineSetProviderConfigSpec",
 		},
 		MachineSetSpec: cov1.MachineSetSpec{
+			ClusterID: name,
 			VMImage: cov1.VMImage{
 				AWSImage: awsutil.String("ami-0e8468df91f4e8b6c"),
 			},
