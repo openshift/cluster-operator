@@ -166,7 +166,7 @@ objects:
             infra: false
             vmImage:
               # Matches origin v3-10 cluster version:
-              awsImage: ami-0e8468df91f4e8b6c
+              awsImage: ami-0dd8ad483cef75c18
 
 
 # TODO: transition these to MachineDeployments once we have the upstream controller running.
