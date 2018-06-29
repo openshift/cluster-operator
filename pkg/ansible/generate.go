@@ -96,10 +96,28 @@ all:
     
     openshift_hosted_router_wait: False
     openshift_hosted_registry_wait: False
-    # cap to size 1 instead of .InfraSize while we use PV-backed registry storage
-    #openshift_hosted_registry_replicas: "{{ [ [[ .InfraSize ]], 2 ] | min }}"
+
+    #
+    # Registry configuration
+    #
+    [[ if .RegistryObjectStoreName ]]
+    openshift_hosted_manage_registry: true
+    openshift_hosted_registry_storage_kind: object
+    openshift_hosted_registry_storage_provider: s3
+    openshift_hosted_registry_storage_s3_accesskey: [[ .RegistryAccessKey ]]
+    openshift_hosted_registry_storage_s3_secretkey: [[ .RegistrySecretKey ]]
+    openshift_hosted_registry_storage_s3_region: [[ .Region ]]
+    openshift_hosted_registry_storage_s3_bucket: [[ .RegistryObjectStoreName ]]
+    openshift_docker_hosted_registry_insecure: False
+    openshift_hosted_registry_selector: node-role.kubernetes.io/infra=true
+    openshift_hosted_registry_storage_s3_encrypt: False
+    openshift_hosted_registry_env_vars: {'REGISTRY_OPENSHIFT_REQUESTS_WRITE_MAXWAITINQUEUE': '2h', 'REGISTRY_OPENSHIFT_REQUESTS_WRITE_MAXRUNNING': '256'}
+    openshift_hosted_registry_replicas: [[ .InfraSize ]]
+    [[ else ]]
+    # cap to size 1 instead of .InfraSize when using PV-backed registry storage
     openshift_hosted_registry_replicas: 1
-    
+    [[ end ]]
+
     # Override router edits to set the ROUTER_USE_PROXY_PROTOCOL
     # environment variable. Defaults are taken from
     # roles/openshift_hosted/defaults/main.yml in openshift-ansible and
@@ -342,6 +360,9 @@ type clusterParams struct {
 	VPCName                          string
 	SubnetName                       string
 	SDNPluginName                    string
+	RegistryObjectStoreName          string
+	RegistryAccessKey                string
+	RegistrySecretKey                string
 }
 
 type clusterVersionParams struct {
@@ -359,6 +380,8 @@ func GenerateClusterWideVars(
 	sdnPluginName string,
 	serviceCIDRs capiv1.NetworkRanges,
 	podCIDRs capiv1.NetworkRanges,
+	registryAccessKey string,
+	registrySecretKey string,
 ) (string, error) {
 
 	// Change template delimiters to avoid conflict with {{ }} use in ansible vars:
@@ -403,6 +426,12 @@ func GenerateClusterWideVars(
 		params.MachineControllerImagePullPolicy = *version.Images.MachineControllerImagePullPolicy
 	}
 
+	if registryAccessKey != "" && registrySecretKey != "" {
+		params.RegistryAccessKey = registryAccessKey
+		params.RegistrySecretKey = registrySecretKey
+		params.RegistryObjectStoreName = controller.RegistryObjectStoreName(clusterID)
+	}
+
 	var buf bytes.Buffer
 	err = t.Execute(&buf, params)
 	if err != nil {
@@ -437,7 +466,7 @@ func GenerateClusterWideVarsForMachineSet(
 	podCIDRs capiv1.NetworkRanges,
 ) (string, error) {
 	// since we haven't been passed an infraSize, just assume minimum size of 1
-	return GenerateClusterWideVarsForMachineSetWithInfraSize(isMaster, clusterID, clusterHardware, clusterVersion, 1, sdnPluginName, serviceCIDRs, podCIDRs)
+	return GenerateClusterWideVarsForMachineSetWithInfraSize(isMaster, clusterID, clusterHardware, clusterVersion, 1, sdnPluginName, serviceCIDRs, podCIDRs, "" /* registry accessKey */, "" /* registry secretKey */)
 }
 
 // GenerateClusterWideVarsForMachineSetWithInfraSize generates the vars to pass to the
@@ -452,8 +481,10 @@ func GenerateClusterWideVarsForMachineSetWithInfraSize(
 	sdnPluginName string,
 	serviceCIDRs capiv1.NetworkRanges,
 	podCIDRs capiv1.NetworkRanges,
+	accessKey string,
+	secretKey string,
 ) (string, error) {
-	commonVars, err := GenerateClusterWideVars(clusterID, clusterHardware, clusterVersion, infraSize, sdnPluginName, serviceCIDRs, podCIDRs)
+	commonVars, err := GenerateClusterWideVars(clusterID, clusterHardware, clusterVersion, infraSize, sdnPluginName, serviceCIDRs, podCIDRs, accessKey, secretKey)
 
 	// Layer in the vars that depend on the ClusterVersion:
 	var buf bytes.Buffer

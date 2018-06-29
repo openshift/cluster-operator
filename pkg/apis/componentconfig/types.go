@@ -103,6 +103,10 @@ type ControllerManagerConfiguration struct {
 	// concurrently. Larger number = more responsive processing but more CPU (and network) load.
 	ConcurrentRemoteMachineSetSyncs int32
 
+	// ConcurrentRegistryInfraSyncs is the number of clusters we can be bulding registry infrastructure for
+	// concurrently. Larger number = more responsive processing but more CPU (and network) load.
+	ConcurrentRegistryInfraSyncs int32
+
 	// ConcurrentDeployClusterAPISyncs is the number of clusters that are allowed to be deploying
 	// the upstream cluster API controllers concurrently. Larger number = more responsive processing
 	// but more CPU (and network) load.

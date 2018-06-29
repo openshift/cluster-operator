@@ -23,6 +23,11 @@ import (
 	clustop "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 )
 
+type registryStorageCreds struct {
+	accessKey string
+	secretKey string
+}
+
 // JobGeneratorExecutor is used to execute a JobGenerator to create a job for
 // a cluster.
 type JobGeneratorExecutor struct {
@@ -34,6 +39,7 @@ type JobGeneratorExecutor struct {
 	forMasterMachineSet bool
 	infraSize           *int
 	serviceAccount      *kapi.ServiceAccount
+	registryCreds       registryStorageCreds
 }
 
 // NewJobGeneratorExecutorForCluster creates a JobGeneratorExecutor
@@ -77,6 +83,8 @@ func (e *JobGeneratorExecutor) Execute(name string) (*kbatch.Job, *kapi.ConfigMa
 			e.cluster.AWSClusterProviderConfig.OpenShiftConfig.SDNPluginName,
 			e.cluster.ClusterSpec.ClusterNetwork.Services,
 			e.cluster.ClusterSpec.ClusterNetwork.Pods,
+			"", /* registry accessKey */
+			"", /* registry secretKey */
 		)
 	case e.infraSize == nil:
 		vars, err = GenerateClusterWideVarsForMachineSet(
@@ -98,6 +106,8 @@ func (e *JobGeneratorExecutor) Execute(name string) (*kbatch.Job, *kapi.ConfigMa
 			e.cluster.AWSClusterProviderConfig.OpenShiftConfig.SDNPluginName,
 			e.cluster.ClusterSpec.ClusterNetwork.Services,
 			e.cluster.ClusterSpec.ClusterNetwork.Pods,
+			e.registryCreds.accessKey,
+			e.registryCreds.secretKey,
 		)
 	}
 	if err != nil {
@@ -144,5 +154,15 @@ func (e *JobGeneratorExecutor) WithInfraSize(size int) *JobGeneratorExecutor {
 // creates is supplied the specified service account.
 func (e *JobGeneratorExecutor) WithServiceAccount(serviceAccount *kapi.ServiceAccount) *JobGeneratorExecutor {
 	e.serviceAccount = serviceAccount
+	return e
+}
+
+// WithRegistryStorageCreds modifies the JobGeneratorExecutor so that the job that
+// it creates has credentials for the cluster's registry storage backend
+func (e *JobGeneratorExecutor) WithRegistryStorageCreds(accessKey, secretKey string) *JobGeneratorExecutor {
+	e.registryCreds = registryStorageCreds{
+		accessKey: accessKey,
+		secretKey: secretKey,
+	}
 	return e
 }

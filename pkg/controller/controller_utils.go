@@ -466,9 +466,13 @@ func BuildCluster(clusterDeployment *clusteroperator.ClusterDeployment, cv clust
 	cluster := &clusterapi.Cluster{}
 	cluster.Name = clusterDeployment.Spec.ClusterName
 	cluster.Labels = clusterDeployment.Labels
+	cluster.Annotations = clusterDeployment.Annotations
 	cluster.Namespace = clusterDeployment.Namespace
 	if cluster.Labels == nil {
 		cluster.Labels = make(map[string]string)
+	}
+	if cluster.Annotations == nil {
+		cluster.Annotations = make(map[string]string)
 	}
 	cluster.Labels[clusteroperator.ClusterDeploymentLabel] = clusterDeployment.Name
 	blockOwnerDeletion := false
@@ -789,4 +793,16 @@ func GetSecretNameFromMachineSetSpec(msSpec *clusteroperator.MachineSetSpec) (st
 	}
 
 	return secretName, nil
+}
+
+// RegistryObjectStoreName takes the clusterID and returns what the remote object store
+// name should be for the cluster
+func RegistryObjectStoreName(clusterID string) string {
+	return clusterID + "-registry"
+}
+
+// RegistryCredsSecretName return the name we should store the registry secrets into
+// given the clusterID
+func RegistryCredsSecretName(clusterID string) string {
+	return clusterID + "-registry"
 }

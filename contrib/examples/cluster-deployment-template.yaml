@@ -42,6 +42,10 @@ parameters:
 - name: SSH_KEYPAIR_NAME
   required: false
   description: Name of AWS keypair to use for machines in this cluster.
+- name: S3_BACKED_REGISTRY
+  required: false
+  value: "true"
+  description: Whether the cluster should be configured for an S3-backed registry
 
 objects:
 
@@ -84,6 +88,8 @@ objects:
   metadata:
     name: ${CLUSTER_NAME}
     namespace: ${CLUSTER_NAMESPACE}
+    annotations:
+      clusteroperator.openshift.io/s3-backed-registry: "${S3_BACKED_REGISTRY}"
   spec:
     clusterVersionRef:
       namespace: ${CLUSTER_VERSION_NAMESPACE}

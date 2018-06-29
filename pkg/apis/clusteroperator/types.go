@@ -65,6 +65,7 @@ type ClusterDeployment struct {
 const (
 	FinalizerClusterDeployment string = "clusteroperator.openshift.io/clusterdeployment"
 	FinalizerRemoteMachineSets string = "clusteroperator.openshift.io/remotemachinesets"
+	FinalizerRegistryInfra     string = "clusteroperator.openshift.io/registryinfra"
 )
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -378,6 +379,15 @@ type ClusterProviderStatus struct {
 	// master machine set resource used to generate the latest completed
 	// control-plane installation job.
 	ControlPlaneInstalledJobMachineSetGeneration int64
+
+	// RegistryInfraCompleted is true once the registryinfra controller has
+	// finished processing (doesn't necessarily mean S3 bucket provisioned
+	// if annotations don't want S3 configured).
+	RegistryInfraCompleted bool
+
+	// RegistryInfraInstalledGeneration is the generation of the Cluster used to generate
+	// the latest completed registry infrastructure sync
+	RegistryInfraInstalledGeneration int64 `json:"registryInfraInstalledGeneration"`
 
 	// ComponentsInstalled is true if the additional components needed for the
 	// cluster have been installed

@@ -29,12 +29,17 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	"github.com/aws/aws-sdk-go/service/elb"
 	"github.com/aws/aws-sdk-go/service/elb/elbiface"
+	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/aws/aws-sdk-go/service/iam/iamiface"
+	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go/service/s3/s3iface"
 )
 
 //go:generate mockgen -source=./client.go -destination=./mock/client_generated.go -package=mock
 
 // Client is a wrapper object for actual AWS SDK clients to allow for easier testing.
 type Client interface {
+	//EC2
 	DescribeImages(*ec2.DescribeImagesInput) (*ec2.DescribeImagesOutput, error)
 	DescribeVpcs(*ec2.DescribeVpcsInput) (*ec2.DescribeVpcsOutput, error)
 	DescribeSubnets(*ec2.DescribeSubnetsInput) (*ec2.DescribeSubnetsOutput, error)
@@ -43,12 +48,34 @@ type Client interface {
 	DescribeInstances(*ec2.DescribeInstancesInput) (*ec2.DescribeInstancesOutput, error)
 	TerminateInstances(*ec2.TerminateInstancesInput) (*ec2.TerminateInstancesOutput, error)
 
+	//ELB
 	RegisterInstancesWithLoadBalancer(*elb.RegisterInstancesWithLoadBalancerInput) (*elb.RegisterInstancesWithLoadBalancerOutput, error)
+
+	//IAM
+	CreateAccessKey(*iam.CreateAccessKeyInput) (*iam.CreateAccessKeyOutput, error)
+	CreateUser(*iam.CreateUserInput) (*iam.CreateUserOutput, error)
+	DeleteAccessKey(*iam.DeleteAccessKeyInput) (*iam.DeleteAccessKeyOutput, error)
+	DeleteUser(*iam.DeleteUserInput) (*iam.DeleteUserOutput, error)
+	DeleteUserPolicy(*iam.DeleteUserPolicyInput) (*iam.DeleteUserPolicyOutput, error)
+	GetUser(*iam.GetUserInput) (*iam.GetUserOutput, error)
+	ListAccessKeys(*iam.ListAccessKeysInput) (*iam.ListAccessKeysOutput, error)
+	ListUserPolicies(*iam.ListUserPoliciesInput) (*iam.ListUserPoliciesOutput, error)
+	PutUserPolicy(*iam.PutUserPolicyInput) (*iam.PutUserPolicyOutput, error)
+
+	//S3
+	CreateBucket(*s3.CreateBucketInput) (*s3.CreateBucketOutput, error)
+	DeleteBucket(*s3.DeleteBucketInput) (*s3.DeleteBucketOutput, error)
+	ListBuckets(*s3.ListBucketsInput) (*s3.ListBucketsOutput, error)
+
+	//Custom
+	GetS3API() s3iface.S3API
 }
 
 type awsClient struct {
 	ec2Client ec2iface.EC2API
 	elbClient elbiface.ELBAPI
+	iamClient iamiface.IAMAPI
+	s3Client  s3iface.S3API
 }
 
 func (c *awsClient) DescribeImages(input *ec2.DescribeImagesInput) (*ec2.DescribeImagesOutput, error) {
@@ -81,6 +108,57 @@ func (c *awsClient) TerminateInstances(input *ec2.TerminateInstancesInput) (*ec2
 
 func (c *awsClient) RegisterInstancesWithLoadBalancer(input *elb.RegisterInstancesWithLoadBalancerInput) (*elb.RegisterInstancesWithLoadBalancerOutput, error) {
 	return c.elbClient.RegisterInstancesWithLoadBalancer(input)
+}
+
+func (c *awsClient) CreateAccessKey(input *iam.CreateAccessKeyInput) (*iam.CreateAccessKeyOutput, error) {
+	return c.iamClient.CreateAccessKey(input)
+}
+
+func (c *awsClient) CreateUser(input *iam.CreateUserInput) (*iam.CreateUserOutput, error) {
+	return c.iamClient.CreateUser(input)
+}
+
+func (c *awsClient) DeleteAccessKey(input *iam.DeleteAccessKeyInput) (*iam.DeleteAccessKeyOutput, error) {
+	return c.iamClient.DeleteAccessKey(input)
+}
+
+func (c *awsClient) DeleteUser(input *iam.DeleteUserInput) (*iam.DeleteUserOutput, error) {
+	return c.iamClient.DeleteUser(input)
+}
+
+func (c *awsClient) DeleteUserPolicy(input *iam.DeleteUserPolicyInput) (*iam.DeleteUserPolicyOutput, error) {
+	return c.iamClient.DeleteUserPolicy(input)
+}
+func (c *awsClient) GetUser(input *iam.GetUserInput) (*iam.GetUserOutput, error) {
+	return c.iamClient.GetUser(input)
+}
+
+func (c *awsClient) ListAccessKeys(input *iam.ListAccessKeysInput) (*iam.ListAccessKeysOutput, error) {
+	return c.iamClient.ListAccessKeys(input)
+}
+
+func (c *awsClient) ListUserPolicies(input *iam.ListUserPoliciesInput) (*iam.ListUserPoliciesOutput, error) {
+	return c.iamClient.ListUserPolicies(input)
+}
+
+func (c *awsClient) PutUserPolicy(input *iam.PutUserPolicyInput) (*iam.PutUserPolicyOutput, error) {
+	return c.iamClient.PutUserPolicy(input)
+}
+
+func (c *awsClient) CreateBucket(input *s3.CreateBucketInput) (*s3.CreateBucketOutput, error) {
+	return c.s3Client.CreateBucket(input)
+}
+
+func (c *awsClient) DeleteBucket(input *s3.DeleteBucketInput) (*s3.DeleteBucketOutput, error) {
+	return c.s3Client.DeleteBucket(input)
+}
+
+func (c *awsClient) ListBuckets(input *s3.ListBucketsInput) (*s3.ListBucketsOutput, error) {
+	return c.s3Client.ListBuckets(input)
+}
+
+func (c *awsClient) GetS3API() s3iface.S3API {
+	return c.s3Client
 }
 
 // NewClient creates our client wrapper object for the actual AWS clients we use.
@@ -120,5 +198,7 @@ func NewClient(kubeClient kubernetes.Interface, secretName, namespace, region st
 	return &awsClient{
 		ec2Client: ec2.New(s),
 		elbClient: elb.New(s),
+		iamClient: iam.New(s),
+		s3Client:  s3.New(s),
 	}, nil
 }

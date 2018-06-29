@@ -74,6 +74,7 @@ func NewCMServer() *CMServer {
 			ConcurrentNodeLinkSyncs:          defaultConcurrentSyncs,
 			ConcurrentClusterDeploymentSyncs: defaultConcurrentSyncs,
 			ConcurrentRemoteMachineSetSyncs:  defaultConcurrentSyncs,
+			ConcurrentRegistryInfraSyncs:     defaultConcurrentSyncs,
 			LeaderElection:                   leaderelectionconfig.DefaultLeaderElectionConfiguration(),
 			LeaderElectionNamespace:          defaultLeaderElectionNamespace,
 			ControllerStartInterval:          metav1.Duration{Duration: 0 * time.Second},
@@ -107,6 +108,7 @@ func (s *CMServer) AddFlags(fs *pflag.FlagSet, allControllers []string, disabled
 	fs.Int32Var(&s.ConcurrentComponentSyncs, "concurrent-component-syncs", s.ConcurrentComponentSyncs, "The number of master machine set objects that are allowed to install components concurrently. Larger number = more responsive accept jobs, but more CPU (and network) load")
 	fs.Int32Var(&s.ConcurrentNodeConfigSyncs, "concurrent-nodeconfig-syncs", s.ConcurrentNodeConfigSyncs, "The number of clusters that are allowed to configure the node config daemonset concurrently. Larger number = more responsive node config jobs, but more CPU (and network) load")
 	fs.Int32Var(&s.ConcurrentRemoteMachineSetSyncs, "concurrent-remotemachineset-syncs", s.ConcurrentRemoteMachineSetSyncs, "The number of machine sets we can sync to remote clusters concurrently. Larger number = more responsive sync jobs, but more CPU (and network ) load")
+	fs.Int32Var(&s.ConcurrentRegistryInfraSyncs, "concurrent-registryinfra-syncs", s.ConcurrentRegistryInfraSyncs, "The number of clusters we can build registry infrastructure for concurrently. Larger number = more responsive sync jobs, but more CPU (and network ) load")
 	fs.Int32Var(&s.ConcurrentDeployClusterAPISyncs, "concurrent-deploy-cluster-api-syncs", s.ConcurrentDeployClusterAPISyncs, "The number of master machine set objects that are allowed to install the upstream cluster API controllers concurrently. Larger number = more responsive accept jobs, but more CPU (and network) load")
 	fs.Int32Var(&s.ConcurrentClusterDeploymentSyncs, "concurrent-cluster-deployment-syncs", s.ConcurrentClusterDeploymentSyncs, "The number of cluster deployment objects that are allowed to sync concurrently. Larger number = more responsive accept jobs, but more CPU (and network) load")
 	fs.Int32Var(&s.ConcurrentELBMachineSyncs, "concurrent-elb-machine-syncs", s.ConcurrentELBMachineSyncs, "The number of master machine objects that are allowed to be added to the internal/external AWS ELB concurrently. Larger number = more responsive accept jobs, but more CPU (and network) load")

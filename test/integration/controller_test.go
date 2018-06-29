@@ -50,6 +50,7 @@ import (
 	infracontroller "github.com/openshift/cluster-operator/pkg/controller/infra"
 	mastercontroller "github.com/openshift/cluster-operator/pkg/controller/master"
 	nodeconfigcontroller "github.com/openshift/cluster-operator/pkg/controller/nodeconfig"
+	registryinfracontroller "github.com/openshift/cluster-operator/pkg/controller/registryinfra"
 	capiv1alpha1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	capiclientset "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 	capifakeclientset "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset/fake"
@@ -231,6 +232,9 @@ func TestClusterCreate(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: testNamespace,
 					Name:      testClusterName,
+					Annotations: map[string]string{
+						"clusteroperator.openshift.io/s3-backed-registry": "false",
+					},
 				},
 				Spec: *clusterDeploymentSpec,
 			}
@@ -450,6 +454,17 @@ func startServerAndControllers(t *testing.T) (
 		func() func() {
 			controller := awselb.NewController(
 				capiSharedInformers.Machines(),
+				fakeKubeClient,
+				clustopClient,
+				capiClient,
+			)
+			return func() { controller.Run(1, stopCh) }
+		}(),
+		// registryinfra
+		func() func() {
+			controller := registryinfracontroller.NewController(
+				capiSharedInformers.Clusters(),
+				clustopSharedInformers.ClusterDeployments(),
 				fakeKubeClient,
 				clustopClient,
 				capiClient,
