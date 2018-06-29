@@ -30,6 +30,7 @@
 
       # Normally we assume to build and push images for devel deployments:
       push_images: "{{ push_images | default(True) }}"
+      process_cluster_versions: False
 
 # Perform a normal deployment:
 - import_playbook: deploy-playbook.yml
@@ -72,6 +73,19 @@
       namespace: "{{ cluster_operator_namespace }}"
       src: "{{ playbook_dir }}/../examples/deploy-playbook-mock.yaml"
 
+  - name: check if cluster version already exists
+    command: "oc get clusterversion origin-v3-10 -n {{ cluster_operator_namespace }}"
+    failed_when: false
+    changed_when: false
+    ignore_errors: yes
+    register: cluster_version_exists_reg
+    retries: 5
+    until: cluster_version_exists_reg.stderr.find("ServiceUnavailable") == -1
+
+  - set_fact:
+      process_cluster_versions: True
+    when: cluster_version_exists_reg.rc > 0 and "NotFound" in cluster_version_exists_reg.stderr
+
   - name: process cluster versions template
     oc_process:
       template_file: "{{ playbook_dir }}/../examples/cluster-versions-template.yaml"
@@ -84,6 +98,7 @@
         ANSIBLE_IMAGE: "{{ ansible_image }}"
         ANSIBLE_IMAGE_PULL_POLICY: "{{ ansible_image_pull_policy }}"
     register: cluster_versions_reg
+    when: process_cluster_versions
 
   - name: create/update cluster versions
     kubectl_apply:
@@ -94,14 +109,15 @@
     register: create_versions_result
     until: create_versions_result is succeeded
     ignore_errors: yes
+    when: process_cluster_versions
 
   - debug: var=create_versions_result
-    when: not create_versions_result is succeeded
+    when: process_cluster_versions and not create_versions_result is succeeded
 
   - name: report error if unable to create cluster versions
     fail:
       msg: 'Unable to create cluster versions'
-    when: not create_versions_result is succeeded
+    when: process_cluster_versions and not create_versions_result is succeeded
 
   - name: describe deployment
     debug:
