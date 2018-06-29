@@ -369,7 +369,7 @@ ifeq ($(ARCH),amd64)
 endif
 
 OA_ANSIBLE_URL    ?= https://github.com/openshift/openshift-ansible.git
-OA_ANSIBLE_BRANCH ?= openshift-ansible-3.10.0-0.32.0
+OA_ANSIBLE_BRANCH ?= release-3.10
 
 define build-cluster-operator-ansible-image #(repo, branch, imagename, tag)
 	docker build -t "$3:$4" --build-arg=CO_ANSIBLE_URL=$1 --build-arg=CO_ANSIBLE_BRANCH=$2 build/cluster-operator-ansible

@@ -247,12 +247,15 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 	// AWS tags.
 	hostType := hostTypeNode
 	subHostType := subHostTypeCompute
+	nodeGroupConfigName := "node-config-compute"
 	if isMaster {
 		hostType = hostTypeMaster
 		subHostType = subHostTypeDefault
+		nodeGroupConfigName = "node-config-master"
 	}
 	if coMachineSetSpec.Infra {
 		subHostType = subHostTypeInfra
+		nodeGroupConfigName = "node-config-infra"
 	}
 	mLog.WithFields(log.Fields{"hostType": hostType, "subHostType": subHostType}).Debugf("creating instance with host type")
 
@@ -262,6 +265,7 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 		{Key: aws.String("host-type"), Value: aws.String(hostType)},
 		{Key: aws.String("sub-host-type"), Value: aws.String(subHostType)},
 		{Key: aws.String("kubernetes.io/cluster/" + clusterSpec.ClusterID), Value: aws.String(clusterSpec.ClusterID)},
+		{Key: aws.String("openshift-node-group-config"), Value: aws.String(nodeGroupConfigName)},
 		{Key: aws.String("Name"), Value: aws.String(machine.Name)},
 	}
 	tagInstance := &ec2.TagSpecification{
