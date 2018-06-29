@@ -17,19 +17,32 @@ limitations under the License.
 package main
 
 import (
+	"path"
+
 	"github.com/openshift/cluster-operator/cmd/cluster-operator-controller-manager/app"
 	"github.com/openshift/cluster-operator/cmd/cluster-operator-controller-manager/app/options"
 	"github.com/openshift/cluster-operator/pkg/hyperkube"
 )
 
+const (
+	// program name for debug builds
+	debugProgramName = "debug"
+)
+
 // NewControllerManager creates a new hyperkube Server object that includes the
 // description and flags.
-func NewControllerManager() *hyperkube.Server {
+func NewControllerManager(programName string) *hyperkube.Server {
 	s := options.NewCMServer()
+
+	altName := "cluster-operator-controller-manager"
+
+	if path.Base(programName) == debugProgramName {
+		altName = debugProgramName
+	}
 
 	hks := hyperkube.Server{
 		PrimaryName:     "controller-manager",
-		AlternativeName: "cluster-operator-controller-manager",
+		AlternativeName: altName,
 		SimpleUsage:     "controller-manager",
 		Long:            `The clusteroperator controller manager is a daemon that embeds the core control loops shipped with the clusteroperator.`,
 		Run: func(_ *hyperkube.Server, args []string, stopCh <-chan struct{}) error {
