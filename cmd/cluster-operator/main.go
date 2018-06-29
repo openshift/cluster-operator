@@ -32,7 +32,7 @@ func main() {
 	}
 
 	hk.AddServer(NewAPIServer())
-	hk.AddServer(NewControllerManager())
+	hk.AddServer(NewControllerManager(os.Args[0]))
 
 	hk.RunToExit(os.Args)
 }
