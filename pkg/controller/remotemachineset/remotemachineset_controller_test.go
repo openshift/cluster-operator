@@ -176,7 +176,7 @@ func TestClusterSyncing(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			// :ASSEMBLE:
+			// Arrange
 			// Setup the mocks, informers, etc
 			ctx := setupTest()
 
@@ -220,10 +220,10 @@ func TestClusterSyncing(t *testing.T) {
 			// Mock that the informer's cache has a cluster opertaor cluster deployment in it.
 			ctx.clusterDeploymentStore.Add(tc.clusterDeployment)
 
-			// :ACT:
+			// Act
 			err = ctx.controller.syncClusterDeployment(getKey(tc.clusterDeployment, t))
 
-			// :ASSERT:
+			// Assert
 			if tc.errorExpected != "" {
 				if assert.Error(t, err) {
 					assert.Contains(t, err.Error(), tc.errorExpected)
@@ -367,8 +367,8 @@ func TestMachineSetSyncing(t *testing.T) {
 						Name:      testClusterID + "-compute",
 						Namespace: remoteClusterAPINamespace,
 						Labels: map[string]string{
-							"cluster":    testClusterID,
-							"machineset": testClusterID + "-compute",
+							"clusteroperator.openshift.io/cluster":    testClusterID,
+							"clusteroperator.openshift.io/machineset": testClusterID + "-compute",
 						},
 					},
 					Spec: clusterapiv1.MachineSetSpec{
@@ -380,8 +380,8 @@ func TestMachineSetSyncing(t *testing.T) {
 						Name:      testClusterID + "-compute2",
 						Namespace: remoteClusterAPINamespace,
 						Labels: map[string]string{
-							"cluster":    testClusterID,
-							"machineset": testClusterID + "-compute2",
+							"clusteroperator.openshift.io/cluster":    testClusterID,
+							"clusteroperator.openshift.io/machineset": testClusterID + "-compute2",
 						},
 					},
 					Spec: clusterapiv1.MachineSetSpec{
@@ -400,8 +400,8 @@ func TestMachineSetSyncing(t *testing.T) {
 						Name:      testClusterID + "-compute",
 						Namespace: remoteClusterAPINamespace,
 						Labels: map[string]string{
-							"cluster":    testClusterID,
-							"machineset": testClusterID + "-compute",
+							"clusteroperator.openshift.io/cluster":    testClusterID,
+							"clusteroperator.openshift.io/machineset": testClusterID + "-compute",
 						},
 					},
 					Spec: clusterapiv1.MachineSetSpec{
@@ -426,6 +426,7 @@ func TestMachineSetSyncing(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
 			ctx := setupTest()
 			tLog := ctx.controller.logger
 
@@ -457,8 +458,11 @@ func TestMachineSetSyncing(t *testing.T) {
 			ctx.clusterStore.Add(&capiCluster)
 
 			ctx.clusterDeploymentStore.Add(tc.clusterDeployment)
+
+			// Act
 			err = ctx.controller.syncClusterDeployment(getKey(tc.clusterDeployment, t))
 
+			// Assert
 			if tc.errorExpected != "" {
 				if assert.Error(t, err) {
 					assert.Contains(t, err.Error(), tc.errorExpected)

@@ -276,6 +276,11 @@ func (c *Controller) syncMachine(key string) error {
 func (c *Controller) processMachine(machine *capiv1.Machine) error {
 	mLog := clustoplog.WithMachine(c.logger, machine)
 
+	clusterID, ok := machine.Labels[clustopv1.ClusterNameLabel]
+	if !ok {
+		return fmt.Errorf("unable to lookup cluster for machine: %s", machine.Name)
+	}
+
 	coMachineSetSpec, err := controller.MachineSetSpecFromClusterAPIMachineSpec(&machine.Spec)
 	if err != nil {
 		return err
@@ -316,11 +321,11 @@ func (c *Controller) processMachine(machine *capiv1.Machine) error {
 	}
 	mLog = mLog.WithField("instanceID", *instance.InstanceId)
 
-	err = c.addInstanceToELB(instance, controller.ELBMasterExternalName(coMachineSetSpec.ClusterID), client, mLog)
+	err = c.addInstanceToELB(instance, controller.ELBMasterExternalName(clusterID), client, mLog)
 	if err != nil {
 		return err
 	}
-	err = c.addInstanceToELB(instance, controller.ELBMasterInternalName(coMachineSetSpec.ClusterID), client, mLog)
+	err = c.addInstanceToELB(instance, controller.ELBMasterInternalName(clusterID), client, mLog)
 	if err != nil {
 		return err
 	}

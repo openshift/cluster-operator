@@ -106,9 +106,9 @@ func GetInstances(machine *clusterv1.Machine, client Client, instanceStateFilter
 
 	machineName := machine.Name
 
-	clusterID, err := getClusterID(machine)
-	if err != nil {
-		return []*ec2.Instance{}, fmt.Errorf("unable to get cluster ID for machine %q: %v", machine.Name, err)
+	clusterID, ok := getClusterID(machine)
+	if !ok {
+		return []*ec2.Instance{}, fmt.Errorf("unable to get cluster ID for machine: %q", machine.Name)
 	}
 
 	requestFilters := []*ec2.Filter{

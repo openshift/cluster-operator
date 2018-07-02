@@ -172,7 +172,6 @@ func testClusterAPIResources(name string) (*clusterv1.Cluster, *clusterv1.Machin
 			Kind:       "MachineSetProviderConfigSpec",
 		},
 		MachineSetSpec: cov1.MachineSetSpec{
-			ClusterID: name,
 			VMImage: cov1.VMImage{
 				AWSImage: awsutil.String("ami-0e8468df91f4e8b6c"),
 			},

@@ -32,6 +32,10 @@ const (
 	// cluster to which it belongs.
 	ClusterNameLabel = "clusteroperator.openshift.io/cluster"
 
+	// MachineSetNameLabel is the label to apply to objects that belong to the
+	// machine set with the name.
+	MachineSetNameLabel = "clusteroperator.openshift.io/machineset"
+
 	// ClusterDeploymentLabel is the label used on clusters to link to the ClusterDeployment that sourced it.
 	ClusterDeploymentLabel = "clusteroperator.openshift.io/cluster-deployment"
 
@@ -599,9 +603,6 @@ type MachineSetConfig struct {
 // MachineSetSpec is the Cluster Operator specification for a Cluster API machine template provider config.
 // TODO: This should be renamed, it is now used on MachineTemplate.Spec.ProviderConfig.
 type MachineSetSpec struct {
-	// ClusterID is the ID of the cluster in the cloud provider.
-	ClusterID string
-
 	// MachineSetConfig is the configuration for the MachineSet
 	MachineSetConfig
 

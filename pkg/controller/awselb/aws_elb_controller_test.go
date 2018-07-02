@@ -277,7 +277,6 @@ func testClusterVersion() *clustopv1.ClusterVersion {
 func testMachine(generation int64, name, clusterName string, nodeType clustopv1.NodeType, isInfra bool, currentStatus *clustopv1.AWSMachineProviderStatus) *capiv1.Machine {
 	testAMI := testImage
 	msSpec := clustopv1.MachineSetSpec{
-		ClusterID: testClusterID,
 		MachineSetConfig: clustopv1.MachineSetConfig{
 			Infra:    isInfra,
 			Size:     3,
