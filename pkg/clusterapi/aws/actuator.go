@@ -551,7 +551,7 @@ write_files:
   owner: 'root:root'
   permissions: '0640'
   content: |
-    openshift_node_config_name: {{ .NodeType }}
+    openshift_node_config_name: node-config-{{ .NodeType }}
 {{- if .IsNode }}
 - path: /etc/origin/node/bootstrap.kubeconfig
   owner: 'root:root'

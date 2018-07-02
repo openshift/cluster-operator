@@ -81,7 +81,7 @@ write_files:
   owner: 'root:root'
   permissions: '0640'
   content: |
-    openshift_node_config_name: master
+    openshift_node_config_name: node-config-master
 runcmd:
 - [ ansible-playbook, /root/openshift_bootstrap/bootstrap.yml]`,
 		},
@@ -95,7 +95,7 @@ write_files:
   owner: 'root:root'
   permissions: '0640'
   content: |
-    openshift_node_config_name: master
+    openshift_node_config_name: node-config-master
 runcmd:
 - [ ansible-playbook, /root/openshift_bootstrap/bootstrap.yml]`,
 		},
@@ -110,7 +110,7 @@ write_files:
   owner: 'root:root'
   permissions: '0640'
   content: |
-    openshift_node_config_name: compute
+    openshift_node_config_name: node-config-compute
 - path: /etc/origin/node/bootstrap.kubeconfig
   owner: 'root:root'
   permissions: '0640'
@@ -134,7 +134,7 @@ write_files:
   owner: 'root:root'
   permissions: '0640'
   content: |
-    openshift_node_config_name: infra
+    openshift_node_config_name: node-config-infra
 - path: /etc/origin/node/bootstrap.kubeconfig
   owner: 'root:root'
   permissions: '0640'
