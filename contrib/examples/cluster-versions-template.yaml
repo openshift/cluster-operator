@@ -43,7 +43,7 @@ objects:
       awsVMImages:
         regionAMIs:
         - region: us-east-1
-          ami: ami-0e8468df91f4e8b6c
+          ami: ami-0dd8ad483cef75c18
     deploymentType: origin
     version: "v3.10.0"
     # TODO: Update after jdiaz incoming work is merged:
