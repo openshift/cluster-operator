@@ -15,7 +15,7 @@
 FROM openshift/origin-ansible:v3.10
 
 ARG CO_ANSIBLE_URL=https://github.com/openshift/openshift-ansible.git
-ARG CO_ANSIBLE_BRANCH=master
+ARG CO_ANSIBLE_BRANCH=release-3.10
 ARG CLONE_LOCATION=/usr/share/ansible/openshift-ansible
 
 USER root
