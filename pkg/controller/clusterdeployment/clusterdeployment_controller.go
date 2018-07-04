@@ -556,6 +556,16 @@ func (c *Controller) syncDeletedClusterDeployment(clusterDeployment *clustop.Clu
 		return fmt.Errorf("error retrieving the cluster %s/%s: %v", clusterDeployment.Namespace, clusterDeployment.Spec.ClusterID, err)
 	}
 
+	if cluster != nil {
+		// Upstream cluster-api automatically adds a finalizer to all Clusters in etcd, but it is only removed
+		// in their cluster controller, which we do not use. Ensure this finalizer is removed from clusters when
+		// a cluster deployment has been deleted.
+		err = c.deleteClusterFinalizer(cluster)
+		if err != nil {
+			return err
+		}
+	}
+
 	// If the cluster was found, but its DeletionTimestamp is already set, return and wait
 	// for it to actually go away.
 	if err == nil && cluster.DeletionTimestamp != nil {
@@ -608,6 +618,7 @@ func (c *Controller) syncCluster(clusterDeployment *clustop.ClusterDeployment, c
 		}
 		return updatedCluster, err
 	}
+
 	return cluster, nil
 }
 
@@ -817,6 +828,13 @@ func (c *Controller) deleteFinalizer(clusterDeployment *clustop.ClusterDeploymen
 	clusterDeployment = clusterDeployment.DeepCopy()
 	controller.DeleteFinalizer(clusterDeployment, clustop.FinalizerClusterDeployment)
 	_, err := c.clustopClient.ClusteroperatorV1alpha1().ClusterDeployments(clusterDeployment.Namespace).UpdateStatus(clusterDeployment)
+	return err
+}
+
+func (c *Controller) deleteClusterFinalizer(cluster *capi.Cluster) error {
+	cluster = cluster.DeepCopy()
+	controller.DeleteFinalizer(cluster, capi.ClusterFinalizer)
+	_, err := c.capiClient.ClusterV1alpha1().Clusters(cluster.Namespace).UpdateStatus(cluster)
 	return err
 }
 
