@@ -17,7 +17,6 @@ limitations under the License.
 package integration
 
 import (
-	"bytes"
 	"fmt"
 	"sync"
 	"testing"
@@ -25,13 +24,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	kbatch "k8s.io/api/batch/v1"
 	kapi "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	serializer "k8s.io/apimachinery/pkg/runtime/serializer"
-	jsonserializer "k8s.io/apimachinery/pkg/runtime/serializer/json"
 	"k8s.io/apimachinery/pkg/watch"
 	kubeinformers "k8s.io/client-go/informers"
 	kubefake "k8s.io/client-go/kubernetes/fake"
@@ -41,7 +38,6 @@ import (
 	_ "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/install"
 
 	servertesting "github.com/openshift/cluster-operator/cmd/cluster-operator-apiserver/app/testing"
-	"github.com/openshift/cluster-operator/pkg/api"
 	clustopv1alpha1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	clustopclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
 	clustopinformers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions"
@@ -91,7 +87,7 @@ func testMachineSet(name string, replicas int32, roles []capicommon.MachineRole,
 					Roles: roles,
 					ProviderConfig: capiv1alpha1.ProviderConfig{
 						Value: func() *runtime.RawExtension {
-							r, _ := controller.ClusterAPIMachineProviderConfigFromMachineSetSpec(&clustopv1alpha1.MachineSetSpec{
+							r, _ := controller.MachineProviderConfigFromMachineSetSpec(&clustopv1alpha1.MachineSetSpec{
 								MachineSetConfig: clustopv1alpha1.MachineSetConfig{
 									Infra: infra,
 								},
@@ -194,7 +190,11 @@ func TestClusterCreate(t *testing.T) {
 					Name:      testClusterVersionName,
 				},
 				Spec: clustopv1alpha1.ClusterVersionSpec{
-					ImageFormat: "openshift/origin-${component}:${version}",
+					Images: clustopv1alpha1.ClusterVersionImages{
+						ImageFormat:                     "openshift/origin-${component}:${version}",
+						OpenshiftAnsibleImage:           func(s string) *string { return &s }("test-ansible-image"),
+						OpenshiftAnsibleImagePullPolicy: func(p kapi.PullPolicy) *kapi.PullPolicy { return &p }(kapi.PullNever),
+					},
 					VMImages: clustopv1alpha1.VMImages{
 						AWSImages: &clustopv1alpha1.AWSVMImages{
 							RegionAMIs: []clustopv1alpha1.AWSRegionAMIs{
@@ -205,10 +205,8 @@ func TestClusterCreate(t *testing.T) {
 							},
 						},
 					},
-					DeploymentType:                  clustopv1alpha1.ClusterDeploymentTypeOrigin,
-					Version:                         "v3.7.0",
-					OpenshiftAnsibleImage:           func(s string) *string { return &s }("test-ansible-image"),
-					OpenshiftAnsibleImagePullPolicy: func(p kapi.PullPolicy) *kapi.PullPolicy { return &p }(kapi.PullNever),
+					DeploymentType: clustopv1alpha1.ClusterDeploymentTypeOrigin,
+					Version:        "v3.7.0",
 				},
 			}
 			clustopClient.ClusteroperatorV1alpha1().ClusterVersions(testNamespace).Create(clusterVersion)
@@ -231,6 +229,11 @@ func TestClusterCreate(t *testing.T) {
 				},
 				MachineSets: tc.machineSets,
 			}
+			providerConfig, err := controller.BuildAWSClusterProviderConfig(clusterDeploymentSpec, clusterVersion.Spec)
+			if !assert.NoError(t, err, "could not create the cluster provider config") {
+				return
+			}
+
 			cluster := &capiv1alpha1.Cluster{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: testNamespace,
@@ -247,12 +250,12 @@ func TestClusterCreate(t *testing.T) {
 						ServiceDomain: "service-domain",
 					},
 					ProviderConfig: capiv1alpha1.ProviderConfig{
-						Value: clusterAPIProviderConfigFromClusterSpec(clusterDeploymentSpec),
+						Value: providerConfig,
 					},
 				},
 			}
 
-			cluster, err := capiClient.ClusterV1alpha1().Clusters(testNamespace).Create(cluster)
+			cluster, err = capiClient.ClusterV1alpha1().Clusters(testNamespace).Create(cluster)
 			if !assert.NoError(t, err, "could not create the cluster") {
 				return
 			}
@@ -517,32 +520,4 @@ func startServerAndControllers(t *testing.T) (
 	}
 
 	return fakeKubeClient, kubeWatch, clustopClient, capiClient, fakeCAPIClient, shutdown
-}
-
-func getCluster(capiClient capiclientset.Interface, namespace, name string) (*capiv1alpha1.Cluster, error) {
-	return capiClient.ClusterV1alpha1().Clusters(namespace).Get(name, metav1.GetOptions{})
-}
-
-func getMachineSet(capiClient capiclientset.Interface, namespace, name string) (*capiv1alpha1.MachineSet, error) {
-	return capiClient.ClusterV1alpha1().MachineSets(namespace).Get(name, metav1.GetOptions{})
-}
-
-func getJob(kubeClient *kubefake.Clientset, namespace, name string) (*kbatch.Job, error) {
-	return kubeClient.Batch().Jobs(namespace).Get(name, metav1.GetOptions{})
-}
-
-func clusterAPIProviderConfigFromClusterSpec(clusterSpec *clustopv1alpha1.ClusterDeploymentSpec) *runtime.RawExtension {
-	clusterProviderConfigSpec := &clustopv1alpha1.ClusterProviderConfigSpec{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: clustopv1alpha1.SchemeGroupVersion.String(),
-			Kind:       "ClusterProviderConfigSpec",
-		},
-		ClusterDeploymentSpec: *clusterSpec,
-	}
-	serializer := jsonserializer.NewSerializer(jsonserializer.DefaultMetaFactory, api.Scheme, api.Scheme, false)
-	var buffer bytes.Buffer
-	serializer.Encode(clusterProviderConfigSpec, &buffer)
-	return &runtime.RawExtension{
-		Raw: buffer.Bytes(),
-	}
 }

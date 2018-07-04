@@ -117,15 +117,13 @@ func TestSync(t *testing.T) {
 			},
 		},
 		{
-			name:               "update cluster and master machineset",
+			// Cluster is not updated here as it no longer contains a copy of the machine set definitions:
+			name:               "update master machineset",
 			clusterDeployment:  testClusterDeploymentWith3Masters(),
 			clusterVersion:     testClusterVersion(),
 			existingCluster:    testCluster(),
 			existingMachineSet: testMasterMachineSet(),
 			expectedCAPIActions: []expectedClientAction{
-				clusterUpdateAction{
-					clusterDeployment: testClusterDeploymentWith3Masters(),
-				},
 				machineSetUpdateAction{
 					clusterDeployment: testClusterDeploymentWith3Masters(),
 					machineSetConfig:  &testClusterDeploymentWith3Masters().Spec.MachineSets[0].MachineSetConfig,
@@ -170,33 +168,35 @@ func TestSync(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		ctx := setupTest()
-		clusterDeployment := tc.clusterDeployment
-		ctx.clusterDeploymentStore.Add(clusterDeployment)
-		if tc.clusterVersion != nil {
-			ctx.clusterVersionStore.Add(testClusterVersion())
-		}
-		if tc.existingCluster != nil {
-			ctx.clusterStore.Add(tc.existingCluster)
-		}
-		if tc.existingMachineSet != nil {
-			ctx.machineSetStore.Add(tc.existingMachineSet)
-		}
-		err := ctx.controller.syncClusterDeployment(getKey(clusterDeployment, t))
-		if err != nil {
-			if !tc.expectErr {
-				t.Errorf("%s: unexpected: %v", tc.name, err)
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := setupTest()
+			clusterDeployment := tc.clusterDeployment
+			ctx.clusterDeploymentStore.Add(clusterDeployment)
+			if tc.clusterVersion != nil {
+				ctx.clusterVersionStore.Add(testClusterVersion())
 			}
-		}
-		if err == nil && tc.expectErr {
-			t.Errorf("%s: expected error", tc.name)
-		}
-		if tc.expectedCAPIActions != nil {
-			validateClientActions(t, tc.name, &ctx.capiClient.Fake, tc.expectedCAPIActions...)
-		}
-		if tc.expectedClustopActions != nil {
-			validateClientActions(t, tc.name, &ctx.clustopClient.Fake, tc.expectedClustopActions...)
-		}
+			if tc.existingCluster != nil {
+				ctx.clusterStore.Add(tc.existingCluster)
+			}
+			if tc.existingMachineSet != nil {
+				ctx.machineSetStore.Add(tc.existingMachineSet)
+			}
+			err := ctx.controller.syncClusterDeployment(getKey(clusterDeployment, t))
+			if err != nil {
+				if !tc.expectErr {
+					t.Errorf("%s: unexpected: %v", tc.name, err)
+				}
+			}
+			if err == nil && tc.expectErr {
+				t.Errorf("%s: expected error", tc.name)
+			}
+			if tc.expectedCAPIActions != nil {
+				validateClientActions(t, tc.name, &ctx.capiClient.Fake, tc.expectedCAPIActions...)
+			}
+			if tc.expectedClustopActions != nil {
+				validateClientActions(t, tc.name, &ctx.clustopClient.Fake, tc.expectedClustopActions...)
+			}
+		})
 	}
 }
 
@@ -360,15 +360,15 @@ func testDeletedClusterDeployment() *clustop.ClusterDeployment {
 
 func testCluster() *capi.Cluster {
 	clusterDeployment := testClusterDeployment()
-	cluster, _ := controller.BuildCluster(clusterDeployment)
+	cluster, _ := controller.BuildCluster(clusterDeployment, testClusterVersion().Spec)
 	return cluster
 }
 
 func provisionedCluster() *capi.Cluster {
 	cluster := testCluster()
-	clusterStatus, _ := controller.ClusterStatusFromClusterAPI(cluster)
+	clusterStatus, _ := controller.ClusterProviderStatusFromCluster(cluster)
 	clusterStatus.Provisioned = true
-	cluster.Status.ProviderStatus, _ = controller.ClusterAPIProviderStatusFromClusterStatus(clusterStatus)
+	cluster.Status.ProviderStatus, _ = controller.EncodeClusterProviderStatus(clusterStatus)
 	return cluster
 }
 
@@ -393,7 +393,9 @@ func testClusterVersion() *clustop.ClusterVersion {
 			Namespace: testClusterVerNS,
 		},
 		Spec: clustop.ClusterVersionSpec{
-			ImageFormat: "openshift/origin-${component}:${version}",
+			Images: clustop.ClusterVersionImages{
+				ImageFormat: "openshift/origin-${component}:${version}",
+			},
 			VMImages: clustop.VMImages{
 				AWSImages: &clustop.AWSVMImages{
 					RegionAMIs: []clustop.AWSRegionAMIs{
@@ -451,7 +453,7 @@ func (a clusterCreatedAction) validate(t *testing.T, testName string, action cli
 		t.Errorf("%s: cluster deployment label does not match cluster deployment name", testName)
 		return false
 	}
-	providerConfig, err := controller.ClusterProviderConfigSpecFromClusterDeploymentSpec(&a.clusterDeployment.Spec)
+	providerConfig, err := controller.BuildAWSClusterProviderConfig(&a.clusterDeployment.Spec, testClusterVersion().Spec)
 	if err != nil {
 		t.Errorf("%s: cannot obtain provider config from cluster deployment: %v", testName, err)
 		return false
@@ -487,7 +489,7 @@ func (a clusterUpdateAction) validate(t *testing.T, testName string, action clie
 		t.Errorf("%s: updated object is not a cluster: %t", testName, updatedObject)
 		return false
 	}
-	providerConfig, err := controller.ClusterProviderConfigSpecFromClusterDeploymentSpec(&a.clusterDeployment.Spec)
+	providerConfig, err := controller.BuildAWSClusterProviderConfig(&a.clusterDeployment.Spec, testClusterVersion().Spec)
 	if err != nil {
 		t.Errorf("%s: cannot obtain provider config from cluster deployment: %v", testName, err)
 		return false
@@ -624,7 +626,7 @@ func (a clusterDeploymentFinalizerAddedAction) validate(t *testing.T, testName s
 
 type clusterDeploymentStatusUpdateAction struct {
 	clusterDeployment *clustop.ClusterDeployment
-	condition         clustop.ClusterConditionType
+	condition         clustop.ClusterDeploymentConditionType
 }
 
 func (a clusterDeploymentStatusUpdateAction) resource() schema.GroupVersionResource {
@@ -662,7 +664,7 @@ func (a clusterDeploymentStatusUpdateAction) validate(t *testing.T, testName str
 		return false
 	}
 
-	clusterDeploymentCondition := controller.FindClusterCondition(&resultClusterDeployment.Status, a.condition)
+	clusterDeploymentCondition := controller.FindClusterDeploymentCondition(resultClusterDeployment.Status.Conditions, a.condition)
 	if clusterDeploymentCondition == nil {
 		t.Errorf("%s: did not find expected cluster condition %s", testName, a.condition)
 		return false

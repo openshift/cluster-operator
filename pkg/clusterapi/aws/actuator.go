@@ -135,13 +135,9 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 	isMaster := controller.MachineHasRole(machine, capicommon.MasterRole)
 
 	// Extract cluster operator cluster
-	clusterSpec, err := controller.ClusterDeploymentSpecFromCluster(cluster)
+	clusterSpec, err := controller.AWSClusterProviderConfigFromCluster(cluster)
 	if err != nil {
 		return nil, err
-	}
-
-	if clusterSpec.Hardware.AWS == nil {
-		return nil, fmt.Errorf("Cluster does not contain an AWS hardware spec")
 	}
 
 	coMachineSetSpec, err := controller.MachineSetSpecFromClusterAPIMachineSpec(&machine.Spec)
@@ -149,7 +145,7 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 		return nil, err
 	}
 
-	region := clusterSpec.Hardware.AWS.Region
+	region := clusterSpec.Hardware.Region
 	mLog.Debugf("Obtaining EC2 client for region %q", region)
 	client, err := a.clientBuilder(a.kubeClient, coMachineSetSpec, machine.Namespace, region)
 	if err != nil {
@@ -186,7 +182,7 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 	}
 
 	// Describe VPC
-	vpcName := clusterSpec.ClusterID
+	vpcName := cluster.Name
 	vpcNameFilter := "tag:Name"
 	describeVpcsRequest := ec2.DescribeVpcsInput{
 		Filters: []*ec2.Filter{{Name: &vpcNameFilter, Values: []*string{&vpcName}}},
@@ -261,10 +257,10 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 
 	// Add tags to the created machine
 	tagList := []*ec2.Tag{
-		{Key: aws.String("clusterid"), Value: aws.String(clusterSpec.ClusterID)},
+		{Key: aws.String("clusterid"), Value: aws.String(cluster.Name)},
 		{Key: aws.String("host-type"), Value: aws.String(hostType)},
 		{Key: aws.String("sub-host-type"), Value: aws.String(subHostType)},
-		{Key: aws.String("kubernetes.io/cluster/" + clusterSpec.ClusterID), Value: aws.String(clusterSpec.ClusterID)},
+		{Key: aws.String("kubernetes.io/cluster/" + cluster.Name), Value: aws.String(cluster.Name)},
 		{Key: aws.String("openshift-node-group-config"), Value: aws.String(nodeGroupConfigName)},
 		{Key: aws.String("Name"), Value: aws.String(machine.Name)},
 	}
@@ -311,7 +307,7 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 		InstanceType: aws.String(coMachineSetSpec.Hardware.AWS.InstanceType),
 		MinCount:     aws.Int64(1),
 		MaxCount:     aws.Int64(1),
-		KeyName:      aws.String(clusterSpec.Hardware.AWS.KeyPairName),
+		KeyName:      aws.String(clusterSpec.Hardware.KeyPairName),
 		IamInstanceProfile: &ec2.IamInstanceProfileSpecification{
 			Name: aws.String(iamRole(machine)),
 		},
@@ -381,13 +377,9 @@ func (a *Actuator) Update(cluster *clusterv1.Cluster, machine *clusterv1.Machine
 	mLog := clustoplog.WithMachine(a.logger, machine)
 	mLog.Debugf("updating machine")
 
-	clusterSpec, err := controller.ClusterDeploymentSpecFromCluster(cluster)
+	clusterSpec, err := controller.AWSClusterProviderConfigFromCluster(cluster)
 	if err != nil {
 		return err
-	}
-
-	if clusterSpec.Hardware.AWS == nil {
-		return fmt.Errorf("Cluster does not contain an AWS hardware spec")
 	}
 
 	coMachineSetSpec, err := controller.MachineSetSpecFromClusterAPIMachineSpec(&machine.Spec)
@@ -395,7 +387,7 @@ func (a *Actuator) Update(cluster *clusterv1.Cluster, machine *clusterv1.Machine
 		return err
 	}
 
-	region := clusterSpec.Hardware.AWS.Region
+	region := clusterSpec.Hardware.Region
 	mLog.WithField("region", region).Debugf("obtaining EC2 client for region")
 	client, err := a.clientBuilder(a.kubeClient, coMachineSetSpec, machine.Namespace, region)
 	if err != nil {
@@ -509,7 +501,7 @@ func (a *Actuator) updateStatus(machine *clusterv1.Machine, instance *ec2.Instan
 		awsStatus.LastELBSync = nil
 	}
 
-	awsStatusRaw, err := controller.ClusterAPIMachineProviderStatusFromAWSMachineProviderStatus(awsStatus)
+	awsStatusRaw, err := controller.EncodeAWSMachineProviderStatus(awsStatus)
 	if err != nil {
 		mLog.Errorf("error encoding AWS provider status: %v", err)
 		return err

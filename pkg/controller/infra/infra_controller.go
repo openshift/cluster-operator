@@ -305,19 +305,7 @@ func (s *jobSyncStrategy) DoesOwnerNeedProcessing(owner metav1.Object) bool {
 		return false
 	}
 
-	// cannot run ansible jobs until the ClusterVersion has been resolved
-	if cluster.ClusterDeploymentStatus.ClusterVersionRef == nil {
-		// staebler: Temporary work-around until we have a controller that sets
-		// the ClusterVersionRef for cluster-api clusters.
-		_, err := s.controller.coClient.ClusteroperatorV1alpha1().
-			ClusterVersions(cluster.ClusterDeploymentSpec.ClusterVersionRef.Namespace).
-			Get(cluster.ClusterDeploymentSpec.ClusterVersionRef.Name, metav1.GetOptions{})
-		if err != nil {
-			return false
-		}
-	}
-
-	return cluster.ClusterDeploymentStatus.ProvisionedJobGeneration != cluster.Generation
+	return cluster.ClusterProviderStatus.ProvisionedJobGeneration != cluster.Generation
 }
 
 func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object, deleting bool) (controller.JobFactory, error) {
@@ -325,11 +313,8 @@ func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object, deleting bool) (con
 	if err != nil {
 		return nil, fmt.Errorf("could not convert owner from JobSync into a cluster: %v: %#v", err, owner)
 	}
-	cvRef := cluster.ClusterDeploymentSpec.ClusterVersionRef
-	cv, err := s.controller.coClient.Clusteroperator().ClusterVersions(cvRef.Namespace).Get(cvRef.Name, metav1.GetOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("could not get the ClusterVersion: %v", err)
-	}
+	cv := cluster.AWSClusterProviderConfig.OpenShiftConfig.Version
+
 	infraSize, err := controller.GetInfraSize(cluster)
 	if err != nil {
 		return nil, fmt.Errorf("could not get the infra size: %v", err)
@@ -375,8 +360,8 @@ func (s *jobSyncStrategy) SetOwnerJobSyncCondition(
 		s.controller.logger.Warnf("could not convert owner from JobSync into a cluster: %v: %#v", err, owner)
 		return
 	}
-	controller.SetClusterCondition(
-		cluster.ClusterDeploymentStatus,
+	cluster.ClusterProviderStatus.Conditions = controller.SetClusterCondition(
+		cluster.ClusterProviderStatus.Conditions,
 		convertJobSyncConditionType(conditionType),
 		status,
 		reason,
@@ -391,8 +376,8 @@ func (s *jobSyncStrategy) OnJobCompletion(owner metav1.Object, job *v1batch.Job,
 		s.controller.logger.Warnf("could not convert owner from JobSync into a cluster: %v: %#v", err, owner)
 		return
 	}
-	cluster.ClusterDeploymentStatus.Provisioned = succeeded
-	cluster.ClusterDeploymentStatus.ProvisionedJobGeneration = cluster.Generation
+	cluster.ClusterProviderStatus.Provisioned = succeeded
+	cluster.ClusterProviderStatus.ProvisionedJobGeneration = cluster.Generation
 }
 
 func (s *jobSyncStrategy) UpdateOwnerStatus(original, owner metav1.Object) error {

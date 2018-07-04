@@ -287,7 +287,6 @@ openshift_aws_node_groups:
 
 openshift_release: "[[ .Release ]]"
 oreg_url: [[ .ImageFormat ]]
-openshift_aws_ami: [[ .AMI ]]
 `
 	DefaultInventory = `
 [OSEv3:children]
@@ -323,16 +322,8 @@ type clusterParams struct {
 	MachineControllerImagePullPolicy corev1.PullPolicy
 }
 
-type machineSetParams struct {
-	Name         string
-	Size         int
-	AMI          string
-	InstanceType string
-}
-
 type clusterVersionParams struct {
 	Release     string
-	AMI         string
 	ImageFormat string
 }
 
@@ -340,15 +331,10 @@ type clusterVersionParams struct {
 // that are set at the cluster level.
 func GenerateClusterWideVars(
 	clusterID string,
-	hardwareSpec *coapi.ClusterHardwareSpec,
-	clusterVersion *coapi.ClusterVersion,
+	hardwareSpec coapi.AWSClusterSpec,
+	version coapi.OpenShiftConfigVersion,
 	infraSize int,
 ) (string, error) {
-
-	// Currently only AWS is supported. If we don't have an AWS cluster spec, return an error
-	if hardwareSpec.AWS == nil {
-		return "", fmt.Errorf("no AWS spec found in the cluster, only AWS is currently supported")
-	}
 
 	// Change template delimiters to avoid conflict with {{ }} use in ansible vars:
 	t, err := template.New("clustervars").Delims("[[", "]]").Parse(clusterVarsTemplate)
@@ -358,31 +344,31 @@ func GenerateClusterWideVars(
 
 	params := clusterParams{
 		ClusterID:             clusterID,
-		Region:                hardwareSpec.AWS.Region,
-		SSHKeyName:            hardwareSpec.AWS.KeyPairName,
-		SSHUser:               hardwareSpec.AWS.SSHUser,
+		Region:                hardwareSpec.Region,
+		SSHKeyName:            hardwareSpec.KeyPairName,
+		SSHUser:               hardwareSpec.SSHUser,
 		ELBMasterExternalName: controller.ELBMasterExternalName(clusterID),
 		ELBMasterInternalName: controller.ELBMasterInternalName(clusterID),
 		ELBInfraName:          controller.ELBInfraName(clusterID),
 		VPCDefaults:           vpcDefaults,
-		DeploymentType:        clusterVersion.Spec.DeploymentType,
+		DeploymentType:        version.DeploymentType,
 		InfraSize:             infraSize,
 	}
 
-	if clusterVersion.Spec.ClusterAPIImage != nil {
-		params.ClusterAPIImage = *clusterVersion.Spec.ClusterAPIImage
+	if version.Images.ClusterAPIImage != nil {
+		params.ClusterAPIImage = *version.Images.ClusterAPIImage
 	}
 
-	if clusterVersion.Spec.ClusterAPIImagePullPolicy != nil {
-		params.ClusterAPIImagePullPolicy = *clusterVersion.Spec.ClusterAPIImagePullPolicy
+	if version.Images.ClusterAPIImagePullPolicy != nil {
+		params.ClusterAPIImagePullPolicy = *version.Images.ClusterAPIImagePullPolicy
 	}
 
-	if clusterVersion.Spec.MachineControllerImage != nil {
-		params.MachineControllerImage = *clusterVersion.Spec.MachineControllerImage
+	if version.Images.MachineControllerImage != nil {
+		params.MachineControllerImage = *version.Images.MachineControllerImage
 	}
 
-	if clusterVersion.Spec.MachineControllerImagePullPolicy != nil {
-		params.MachineControllerImagePullPolicy = *clusterVersion.Spec.MachineControllerImagePullPolicy
+	if version.Images.MachineControllerImagePullPolicy != nil {
+		params.MachineControllerImagePullPolicy = *version.Images.MachineControllerImagePullPolicy
 	}
 
 	var buf bytes.Buffer
@@ -391,18 +377,6 @@ func GenerateClusterWideVars(
 		return "", err
 	}
 	return buf.String(), nil
-}
-
-func lookupAMIForMachineSet(isMaster bool, clusterHardware *coapi.ClusterHardwareSpec, clusterVersion *coapi.ClusterVersion) (string, error) {
-	for _, regionAMI := range clusterVersion.Spec.VMImages.AWSImages.RegionAMIs {
-		if regionAMI.Region == clusterHardware.AWS.Region {
-			if isMaster && regionAMI.MasterAMI != nil {
-				return *regionAMI.MasterAMI, nil
-			}
-			return regionAMI.AMI, nil
-		}
-	}
-	return "", fmt.Errorf("no AMI defined for cluster version %s/%s in region %v", clusterVersion.Namespace, clusterVersion.Name, clusterHardware.AWS.Region)
 }
 
 // convertVersionToRelease converts an OpenShift version string to it's major release. (i.e. 3.9.0 -> 3.9)
@@ -421,7 +395,7 @@ func convertVersionToRelease(version string) (string, error) {
 // GenerateClusterWideVarsForMachineSet generates the vars to pass to the
 // ansible playbook that are set at the cluster level for a machine set in
 // that cluster.
-func GenerateClusterWideVarsForMachineSet(isMaster bool, clusterID string, clusterHardware *coapi.ClusterHardwareSpec, clusterVersion *coapi.ClusterVersion) (string, error) {
+func GenerateClusterWideVarsForMachineSet(isMaster bool, clusterID string, clusterHardware coapi.AWSClusterSpec, clusterVersion coapi.OpenShiftConfigVersion) (string, error) {
 	// since we haven't been passed an infraSize, just assume minimum size of 1
 	return GenerateClusterWideVarsForMachineSetWithInfraSize(isMaster, clusterID, clusterHardware, clusterVersion, 1)
 }
@@ -432,8 +406,8 @@ func GenerateClusterWideVarsForMachineSet(isMaster bool, clusterID string, clust
 func GenerateClusterWideVarsForMachineSetWithInfraSize(
 	isMaster bool,
 	clusterID string,
-	clusterHardware *coapi.ClusterHardwareSpec,
-	clusterVersion *coapi.ClusterVersion,
+	clusterHardware coapi.AWSClusterSpec,
+	clusterVersion coapi.OpenShiftConfigVersion,
 	infraSize int,
 ) (string, error) {
 	commonVars, err := GenerateClusterWideVars(clusterID, clusterHardware, clusterVersion, infraSize)
@@ -447,20 +421,14 @@ func GenerateClusterWideVarsForMachineSetWithInfraSize(
 		return "", err
 	}
 
-	release, err := convertVersionToRelease(clusterVersion.Spec.Version)
-	if err != nil {
-		return "", err
-	}
-
-	amiID, err := lookupAMIForMachineSet(isMaster, clusterHardware, clusterVersion)
+	release, err := convertVersionToRelease(clusterVersion.Version)
 	if err != nil {
 		return "", err
 	}
 
 	params := &clusterVersionParams{
 		Release:     release,
-		AMI:         amiID,
-		ImageFormat: clusterVersion.Spec.ImageFormat,
+		ImageFormat: clusterVersion.Images.ImageFormat,
 	}
 
 	err = t.Execute(&buf, params)

@@ -125,10 +125,11 @@ func TestClusterSyncing(t *testing.T) {
 					gvr:       clusterapiv1.SchemeGroupVersion.WithResource("clusters"),
 				},
 			},
-			clusterDeployment: newTestClusterDeployment(true),
+			clusterDeployment: newTestClusterDeployment(),
+			controlPlaneReady: true,
 			remoteClusters: func(t *testing.T, clusterDeployment *cov1.ClusterDeployment) []clusterapiv1.Cluster {
 				clusters := []clusterapiv1.Cluster{}
-				cluster := newCapiCluster(t, clusterDeployment)
+				cluster := newCapiCluster(t, clusterDeployment, true)
 				cluster.Namespace = remoteClusterAPINamespace
 
 				clusters = append(clusters, cluster)
@@ -144,7 +145,8 @@ func TestClusterSyncing(t *testing.T) {
 					gvr:       clusterapiv1.SchemeGroupVersion.WithResource("clusters"),
 				},
 			},
-			clusterDeployment: newTestClusterDeployment(true),
+			clusterDeployment: newTestClusterDeployment(),
+			controlPlaneReady: true,
 		},
 		{
 			name: "remote cluster difference",
@@ -155,11 +157,12 @@ func TestClusterSyncing(t *testing.T) {
 					gvr:       clusterapiv1.SchemeGroupVersion.WithResource("clusters"),
 				},
 			},
-			clusterDeployment: newTestClusterDeployment(true),
+			clusterDeployment: newTestClusterDeployment(),
+			controlPlaneReady: true,
 			remoteClusters: func(t *testing.T, clusterDeployment *cov1.ClusterDeployment) []clusterapiv1.Cluster {
 
 				clusterList := []clusterapiv1.Cluster{}
-				cluster := newCapiCluster(t, clusterDeployment)
+				cluster := newCapiCluster(t, clusterDeployment, true)
 				cluster.Namespace = remoteClusterAPINamespace
 
 				cluster.Spec.ProviderConfig.Value = &kruntime.RawExtension{
@@ -227,7 +230,7 @@ func TestClusterSyncing(t *testing.T) {
 			}
 
 			// create cluster api cluster object
-			capiCluster := newCapiCluster(t, tc.clusterDeployment)
+			capiCluster := newCapiCluster(t, tc.clusterDeployment, tc.controlPlaneReady)
 
 			// Mock that the informer's cache has a cluster api cluster object in it.
 			ctx.clusterStore.Add(&capiCluster)
@@ -277,7 +280,8 @@ func TestMachineSetSyncing(t *testing.T) {
 					gvr:       clusterapiv1.SchemeGroupVersion.WithResource("machinesets"),
 				},
 			},
-			clusterDeployment: newTestClusterDeployment(false),
+			clusterDeployment: newTestClusterDeployment(),
+			controlPlaneReady: false,
 		},
 		{
 			name: "creates initial machine set",
@@ -288,7 +292,8 @@ func TestMachineSetSyncing(t *testing.T) {
 					gvr:       clusterapiv1.SchemeGroupVersion.WithResource("machinesets"),
 				},
 			},
-			clusterDeployment: newTestClusterWithCompute(true),
+			clusterDeployment: newTestClusterWithCompute(),
+			controlPlaneReady: true,
 		},
 		{
 			name: "no-op when machineset already on remote",
@@ -299,7 +304,8 @@ func TestMachineSetSyncing(t *testing.T) {
 					gvr:       clusterapiv1.SchemeGroupVersion.WithResource("machinesets"),
 				},
 			},
-			clusterDeployment: newTestClusterWithCompute(true),
+			clusterDeployment: newTestClusterWithCompute(),
+			controlPlaneReady: true,
 			remoteMachineSets: []clusterapiv1.MachineSet{
 				{
 					ObjectMeta: metav1.ObjectMeta{
@@ -321,7 +327,8 @@ func TestMachineSetSyncing(t *testing.T) {
 					gvr:       clusterapiv1.SchemeGroupVersion.WithResource("machinesets"),
 				},
 			},
-			clusterDeployment: newTestClusterWithCompute(true),
+			clusterDeployment: newTestClusterWithCompute(),
+			controlPlaneReady: true,
 			remoteMachineSets: []clusterapiv1.MachineSet{
 				{
 					ObjectMeta: metav1.ObjectMeta{
@@ -344,10 +351,11 @@ func TestMachineSetSyncing(t *testing.T) {
 				},
 			},
 			clusterDeployment: func() *cov1.ClusterDeployment {
-				cluster := newTestClusterWithCompute(true)
+				cluster := newTestClusterWithCompute()
 				cluster = addMachineSetToCluster(cluster, "compute2", cov1.NodeTypeCompute, false, 1)
 				return cluster
 			}(),
+			controlPlaneReady: true,
 			remoteMachineSets: []clusterapiv1.MachineSet{
 				{
 					ObjectMeta: metav1.ObjectMeta{
@@ -369,7 +377,8 @@ func TestMachineSetSyncing(t *testing.T) {
 					gvr:       clusterapiv1.SchemeGroupVersion.WithResource("machinesets"),
 				},
 			},
-			clusterDeployment: newTestClusterWithCompute(true),
+			clusterDeployment: newTestClusterWithCompute(),
+			controlPlaneReady: true,
 			remoteMachineSets: []clusterapiv1.MachineSet{
 				{
 					ObjectMeta: metav1.ObjectMeta{
@@ -402,6 +411,7 @@ func TestMachineSetSyncing(t *testing.T) {
 		{
 			name:              "delete remote machinesets",
 			clusterDeployment: newDeletedTestClusterWithCompute(),
+			controlPlaneReady: true,
 			remoteMachineSets: []clusterapiv1.MachineSet{
 				{
 					ObjectMeta: metav1.ObjectMeta{
@@ -456,7 +466,7 @@ func TestMachineSetSyncing(t *testing.T) {
 			}
 
 			// create cluster api cluster object
-			capiCluster := newCapiCluster(t, tc.clusterDeployment)
+			capiCluster := newCapiCluster(t, tc.clusterDeployment, tc.controlPlaneReady)
 			ctx.clusterStore.Add(&capiCluster)
 
 			ctx.clusterDeploymentStore.Add(tc.clusterDeployment)
@@ -534,7 +544,7 @@ func getKey(clusterDeployment *cov1.ClusterDeployment, t *testing.T) string {
 	return key
 }
 
-func newCapiCluster(t *testing.T, clusterDeployment *cov1.ClusterDeployment) clusterapiv1.Cluster {
+func newCapiCluster(t *testing.T, clusterDeployment *cov1.ClusterDeployment, controlPlaneReady bool) clusterapiv1.Cluster {
 	cluster := clusterapiv1.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      clusterDeployment.Spec.ClusterID,
@@ -553,13 +563,18 @@ func newCapiCluster(t *testing.T, clusterDeployment *cov1.ClusterDeployment) clu
 		},
 	}
 
-	providerStatus, err := controller.ClusterAPIProviderStatusFromClusterStatus(&clusterDeployment.Status)
+	status := &cov1.ClusterProviderStatus{
+		ClusterAPIInstalled:   controlPlaneReady,
+		ControlPlaneInstalled: controlPlaneReady,
+	}
+	providerStatus, err := controller.EncodeClusterProviderStatus(status)
 	if err != nil {
 		t.Fatalf("error getting provider status from clusterdeployment: %v", err)
 	}
 	cluster.Status.ProviderStatus = providerStatus
 
-	providerConfig, err := controller.ClusterProviderConfigSpecFromClusterDeploymentSpec(&clusterDeployment.Spec)
+	cv := newClusterVer(testClusterVerNS, testClusterVerName, testClusterVerUID)
+	providerConfig, err := controller.BuildAWSClusterProviderConfig(&clusterDeployment.Spec, cv.Spec)
 	if err != nil {
 		t.Fatalf("error getting provider config from clusterdeployment: %v", err)
 	}
@@ -593,7 +608,9 @@ func newClusterVer(namespace, name string, uid types.UID) *cov1.ClusterVersion {
 			Namespace: namespace,
 		},
 		Spec: cov1.ClusterVersionSpec{
-			ImageFormat: "openshift/origin-${component}:${version}",
+			Images: cov1.ClusterVersionImages{
+				ImageFormat: "openshift/origin-${component}:${version}",
+			},
 			VMImages: cov1.VMImages{
 				AWSImages: &cov1.AWSVMImages{
 					RegionAMIs: []cov1.AWSRegionAMIs{
@@ -609,20 +626,20 @@ func newClusterVer(namespace, name string, uid types.UID) *cov1.ClusterVersion {
 	return cv
 }
 
-func newTestClusterWithCompute(controlPlaneReady bool) *cov1.ClusterDeployment {
-	cluster := newTestClusterDeployment(controlPlaneReady)
+func newTestClusterWithCompute() *cov1.ClusterDeployment {
+	cluster := newTestClusterDeployment()
 	cluster = addMachineSetToCluster(cluster, "compute", cov1.NodeTypeCompute, false, 1)
 	return cluster
 }
 
 func newDeletedTestClusterWithCompute() *cov1.ClusterDeployment {
-	clusterDeployment := newTestClusterDeployment(true)
+	clusterDeployment := newTestClusterDeployment()
 	now := metav1.Now()
 	clusterDeployment.DeletionTimestamp = &now
 	return clusterDeployment
 }
 
-func newTestClusterDeployment(controlPlaneReady bool) *cov1.ClusterDeployment {
+func newTestClusterDeployment() *cov1.ClusterDeployment {
 	clusterDeployment := &cov1.ClusterDeployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       testClusterName,
@@ -652,16 +669,12 @@ func newTestClusterDeployment(controlPlaneReady bool) *cov1.ClusterDeployment {
 				Namespace: testClusterVerNS,
 			},
 		},
-		Status: cov1.ClusterDeploymentStatus{
-			ClusterAPIInstalled:   controlPlaneReady,
-			ControlPlaneInstalled: controlPlaneReady,
-		},
 	}
 	return clusterDeployment
 }
 
 func newTestClusterDeploymentWithoutFinalizer() *cov1.ClusterDeployment {
-	clusterDeployment := newTestClusterDeployment(false)
+	clusterDeployment := newTestClusterDeployment()
 	clusterDeployment.Finalizers = []string{}
 	return clusterDeployment
 }

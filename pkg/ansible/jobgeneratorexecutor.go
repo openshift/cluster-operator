@@ -29,7 +29,7 @@ type JobGeneratorExecutor struct {
 	jobGenerator        JobGenerator
 	playbooks           []string
 	cluster             *clustop.CombinedCluster
-	clusterVersion      *clustop.ClusterVersion
+	clusterVersion      clustop.OpenShiftConfigVersion
 	forCluster          bool
 	forMasterMachineSet bool
 	infraSize           *int
@@ -38,7 +38,7 @@ type JobGeneratorExecutor struct {
 
 // NewJobGeneratorExecutorForCluster creates a JobGeneratorExecutor
 // that creates a job for the cluster.
-func NewJobGeneratorExecutorForCluster(jobGenerator JobGenerator, playbooks []string, cluster *clustop.CombinedCluster, clusterVersion *clustop.ClusterVersion, infraSize int) *JobGeneratorExecutor {
+func NewJobGeneratorExecutorForCluster(jobGenerator JobGenerator, playbooks []string, cluster *clustop.CombinedCluster, clusterVersion clustop.OpenShiftConfigVersion, infraSize int) *JobGeneratorExecutor {
 	return &JobGeneratorExecutor{
 		jobGenerator:   jobGenerator,
 		playbooks:      playbooks,
@@ -51,25 +51,13 @@ func NewJobGeneratorExecutorForCluster(jobGenerator JobGenerator, playbooks []st
 
 // NewJobGeneratorExecutorForMasterMachineSet creates a JobGeneratorExecutor
 // that creates a job for the master machine set of a cluster.
-func NewJobGeneratorExecutorForMasterMachineSet(jobGenerator JobGenerator, playbooks []string, cluster *clustop.CombinedCluster, clusterVersion *clustop.ClusterVersion) *JobGeneratorExecutor {
+func NewJobGeneratorExecutorForMasterMachineSet(jobGenerator JobGenerator, playbooks []string, cluster *clustop.CombinedCluster, clusterVersion clustop.OpenShiftConfigVersion) *JobGeneratorExecutor {
 	return &JobGeneratorExecutor{
 		jobGenerator:        jobGenerator,
 		playbooks:           playbooks,
 		cluster:             cluster,
 		clusterVersion:      clusterVersion,
 		forMasterMachineSet: true,
-	}
-}
-
-// NewJobGeneratorExecutorForComputeMachineSet creates a JobGeneratorExecutor
-// that creates a job for the compute machine sets of a cluster.
-func NewJobGeneratorExecutorForComputeMachineSet(jobGenerator JobGenerator, playbooks []string, cluster *clustop.CombinedCluster, clusterVersion *clustop.ClusterVersion) *JobGeneratorExecutor {
-	return &JobGeneratorExecutor{
-		jobGenerator:        jobGenerator,
-		playbooks:           playbooks,
-		cluster:             cluster,
-		clusterVersion:      clusterVersion,
-		forMasterMachineSet: false,
 	}
 }
 
@@ -82,23 +70,23 @@ func (e *JobGeneratorExecutor) Execute(name string) (*kbatch.Job, *kapi.ConfigMa
 	switch {
 	case e.forCluster:
 		vars, err = GenerateClusterWideVars(
-			e.cluster.ClusterDeploymentSpec.ClusterID,
-			&e.cluster.ClusterDeploymentSpec.Hardware,
+			e.cluster.Name,
+			e.cluster.AWSClusterProviderConfig.Hardware,
 			e.clusterVersion,
 			*e.infraSize,
 		)
 	case e.infraSize == nil:
 		vars, err = GenerateClusterWideVarsForMachineSet(
 			e.forMasterMachineSet,
-			e.cluster.ClusterDeploymentSpec.ClusterID,
-			&e.cluster.ClusterDeploymentSpec.Hardware,
+			e.cluster.Name,
+			e.cluster.AWSClusterProviderConfig.Hardware,
 			e.clusterVersion,
 		)
 	default:
 		vars, err = GenerateClusterWideVarsForMachineSetWithInfraSize(
 			e.forMasterMachineSet,
-			e.cluster.ClusterDeploymentSpec.ClusterID,
-			&e.cluster.ClusterDeploymentSpec.Hardware,
+			e.cluster.Name,
+			e.cluster.AWSClusterProviderConfig.Hardware,
 			e.clusterVersion,
 			*e.infraSize,
 		)
@@ -114,7 +102,7 @@ func (e *JobGeneratorExecutor) Execute(name string) (*kbatch.Job, *kapi.ConfigMa
 	if e.serviceAccount == nil {
 		job, configMap = e.jobGenerator.GeneratePlaybooksJob(
 			name,
-			&e.cluster.ClusterDeploymentSpec.Hardware,
+			e.cluster.AWSClusterProviderConfig.Hardware,
 			e.playbooks,
 			DefaultInventory,
 			vars,
@@ -124,7 +112,7 @@ func (e *JobGeneratorExecutor) Execute(name string) (*kbatch.Job, *kapi.ConfigMa
 	} else {
 		job, configMap = e.jobGenerator.GeneratePlaybooksJobWithServiceAccount(
 			name,
-			&e.cluster.ClusterDeploymentSpec.Hardware,
+			e.cluster.AWSClusterProviderConfig.Hardware,
 			e.playbooks,
 			DefaultInventory,
 			vars,

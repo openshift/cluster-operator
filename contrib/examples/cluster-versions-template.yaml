@@ -23,7 +23,7 @@ parameters:
   descrition: Policy to use when pulling the Cluster API image on the target cluster
   value: Always
 - name: MACHINE_CONTROLLER_IMAGE
-  displayName: Machine Controller Image 
+  displayName: Machine Controller Image
   descrition: Name and tag of the image to use for the machine controller on the target cluster
 - name: MACHINE_CONTROLLER_IMAGE_PULL_POLICY
   displayName: Cluster API Image Pull Policy
@@ -38,7 +38,6 @@ objects:
     name: origin-v3-10
     namespace: ${CLUSTER_VERSION_NS}
   spec:
-    imageFormat: "openshift/origin-${component}:v3.10.0"
     vmImages:
       awsVMImages:
         regionAMIs:
@@ -46,10 +45,12 @@ objects:
           ami: ami-0dd8ad483cef75c18
     deploymentType: origin
     version: "v3.10.0"
-    # TODO: Update after jdiaz incoming work is merged:
-    openshiftAnsibleImage: "${ANSIBLE_IMAGE}"
-    openshiftAnsibleImagePullPolicy: "${ANSIBLE_IMAGE_PULL_POLICY}"
-    clusterAPIImage: "${CLUSTER_API_IMAGE}"
-    clusterAPIImagePullPolicy: "${CLUSTER_API_IMAGE_PULL_POLICY}"
-    machineControllerImage: "${MACHINE_CONTROLLER_IMAGE}"
-    machineControllerImagePullPolicy: "${MACHINE_CONTROLLER_IMAGE_PULL_POLICY}"
+    images:
+      imageFormat: "openshift/origin-${component}:v3.10.0"
+      # TODO: Update after jdiaz incoming work is merged:
+      openshiftAnsibleImage: "${ANSIBLE_IMAGE}"
+      openshiftAnsibleImagePullPolicy: "${ANSIBLE_IMAGE_PULL_POLICY}"
+      clusterAPIImage: "${CLUSTER_API_IMAGE}"
+      clusterAPIImagePullPolicy: "${CLUSTER_API_IMAGE_PULL_POLICY}"
+      machineControllerImage: "${MACHINE_CONTROLLER_IMAGE}"
+      machineControllerImagePullPolicy: "${MACHINE_CONTROLLER_IMAGE_PULL_POLICY}"

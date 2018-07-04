@@ -54,7 +54,7 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&ClusterDeploymentList{},
 		&ClusterVersion{},
 		&ClusterVersionList{},
-		&ClusterProviderConfigSpec{},
+		&AWSClusterProviderConfig{},
 		&ClusterProviderStatus{},
 		&MachineSetProviderConfigSpec{},
 		&AWSMachineProviderStatus{},

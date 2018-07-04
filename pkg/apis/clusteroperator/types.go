@@ -91,12 +91,10 @@ type ClusterVersion struct {
 
 // ClusterVersionSpec is a specification of a cluster version that can be installed.
 type ClusterVersionSpec struct {
-	// ImageFormat defines a format string for the container registry and images to use for
-	// various OpenShift components. Valid expansions are component (required, expands to
-	// pod/deployer/haproxy-router/etc), and version (v3.9.0).
-	// (i.e. example.com/openshift3/ose-${component}:${version}")
-	ImageFormat string
+	// Images contains information on what images to use for this OpenShift version.
+	Images ClusterVersionImages
 
+	// VMImages contains cloud provider specific VM images to use.
 	VMImages VMImages
 
 	// DeploymentType indicates the type of OpenShift deployment to create.
@@ -104,6 +102,15 @@ type ClusterVersionSpec struct {
 
 	// Version is the version of OpenShift to install.
 	Version string
+}
+
+// ClusterVersionImages contains information about which container images to use for a cluster version.
+type ClusterVersionImages struct {
+	// ImageFormat defines a format string for the container registry and images to use for
+	// various OpenShift components. Valid expansions are component (required, expands to
+	// pod/deployer/haproxy-router/etc), and version (v3.9.0).
+	// (i.e. example.com/openshift3/ose-${component}:${version}")
+	ImageFormat string
 
 	// OpenshiftAnsibleImage is the name of the image to use to run
 	// openshift-ansible playbooks.
@@ -179,15 +186,38 @@ type AWSRegionAMIs struct {
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// ClusterProviderConfigSpec is the cluster specification stored in the
-// ProviderConfig of a cluster.k8s.io Cluster.
-type ClusterProviderConfigSpec struct {
+// AWSClusterProviderConfig is the AWS specific cluster specification stored in the ProviderConfig of an AWS cluster.k8s.io.Cluster.
+type AWSClusterProviderConfig struct {
 	// +optional
 	metav1.TypeMeta
 	// +optional
 	metav1.ObjectMeta
 
-	ClusterDeploymentSpec
+	// AWS specifies cluster hardware configuration on AWS.
+	Hardware AWSClusterSpec
+
+	// OpenShiftConfig contains configuration specific to the OpenShift distribution.
+	OpenShiftConfig OpenShiftDistributionConfig
+}
+
+// OpenShiftDistributionConfig contains configuration specific to the OpenShift distribution.
+type OpenShiftDistributionConfig struct {
+	ClusterConfigSpec
+
+	// Version contains information on the OpenShift version that should be installed on this cluster.
+	Version OpenShiftConfigVersion
+}
+
+// OpenShiftConfigVersion contains information on the specific version of OpenShift that should be deployed on a cluster.
+type OpenShiftConfigVersion struct {
+	// DeploymentType indicates the type of OpenShift deployment to create.
+	DeploymentType ClusterDeploymentType
+
+	// Version is the version of OpenShift to install. (i.e. v3.10.0)
+	Version string
+
+	// Images contains information on what images to use for this OpenShift version.
+	Images ClusterVersionImages
 }
 
 // ClusterDeploymentSpec is the specification of a cluster's hardware and configuration
@@ -212,6 +242,7 @@ type ClusterDeploymentSpec struct {
 	MachineSets []ClusterMachineSet
 
 	// ClusterVersionRef references the clusterversion that should be running.
+	// TODO: delete this
 	ClusterVersionRef ClusterVersionReference
 }
 
@@ -237,6 +268,10 @@ type ClusterHardwareSpec struct {
 
 // AWSClusterSpec contains cluster-wide configuration for a cluster on AWS
 type AWSClusterSpec struct {
+	// Defaults specifies the default AWS hardware spec for an AWS machine.
+	// +optional
+	Defaults *MachineSetAWSHardwareSpec
+
 	// AccountSeceret refers to a secret that contains the AWS account access
 	// credentials
 	AccountSecret corev1.LocalObjectReference
@@ -313,19 +348,8 @@ type ClusterProviderStatus struct {
 	// +optional
 	metav1.ObjectMeta
 
-	ClusterDeploymentStatus
-}
-
-// ClusterDeploymentStatus contains the status for a cluster
-type ClusterDeploymentStatus struct {
-	// MachineSetCount is the number of actual machine sets that are active for the cluster
-	MachineSetCount int
-
-	// MasterMachineSetName is the name of the master machine set
-	MasterMachineSetName string
-
-	// InfraMachineSetName is the name of the infra machine set
-	InfraMachineSetName string
+	// Conditions includes more detailed status for the cluster
+	Conditions []ClusterCondition
 
 	// AdminKubeconfig points to a secret containing a cluster administrator
 	// kubeconfig to access the cluster. The secret can be used for bootstrapping
@@ -403,17 +427,51 @@ type ClusterDeploymentStatus struct {
 	// Kubernetes Cluster API controllers on the cluster.
 	ClusterAPIInstalledTime *metav1.Time
 
-	// Ready is true if the master of the cluster is ready to be used and can be accessed using
-	// the KubeconfigSecret
-	Ready bool
-
-	// Conditions includes more detailed status for the cluster
-	Conditions []ClusterCondition
-
 	// ClusterVersionRef references the resolved clusterversion the cluster should be running.
 	// +optional
 	ClusterVersionRef *corev1.ObjectReference
+
+	// Ready is true if the master of the cluster is ready to be used and can be accessed using
+	// the KubeconfigSecret
+	Ready bool
 }
+
+// ClusterDeploymentStatus contains the status for a cluster
+type ClusterDeploymentStatus struct {
+	// Conditions includes more detailed status for the cluster
+	Conditions []ClusterCondition
+}
+
+// ClusterDeploymentCondition contains details for the current condition of a cluster deployment
+type ClusterDeploymentCondition struct {
+	// Type is the type of the condition.
+	Type ClusterDeploymentConditionType
+	// Status is the status of the condition.
+	Status corev1.ConditionStatus
+	// LastProbeTime is the last time we probed the condition.
+	// +optional
+	LastProbeTime metav1.Time
+	// LastTransitionTime is the last time the condition transitioned from one status to another.
+	// +optional
+	LastTransitionTime metav1.Time
+	// Reason is a unique, one-word, CamelCase reason for the condition's last transition.
+	// +optional
+	Reason string
+	// Message is a human-readable message indicating details about last transition.
+	// +optional
+	Message string
+}
+
+// ClusterDeploymentConditionType is a valid value for ClusterDeploymentCondition.Type
+type ClusterDeploymentConditionType string
+
+// These are valid conditions for a cluster deployment
+const (
+	// ClusterVersionIncompatible is true when the cluster version does not have an AMI defined for the cluster's region.
+	ClusterVersionIncompatible ClusterDeploymentConditionType = "VersionIncompatible"
+	// ClusterVersionMissing is true when the cluster deployment references a non-existent cluster version
+	ClusterVersionMissing ClusterDeploymentConditionType = "ClusterVersionMissing"
+)
 
 // ClusterCondition contains details for the current condition of a cluster
 type ClusterCondition struct {
@@ -483,10 +541,6 @@ const (
 	// ClusterAPIInstalled is true if the Kubernetes Cluster API controllers have
 	// been successfully installed.
 	ClusterAPIInstalled ClusterConditionType = "ClusterAPIInstalled"
-	// ClusterVersionIncompatible is true when the cluster version does not have an AMI defined for the cluster's region.
-	ClusterVersionIncompatible ClusterConditionType = "VersionIncompatible"
-	// ClusterVersionMissing is true when the cluster references a non-existent cluster version
-	ClusterVersionMissing ClusterConditionType = "ClusterVersionMissing"
 	// ClusterReady means the cluster is able to service requests
 	ClusterReady ClusterConditionType = "Ready"
 )

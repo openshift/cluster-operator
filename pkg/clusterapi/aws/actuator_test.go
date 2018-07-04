@@ -293,7 +293,10 @@ func TestCreateMachine(t *testing.T) {
 
 			isMaster := tc.nodeType == clustopv1.NodeTypeMaster
 
-			cluster := testCluster(t)
+			cluster, err := testCluster(t)
+			if !assert.NoError(t, err) {
+				return
+			}
 			machine := testMachine(testMachineName, cluster.Name, tc.nodeType, tc.isInfra, nil)
 
 			mockAWSClient := mockaws.NewMockClient(mockCtrl)
@@ -432,7 +435,10 @@ func TestUpdate(t *testing.T) {
 			kubeClient := &clientgofake.Clientset{}
 			capiClient := &capiclientfake.Clientset{}
 
-			cluster := testCluster(t)
+			cluster, err := testCluster(t)
+			if !assert.NoError(t, err) {
+				return
+			}
 			machine := testMachine(testMachineName, cluster.Name, clustopv1.NodeTypeMaster, true, tc.currentStatus)
 
 			mockAWSClient := mockaws.NewMockClient(mockCtrl)
@@ -456,7 +462,7 @@ func TestUpdate(t *testing.T) {
 				return mockAWSClient, nil
 			}
 
-			err := actuator.Update(cluster, machine)
+			err = actuator.Update(cluster, machine)
 			if tc.expectedError {
 				assert.Error(t, err)
 			} else {
@@ -532,7 +538,10 @@ func TestDeleteMachine(t *testing.T) {
 			kubeClient := &clientgofake.Clientset{}
 			capiClient := &capiclientfake.Clientset{}
 
-			cluster := testCluster(t)
+			cluster, err := testCluster(t)
+			if !assert.NoError(t, err) {
+				return
+			}
 			machine := testMachine(testMachineName, cluster.Name, clustopv1.NodeTypeMaster, true, nil)
 
 			mockAWSClient := mockaws.NewMockClient(mockCtrl)
@@ -554,7 +563,7 @@ func TestDeleteMachine(t *testing.T) {
 				return mockAWSClient, nil
 			}
 
-			err := actuator.DeleteMachine(machine)
+			err = actuator.DeleteMachine(machine)
 			assert.NoError(t, err)
 		})
 	}
@@ -721,11 +730,9 @@ func testClusterDeployment() *clustopv1.ClusterDeployment {
 	return clusterDeployment
 }
 
-func testCluster(t *testing.T) *capiv1.Cluster {
+func testCluster(t *testing.T) (*capiv1.Cluster, error) {
 	clusterDeployment := testClusterDeployment()
-	cluster, err := controller.BuildCluster(clusterDeployment)
-	assert.NoError(t, err)
-	return cluster
+	return controller.BuildCluster(clusterDeployment, testClusterVersion())
 }
 
 func testMachine(name, clusterName string, nodeType clustopv1.NodeType, isInfra bool, currentStatus *clustopv1.AWSMachineProviderStatus) *capiv1.Machine {
@@ -751,7 +758,7 @@ func testMachine(name, clusterName string, nodeType clustopv1.NodeType, isInfra 
 			AWSImage: &testAMI,
 		},
 	}
-	rawProviderConfig, _ := controller.ClusterAPIMachineProviderConfigFromMachineSetSpec(&msSpec)
+	rawProviderConfig, _ := controller.MachineProviderConfigFromMachineSetSpec(&msSpec)
 	machine := &capiv1.Machine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -772,8 +779,34 @@ func testMachine(name, clusterName string, nodeType clustopv1.NodeType, isInfra 
 		machine.Spec.Roles = []capicommon.MachineRole{capicommon.NodeRole}
 	}
 	if currentStatus != nil {
-		rawStatus, _ := controller.ClusterAPIMachineProviderStatusFromAWSMachineProviderStatus(currentStatus)
+		rawStatus, _ := controller.EncodeAWSMachineProviderStatus(currentStatus)
 		machine.Status.ProviderStatus = rawStatus
 	}
 	return machine
+}
+
+func testClusterVersion() clustopv1.ClusterVersionSpec {
+	masterAMI := "master-AMI-west"
+	return clustopv1.ClusterVersionSpec{
+		Images: clustopv1.ClusterVersionImages{
+			ImageFormat: "openshift/origin-${component}:v3.10.0",
+		},
+		VMImages: clustopv1.VMImages{
+			AWSImages: &clustopv1.AWSVMImages{
+				RegionAMIs: []clustopv1.AWSRegionAMIs{
+					{
+						Region: "us-east-1",
+						AMI:    "compute-AMI-east",
+					},
+					{
+						Region:    "us-west-1",
+						AMI:       "compute-AMI-west",
+						MasterAMI: &masterAMI,
+					},
+				},
+			},
+		},
+		DeploymentType: clustopv1.ClusterDeploymentTypeOrigin,
+		Version:        "v3.10.0",
+	}
 }

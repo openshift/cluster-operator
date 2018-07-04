@@ -145,31 +145,24 @@ func main() {
 }
 
 func testClusterAPIResources(name string) (*clusterv1.Cluster, *clusterv1.Machine) {
-	clusterProviderConfigSpec := &cov1.ClusterProviderConfigSpec{
+	clusterProviderConfigSpec := &cov1.AWSClusterProviderConfig{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "clusteroperator.openshift.io/v1alpha1",
-			Kind:       "ClusterProviderConfigSpec",
+			Kind:       "AWSClusterProviderConfig",
 		},
-		ClusterDeploymentSpec: cov1.ClusterDeploymentSpec{
-			ClusterID: name,
-			Hardware: cov1.ClusterHardwareSpec{
-				AWS: &cov1.AWSClusterSpec{
-					SSHSecret: corev1.LocalObjectReference{
-						Name: "ssh-private-key",
-					},
-					SSHUser: "centos",
-					SSLSecret: corev1.LocalObjectReference{
-						Name: "ssl-cert",
-					},
-					Region:      "us-east-1",
-					KeyPairName: "libra",
-				},
+		Hardware: cov1.AWSClusterSpec{
+			Defaults: &cov1.MachineSetAWSHardwareSpec{
+				InstanceType: "t2.xlarge",
 			},
-			DefaultHardwareSpec: &cov1.MachineSetHardwareSpec{
-				AWS: &cov1.MachineSetAWSHardwareSpec{
-					InstanceType: "t2.xlarge",
-				},
+			SSHSecret: corev1.LocalObjectReference{
+				Name: "ssh-private-key",
 			},
+			SSHUser: "centos",
+			SSLSecret: corev1.LocalObjectReference{
+				Name: "ssl-cert",
+			},
+			Region:      "us-east-1",
+			KeyPairName: "libra",
 		},
 	}
 
@@ -193,7 +186,7 @@ func testClusterAPIResources(name string) (*clusterv1.Cluster, *clusterv1.Machin
 				},
 			},
 			ClusterHardware: cov1.ClusterHardwareSpec{
-				AWS: clusterProviderConfigSpec.Hardware.AWS.DeepCopy(),
+				AWS: clusterProviderConfigSpec.Hardware.DeepCopy(),
 			},
 		},
 	}

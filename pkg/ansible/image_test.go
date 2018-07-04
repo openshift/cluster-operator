@@ -51,9 +51,9 @@ func TestGetAnsibleImageForClusterVersion(t *testing.T) {
 		},
 	}
 	for _, tc := range cases {
-		cv := &coapi.ClusterVersion{
-			Spec: coapi.ClusterVersionSpec{
-				Version:                         "latest",
+		cv := coapi.OpenShiftConfigVersion{
+			Version: "latest",
+			Images: coapi.ClusterVersionImages{
 				OpenshiftAnsibleImage:           tc.image,
 				OpenshiftAnsibleImagePullPolicy: tc.pullPolicy,
 			},

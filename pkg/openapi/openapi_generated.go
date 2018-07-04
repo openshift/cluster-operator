@@ -28,11 +28,60 @@ import (
 
 func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	return map[string]common.OpenAPIDefinition{
+		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.AWSClusterProviderConfig": {
+			Schema: spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Description: "AWSClusterProviderConfig is the AWS specific cluster specification stored in the ProviderConfig of an AWS cluster.k8s.io.Cluster.",
+					Properties: map[string]spec.Schema{
+						"kind": {
+							SchemaProps: spec.SchemaProps{
+								Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"apiVersion": {
+							SchemaProps: spec.SchemaProps{
+								Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"metadata": {
+							SchemaProps: spec.SchemaProps{
+								Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+							},
+						},
+						"hardware": {
+							SchemaProps: spec.SchemaProps{
+								Description: "AWS specifies cluster hardware configuration on AWS.",
+								Ref:         ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.AWSClusterSpec"),
+							},
+						},
+						"openshiftConfig": {
+							SchemaProps: spec.SchemaProps{
+								Description: "OpenShiftConfig contains configuration specific to the OpenShift distribution.",
+								Ref:         ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.OpenShiftDistributionConfig"),
+							},
+						},
+					},
+					Required: []string{"openshiftConfig"},
+				},
+			},
+			Dependencies: []string{
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.AWSClusterSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.OpenShiftDistributionConfig", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.AWSClusterSpec": {
 			Schema: spec.Schema{
 				SchemaProps: spec.SchemaProps{
 					Description: "AWSClusterSpec contains cluster-wide configuration for a cluster on AWS",
 					Properties: map[string]spec.Schema{
+						"defaults": {
+							SchemaProps: spec.SchemaProps{
+								Description: "Defaults specifies the default hardware spec for an AWS machine.",
+								Ref:         ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetAWSHardwareSpec"),
+							},
+						},
 						"accountSecret": {
 							SchemaProps: spec.SchemaProps{
 								Description: "AccountSeceret refers to a secret that contains the AWS account access credentials",
@@ -91,7 +140,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 				},
 			},
 			Dependencies: []string{
-				"k8s.io/api/core/v1.LocalObjectReference"},
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetAWSHardwareSpec", "k8s.io/api/core/v1.LocalObjectReference"},
 		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.AWSMachineProviderStatus": {
 			Schema: spec.Schema{
@@ -358,6 +407,58 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 			Dependencies: []string{
 				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterDeploymentSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterDeploymentStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 		},
+		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterDeploymentCondition": {
+			Schema: spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Description: "ClusterDeploymentCondition contains details for the current condition of a cluster deployment",
+					Properties: map[string]spec.Schema{
+						"type": {
+							SchemaProps: spec.SchemaProps{
+								Description: "Type is the type of the condition.",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"status": {
+							SchemaProps: spec.SchemaProps{
+								Description: "Status is the status of the condition.",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"lastProbeTime": {
+							SchemaProps: spec.SchemaProps{
+								Description: "LastProbeTime is the last time we probed the condition.",
+								Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+							},
+						},
+						"lastTransitionTime": {
+							SchemaProps: spec.SchemaProps{
+								Description: "LastTransitionTime is the last time the condition transitioned from one status to another.",
+								Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+							},
+						},
+						"reason": {
+							SchemaProps: spec.SchemaProps{
+								Description: "Reason is a unique, one-word, CamelCase reason for the condition's last transition.",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"message": {
+							SchemaProps: spec.SchemaProps{
+								Description: "Message is a human-readable message indicating details about last transition.",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+					},
+					Required: []string{"type", "status"},
+				},
+			},
+			Dependencies: []string{
+				"k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
+		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterDeploymentList": {
 			Schema: spec.Schema{
 				SchemaProps: spec.SchemaProps{
@@ -462,150 +563,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 				SchemaProps: spec.SchemaProps{
 					Description: "ClusterDeploymentStatus contains the status for a cluster",
 					Properties: map[string]spec.Schema{
-						"machineSetCount": {
-							SchemaProps: spec.SchemaProps{
-								Description: "MachineSetCount is the number of actual machine sets that are active for the cluster",
-								Type:        []string{"integer"},
-								Format:      "int32",
-							},
-						},
-						"masterMachineSetName": {
-							SchemaProps: spec.SchemaProps{
-								Description: "MasterMachineSetName is the name of the master machine set",
-								Type:        []string{"string"},
-								Format:      "",
-							},
-						},
-						"infraMachineSetName": {
-							SchemaProps: spec.SchemaProps{
-								Description: "InfraMachineSetName is the name of the infra machine set",
-								Type:        []string{"string"},
-								Format:      "",
-							},
-						},
-						"adminKubeconfig": {
-							SchemaProps: spec.SchemaProps{
-								Description: "AdminKubeconfig points to a secret containing a cluster administrator kubeconfig to access the cluster. The secret can be used for bootstrapping and subsequent access to the cluster API.",
-								Ref:         ref("k8s.io/api/core/v1.LocalObjectReference"),
-							},
-						},
-						"provisioned": {
-							SchemaProps: spec.SchemaProps{
-								Description: "Provisioned is true if the hardware pre-reqs for the cluster have been provisioned For machine set hardware, see the status of each machine set resource.",
-								Type:        []string{"boolean"},
-								Format:      "",
-							},
-						},
-						"provisionedJobGeneration": {
-							SchemaProps: spec.SchemaProps{
-								Description: "ProvisionedJobGeneration is the generation of the cluster resource used to generate the latest completed infra provisioning job.",
-								Type:        []string{"integer"},
-								Format:      "int64",
-							},
-						},
-						"controlPlaneInstalled": {
-							SchemaProps: spec.SchemaProps{
-								Description: "ControlPlaneInstalled is true if the control plane is installed and running in the cluster.",
-								Type:        []string{"boolean"},
-								Format:      "",
-							},
-						},
-						"controlPlaneInstalledJobClusterGeneration": {
-							SchemaProps: spec.SchemaProps{
-								Description: "ControlPlaneInstalledJobClusterGeneration is the generation of the cluster resource used to generate the latest completed control-plane installation job.",
-								Type:        []string{"integer"},
-								Format:      "int64",
-							},
-						},
-						"controlPlaneInstalledJobMachineSetGeneration": {
-							SchemaProps: spec.SchemaProps{
-								Description: "ControlPlaneInstalledJobMachineSetGeneration is the generation of the master machine set resource used to generate the latest completed control-plane installation job.",
-								Type:        []string{"integer"},
-								Format:      "int64",
-							},
-						},
-						"componentsInstalled": {
-							SchemaProps: spec.SchemaProps{
-								Description: "ComponentsInstalled is true if the additional components needed for the cluster have been installed",
-								Type:        []string{"boolean"},
-								Format:      "",
-							},
-						},
-						"componentsInstalledJobClusterGeneration": {
-							SchemaProps: spec.SchemaProps{
-								Description: "ComponentsInstalledJobGeneration is the generation of the cluster resource used to generate the latest completed components installation job.",
-								Type:        []string{"integer"},
-								Format:      "int64",
-							},
-						},
-						"componentsInstalledJobMachineSetGeneration": {
-							SchemaProps: spec.SchemaProps{
-								Description: "ComponentsInstalledJobMachineSetGeneration is the generation of the master machine set resource used to generate the latest completed components installation job.",
-								Type:        []string{"integer"},
-								Format:      "int64",
-							},
-						},
-						"nodeConfigInstalled": {
-							SchemaProps: spec.SchemaProps{
-								Description: "NodeConfigInstalled is true if the node config daemonset has been created in the cluster.",
-								Type:        []string{"boolean"},
-								Format:      "",
-							},
-						},
-						"nodeConfigInstalledJobClusterGeneration": {
-							SchemaProps: spec.SchemaProps{
-								Description: "NodeConfigInstalledJobClusterGeneration is the generation of the cluster resource used to generate the latest successful node-config installation job.",
-								Type:        []string{"integer"},
-								Format:      "int64",
-							},
-						},
-						"nodeConfigInstalledJobMachineSetGeneration": {
-							SchemaProps: spec.SchemaProps{
-								Description: "NodeConfigInstalledJobMachineSetGeneration is the generation of the master machine set resource used to generate the latest successful node-config installation job.",
-								Type:        []string{"integer"},
-								Format:      "int64",
-							},
-						},
-						"nodeConfigLastInstalled": {
-							SchemaProps: spec.SchemaProps{
-								Description: "NodeConfigInstalledTime is the time of the last successful installation of the node config daemonset in the cluster.",
-								Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
-							},
-						},
-						"clusterAPIInstalled": {
-							SchemaProps: spec.SchemaProps{
-								Description: "ClusterAPIInstalled is true if the Kubernetes Cluster API controllers have been deployed onto the remote cluster.",
-								Type:        []string{"boolean"},
-								Format:      "",
-							},
-						},
-						"clusterAPIInstalledJobClusterGeneration": {
-							SchemaProps: spec.SchemaProps{
-								Description: "ClusterAPIInstalledJobClusterGeneration is the generation of the cluster resource used to generate the latest completed deployclusterapi installation job.",
-								Type:        []string{"integer"},
-								Format:      "int64",
-							},
-						},
-						"clusterAPIInstalledJobMachineSetGeneration": {
-							SchemaProps: spec.SchemaProps{
-								Description: "ClusterAPIInstalledJobMachineSetGeneration is the generation of the machine set resource used to generate the latest completed deployclusterapi installation job.",
-								Type:        []string{"integer"},
-								Format:      "int64",
-							},
-						},
-						"clusterAPIInstalledTime": {
-							SchemaProps: spec.SchemaProps{
-								Description: "ClusterAPIInstalledTime is the time we last successfully deployed the Kubernetes Cluster API controllers on the cluster.",
-								Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
-							},
-						},
-						"ready": {
-							SchemaProps: spec.SchemaProps{
-								Description: "Ready is true if the master of the cluster is ready to be used and can be accessed using the KubeconfigSecret",
-								Type:        []string{"boolean"},
-								Format:      "",
-							},
-						},
 						"conditions": {
 							SchemaProps: spec.SchemaProps{
 								Description: "Conditions includes more detailed status for the cluster",
@@ -613,24 +570,18 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Items: &spec.SchemaOrArray{
 									Schema: &spec.Schema{
 										SchemaProps: spec.SchemaProps{
-											Ref: ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterCondition"),
+											Ref: ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterDeploymentCondition"),
 										},
 									},
 								},
 							},
 						},
-						"clusterVersionRef": {
-							SchemaProps: spec.SchemaProps{
-								Description: "ClusterVersionRef references the resolved clusterversion the cluster should be running.",
-								Ref:         ref("k8s.io/api/core/v1.ObjectReference"),
-							},
-						},
 					},
-					Required: []string{"machineSetCount", "provisioned", "provisionedJobGeneration", "controlPlaneInstalled", "controlPlaneInstalledJobClusterGeneration", "controlPlaneInstalledJobMachineSetGeneration", "componentsInstalled", "componentsInstalledJobClusterGeneration", "componentsInstalledJobMachineSetGeneration", "nodeConfigInstalled", "nodeConfigInstalledJobClusterGeneration", "nodeConfigInstalledJobMachineSetGeneration", "nodeConfigLastInstalled", "clusterAPIInstalled", "clusterAPIInstalledJobClusterGeneration", "clusterAPIInstalledJobMachineSetGeneration", "clusterAPIInstalledTime", "ready", "conditions"},
+					Required: []string{"conditions"},
 				},
 			},
 			Dependencies: []string{
-				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterCondition", "k8s.io/api/core/v1.LocalObjectReference", "k8s.io/api/core/v1.ObjectReference", "k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterDeploymentCondition"},
 		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterHardwareSpec": {
 			Schema: spec.Schema{
@@ -709,81 +660,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 			Dependencies: []string{
 				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetHardwareSpec"},
 		},
-		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterProviderConfigSpec": {
-			Schema: spec.Schema{
-				SchemaProps: spec.SchemaProps{
-					Description: "ClusterProviderConfigSpec is the cluster specification stored in the ProviderConfig of a cluster.k8s.io Cluster.",
-					Properties: map[string]spec.Schema{
-						"kind": {
-							SchemaProps: spec.SchemaProps{
-								Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds",
-								Type:        []string{"string"},
-								Format:      "",
-							},
-						},
-						"apiVersion": {
-							SchemaProps: spec.SchemaProps{
-								Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources",
-								Type:        []string{"string"},
-								Format:      "",
-							},
-						},
-						"metadata": {
-							SchemaProps: spec.SchemaProps{
-								Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
-							},
-						},
-						"clusterID": {
-							SchemaProps: spec.SchemaProps{
-								Description: "ClusterID is the ID to assign to the cluster in the cloud provider. This will be generated by the API Server when the ClusterDeployment is created. It should not be set by the user.",
-								Type:        []string{"string"},
-								Format:      "",
-							},
-						},
-						"hardware": {
-							SchemaProps: spec.SchemaProps{
-								Description: "Hardware specifies the hardware that the cluster will run on",
-								Ref:         ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterHardwareSpec"),
-							},
-						},
-						"config": {
-							SchemaProps: spec.SchemaProps{
-								Description: "Config specifies cluster-wide OpenShift configuration",
-								Ref:         ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterConfigSpec"),
-							},
-						},
-						"defaultHardwareSpec": {
-							SchemaProps: spec.SchemaProps{
-								Description: "DefaultHardwareSpec specifies hardware defaults for all machine sets in this cluster",
-								Ref:         ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetHardwareSpec"),
-							},
-						},
-						"machineSets": {
-							SchemaProps: spec.SchemaProps{
-								Description: "MachineSets specifies the configuration of all machine sets for the cluster",
-								Type:        []string{"array"},
-								Items: &spec.SchemaOrArray{
-									Schema: &spec.Schema{
-										SchemaProps: spec.SchemaProps{
-											Ref: ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterMachineSet"),
-										},
-									},
-								},
-							},
-						},
-						"clusterVersionRef": {
-							SchemaProps: spec.SchemaProps{
-								Description: "ClusterVersionRef references the clusterversion that should be running.",
-								Ref:         ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterVersionReference"),
-							},
-						},
-					},
-					Required: []string{"clusterID", "hardware", "config", "machineSets", "clusterVersionRef"},
-				},
-			},
-			Dependencies: []string{
-				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterConfigSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterHardwareSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterMachineSet", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterVersionReference", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetHardwareSpec", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
-		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterProviderStatus": {
 			Schema: spec.Schema{
 				SchemaProps: spec.SchemaProps{
@@ -808,25 +684,17 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
 							},
 						},
-						"machineSetCount": {
+						"conditions": {
 							SchemaProps: spec.SchemaProps{
-								Description: "MachineSetCount is the number of actual machine sets that are active for the cluster",
-								Type:        []string{"integer"},
-								Format:      "int32",
-							},
-						},
-						"masterMachineSetName": {
-							SchemaProps: spec.SchemaProps{
-								Description: "MasterMachineSetName is the name of the master machine set",
-								Type:        []string{"string"},
-								Format:      "",
-							},
-						},
-						"infraMachineSetName": {
-							SchemaProps: spec.SchemaProps{
-								Description: "InfraMachineSetName is the name of the infra machine set",
-								Type:        []string{"string"},
-								Format:      "",
+								Description: "Conditions includes more detailed status for the cluster",
+								Type:        []string{"array"},
+								Items: &spec.SchemaOrArray{
+									Schema: &spec.Schema{
+										SchemaProps: spec.SchemaProps{
+											Ref: ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterCondition"),
+										},
+									},
+								},
 							},
 						},
 						"adminKubeconfig": {
@@ -945,6 +813,12 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
 							},
 						},
+						"clusterVersionRef": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ClusterVersionRef references the resolved clusterversion the cluster should be running.",
+								Ref:         ref("k8s.io/api/core/v1.ObjectReference"),
+							},
+						},
 						"ready": {
 							SchemaProps: spec.SchemaProps{
 								Description: "Ready is true if the master of the cluster is ready to be used and can be accessed using the KubeconfigSecret",
@@ -952,27 +826,8 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Format:      "",
 							},
 						},
-						"conditions": {
-							SchemaProps: spec.SchemaProps{
-								Description: "Conditions includes more detailed status for the cluster",
-								Type:        []string{"array"},
-								Items: &spec.SchemaOrArray{
-									Schema: &spec.Schema{
-										SchemaProps: spec.SchemaProps{
-											Ref: ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterCondition"),
-										},
-									},
-								},
-							},
-						},
-						"clusterVersionRef": {
-							SchemaProps: spec.SchemaProps{
-								Description: "ClusterVersionRef references the resolved clusterversion the cluster should be running.",
-								Ref:         ref("k8s.io/api/core/v1.ObjectReference"),
-							},
-						},
 					},
-					Required: []string{"machineSetCount", "provisioned", "provisionedJobGeneration", "controlPlaneInstalled", "controlPlaneInstalledJobClusterGeneration", "controlPlaneInstalledJobMachineSetGeneration", "componentsInstalled", "componentsInstalledJobClusterGeneration", "componentsInstalledJobMachineSetGeneration", "nodeConfigInstalled", "nodeConfigInstalledJobClusterGeneration", "nodeConfigInstalledJobMachineSetGeneration", "nodeConfigLastInstalled", "clusterAPIInstalled", "clusterAPIInstalledJobClusterGeneration", "clusterAPIInstalledJobMachineSetGeneration", "clusterAPIInstalledTime", "ready", "conditions"},
+					Required: []string{"conditions", "provisioned", "provisionedJobGeneration", "controlPlaneInstalled", "controlPlaneInstalledJobClusterGeneration", "controlPlaneInstalledJobMachineSetGeneration", "componentsInstalled", "componentsInstalledJobClusterGeneration", "componentsInstalledJobMachineSetGeneration", "nodeConfigInstalled", "nodeConfigInstalledJobClusterGeneration", "nodeConfigInstalledJobMachineSetGeneration", "nodeConfigLastInstalled", "clusterAPIInstalled", "clusterAPIInstalledJobClusterGeneration", "clusterAPIInstalledJobMachineSetGeneration", "clusterAPIInstalledTime", "ready"},
 				},
 			},
 			Dependencies: []string{
@@ -1017,6 +872,66 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 			},
 			Dependencies: []string{
 				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterVersionSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterVersionStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+		},
+		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterVersionImages": {
+			Schema: spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Description: "ClusterVersionImages contains information about which container images to use for a cluster version.",
+					Properties: map[string]spec.Schema{
+						"imageFormat": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ImageFormat defines a format string for the container registry and images to use for various OpenShift components. Valid expansions are component (required, expands to pod/deployer/haproxy-router/etc), and version (v3.9.0). (i.e. example.com/openshift3/ose-${component}:${version}\")",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"openshiftAnsibleImage": {
+							SchemaProps: spec.SchemaProps{
+								Description: "OpenshiftAnsibleImage is the name of the image to use to run openshift-ansible playbooks. Defaults to openshift/origin-ansbile:{TAG}, where {TAG} is the value from the Version field of this ClusterVersion.",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"openshiftAnsibleImagePullPolicy": {
+							SchemaProps: spec.SchemaProps{
+								Description: "OpenshiftAnsibleImagePullPolicy is the pull policy to use for OpenshiftAnsibleImage. Defaults to IfNotPreset.",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"clusterAPIImage": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ClusterAPIImage is the name of the image to use on the target cluster to run Cluster API",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"clusterAPIImagePullPolicy": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ClusterAPIImagePullPolicy is the pull policy to use for the ClusterAPIImage",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"machineControllerImage": {
+							SchemaProps: spec.SchemaProps{
+								Description: "MachineControllerImage is the name of the image to use on the target cluster to run the machine controller",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"machineControllerImagePullPolicy": {
+							SchemaProps: spec.SchemaProps{
+								Description: "MachineControllerImagePullPolicy is the pull policy to use for the MachineControllerImagePullPolicy",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+					},
+					Required: []string{"imageFormat"},
+				},
+			},
+			Dependencies: []string{},
 		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterVersionList": {
 			Schema: spec.Schema{
@@ -1091,16 +1006,16 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 				SchemaProps: spec.SchemaProps{
 					Description: "ClusterVersionSpec is a specification of a cluster version that can be installed.",
 					Properties: map[string]spec.Schema{
-						"imageFormat": {
+						"images": {
 							SchemaProps: spec.SchemaProps{
-								Description: "ImageFormat defines a format string for the container registry and images to use for various OpenShift components. Valid expansions are component (required, expands to pod/deployer/haproxy-router/etc), and version (v3.9.0). (i.e. example.com/openshift3/ose-${component}:${version}\")",
-								Type:        []string{"string"},
-								Format:      "",
+								Description: "Images contains information on what images to use for this OpenShift version.",
+								Ref:         ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterVersionImages"),
 							},
 						},
 						"vmImages": {
 							SchemaProps: spec.SchemaProps{
-								Ref: ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.VMImages"),
+								Description: "VMImages contains cloud provider specific VM images to use.",
+								Ref:         ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.VMImages"),
 							},
 						},
 						"deploymentType": {
@@ -1112,59 +1027,17 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 						},
 						"version": {
 							SchemaProps: spec.SchemaProps{
-								Description: "Version is the version of OpenShift to install.",
-								Type:        []string{"string"},
-								Format:      "",
-							},
-						},
-						"openshiftAnsibleImage": {
-							SchemaProps: spec.SchemaProps{
-								Description: "OpenshiftAnsibleImage is the name of the image to use to run openshift-ansible playbooks. Defaults to openshift/origin-ansbile:{TAG}, where {TAG} is the value from the Version field of this ClusterVersion.",
-								Type:        []string{"string"},
-								Format:      "",
-							},
-						},
-						"openshiftAnsibleImagePullPolicy": {
-							SchemaProps: spec.SchemaProps{
-								Description: "OpenshiftAnsibleImagePullPolicy is the pull policy to use for OpenshiftAnsibleImage. Defaults to IfNotPreset.",
-								Type:        []string{"string"},
-								Format:      "",
-							},
-						},
-						"clusterAPIImage": {
-							SchemaProps: spec.SchemaProps{
-								Description: "ClusterAPIImage is the name of the image to use on the target cluster to run Cluster API",
-								Type:        []string{"string"},
-								Format:      "",
-							},
-						},
-						"clusterAPIImagePullPolicy": {
-							SchemaProps: spec.SchemaProps{
-								Description: "ClusterAPIImagePullPolicy is the pull policy to use for the ClusterAPIImage",
-								Type:        []string{"string"},
-								Format:      "",
-							},
-						},
-						"machineControllerImage": {
-							SchemaProps: spec.SchemaProps{
-								Description: "MachineControllerImage is the name of the image to use on the target cluster to run the machine controller",
-								Type:        []string{"string"},
-								Format:      "",
-							},
-						},
-						"machineControllerImagePullPolicy": {
-							SchemaProps: spec.SchemaProps{
-								Description: "MachineControllerImagePullPolicy is the pull policy to use for the MachineControllerImagePullPolicy",
+								Description: "Version is the version of OpenShift to install. (i.e. v3.10.0)",
 								Type:        []string{"string"},
 								Format:      "",
 							},
 						},
 					},
-					Required: []string{"imageFormat", "vmImages", "deploymentType", "version"},
+					Required: []string{"images", "vmImages", "deploymentType", "version"},
 				},
 			},
 			Dependencies: []string{
-				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.VMImages"},
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterVersionImages", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.VMImages"},
 		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterVersionStatus": {
 			Schema: spec.Schema{
@@ -1190,14 +1063,9 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
 							},
 						},
-						"ClusterDeploymentSpec": {
+						"AWSClusterProviderConfig": {
 							SchemaProps: spec.SchemaProps{
-								Ref: ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterDeploymentSpec"),
-							},
-						},
-						"ClusterDeploymentStatus": {
-							SchemaProps: spec.SchemaProps{
-								Ref: ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterDeploymentStatus"),
+								Ref: ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.AWSClusterProviderConfig"),
 							},
 						},
 						"ClusterSpec": {
@@ -1210,12 +1078,17 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Ref: ref("sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1.ClusterStatus"),
 							},
 						},
+						"ClusterProviderStatus": {
+							SchemaProps: spec.SchemaProps{
+								Ref: ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterProviderStatus"),
+							},
+						},
 					},
-					Required: []string{"TypeMeta", "ObjectMeta", "ClusterDeploymentSpec", "ClusterDeploymentStatus", "ClusterSpec", "ClusterStatus"},
+					Required: []string{"TypeMeta", "ObjectMeta", "AWSClusterProviderConfig", "ClusterSpec", "ClusterStatus", "ClusterProviderStatus"},
 				},
 			},
 			Dependencies: []string{
-				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterDeploymentSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterDeploymentStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta", "k8s.io/apimachinery/pkg/apis/meta/v1.TypeMeta", "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1.ClusterSpec", "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1.ClusterStatus"},
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.AWSClusterProviderConfig", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterProviderStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta", "k8s.io/apimachinery/pkg/apis/meta/v1.TypeMeta", "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1.ClusterSpec", "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1.ClusterStatus"},
 		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetAWSHardwareSpec": {
 			Schema: spec.Schema{
@@ -1478,6 +1351,77 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 			},
 			Dependencies: []string{
 				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterHardwareSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetHardwareSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.VMImage", "k8s.io/api/core/v1.ObjectReference"},
+		},
+		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.OpenShiftConfigVersion": {
+			Schema: spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Description: "OpenShiftConfigVersion contains information on the specific version of OpenShift that should be deployed on a cluster.",
+					Properties: map[string]spec.Schema{
+						"deploymentType": {
+							SchemaProps: spec.SchemaProps{
+								Description: "DeploymentType indicates the type of OpenShift deployment to create.",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"version": {
+							SchemaProps: spec.SchemaProps{
+								Description: "Version is the version of OpenShift to install. (i.e. v3.10.0)",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"images": {
+							SchemaProps: spec.SchemaProps{
+								Description: "Images contains information on what images to use for this OpenShift version.",
+								Ref:         ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterVersionImages"),
+							},
+						},
+					},
+					Required: []string{"deploymentType", "version", "images"},
+				},
+			},
+			Dependencies: []string{
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterVersionImages"},
+		},
+		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.OpenShiftDistributionConfig": {
+			Schema: spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Description: "OpenShiftDistributionConfig contains configuration specific to the OpenShift distribution.",
+					Properties: map[string]spec.Schema{
+						"sdnPluginName": {
+							SchemaProps: spec.SchemaProps{
+								Description: "SDNPluginName is the name of the SDN plugin to use for this install",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"serviceNetowrkSubnet": {
+							SchemaProps: spec.SchemaProps{
+								Description: "ServiceNetworkSubnet is the CIDR to use for service IPs in the cluster",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"podNetworkSubnet": {
+							SchemaProps: spec.SchemaProps{
+								Description: "PodNetworkSubnet is the CIDR to use for pod IPs in the cluster",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"version": {
+							SchemaProps: spec.SchemaProps{
+								Description: "Version contains information on the OpenShift version that should be installed on this cluster.",
+								Ref:         ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.OpenShiftConfigVersion"),
+							},
+						},
+					},
+					Required: []string{"sdnPluginName", "version"},
+				},
+			},
+			Dependencies: []string{
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.OpenShiftConfigVersion"},
 		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.VMImage": {
 			Schema: spec.Schema{

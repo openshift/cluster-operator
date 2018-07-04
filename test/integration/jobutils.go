@@ -217,7 +217,7 @@ func completeControlPlaneInstall(t *testing.T, kubeClient *kubefake.Clientset, c
 				client,
 				namespace, name,
 				func(cluster *capiv1alpha1.Cluster) bool {
-					status, err := controller.ClusterStatusFromClusterAPI(cluster)
+					status, err := controller.ClusterProviderStatusFromCluster(cluster)
 					if err != nil {
 						return false
 					}
@@ -244,7 +244,7 @@ func completeComponentsInstall(t *testing.T, kubeClient *kubefake.Clientset, cap
 				client,
 				namespace, name,
 				func(cluster *capiv1alpha1.Cluster) bool {
-					status, err := controller.ClusterStatusFromClusterAPI(cluster)
+					status, err := controller.ClusterProviderStatusFromCluster(cluster)
 					if err != nil {
 						return false
 					}
@@ -271,7 +271,7 @@ func completeNodeConfigInstall(t *testing.T, kubeClient *kubefake.Clientset, cap
 				client,
 				namespace, name,
 				func(cluster *capiv1alpha1.Cluster) bool {
-					status, err := controller.ClusterStatusFromClusterAPI(cluster)
+					status, err := controller.ClusterProviderStatusFromCluster(cluster)
 					if err != nil {
 						return false
 					}
@@ -298,7 +298,7 @@ func completeDeployClusterAPIInstall(t *testing.T, kubeClient *kubefake.Clientse
 				client,
 				namespace, name,
 				func(cluster *capiv1alpha1.Cluster) bool {
-					status, err := controller.ClusterStatusFromClusterAPI(cluster)
+					status, err := controller.ClusterProviderStatusFromCluster(cluster)
 					if err != nil {
 						return false
 					}
@@ -331,4 +331,16 @@ func isJobComplete(job *kbatch.Job) bool {
 		}
 	}
 	return false
+}
+
+func getCluster(capiClient capiclientset.Interface, namespace, name string) (*capiv1alpha1.Cluster, error) {
+	return capiClient.ClusterV1alpha1().Clusters(namespace).Get(name, metav1.GetOptions{})
+}
+
+func getMachineSet(capiClient capiclientset.Interface, namespace, name string) (*capiv1alpha1.MachineSet, error) {
+	return capiClient.ClusterV1alpha1().MachineSets(namespace).Get(name, metav1.GetOptions{})
+}
+
+func getJob(kubeClient *kubefake.Clientset, namespace, name string) (*kbatch.Job, error) {
+	return kubeClient.Batch().Jobs(namespace).Get(name, metav1.GetOptions{})
 }

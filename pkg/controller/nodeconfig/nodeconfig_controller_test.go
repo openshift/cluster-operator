@@ -99,7 +99,7 @@ func TestStrategyReadyToInstall(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Generation: tc.clusterGeneration,
 				},
-				ClusterDeploymentStatus: &co.ClusterDeploymentStatus{
+				ClusterProviderStatus: &co.ClusterProviderStatus{
 					ControlPlaneInstalled:                      tc.controlPlaneInstalled,
 					NodeConfigInstalledJobClusterGeneration:    tc.nodeConfigInstalledClusterGeneration,
 					NodeConfigInstalledJobMachineSetGeneration: tc.nodeConfigInstalledMachineSetGeneration,

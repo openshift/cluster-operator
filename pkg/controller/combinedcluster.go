@@ -28,21 +28,21 @@ import (
 // CombinedClusterForClusterAPICluster creates a CombinedCluster
 // for the specified cluster-api Cluster.
 func CombinedClusterForClusterAPICluster(cluster *clusterapi.Cluster) (*clusteroperator.CombinedCluster, error) {
-	clusterOperatorSpec, err := ClusterDeploymentSpecFromCluster(cluster)
+	awsSpec, err := AWSClusterProviderConfigFromCluster(cluster)
 	if err != nil {
 		return nil, err
 	}
-	clusterOperatorStatus, err := ClusterStatusFromClusterAPI(cluster)
+	clusterOperatorStatus, err := ClusterProviderStatusFromCluster(cluster)
 	if err != nil {
 		return nil, err
 	}
 	return &clusteroperator.CombinedCluster{
-		TypeMeta:                cluster.TypeMeta,
-		ObjectMeta:              cluster.ObjectMeta,
-		ClusterDeploymentSpec:   clusterOperatorSpec,
-		ClusterDeploymentStatus: clusterOperatorStatus,
-		ClusterSpec:             &cluster.Spec,
-		ClusterStatus:           &cluster.Status,
+		TypeMeta:                 cluster.TypeMeta,
+		ObjectMeta:               cluster.ObjectMeta,
+		AWSClusterProviderConfig: awsSpec,
+		ClusterProviderStatus:    clusterOperatorStatus,
+		ClusterSpec:              &cluster.Spec,
+		ClusterStatus:            &cluster.Status,
 	}, nil
 }
 
@@ -61,7 +61,7 @@ func ClusterAPIClusterForCombinedCluster(cluster *clusteroperator.CombinedCluste
 	if !ignoreChanges {
 		// We don't bother replacing ProviderConfig since we will not be updating the
 		// cluster spec.
-		providerStatus, err := ClusterAPIProviderStatusFromClusterStatus(cluster.ClusterDeploymentStatus)
+		providerStatus, err := EncodeClusterProviderStatus(cluster.ClusterProviderStatus)
 		if err != nil {
 			return nil, err
 		}

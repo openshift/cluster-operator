@@ -405,18 +405,6 @@ func (s *jobSyncStrategy) DoesOwnerNeedProcessing(owner metav1.Object) bool {
 		return false
 	}
 
-	// cannot run ansible jobs until the ClusterVersion has been resolved
-	if cluster.ClusterDeploymentStatus.ClusterVersionRef == nil {
-		// staebler: Temporary work-around until we have a controller that sets
-		// the ClusterVersionRef for cluster-api clusters.
-		_, err := s.controller.clustopClient.ClusteroperatorV1alpha1().
-			ClusterVersions(cluster.ClusterDeploymentSpec.ClusterVersionRef.Namespace).
-			Get(cluster.ClusterDeploymentSpec.ClusterVersionRef.Name, metav1.GetOptions{})
-		if err != nil {
-			return false
-		}
-	}
-
 	machineSet, err := controller.GetMasterMachineSet(cluster, s.controller.machineSetLister)
 	if err != nil {
 		logging.WithCombinedCluster(s.controller.Logger, cluster).
@@ -437,13 +425,7 @@ func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object, deleting bool) (con
 		return nil, fmt.Errorf("could not convert owner from JobSync into a cluster: %v: %#v", err, owner)
 	}
 
-	cvRef := cluster.ClusterDeploymentSpec.ClusterVersionRef
-	cv, err := s.controller.clustopClient.Clusteroperator().ClusterVersions(cvRef.Namespace).Get(cvRef.Name, metav1.GetOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("could not get the ClusterVersion: %v", err)
-	}
-
-	jobGeneratorExecutor := ansible.NewJobGeneratorExecutorForMasterMachineSet(s.controller.ansibleGenerator, s.controller.playbooks, cluster, cv)
+	jobGeneratorExecutor := ansible.NewJobGeneratorExecutorForMasterMachineSet(s.controller.ansibleGenerator, s.controller.playbooks, cluster, cluster.AWSClusterProviderConfig.OpenShiftConfig.Version)
 	if decorateStrategy, shouldDecorate := s.controller.installStrategy.(InstallJobDecorationStrategy); shouldDecorate {
 		decorateStrategy.DecorateJobGeneratorExecutor(jobGeneratorExecutor, cluster)
 	}
@@ -482,8 +464,8 @@ func (s *jobSyncStrategy) SetOwnerJobSyncCondition(
 		s.controller.Logger.Warnf("could not convert owner from JobSync into a cluster: %v: %#v", err, owner)
 		return
 	}
-	controller.SetClusterCondition(
-		cluster.ClusterDeploymentStatus,
+	cluster.ClusterProviderStatus.Conditions = controller.SetClusterCondition(
+		cluster.ClusterProviderStatus.Conditions,
 		s.controller.installStrategy.ConvertJobSyncConditionType(conditionType),
 		status,
 		reason,
