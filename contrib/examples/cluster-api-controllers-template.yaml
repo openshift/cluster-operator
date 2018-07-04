@@ -48,7 +48,6 @@ objects:
           args:
           - --log-level=debug
           - --default-availability-zone=${DEFAULT_AVAILABILITY_ZONE}
-          - --incluster=false
           volumeMounts:
           - name: bootstrap-kubeconfig
             mountPath: /etc/origin/master
