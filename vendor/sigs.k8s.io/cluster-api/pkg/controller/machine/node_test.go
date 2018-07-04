@@ -1,3 +1,19 @@
+/*
+Copyright 2018 The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package machine
 
 import (
@@ -113,7 +129,7 @@ func TestReconcileNode(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			m := getMachine("foo", false, false, false)
+			m := getMachine("foo", nil, false, false)
 			if test.nodeRefName != "" {
 				m.Status.NodeRef = &corev1.ObjectReference{
 					Kind: "Node",
@@ -133,11 +149,11 @@ func TestReconcileNode(t *testing.T) {
 			machineLister := v1alpha1listers.NewMachineLister(machinesIndexer)
 
 			fakeClient := fake.NewSimpleClientset(mrObjects...)
-			fakeMachineClient := fakeClient.Cluster().Machines(metav1.NamespaceDefault)
 
 			node := &corev1.Node{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:        "bar",
+					UID:         "the-uid",
 					Annotations: make(map[string]string),
 				},
 			}
@@ -153,7 +169,7 @@ func TestReconcileNode(t *testing.T) {
 				}
 			}
 			if test.nodeHasMachineAnnotation {
-				node.ObjectMeta.Annotations[machineAnnotationKey] = "foo"
+				node.ObjectMeta.Annotations[machineAnnotationKey] = "default/foo"
 			}
 			if test.nodeIsDeleting {
 				node.DeletionTimestamp = &metav1.Time{Time: time.Now()}
@@ -167,7 +183,6 @@ func TestReconcileNode(t *testing.T) {
 
 			target := &MachineControllerImpl{}
 			target.clientSet = fakeClient
-			target.machineClient = fakeMachineClient
 			target.kubernetesClientSet = fakeK8sClient
 			target.lister = machineLister
 			target.linkedNodes = make(map[string]bool)
@@ -241,6 +256,9 @@ func TestReconcileNode(t *testing.T) {
 				}
 				if actualMachine.Status.NodeRef.Name != "bar" {
 					t.Errorf("got %v node ref name, expected bar node ref name.", actualMachine.Status.NodeRef.Name)
+				}
+				if actualMachine.Status.NodeRef.UID != "the-uid" {
+					t.Errorf("got '%v' node ref uid, expected 'the-uid' node ref uid", actualMachine.Status.NodeRef.UID)
 				}
 			}
 			if !test.expectLinked {

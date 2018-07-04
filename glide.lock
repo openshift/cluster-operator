@@ -1,5 +1,5 @@
 hash: fd7865846480287d3a1fc4f9d47be4579b0be1a57394189edcfecf056b8635b0
-updated: 2018-05-30T10:42:18.434085638-03:00
+updated: 2018-07-04T09:38:35.413978643-03:00
 imports:
 - name: bitbucket.org/ww/goautoneg
   version: 75cd24fc2f2c2a2088577d12123ddee5f54e0675
@@ -32,6 +32,9 @@ imports:
   - private/protocol/rest
   - private/protocol/xml/xmlutil
   - service/ec2
+  - service/ec2/ec2iface
+  - service/elb
+  - service/elb/elbiface
   - service/sts
 - name: github.com/beorn7/perks
   version: 3ac7bf7a47d159a033b107610db8a1b6575507a4
@@ -151,6 +154,10 @@ imports:
   version: 02826c3e79038b59d737d3b1c0a1d937f71a4433
   subpackages:
   - lru
+- name: github.com/golang/mock
+  version: 22bbf0ddf08105dfa364d0a2fa619dfa71014af5
+  subpackages:
+  - gomock
 - name: github.com/golang/protobuf
   version: 1643683e1b54a9e88ad26d98f81400c8c9d9f4f9
   subpackages:
@@ -174,7 +181,7 @@ imports:
 - name: github.com/gorilla/context
   version: 08b5f424b9271eedf6f9f0ce86cb9396ed337a42
 - name: github.com/gorilla/mux
-  version: e0b5abaaae35242fa74372f26c24107711702a4e
+  version: cb4698366aa625048f3b815af6a0dea8aef9280a
 - name: github.com/gregjones/httpcache
   version: 787624de3eb7bd915c329cba748687a3b22666a6
   subpackages:
@@ -213,7 +220,7 @@ imports:
   - pkg/builders
   - pkg/controller
 - name: github.com/kubernetes/repo-infra
-  version: 3c350a455362b622fe786e63f8f07b2a87f54f7b
+  version: c2f9667a4c29e70a39b0e89db2d4f0cab907dbee
 - name: github.com/mailru/easyjson
   version: 2f5df55504ebc322e4d52d34df6a1f5b503bf26d
   subpackages:
@@ -269,7 +276,7 @@ imports:
 - name: github.com/spf13/pflag
   version: e57e3eeb33f795204c1ca35f56c44f83227c6e66
 - name: github.com/stretchr/testify
-  version: c679ae2cc0cb27ec3293fea7e254e47386f05d69
+  version: f35b8ab0b5a2cef36673838d662e249dd9c94686
   subpackages:
   - assert
 - name: github.com/ugorji/go
@@ -694,7 +701,7 @@ imports:
   - pkg/util
   - pkg/util/proto
 - name: sigs.k8s.io/cluster-api
-  version: 851a4b40eedd60ffaab6ab25d5ba40412523e4e7
+  version: dfa371814c0b39a284662b897ba9b5df4749e973
   subpackages:
   - pkg/apis
   - pkg/apis/cluster
@@ -715,9 +722,5 @@ imports:
   - pkg/controller/machine
   - pkg/controller/noderefutil
   - pkg/controller/sharedinformers
-  - util
-testImports:
-- name: github.com/golang/mock
-  version: 22bbf0ddf08105dfa364d0a2fa619dfa71014af5
-  subpackages:
-  - gomock
+  - pkg/util
+testImports: []

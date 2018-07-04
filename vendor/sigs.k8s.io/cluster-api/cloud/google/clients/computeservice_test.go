@@ -1,17 +1,32 @@
+/*
+Copyright 2018 The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package clients_test
 
 import (
-	compute "google.golang.org/api/compute/v1"
-	"encoding/json"
-	"google.golang.org/api/googleapi"
 	"net/http"
 	"net/http/httptest"
-	"sigs.k8s.io/cluster-api/cloud/google/clients"
 	"testing"
+
+	compute "google.golang.org/api/compute/v1"
+	"sigs.k8s.io/cluster-api/cloud/google/clients"
 )
 
 func TestImagesGet(t *testing.T) {
-	mux, server, client := createMuxServerAndClient()
+	mux, server, client := createMuxServerAndComputeClient(t)
 	defer server.Close()
 	responseImage := compute.Image{
 		Name:             "imageName",
@@ -34,7 +49,7 @@ func TestImagesGet(t *testing.T) {
 }
 
 func TestImagesGetFromFamily(t *testing.T) {
-	mux, server, client := createMuxServerAndClient()
+	mux, server, client := createMuxServerAndComputeClient(t)
 	defer server.Close()
 	responseImage := compute.Image{
 		Name:             "imageName",
@@ -57,7 +72,7 @@ func TestImagesGetFromFamily(t *testing.T) {
 }
 
 func TestInstancesDelete(t *testing.T) {
-	mux, server, client := createMuxServerAndClient()
+	mux, server, client := createMuxServerAndComputeClient(t)
 	defer server.Close()
 	responseOperation := compute.Operation{
 		Id: 4501,
@@ -76,7 +91,7 @@ func TestInstancesDelete(t *testing.T) {
 }
 
 func TestInstancesGet(t *testing.T) {
-	mux, server, client := createMuxServerAndClient()
+	mux, server, client := createMuxServerAndComputeClient(t)
 	defer server.Close()
 	responseInstance := compute.Instance{
 		Name: "instanceName",
@@ -99,7 +114,7 @@ func TestInstancesGet(t *testing.T) {
 }
 
 func TestInstancesInsert(t *testing.T) {
-	mux, server, client := createMuxServerAndClient()
+	mux, server, client := createMuxServerAndComputeClient(t)
 	defer server.Close()
 	responseOperation := compute.Operation{
 		Id: 3001,
@@ -117,40 +132,44 @@ func TestInstancesInsert(t *testing.T) {
 	}
 }
 
-func createMuxServerAndClient() (*http.ServeMux, *httptest.Server, *clients.ComputeService) {
-	mux := http.NewServeMux()
-	server := httptest.NewServer(mux)
-	client, _ := clients.NewComputeServiceForURL(server.Client(), server.URL)
+func TestWaitForOperationSuccess(t *testing.T) {
+	_, server, client := createMuxServerAndComputeClient(t)
+	defer server.Close()
+	op := &compute.Operation{
+		Id: 3001,
+		Status: "DONE",
+	}
+	err := client.WaitForOperation("projectName", op)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestWaitForOperationError(t *testing.T) {
+	_, server, client := createMuxServerAndComputeClient(t)
+	defer server.Close()
+	responseError := &compute.OperationErrorErrors{
+		Message: "testerrorthrown",
+	}
+	responseErrors := []*compute.OperationErrorErrors{}
+	responseErrors = append(responseErrors, responseError)
+	op := &compute.Operation{
+		Id: 3001,
+		Error: &compute.OperationError{
+			Errors:responseErrors,
+		},
+	}
+	err := client.WaitForOperation("projectName", op)
+	if err == nil || err.Error() != responseError.Message+"\n" {
+		t.Errorf("expected error to occur: %v", responseError.Message)
+	}
+}
+
+func createMuxServerAndComputeClient(t *testing.T) (*http.ServeMux, *httptest.Server, *clients.ComputeService) {
+	mux, server := createMuxAndServer()
+	client, err := clients.NewComputeServiceForURL(server.Client(), server.URL)
+	if err != nil {
+		t.Fatalf("unable to create compute service: %v", err)
+	}
 	return mux, server, client
-}
-
-func handler(err *googleapi.Error, obj interface{}) http.HandlerFunc {
-	return func(w http.ResponseWriter, req *http.Request) {
-		handleTestRequest(w, err, obj)
-	}
-}
-
-func handleTestRequest(w http.ResponseWriter, handleErr *googleapi.Error, obj interface{}) {
-	if handleErr != nil {
-		http.Error(w, errMsg(handleErr), handleErr.Code)
-		return
-	}
-	res, err := json.Marshal(obj)
-	if err != nil {
-		http.Error(w, "json marshal error", http.StatusInternalServerError)
-		return
-	}
-	w.Write(res)
-}
-
-func errMsg(e *googleapi.Error) string {
-	res, err := json.Marshal(&errorReply{e})
-	if err != nil {
-		return "json marshal error"
-	}
-	return string(res)
-}
-
-type errorReply struct {
-	Error *googleapi.Error `json:"error"`
 }

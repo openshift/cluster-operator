@@ -129,7 +129,42 @@ spec:
             cpu: 100m
             memory: 30Mi
       - name: gce-machine-controller
-        image: {{ .MachineControllerImage }}
+        image: {{ .GCEControllerImage }}
+        volumeMounts:
+          - name: config
+            mountPath: /etc/kubernetes
+          - name: certs
+            mountPath: /etc/ssl/certs
+          - name: credentials
+            mountPath: /etc/credentials
+          - name: sshkeys
+            mountPath: /etc/sshkeys
+          - name: machine-setup
+            mountPath: /etc/machinesetup
+          - name: kubeadm
+            mountPath: /usr/bin/kubeadm
+        env:
+          - name: GOOGLE_APPLICATION_CREDENTIALS
+            value: /etc/credentials/service-account.json
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+        command:
+        - "./gce-controller"
+        args:
+        - --kubeconfig=/etc/kubernetes/admin.conf
+        - --machinesetup=/etc/machinesetup/machine_setup_configs.yaml
+        - --controller=machine
+        resources:
+          requests:
+            cpu: 100m
+            memory: 20Mi
+          limits:
+            cpu: 100m
+            memory: 30Mi
+      - name: gce-cluster-controller
+        image: {{ .GCEControllerImage }}
         volumeMounts:
           - name: config
             mountPath: /etc/kubernetes
@@ -145,11 +180,10 @@ spec:
           - name: GOOGLE_APPLICATION_CREDENTIALS
             value: /etc/credentials/service-account.json
         command:
-        - "./gce-machine-controller"
+        - "./gce-controller"
         args:
         - --kubeconfig=/etc/kubernetes/admin.conf
-        - --token={{ .Token }}
-        - --machinesetup=/etc/machinesetup/machine_setup_configs.yaml
+        - --controller=cluster
         resources:
           requests:
             cpu: 100m
@@ -177,6 +211,9 @@ spec:
       - name: machine-setup
         configMap: 
           name: machine-setup
+      - name: kubeadm
+        hostPath:
+          path: /usr/bin/kubeadm
 ---
 apiVersion: apps/v1beta1
 kind: StatefulSet

@@ -10,6 +10,8 @@ items:
       value:
         apiVersion: "gceproviderconfig/v1alpha1"
         kind: "GCEMachineProviderConfig"
+        roles:
+        - Master
         zone: "$ZONE"
         machineType: "n1-standard-2"
         os: "ubuntu-1604-lts"
@@ -20,9 +22,6 @@ items:
     versions:
       kubelet: 1.9.4
       controlPlane: 1.9.4
-      containerRuntime:
-        name: docker
-        version: 1.12.0
     roles:
     - Master
 - apiVersion: "cluster.k8s.io/v1alpha1"
@@ -36,6 +35,8 @@ items:
       value:
         apiVersion: "gceproviderconfig/v1alpha1"
         kind: "GCEMachineProviderConfig"
+        roles:
+        - Node
         zone: "$ZONE"
         machineType: "n1-standard-1"
         os: "ubuntu-1604-lts"
@@ -45,8 +46,5 @@ items:
             diskType: "pd-standard"
     versions:
       kubelet: 1.9.4
-      containerRuntime:
-        name: docker
-        version: 1.12.0
     roles:
     - Node

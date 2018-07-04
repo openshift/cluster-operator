@@ -1,9 +1,12 @@
 /*
 Copyright 2018 The Kubernetes Authors.
+
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
+
     http://www.apache.org/licenses/LICENSE-2.0
+
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -14,13 +17,14 @@ limitations under the License.
 package google
 
 import (
-	"bytes"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"os"
-	"path"
 	"reflect"
+	"regexp"
 	"strings"
 	"time"
 
@@ -28,23 +32,24 @@ import (
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2/google"
 	compute "google.golang.org/api/compute/v1"
+	"google.golang.org/api/googleapi"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-
-	"regexp"
-
-	"encoding/base64"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/record"
+
 	"sigs.k8s.io/cluster-api/cloud/google/clients"
 	gceconfigv1 "sigs.k8s.io/cluster-api/cloud/google/gceproviderconfig/v1alpha1"
 	"sigs.k8s.io/cluster-api/cloud/google/machinesetup"
-	apierrors "sigs.k8s.io/cluster-api/errors"
 	clusterv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	"sigs.k8s.io/cluster-api/pkg/cert"
 	client "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset/typed/cluster/v1alpha1"
-	"sigs.k8s.io/cluster-api/util"
+	apierrors "sigs.k8s.io/cluster-api/pkg/errors"
+	"sigs.k8s.io/cluster-api/pkg/kubeadm"
+	"sigs.k8s.io/cluster-api/pkg/util"
 )
 
 const (
@@ -59,50 +64,50 @@ const (
 	MachineSetupConfigsFilename = "machine_setup_configs.yaml"
 )
 
+const (
+	createEventAction = "Create"
+	deleteEventAction = "Delete"
+	noEventAction     = ""
+)
+
 type SshCreds struct {
 	user           string
 	privateKeyPath string
+}
+
+type GCEClientKubeadm interface {
+	TokenCreate(params kubeadm.TokenCreateParams) (string, error)
 }
 
 type GCEClientMachineSetupConfigGetter interface {
 	GetMachineSetupConfig() (machinesetup.MachineSetupConfig, error)
 }
 
-type GCEClientComputeService interface {
-	ImagesGet(project string, image string) (*compute.Image, error)
-	ImagesGetFromFamily(project string, family string) (*compute.Image, error)
-	InstancesDelete(project string, zone string, targetInstance string) (*compute.Operation, error)
-	InstancesGet(project string, zone string, instance string) (*compute.Instance, error)
-	InstancesInsert(project string, zone string, instance *compute.Instance) (*compute.Operation, error)
-	ZoneOperationsGet(project string, zone string, operation string) (*compute.Operation, error)
-}
-
 type GCEClient struct {
 	certificateAuthority     *cert.CertificateAuthority
 	computeService           GCEClientComputeService
 	gceProviderConfigCodec   *gceconfigv1.GCEProviderConfigCodec
+	kubeadm                  GCEClientKubeadm
 	scheme                   *runtime.Scheme
-	kubeadmToken             string
+	codecFactory             *serializer.CodecFactory
+	serviceAccountService    *ServiceAccountService
 	sshCreds                 SshCreds
-	machineClient            client.MachineInterface
+	v1Alpha1Client           client.ClusterV1alpha1Interface
 	machineSetupConfigGetter GCEClientMachineSetupConfigGetter
+	eventRecorder            record.EventRecorder
 }
 
 type MachineActuatorParams struct {
 	CertificateAuthority     *cert.CertificateAuthority
 	ComputeService           GCEClientComputeService
-	KubeadmToken             string
-	MachineClient            client.MachineInterface
+	Kubeadm                  GCEClientKubeadm
+	V1Alpha1Client           client.ClusterV1alpha1Interface
 	MachineSetupConfigGetter GCEClientMachineSetupConfigGetter
+	EventRecorder            record.EventRecorder
 }
 
-const (
-	gceTimeout   = time.Minute * 10
-	gceWaitSleep = time.Second * 5
-)
-
 func NewMachineActuator(params MachineActuatorParams) (*GCEClient, error) {
-	computeService, err := getOrNewComputeService(params)
+	computeService, err := getOrNewComputeServiceForMachine(params)
 	if err != nil {
 		return nil, err
 	}
@@ -115,6 +120,8 @@ func NewMachineActuator(params MachineActuatorParams) (*GCEClient, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	serviceAccountService := NewServiceAccountService(codec)
 
 	// Only applicable if it's running inside machine controller pod.
 	var privateKeyPath, user string
@@ -132,15 +139,17 @@ func NewMachineActuator(params MachineActuatorParams) (*GCEClient, error) {
 	return &GCEClient{
 		certificateAuthority:   params.CertificateAuthority,
 		computeService:         computeService,
+		kubeadm:                getOrNewKubeadm(params),
 		scheme:                 scheme,
 		gceProviderConfigCodec: codec,
-		kubeadmToken:           params.KubeadmToken,
+		serviceAccountService:  serviceAccountService,
 		sshCreds: SshCreds{
 			privateKeyPath: privateKeyPath,
 			user:           user,
 		},
-		machineClient:            params.MachineClient,
+		v1Alpha1Client:           params.V1Alpha1Client,
 		machineSetupConfigGetter: params.MachineSetupConfigGetter,
+		eventRecorder:            params.EventRecorder,
 	}, nil
 }
 
@@ -148,7 +157,7 @@ func (gce *GCEClient) CreateMachineController(cluster *clusterv1.Cluster, initia
 	if gce.machineSetupConfigGetter == nil {
 		return errors.New("a valid machineSetupConfigGetter is required")
 	}
-	if err := gce.CreateMachineControllerServiceAccount(cluster, initialMachines); err != nil {
+	if err := gce.serviceAccountService.CreateMachineControllerServiceAccount(cluster); err != nil {
 		return err
 	}
 
@@ -180,19 +189,19 @@ func (gce *GCEClient) CreateMachineController(cluster *clusterv1.Cluster, initia
 		return err
 	}
 
-	if err := CreateApiServerAndController(gce.kubeadmToken); err != nil {
+	if err := CreateApiServerAndController(); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (gce *GCEClient) ProvisionClusterDependencies(cluster *clusterv1.Cluster, initialMachines []*clusterv1.Machine) error {
-	err := gce.CreateWorkerNodeServiceAccount(cluster, initialMachines)
+func (gce *GCEClient) ProvisionClusterDependencies(cluster *clusterv1.Cluster) error {
+	err := gce.serviceAccountService.CreateWorkerNodeServiceAccount(cluster)
 	if err != nil {
 		return err
 	}
 
-	return gce.CreateMasterNodeServiceAccount(cluster, initialMachines)
+	return gce.serviceAccountService.CreateMasterNodeServiceAccount(cluster)
 }
 
 func (gce *GCEClient) Create(cluster *clusterv1.Cluster, machine *clusterv1.Machine) error {
@@ -202,21 +211,21 @@ func (gce *GCEClient) Create(cluster *clusterv1.Cluster, machine *clusterv1.Mach
 	machineConfig, err := gce.machineproviderconfig(machine.Spec.ProviderConfig)
 	if err != nil {
 		return gce.handleMachineError(machine, apierrors.InvalidMachineConfiguration(
-			"Cannot unmarshal machine's providerConfig field: %v", err))
+			"Cannot unmarshal machine's providerConfig field: %v", err), createEventAction)
 	}
-	clusterConfig, err := gce.clusterproviderconfig(cluster.Spec.ProviderConfig)
+	clusterConfig, err := gce.gceProviderConfigCodec.ClusterProviderFromProviderConfig(cluster.Spec.ProviderConfig)
 	if err != nil {
 		return gce.handleMachineError(machine, apierrors.InvalidMachineConfiguration(
-			"Cannot unmarshal cluster's providerConfig field: %v", err))
+			"Cannot unmarshal cluster's providerConfig field: %v", err), createEventAction)
 	}
 
 	if verr := gce.validateMachine(machine, machineConfig); verr != nil {
-		return gce.handleMachineError(machine, verr)
+		return gce.handleMachineError(machine, verr, createEventAction)
 	}
 
 	configParams := &machinesetup.ConfigParams{
 		OS:       machineConfig.OS,
-		Roles:    machine.Spec.Roles,
+		Roles:    machineConfig.Roles,
 		Versions: machine.Spec.Versions,
 	}
 	machineSetupConfigs, err := gce.machineSetupConfigGetter.GetMachineSetupConfig()
@@ -244,7 +253,7 @@ func (gce *GCEClient) Create(cluster *clusterv1.Cluster, machine *clusterv1.Mach
 
 	if instance == nil {
 		labels := map[string]string{}
-		if gce.machineClient == nil {
+		if gce.v1Alpha1Client == nil {
 			labels[BootstrapLabelKey] = "true"
 		}
 
@@ -263,7 +272,7 @@ func (gce *GCEClient) Create(cluster *clusterv1.Cluster, machine *clusterv1.Mach
 					},
 				},
 			},
-			Disks: newDisks(machineConfig, zone, imagePath, int64(30)),
+			Disks:    newDisks(machineConfig, zone, imagePath, int64(30)),
 			Metadata: metadata,
 			Tags: &compute.Tags{
 				Items: []string{
@@ -273,7 +282,7 @@ func (gce *GCEClient) Create(cluster *clusterv1.Cluster, machine *clusterv1.Mach
 			Labels: labels,
 			ServiceAccounts: []*compute.ServiceAccount{
 				{
-					Email: gce.GetDefaultServiceAccountForMachine(cluster, machine),
+					Email: gce.serviceAccountService.GetDefaultServiceAccountForMachine(cluster, machine),
 					Scopes: []string{
 						compute.CloudPlatformScope,
 					},
@@ -282,17 +291,18 @@ func (gce *GCEClient) Create(cluster *clusterv1.Cluster, machine *clusterv1.Mach
 		})
 
 		if err == nil {
-			err = gce.waitForOperation(clusterConfig, op)
+			err = gce.computeService.WaitForOperation(clusterConfig.Project, op)
 		}
 
 		if err != nil {
 			return gce.handleMachineError(machine, apierrors.CreateMachine(
-				"error creating GCE instance: %v", err))
+				"error creating GCE instance: %v", err), createEventAction)
 		}
 
-		// If we have a machineClient, then annotate the machine so that we
+		gce.eventRecorder.Eventf(machine, corev1.EventTypeNormal, "Created", "Created Machine %v", machine.Name)
+		// If we have a v1Alpha1Client, then annotate the machine so that we
 		// remember exactly what VM we created for it.
-		if gce.machineClient != nil {
+		if gce.v1Alpha1Client != nil {
 			return gce.updateAnnotations(cluster, machine)
 		}
 	} else {
@@ -316,17 +326,17 @@ func (gce *GCEClient) Delete(cluster *clusterv1.Cluster, machine *clusterv1.Mach
 	machineConfig, err := gce.machineproviderconfig(machine.Spec.ProviderConfig)
 	if err != nil {
 		return gce.handleMachineError(machine,
-			apierrors.InvalidMachineConfiguration("Cannot unmarshal machine's providerConfig field: %v", err))
+			apierrors.InvalidMachineConfiguration("Cannot unmarshal machine's providerConfig field: %v", err), deleteEventAction)
 	}
 
-	clusterConfig, err := gce.clusterproviderconfig(cluster.Spec.ProviderConfig)
+	clusterConfig, err := gce.gceProviderConfigCodec.ClusterProviderFromProviderConfig(cluster.Spec.ProviderConfig)
 	if err != nil {
 		return gce.handleMachineError(machine,
-			apierrors.InvalidMachineConfiguration("Cannot unmarshal cluster's providerConfig field: %v", err))
+			apierrors.InvalidMachineConfiguration("Cannot unmarshal cluster's providerConfig field: %v", err), deleteEventAction)
 	}
 
 	if verr := gce.validateMachine(machine, machineConfig); verr != nil {
-		return gce.handleMachineError(machine, verr)
+		return gce.handleMachineError(machine, verr, deleteEventAction)
 	}
 
 	var project, zone, name string
@@ -346,34 +356,30 @@ func (gce *GCEClient) Delete(cluster *clusterv1.Cluster, machine *clusterv1.Mach
 
 	op, err := gce.computeService.InstancesDelete(project, zone, name)
 	if err == nil {
-		err = gce.waitForOperation(clusterConfig, op)
+		err = gce.computeService.WaitForOperation(clusterConfig.Project, op)
 	}
 	if err != nil {
 		return gce.handleMachineError(machine, apierrors.DeleteMachine(
-			"error deleting GCE instance: %v", err))
+			"error deleting GCE instance: %v", err), deleteEventAction)
 	}
 
-	if gce.machineClient != nil {
-		// Remove the finalizer
-		machine.ObjectMeta.Finalizers = util.Filter(machine.ObjectMeta.Finalizers, clusterv1.MachineFinalizer)
-		_, err = gce.machineClient.Update(machine)
-	}
+	gce.eventRecorder.Eventf(machine, corev1.EventTypeNormal, "Deleted", "Deleted Machine %v", name)
 
 	return err
 }
 
-func (gce *GCEClient) PostCreate(cluster *clusterv1.Cluster, machines []*clusterv1.Machine) error {
+func (gce *GCEClient) PostCreate(cluster *clusterv1.Cluster) error {
 	err := CreateDefaultStorageClass()
 	if err != nil {
 		return fmt.Errorf("error creating default storage class: %v", err)
 	}
 
-	err = gce.CreateIngressControllerServiceAccount(cluster, machines)
+	err = gce.serviceAccountService.CreateIngressControllerServiceAccount(cluster)
 	if err != nil {
 		return fmt.Errorf("error creating service account for ingress controller: %v", err)
 	}
 
-	clusterConfig, err := gce.clusterproviderconfig(cluster.Spec.ProviderConfig)
+	clusterConfig, err := gce.gceProviderConfigCodec.ClusterProviderFromProviderConfig(cluster.Spec.ProviderConfig)
 	if err != nil {
 		return fmt.Errorf("Cannot unmarshal cluster's providerConfig field: %v", err)
 	}
@@ -385,17 +391,17 @@ func (gce *GCEClient) PostCreate(cluster *clusterv1.Cluster, machines []*cluster
 	return nil
 }
 
-func (gce *GCEClient) PostDelete(cluster *clusterv1.Cluster, machines []*clusterv1.Machine) error {
-	if err := gce.DeleteMasterNodeServiceAccount(cluster, machines); err != nil {
+func (gce *GCEClient) PostDelete(cluster *clusterv1.Cluster) error {
+	if err := gce.serviceAccountService.DeleteMasterNodeServiceAccount(cluster); err != nil {
 		return fmt.Errorf("error deleting master node service account: %v", err)
 	}
-	if err := gce.DeleteWorkerNodeServiceAccount(cluster, machines); err != nil {
+	if err := gce.serviceAccountService.DeleteWorkerNodeServiceAccount(cluster); err != nil {
 		return fmt.Errorf("error deleting worker node service account: %v", err)
 	}
-	if err := gce.DeleteIngressControllerServiceAccount(cluster, machines); err != nil {
+	if err := gce.serviceAccountService.DeleteIngressControllerServiceAccount(cluster); err != nil {
 		return fmt.Errorf("error deleting ingress controller service account: %v", err)
 	}
-	if err := gce.DeleteMachineControllerServiceAccount(cluster, machines); err != nil {
+	if err := gce.serviceAccountService.DeleteMachineControllerServiceAccount(cluster); err != nil {
 		return fmt.Errorf("error deleting machine controller service account: %v", err)
 	}
 	return nil
@@ -403,13 +409,13 @@ func (gce *GCEClient) PostDelete(cluster *clusterv1.Cluster, machines []*cluster
 
 func (gce *GCEClient) Update(cluster *clusterv1.Cluster, goalMachine *clusterv1.Machine) error {
 	// Before updating, do some basic validation of the object first.
-	config, err := gce.machineproviderconfig(goalMachine.Spec.ProviderConfig)
+	goalConfig, err := gce.machineproviderconfig(goalMachine.Spec.ProviderConfig)
 	if err != nil {
 		return gce.handleMachineError(goalMachine,
-			apierrors.InvalidMachineConfiguration("Cannot unmarshal machine's providerConfig field: %v", err))
+			apierrors.InvalidMachineConfiguration("Cannot unmarshal machine's providerConfig field: %v", err), noEventAction)
 	}
-	if verr := gce.validateMachine(goalMachine, config); verr != nil {
-		return gce.handleMachineError(goalMachine, verr)
+	if verr := gce.validateMachine(goalMachine, goalConfig); verr != nil {
+		return gce.handleMachineError(goalMachine, verr, noEventAction)
 	}
 
 	status, err := gce.instanceStatus(goalMachine)
@@ -431,11 +437,17 @@ func (gce *GCEClient) Update(cluster *clusterv1.Cluster, goalMachine *clusterv1.
 		}
 	}
 
+	currentConfig, err := gce.machineproviderconfig(currentMachine.Spec.ProviderConfig)
+	if err != nil {
+		return gce.handleMachineError(currentMachine, apierrors.InvalidMachineConfiguration(
+			"Cannot unmarshal machine's providerConfig field: %v", err), noEventAction)
+	}
+
 	if !gce.requiresUpdate(currentMachine, goalMachine) {
 		return nil
 	}
 
-	if util.IsMaster(currentMachine) {
+	if isMaster(currentConfig.Roles) {
 		glog.Infof("Doing an in-place upgrade for master.\n")
 		// TODO: should we support custom CAs here?
 		err = gce.updateMasterInplace(cluster, currentMachine, goalMachine)
@@ -457,8 +469,7 @@ func (gce *GCEClient) Update(cluster *clusterv1.Cluster, goalMachine *clusterv1.
 	if err != nil {
 		return err
 	}
-	err = gce.updateInstanceStatus(goalMachine)
-	return err
+	return gce.updateInstanceStatus(goalMachine)
 }
 
 func (gce *GCEClient) Exists(cluster *clusterv1.Cluster, machine *clusterv1.Machine) (bool, error) {
@@ -475,7 +486,7 @@ func (gce *GCEClient) GetIP(cluster *clusterv1.Cluster, machine *clusterv1.Machi
 		return "", err
 	}
 
-	clusterConfig, err := gce.clusterproviderconfig(cluster.Spec.ProviderConfig)
+	clusterConfig, err := gce.gceProviderConfigCodec.ClusterProviderFromProviderConfig(cluster.Spec.ProviderConfig)
 	if err != nil {
 		return "", err
 	}
@@ -503,7 +514,7 @@ func (gce *GCEClient) GetKubeConfig(cluster *clusterv1.Cluster, master *clusterv
 		return "", err
 	}
 
-	clusterConfig, err := gce.clusterproviderconfig(cluster.Spec.ProviderConfig)
+	clusterConfig, err := gce.gceProviderConfigCodec.ClusterProviderFromProviderConfig(cluster.Spec.ProviderConfig)
 	if err != nil {
 		return "", err
 	}
@@ -515,20 +526,29 @@ func (gce *GCEClient) GetKubeConfig(cluster *clusterv1.Cluster, master *clusterv
 	return result, nil
 }
 
+func isMaster(roles []gceconfigv1.MachineRole) bool {
+	for _, r := range roles {
+		if r == gceconfigv1.MasterRole {
+			return true
+		}
+	}
+	return false
+}
+
 func (gce *GCEClient) updateAnnotations(cluster *clusterv1.Cluster, machine *clusterv1.Machine) error {
 	machineConfig, err := gce.machineproviderconfig(machine.Spec.ProviderConfig)
 	name := machine.ObjectMeta.Name
 	zone := machineConfig.Zone
 	if err != nil {
 		return gce.handleMachineError(machine,
-			apierrors.InvalidMachineConfiguration("Cannot unmarshal machine's providerConfig field: %v", err))
+			apierrors.InvalidMachineConfiguration("Cannot unmarshal machine's providerConfig field: %v", err), noEventAction)
 	}
 
-	clusterConfig, err := gce.clusterproviderconfig(cluster.Spec.ProviderConfig)
+	clusterConfig, err := gce.gceProviderConfigCodec.ClusterProviderFromProviderConfig(cluster.Spec.ProviderConfig)
 	project := clusterConfig.Project
 	if err != nil {
 		return gce.handleMachineError(machine,
-			apierrors.InvalidMachineConfiguration("Cannot unmarshal cluster's providerConfig field: %v", err))
+			apierrors.InvalidMachineConfiguration("Cannot unmarshal cluster's providerConfig field: %v", err), noEventAction)
 	}
 
 	if machine.ObjectMeta.Annotations == nil {
@@ -537,7 +557,7 @@ func (gce *GCEClient) updateAnnotations(cluster *clusterv1.Cluster, machine *clu
 	machine.ObjectMeta.Annotations[ProjectAnnotationKey] = project
 	machine.ObjectMeta.Annotations[ZoneAnnotationKey] = zone
 	machine.ObjectMeta.Annotations[NameAnnotationKey] = name
-	_, err = gce.machineClient.Update(machine)
+	_, err = gce.v1Alpha1Client.Machines(machine.Namespace).Update(machine)
 	if err != nil {
 		return err
 	}
@@ -576,15 +596,14 @@ func (gce *GCEClient) instanceIfExists(cluster *clusterv1.Cluster, machine *clus
 		return nil, err
 	}
 
-	clusterConfig, err := gce.clusterproviderconfig(cluster.Spec.ProviderConfig)
+	clusterConfig, err := gce.gceProviderConfigCodec.ClusterProviderFromProviderConfig(cluster.Spec.ProviderConfig)
 	if err != nil {
 		return nil, err
 	}
 
 	instance, err := gce.computeService.InstancesGet(clusterConfig.Project, machineConfig.Zone, identifyingMachine.ObjectMeta.Name)
 	if err != nil {
-		// TODO: Use formal way to check for error code 404
-		if strings.Contains(err.Error(), "Error 404") {
+		if gerr, ok := err.(*googleapi.Error); ok && gerr.Code == http.StatusNotFound {
 			return nil, nil
 		}
 		return nil, err
@@ -602,62 +621,11 @@ func (gce *GCEClient) machineproviderconfig(providerConfig clusterv1.ProviderCon
 	return &config, nil
 }
 
-func (gce *GCEClient) clusterproviderconfig(providerConfig clusterv1.ProviderConfig) (*gceconfigv1.GCEClusterProviderConfig, error) {
-	var config gceconfigv1.GCEClusterProviderConfig
-	err := gce.gceProviderConfigCodec.DecodeFromProviderConfig(providerConfig, &config)
-	if err != nil {
-		return nil, err
-	}
-	return &config, nil
-}
-
-func (gce *GCEClient) waitForOperation(c *gceconfigv1.GCEClusterProviderConfig, op *compute.Operation) error {
-	glog.Infof("Wait for %v %q...", op.OperationType, op.Name)
-	defer glog.Infof("Finish wait for %v %q...", op.OperationType, op.Name)
-
-	start := time.Now()
-	ctx, cf := context.WithTimeout(context.Background(), gceTimeout)
-	defer cf()
-
-	var err error
-	for {
-		if err = gce.checkOp(op, err); err != nil || op.Status == "DONE" {
-			return err
-		}
-		glog.V(1).Infof("Wait for %v %q: %v (%d%%): %v", op.OperationType, op.Name, op.Status, op.Progress, op.StatusMessage)
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("gce operation %v %q timed out after %v", op.OperationType, op.Name, time.Since(start))
-		case <-time.After(gceWaitSleep):
-		}
-		op, err = gce.getOp(c, op)
-	}
-}
-
-// getOp returns an updated operation.
-func (gce *GCEClient) getOp(c *gceconfigv1.GCEClusterProviderConfig, op *compute.Operation) (*compute.Operation, error) {
-	return gce.computeService.ZoneOperationsGet(c.Project, path.Base(op.Zone), op.Name)
-}
-
-func (gce *GCEClient) checkOp(op *compute.Operation, err error) error {
-	if err != nil || op.Error == nil || len(op.Error.Errors) == 0 {
-		return err
-	}
-
-	var errs bytes.Buffer
-	for _, v := range op.Error.Errors {
-		errs.WriteString(v.Message)
-		errs.WriteByte('\n')
-	}
-	return errors.New(errs.String())
-}
-
 func (gce *GCEClient) updateMasterInplace(cluster *clusterv1.Cluster, oldMachine *clusterv1.Machine, newMachine *clusterv1.Machine) error {
 	if oldMachine.Spec.Versions.ControlPlane != newMachine.Spec.Versions.ControlPlane {
-		// First pull off the latest kubeadm.
-		cmd := "export KUBEADM_VERSION=$(curl -sSL https://dl.k8s.io/release/stable.txt); " +
-			"curl -sSL https://dl.k8s.io/release/${KUBEADM_VERSION}/bin/linux/amd64/kubeadm | sudo tee /usr/bin/kubeadm > /dev/null; " +
-			"sudo chmod a+rx /usr/bin/kubeadm"
+		cmd := fmt.Sprintf(
+			"curl -sSL https://dl.k8s.io/release/v%s/bin/linux/amd64/kubeadm | sudo tee /usr/bin/kubeadm > /dev/null; "+
+				"sudo chmod a+rx /usr/bin/kubeadm", newMachine.Spec.Versions.ControlPlane)
 		_, err := gce.remoteSshCommand(cluster, newMachine, cmd)
 		if err != nil {
 			glog.Infof("remotesshcomand error: %v", err)
@@ -701,9 +669,6 @@ func (gce *GCEClient) validateMachine(machine *clusterv1.Machine, config *gcecon
 	if machine.Spec.Versions.Kubelet == "" {
 		return apierrors.InvalidMachineConfiguration("spec.versions.kubelet can't be empty")
 	}
-	if machine.Spec.Versions.ContainerRuntime.Name != "docker" {
-		return apierrors.InvalidMachineConfiguration("Only docker is supported")
-	}
 	return nil
 }
 
@@ -711,13 +676,17 @@ func (gce *GCEClient) validateMachine(machine *clusterv1.Machine, config *gcecon
 // the appropriate reason/message on the Machine.Status. If not, such as during
 // cluster installation, it will operate as a no-op. It also returns the
 // original error for convenience, so callers can do "return handleMachineError(...)".
-func (gce *GCEClient) handleMachineError(machine *clusterv1.Machine, err *apierrors.MachineError) error {
-	if gce.machineClient != nil {
+func (gce *GCEClient) handleMachineError(machine *clusterv1.Machine, err *apierrors.MachineError, eventAction string) error {
+	if gce.v1Alpha1Client != nil {
 		reason := err.Reason
 		message := err.Message
 		machine.Status.ErrorReason = &reason
 		machine.Status.ErrorMessage = &message
-		gce.machineClient.UpdateStatus(machine)
+		gce.v1Alpha1Client.Machines(machine.Namespace).UpdateStatus(machine)
+	}
+
+	if eventAction != noEventAction {
+		gce.eventRecorder.Eventf(machine, corev1.EventTypeWarning, "Failed"+eventAction, "%v", err.Reason)
 	}
 
 	glog.Errorf("Machine error: %v", err.Message)
@@ -725,7 +694,7 @@ func (gce *GCEClient) handleMachineError(machine *clusterv1.Machine, err *apierr
 }
 
 func (gce *GCEClient) getImagePath(img string) (imagePath string) {
-	defaultImg := "projects/ubuntu-os-cloud/global/images/family/ubuntu-1710"
+	defaultImg := "projects/ubuntu-os-cloud/global/images/family/ubuntu-1604-lts"
 
 	// A full image path must match the regex format. If it doesn't, we will fall back to a default base image.
 	matches := regexp.MustCompile("projects/(.+)/global/images/(family/)*(.+)").FindStringSubmatch(img)
@@ -756,8 +725,8 @@ func newDisks(config *gceconfigv1.GCEMachineProviderConfig, zone string, imagePa
 		d := compute.AttachedDisk{
 			AutoDelete: true,
 			InitializeParams: &compute.AttachedDiskInitializeParams{
-				DiskSizeGb:  diskSizeGb,
-				DiskType:    fmt.Sprintf("zones/%s/diskTypes/%s", zone, disk.InitializeParams.DiskType),
+				DiskSizeGb: diskSizeGb,
+				DiskType:   fmt.Sprintf("zones/%s/diskTypes/%s", zone, disk.InitializeParams.DiskType),
 			},
 		}
 		if idx == 0 {
@@ -781,7 +750,26 @@ func getSubnet(netRange clusterv1.NetworkRanges) string {
 	return netRange.CIDRBlocks[0]
 }
 
-func getOrNewComputeService(params MachineActuatorParams) (GCEClientComputeService, error) {
+func (gce *GCEClient) getKubeadmToken() (string, error) {
+	tokenParams := kubeadm.TokenCreateParams{
+		Ttl: time.Duration(10) * time.Minute,
+	}
+	output, err := gce.kubeadm.TokenCreate(tokenParams)
+	if err != nil {
+		glog.Errorf("unable to create token: %v", err)
+		return "", err
+	}
+	return strings.TrimSpace(output), err
+}
+
+func getOrNewKubeadm(params MachineActuatorParams) GCEClientKubeadm {
+	if params.Kubeadm == nil {
+		return kubeadm.New()
+	}
+	return params.Kubeadm
+}
+
+func getOrNewComputeServiceForMachine(params MachineActuatorParams) (GCEClientComputeService, error) {
 	if params.ComputeService != nil {
 		return params.ComputeService, nil
 	}
@@ -811,13 +799,13 @@ func (gce *GCEClient) getMetadata(cluster *clusterv1.Cluster, machine *clusterv1
 	if err != nil {
 		return nil, err
 	}
-	if util.IsMaster(machine) {
+	if isMaster(configParams.Roles) {
 		if machine.Spec.Versions.ControlPlane == "" {
 			return nil, gce.handleMachineError(machine, apierrors.InvalidMachineConfiguration(
-				"invalid master configuration: missing Machine.Spec.Versions.ControlPlane"))
+				"invalid master configuration: missing Machine.Spec.Versions.ControlPlane"), createEventAction)
 		}
 		var err error
-		metadataMap, err = masterMetadata(gce.kubeadmToken, cluster, machine, clusterConfig.Project, &machineSetupMetadata)
+		metadataMap, err = masterMetadata(cluster, machine, clusterConfig.Project, &machineSetupMetadata)
 		if err != nil {
 			return nil, err
 		}
@@ -827,11 +815,12 @@ func (gce *GCEClient) getMetadata(cluster *clusterv1.Cluster, machine *clusterv1
 			metadataMap["ca-key"] = base64.StdEncoding.EncodeToString(ca.PrivateKey)
 		}
 	} else {
-		if len(cluster.Status.APIEndpoints) == 0 {
-			return nil, errors.New("invalid cluster state: cannot create a Kubernetes node without an API endpoint")
-		}
 		var err error
-		metadataMap, err = nodeMetadata(gce.kubeadmToken, cluster, machine, clusterConfig.Project, &machineSetupMetadata)
+		kubeadmToken, err := gce.getKubeadmToken()
+		if err != nil {
+			return nil, err
+		}
+		metadataMap, err = nodeMetadata(kubeadmToken, cluster, machine, clusterConfig.Project, &machineSetupMetadata)
 		if err != nil {
 			return nil, err
 		}

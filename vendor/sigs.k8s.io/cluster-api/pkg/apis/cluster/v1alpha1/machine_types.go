@@ -140,6 +140,10 @@ type MachineStatus struct {
 	// own versioned API types that should be
 	// serialized/deserialized from this field.
 	ProviderStatus *runtime.RawExtension `json:"providerStatus"`
+
+	// Addresses is a list of addresses assigned to the machine. Queried from cloud provider, if available.
+	// +optional
+	Addresses []corev1.NodeAddress `json:"addresses,omitempty"`
 }
 
 type MachineVersionInfo struct {
@@ -151,17 +155,6 @@ type MachineVersionInfo struct {
 	// master.
 	// +optional
 	ControlPlane string `json:"controlPlane,omitempty"`
-
-	// Name/version of container runtime
-	ContainerRuntime ContainerRuntimeInfo `json:"containerRuntime"`
-}
-
-type ContainerRuntimeInfo struct {
-	// docker, rkt, containerd, ...
-	Name string `json:"name"`
-
-	// Semantic version of the container runtime to use
-	Version string `json:"version"`
 }
 
 // Validate checks that an instance of Machine is well formed
