@@ -36,6 +36,7 @@ import (
 	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	capiclientfake "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset/fake"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
@@ -235,7 +236,7 @@ func TestCreateMachine(t *testing.T) {
 			nodeType: clustopv1.NodeTypeMaster,
 			isInfra:  false,
 			instances: []*ec2.Instance{
-				testInstance("i1", testMachineName, "master", "stopped", testClusterID, 30*time.Minute),
+				testInstance("i1", testMachineName, "master", "stopped", "", testClusterID, 30*time.Minute),
 			},
 		},
 		{
@@ -243,8 +244,8 @@ func TestCreateMachine(t *testing.T) {
 			nodeType: clustopv1.NodeTypeMaster,
 			isInfra:  false,
 			instances: []*ec2.Instance{
-				testInstance("i1", testMachineName, "master", "stopped", testClusterID, 30*time.Minute),
-				testInstance("i2", testMachineName, "master", "stopped", testClusterID, 30*time.Minute),
+				testInstance("i1", testMachineName, "master", "stopped", "", testClusterID, 30*time.Minute),
+				testInstance("i2", testMachineName, "master", "stopped", "", testClusterID, 30*time.Minute),
 			},
 		},
 		{
@@ -264,7 +265,7 @@ func TestCreateMachine(t *testing.T) {
 			nodeType: clustopv1.NodeTypeCompute,
 			isInfra:  true,
 			instances: []*ec2.Instance{
-				testInstance("i1", testMachineName, "node", "stopped", testClusterID, 30*time.Minute),
+				testInstance("i1", testMachineName, "node", "stopped", "", testClusterID, 30*time.Minute),
 			},
 		},
 		{
@@ -272,8 +273,8 @@ func TestCreateMachine(t *testing.T) {
 			nodeType: clustopv1.NodeTypeCompute,
 			isInfra:  true,
 			instances: []*ec2.Instance{
-				testInstance("i1", testMachineName, "node", "stopped", testClusterID, 30*time.Minute),
-				testInstance("i2", testMachineName, "node", "stopped", testClusterID, 30*time.Minute),
+				testInstance("i1", testMachineName, "node", "stopped", "", testClusterID, 30*time.Minute),
+				testInstance("i2", testMachineName, "node", "stopped", "", testClusterID, 30*time.Minute),
 			},
 		},
 		{
@@ -366,7 +367,7 @@ func TestUpdate(t *testing.T) {
 	cases := []struct {
 		name               string
 		instances          []*ec2.Instance
-		currentStatus      *clustopv1.AWSMachineProviderStatus
+		currentStatus      *capiv1.MachineStatus
 		expectedInstanceID string
 		// expectedUpdate should be true if we expect a cluster-api client update to be executed for changing machine status.
 		expectedUpdate bool
@@ -375,29 +376,25 @@ func TestUpdate(t *testing.T) {
 		{
 			name: "one instance running no status change",
 			instances: []*ec2.Instance{
-				testInstance("i1", testMachineName, "master", "running", testClusterID, 30*time.Minute),
+				testInstance("i1", testMachineName, "master", "running", "i1-publicip", testClusterID, 30*time.Minute),
 			},
-			currentStatus:      testAWSStatus("i1"),
+			currentStatus:      testStatus("i1", "i1-publicip"),
 			expectedInstanceID: "i1",
 			expectedUpdate:     false,
 		},
 		{
 			name: "one instance running ip changed",
 			instances: []*ec2.Instance{
-				testInstance("i1", testMachineName, "master", "running", testClusterID, 30*time.Minute),
+				testInstance("i1", testMachineName, "master", "running", "i1-publicip", testClusterID, 30*time.Minute),
 			},
-			currentStatus: func() *clustopv1.AWSMachineProviderStatus {
-				status := testAWSStatus("i1")
-				status.PublicIP = aws.String("fake old IP")
-				return status
-			}(),
+			currentStatus:      testStatus("i1", "i1-oldip"),
 			expectedInstanceID: "i1",
 			expectedUpdate:     true,
 		},
 		{
 			name:               "instance deleted",
 			instances:          []*ec2.Instance{},
-			currentStatus:      testAWSStatus("i1"),
+			currentStatus:      testStatus("i1", "i1-origip"),
 			expectedInstanceID: "",
 			expectedUpdate:     true,
 			expectedError:      true,
@@ -405,24 +402,24 @@ func TestUpdate(t *testing.T) {
 		{
 			name: "multiple instance running no status change",
 			instances: []*ec2.Instance{
-				testInstance("i1", testMachineName, "master", "running", testClusterID, 30*time.Minute),
-				testInstance("i2", testMachineName, "master", "running", testClusterID, 120*time.Minute),
-				testInstance("i3", testMachineName, "master", "running", testClusterID, 90*time.Minute),
-				testInstance("i4", testMachineName, "master", "running", testClusterID, 5*time.Minute),
+				testInstance("i1", testMachineName, "master", "running", "i1-publicip", testClusterID, 30*time.Minute),
+				testInstance("i2", testMachineName, "master", "running", "i2-publicip", testClusterID, 120*time.Minute),
+				testInstance("i3", testMachineName, "master", "running", "i3-publicip", testClusterID, 90*time.Minute),
+				testInstance("i4", testMachineName, "master", "running", "i4-publicip", testClusterID, 5*time.Minute),
 			},
-			currentStatus:      testAWSStatus("i4"),
+			currentStatus:      testStatus("i4", "i4-publicip"),
 			expectedInstanceID: "i4",
 			expectedUpdate:     false,
 		},
 		{
 			name: "multiple instance running with status change",
 			instances: []*ec2.Instance{
-				testInstance("i1", testMachineName, "master", "running", testClusterID, 30*time.Minute),
-				testInstance("i2", testMachineName, "master", "running", testClusterID, 120*time.Minute),
-				testInstance("i3", testMachineName, "master", "running", testClusterID, 90*time.Minute),
-				testInstance("i4", testMachineName, "master", "running", testClusterID, 5*time.Minute),
+				testInstance("i1", testMachineName, "master", "running", "i1-publicip", testClusterID, 30*time.Minute),
+				testInstance("i2", testMachineName, "master", "running", "i2-publicip", testClusterID, 120*time.Minute),
+				testInstance("i3", testMachineName, "master", "running", "i3-publicip", testClusterID, 90*time.Minute),
+				testInstance("i4", testMachineName, "master", "running", "i4-publicip", testClusterID, 5*time.Minute),
 			},
-			currentStatus:      testAWSStatus("i1"),
+			currentStatus:      testStatus("i1", "i1-publicip"),
 			expectedInstanceID: "i4",
 			expectedUpdate:     true,
 		},
@@ -485,15 +482,15 @@ func TestUpdate(t *testing.T) {
 				}
 				if tc.expectedInstanceID == "" {
 					assert.Nil(t, clustopStatus.InstanceID)
-					assert.Nil(t, clustopStatus.PublicIP)
-					assert.Nil(t, clustopStatus.PublicDNS)
-					assert.Nil(t, clustopStatus.PrivateIP)
-					assert.Nil(t, clustopStatus.PrivateDNS)
+					assert.Empty(t, machine.Status.Addresses)
 				} else {
 					assert.Equal(t, tc.expectedInstanceID, *clustopStatus.InstanceID)
 				}
 				// LastELBSync should be cleared if our instance ID changed to trigger the ELB controller:
-				if *tc.currentStatus.InstanceID != tc.expectedInstanceID {
+				currentClustopStatus, err := controller.AWSMachineProviderStatusFromMachineStatus(tc.currentStatus)
+				t.Logf("%s", *currentClustopStatus.InstanceID)
+				t.Logf("%s", tc.expectedInstanceID)
+				if *currentClustopStatus.InstanceID != tc.expectedInstanceID {
 					assert.Nil(t, clustopStatus.LastELBSync)
 				} else {
 					assert.NotNil(t, clustopStatus.LastELBSync)
@@ -517,16 +514,16 @@ func TestDeleteMachine(t *testing.T) {
 		{
 			name: "one instance running",
 			instances: []*ec2.Instance{
-				testInstance("i1", testMachineName, "master", "running", testClusterID, 30*time.Minute),
+				testInstance("i1", testMachineName, "master", "running", "i1-publicip", testClusterID, 30*time.Minute),
 			},
 		},
 		{
 			name: "multiple instances running",
 			instances: []*ec2.Instance{
-				testInstance("i1", testMachineName, "master", "running", testClusterID, 30*time.Minute),
-				testInstance("i2", testMachineName, "master", "running", testClusterID, 120*time.Minute),
-				testInstance("i3", testMachineName, "master", "running", testClusterID, 90*time.Minute),
-				testInstance("i4", testMachineName, "master", "running", testClusterID, 5*time.Minute),
+				testInstance("i1", testMachineName, "master", "running", "i1-publicip", testClusterID, 30*time.Minute),
+				testInstance("i2", testMachineName, "master", "running", "i1-publicip", testClusterID, 120*time.Minute),
+				testInstance("i3", testMachineName, "master", "running", "i1-publicip", testClusterID, 90*time.Minute),
+				testInstance("i4", testMachineName, "master", "running", "i1-publicip", testClusterID, 5*time.Minute),
 			},
 		},
 	}
@@ -592,7 +589,7 @@ func addDescribeImagesMock(mockAWSClient *mockaws.MockClient, imageID string) {
 		}, nil)
 }
 
-func testInstance(instanceID, machineName, hostType, instanceState, clusterID string, age time.Duration) *ec2.Instance {
+func testInstance(instanceID, machineName, hostType, instanceState, publicIP, clusterID string, age time.Duration) *ec2.Instance {
 	tagList := []*ec2.Tag{
 		{Key: aws.String("host-type"), Value: aws.String(hostType)},
 		{Key: aws.String("sub-host-type"), Value: aws.String("default")},
@@ -602,28 +599,36 @@ func testInstance(instanceID, machineName, hostType, instanceState, clusterID st
 	}
 	launchTime := time.Now().Add(-age)
 	return &ec2.Instance{
-		InstanceId:       &instanceID,
-		Tags:             tagList,
-		State:            &ec2.InstanceState{Name: &instanceState},
-		PublicIpAddress:  aws.String(fmt.Sprintf("%s-publicip", instanceID)),
-		PrivateIpAddress: aws.String(fmt.Sprintf("%s-privateip", instanceID)),
-		PublicDnsName:    aws.String(fmt.Sprintf("%s-publicdns", instanceID)),
-		PrivateDnsName:   aws.String(fmt.Sprintf("%s-privatednf", instanceID)),
-		LaunchTime:       &launchTime,
+		InstanceId:      &instanceID,
+		Tags:            tagList,
+		State:           &ec2.InstanceState{Name: &instanceState},
+		PublicIpAddress: aws.String(publicIP),
+		/*
+			PrivateIpAddress: aws.String(fmt.Sprintf("%s-privateip", instanceID)),
+			PublicDnsName:    aws.String(fmt.Sprintf("%s-publicdns", instanceID)),
+			PrivateDnsName:   aws.String(fmt.Sprintf("%s-privatednf", instanceID)),
+		*/
+		LaunchTime: &launchTime,
 	}
 }
 
-func testAWSStatus(instanceID string) *clustopv1.AWSMachineProviderStatus {
-	return &clustopv1.AWSMachineProviderStatus{
+func testStatus(instanceID, publicIP string) *capiv1.MachineStatus {
+	awsStatus := &clustopv1.AWSMachineProviderStatus{
 		InstanceID:    aws.String(instanceID),
 		InstanceState: aws.String("running"),
-		// Match the assumptions made in testInstance based on instance ID.
-		PublicIP:    aws.String(fmt.Sprintf("%s-publicip", instanceID)),
-		PrivateIP:   aws.String(fmt.Sprintf("%s-privateip", instanceID)),
-		PublicDNS:   aws.String(fmt.Sprintf("%s-publicdns", instanceID)),
-		PrivateDNS:  aws.String(fmt.Sprintf("%s-privatednf", instanceID)),
-		LastELBSync: &metav1.Time{Time: time.Now().Add(-30 * time.Minute)},
+		LastELBSync:   &metav1.Time{Time: time.Now().Add(-30 * time.Minute)},
 	}
+	rawStatus, _ := controller.EncodeAWSMachineProviderStatus(awsStatus)
+	machineStatus := capiv1.MachineStatus{
+		ProviderStatus: rawStatus,
+		Addresses: []corev1.NodeAddress{
+			{
+				Type:    corev1.NodeExternalIP,
+				Address: publicIP,
+			},
+		},
+	}
+	return &machineStatus
 }
 
 func addDescribeInstancesMock(mockAWSClient *mockaws.MockClient, instances []*ec2.Instance) {
@@ -735,7 +740,7 @@ func testCluster(t *testing.T) (*capiv1.Cluster, error) {
 	return controller.BuildCluster(clusterDeployment, testClusterVersion())
 }
 
-func testMachine(name, clusterName string, nodeType clustopv1.NodeType, isInfra bool, currentStatus *clustopv1.AWSMachineProviderStatus) *capiv1.Machine {
+func testMachine(name, clusterName string, nodeType clustopv1.NodeType, isInfra bool, currentStatus *capiv1.MachineStatus) *capiv1.Machine {
 	testAMI := testImage
 	msSpec := clustopv1.MachineSetSpec{
 		ClusterID: testClusterID,
@@ -779,8 +784,11 @@ func testMachine(name, clusterName string, nodeType clustopv1.NodeType, isInfra 
 		machine.Spec.Roles = []capicommon.MachineRole{capicommon.NodeRole}
 	}
 	if currentStatus != nil {
-		rawStatus, _ := controller.EncodeAWSMachineProviderStatus(currentStatus)
-		machine.Status.ProviderStatus = rawStatus
+		/*
+			rawStatus, _ := controller.EncodeAWSMachineProviderStatus(currentStatus)
+			machine.Status.ProviderStatus = rawStatus
+		*/
+		machine.Status = *currentStatus
 	}
 	return machine
 }

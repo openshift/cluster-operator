@@ -563,10 +563,16 @@ func MachineProviderConfigFromMachineSetSpec(machineSetSpec *clusteroperator.Mac
 // AWSMachineProviderStatusFromClusterAPIMachine gets the cluster-operator MachineSetSpec from the
 // specified cluster-api MachineSet.
 func AWSMachineProviderStatusFromClusterAPIMachine(m *clusterapi.Machine) (*clusteroperator.AWSMachineProviderStatus, error) {
-	if m.Status.ProviderStatus == nil {
+	return AWSMachineProviderStatusFromMachineStatus(&m.Status)
+}
+
+// AWSMachineProviderStatusFromMachineStatus gets the cluster-operator AWSMachineProviderStatus from the
+// specified cluster-api MachineStatus.
+func AWSMachineProviderStatusFromMachineStatus(s *clusterapi.MachineStatus) (*clusteroperator.AWSMachineProviderStatus, error) {
+	if s.ProviderStatus == nil {
 		return &clusteroperator.AWSMachineProviderStatus{}, nil
 	}
-	obj, gvk, err := api.Codecs.UniversalDecoder(clusteroperator.SchemeGroupVersion).Decode([]byte(m.Status.ProviderStatus.Raw), nil, nil)
+	obj, gvk, err := api.Codecs.UniversalDecoder(clusteroperator.SchemeGroupVersion).Decode([]byte(s.ProviderStatus.Raw), nil, nil)
 	if err != nil {
 		return nil, err
 	}

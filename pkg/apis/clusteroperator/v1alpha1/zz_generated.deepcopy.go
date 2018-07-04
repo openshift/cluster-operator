@@ -107,42 +107,6 @@ func (in *AWSMachineProviderStatus) DeepCopyInto(out *AWSMachineProviderStatus) 
 			**out = **in
 		}
 	}
-	if in.PublicIP != nil {
-		in, out := &in.PublicIP, &out.PublicIP
-		if *in == nil {
-			*out = nil
-		} else {
-			*out = new(string)
-			**out = **in
-		}
-	}
-	if in.PrivateIP != nil {
-		in, out := &in.PrivateIP, &out.PrivateIP
-		if *in == nil {
-			*out = nil
-		} else {
-			*out = new(string)
-			**out = **in
-		}
-	}
-	if in.PublicDNS != nil {
-		in, out := &in.PublicDNS, &out.PublicDNS
-		if *in == nil {
-			*out = nil
-		} else {
-			*out = new(string)
-			**out = **in
-		}
-	}
-	if in.PrivateDNS != nil {
-		in, out := &in.PrivateDNS, &out.PrivateDNS
-		if *in == nil {
-			*out = nil
-		} else {
-			*out = new(string)
-			**out = **in
-		}
-	}
 	if in.LastELBSync != nil {
 		in, out := &in.LastELBSync, &out.LastELBSync
 		if *in == nil {

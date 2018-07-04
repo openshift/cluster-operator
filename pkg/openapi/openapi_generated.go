@@ -180,34 +180,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Format:      "",
 							},
 						},
-						"publicIP": {
-							SchemaProps: spec.SchemaProps{
-								Description: "PublicIP is the public IP address for this machine.",
-								Type:        []string{"string"},
-								Format:      "",
-							},
-						},
-						"privateIP": {
-							SchemaProps: spec.SchemaProps{
-								Description: "PrivateIP is the internal IP address for this machine.",
-								Type:        []string{"string"},
-								Format:      "",
-							},
-						},
-						"publicDNS": {
-							SchemaProps: spec.SchemaProps{
-								Description: "PublicDNS is the public DNS hostname for this machine.",
-								Type:        []string{"string"},
-								Format:      "",
-							},
-						},
-						"privateDNS": {
-							SchemaProps: spec.SchemaProps{
-								Description: "PrivateDNS is the internal DNS hostname for this machine.",
-								Type:        []string{"string"},
-								Format:      "",
-							},
-						},
 						"lastELBSync": {
 							SchemaProps: spec.SchemaProps{
 								Description: "LastELBSync stores when we last successfully ensured a master machine is added to relevant load balancers.",

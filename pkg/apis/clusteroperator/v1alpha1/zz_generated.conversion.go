@@ -172,10 +172,6 @@ func autoConvert_v1alpha1_AWSMachineProviderStatus_To_clusteroperator_AWSMachine
 	out.ObjectMeta = in.ObjectMeta
 	out.InstanceID = (*string)(unsafe.Pointer(in.InstanceID))
 	out.InstanceState = (*string)(unsafe.Pointer(in.InstanceState))
-	out.PublicIP = (*string)(unsafe.Pointer(in.PublicIP))
-	out.PrivateIP = (*string)(unsafe.Pointer(in.PrivateIP))
-	out.PublicDNS = (*string)(unsafe.Pointer(in.PublicDNS))
-	out.PrivateDNS = (*string)(unsafe.Pointer(in.PrivateDNS))
 	out.LastELBSync = (*v1.Time)(unsafe.Pointer(in.LastELBSync))
 	out.LastELBSyncGeneration = in.LastELBSyncGeneration
 	return nil
@@ -190,10 +186,6 @@ func autoConvert_clusteroperator_AWSMachineProviderStatus_To_v1alpha1_AWSMachine
 	out.ObjectMeta = in.ObjectMeta
 	out.InstanceID = (*string)(unsafe.Pointer(in.InstanceID))
 	out.InstanceState = (*string)(unsafe.Pointer(in.InstanceState))
-	out.PublicIP = (*string)(unsafe.Pointer(in.PublicIP))
-	out.PrivateIP = (*string)(unsafe.Pointer(in.PrivateIP))
-	out.PublicDNS = (*string)(unsafe.Pointer(in.PublicDNS))
-	out.PrivateDNS = (*string)(unsafe.Pointer(in.PrivateDNS))
 	out.LastELBSync = (*v1.Time)(unsafe.Pointer(in.LastELBSync))
 	out.LastELBSyncGeneration = in.LastELBSyncGeneration
 	return nil

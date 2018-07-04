@@ -648,22 +648,6 @@ type AWSMachineProviderStatus struct {
 	// InstanceState is the state of the AWS instance for this machine.
 	InstanceState *string
 
-	// PublicIP is the public IP address for this machine.
-	// +optional
-	PublicIP *string
-
-	// PrivateIP is the internal IP address for this machine.
-	// +optional
-	PrivateIP *string
-
-	// PublicDNS is the public DNS hostname for this machine.
-	// +optional
-	PublicDNS *string
-
-	// PrivateDNS is the internal DNS hostname for this machine.
-	// +optional
-	PrivateDNS *string
-
 	// LastELBSync stores when we last successfully ensured a master machine is added to relevant load balancers.
 	// +optional
 	LastELBSync *metav1.Time
