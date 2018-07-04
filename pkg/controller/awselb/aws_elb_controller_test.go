@@ -60,6 +60,7 @@ const (
 	testRegion                = "us-east-1"
 	testClusterVerName        = "v3-10"
 	testClusterVerNS          = "cluster-operator"
+	testClusterVerUID         = types.UID("test-cluster-version")
 	testImage                 = "testAMI"
 )
 
@@ -241,9 +242,36 @@ func testClusterDeployment() *clustopv1.ClusterDeployment {
 
 func testCluster(t *testing.T) *capiv1.Cluster {
 	clusterDeployment := testClusterDeployment()
-	cluster, err := controller.BuildCluster(clusterDeployment)
+	cluster, err := controller.BuildCluster(clusterDeployment, testClusterVersion().Spec)
 	assert.NoError(t, err)
 	return cluster
+}
+
+// testClusterVersion will create a ClusterVersion resource.
+func testClusterVersion() *clustopv1.ClusterVersion {
+	cv := &clustopv1.ClusterVersion{
+		ObjectMeta: metav1.ObjectMeta{
+			UID:       testClusterVerUID,
+			Name:      testClusterVerName,
+			Namespace: testClusterVerNS,
+		},
+		Spec: clustopv1.ClusterVersionSpec{
+			Images: clustopv1.ClusterVersionImages{
+				ImageFormat: "openshift/origin-${component}:${version}",
+			},
+			VMImages: clustopv1.VMImages{
+				AWSImages: &clustopv1.AWSVMImages{
+					RegionAMIs: []clustopv1.AWSRegionAMIs{
+						{
+							Region: testRegion,
+							AMI:    "computeAMI_ID",
+						},
+					},
+				},
+			},
+		},
+	}
+	return cv
 }
 
 func testMachine(generation int64, name, clusterName string, nodeType clustopv1.NodeType, isInfra bool, currentStatus *clustopv1.AWSMachineProviderStatus) *capiv1.Machine {
@@ -269,7 +297,7 @@ func testMachine(generation int64, name, clusterName string, nodeType clustopv1.
 			AWSImage: &testAMI,
 		},
 	}
-	rawProviderConfig, _ := controller.ClusterAPIMachineProviderConfigFromMachineSetSpec(&msSpec)
+	rawProviderConfig, _ := controller.MachineProviderConfigFromMachineSetSpec(&msSpec)
 	machine := &capiv1.Machine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       name,
@@ -291,7 +319,7 @@ func testMachine(generation int64, name, clusterName string, nodeType clustopv1.
 		machine.Spec.Roles = []capicommon.MachineRole{capicommon.NodeRole}
 	}
 	if currentStatus != nil {
-		rawStatus, _ := controller.ClusterAPIMachineProviderStatusFromAWSMachineProviderStatus(currentStatus)
+		rawStatus, _ := controller.EncodeAWSMachineProviderStatus(currentStatus)
 		machine.Status.ProviderStatus = rawStatus
 	}
 	return machine

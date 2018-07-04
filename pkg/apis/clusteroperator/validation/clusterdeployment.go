@@ -111,11 +111,6 @@ func validateClusterMachineSet(machineSet *clusteroperator.ClusterMachineSet, fl
 func validateClusterDeploymentStatus(status *clusteroperator.ClusterDeploymentStatus, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 
-	if status.MachineSetCount < 0 {
-		allErrs = append(allErrs, field.Invalid(fldPath.Child("machineSetCount"), status.MachineSetCount, "must be greater than zero"))
-	}
-	allErrs = append(allErrs, validateSecretRef(status.AdminKubeconfig, fldPath.Child("adminKubeconfig"))...)
-
 	return allErrs
 }
 

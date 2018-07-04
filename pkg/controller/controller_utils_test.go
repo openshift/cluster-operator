@@ -176,8 +176,8 @@ func newClusterCondition(
 	}
 }
 
-// TestSetClusterCondtion tests the SetClusterCondtion function.
-func TestSetClusterCondtion(t *testing.T) {
+// TestSetClusterCondition tests the SetClusterCondtion function.
+func TestSetClusterCondition(t *testing.T) {
 	cases := []struct {
 		name               string
 		existingConditions []clusteroperator.ClusterCondition
@@ -270,9 +270,6 @@ func TestSetClusterCondtion(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			clusterStatus := &clusteroperator.ClusterDeploymentStatus{
-				Conditions: tc.existingConditions,
-			}
 			updateCheck := func(oldReason, oldMessage, newReason, newMessage string) bool {
 				assert.Equal(t, tc.expectedOldReason, oldReason, "unexpected old reason passed to update condition check")
 				assert.Equal(t, tc.expectedOldMessage, oldMessage, "unexpected old message passed to update condition check")
@@ -281,8 +278,8 @@ func TestSetClusterCondtion(t *testing.T) {
 				return tc.updateCondition
 			}
 			startTime := time.Now()
-			SetClusterCondition(
-				clusterStatus,
+			actualConditions := SetClusterCondition(
+				tc.existingConditions,
 				tc.conditionType,
 				tc.status,
 				tc.reason,
@@ -290,7 +287,6 @@ func TestSetClusterCondtion(t *testing.T) {
 				updateCheck,
 			)
 			endTime := time.Now()
-			actualConditions := clusterStatus.Conditions
 			if assert.Equal(t, len(tc.expectedConditions), len(actualConditions), "unexpected number of conditions") {
 				for i := range actualConditions {
 					expected := tc.expectedConditions[i]
@@ -389,10 +385,7 @@ func TestFindClusterCondition(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			clusterStatus := &clusteroperator.ClusterDeploymentStatus{
-				Conditions: tc.conditions,
-			}
-			actual := FindClusterCondition(clusterStatus, tc.conditionType)
+			actual := FindClusterCondition(tc.conditions, tc.conditionType)
 			if tc.expectedConditionIndex < 0 {
 				assert.Nil(t, actual, "expected to not find condition")
 			} else {
@@ -627,21 +620,25 @@ func TestAddLabels(t *testing.T) {
 
 func TestClusterDeploymentSpecFromCluster(t *testing.T) {
 	cases := []struct {
-		name                          string
-		providerConfig                string
-		expectedClusterVersionRefName string
-		expectedError                 bool
+		name            string
+		providerConfig  string
+		expectedVersion string
+		expectedError   bool
 	}{
 		{
 			name: "good",
 			providerConfig: `
 apiVersion: clusteroperator.openshift.io/v1alpha1
-kind: ClusterProviderConfigSpec
-clusterVersionRef:
-  namespace: cluster-version-namespace
-  name: cluster-version
+kind: AWSClusterProviderConfig
+openshiftConfig:
+  version:
+    deploymentType: origin
+    version: v3.10.0
+    images:
+      openshiftAnsibleImage: fake-openshift-ansible:canary
+      openshiftAnsibleImagePullPolicy: Never
 `,
-			expectedClusterVersionRefName: "cluster-version",
+			expectedVersion: "v3.10.0",
 		},
 		{
 			name: "different type",
@@ -665,14 +662,14 @@ kind: Machine
 					Raw: []byte(tc.providerConfig),
 				}
 			}
-			clusterSpec, err := ClusterDeploymentSpecFromCluster(cluster)
+			clusterSpec, err := AWSClusterProviderConfigFromCluster(cluster)
 			if tc.expectedError {
 				assert.Error(t, err, "expected an error")
 			} else {
 				if !assert.NoError(t, err, "expected success") {
 					return
 				}
-				assert.Equal(t, clusterSpec.ClusterVersionRef.Name, tc.expectedClusterVersionRefName, "unexpected clusterVersionRef name")
+				assert.Equal(t, clusterSpec.OpenShiftConfig.Version.Version, tc.expectedVersion, "unexpected clusterVersionRef name")
 			}
 		})
 	}
@@ -717,7 +714,7 @@ kind: Machine
 					Raw: []byte(tc.providerStatus),
 				}
 			}
-			clusterStatus, err := ClusterStatusFromClusterAPI(cluster)
+			clusterStatus, err := ClusterProviderStatusFromCluster(cluster)
 			if tc.expectedError {
 				assert.Error(t, err, "expected an error")
 			} else {
@@ -735,11 +732,11 @@ kind: Machine
 }
 
 func TestClusterAPIProviderStatusFromClusterStatus(t *testing.T) {
-	clusterStatus := &clusteroperator.ClusterDeploymentStatus{
-		MachineSetCount:      1,
-		MasterMachineSetName: "master",
+	clusterStatus := &clusteroperator.ClusterProviderStatus{
+		ControlPlaneInstalled:    true,
+		ProvisionedJobGeneration: 5,
 	}
-	providerStatus, err := ClusterAPIProviderStatusFromClusterStatus(clusterStatus)
+	providerStatus, err := EncodeClusterProviderStatus(clusterStatus)
 	if !assert.NoError(t, err, "unexpected error converting to provider status") {
 		return
 	}
@@ -751,8 +748,8 @@ func TestClusterAPIProviderStatusFromClusterStatus(t *testing.T) {
 	}
 	assert.Equal(t, "clusteroperator.openshift.io/v1alpha1", providerStatusData["apiVersion"], "unexpected apiVersion")
 	assert.Equal(t, "ClusterProviderStatus", providerStatusData["kind"], "unexpected kind")
-	assert.Equal(t, 1., providerStatusData["machineSetCount"], "unexpected machineSetCount")
-	assert.Equal(t, "master", providerStatusData["masterMachineSetName"], "unexpected masterMachineSetName")
+	assert.Equal(t, 5., providerStatusData["provisionedJobGeneration"], "unexpected provisionedJobGeneration")
+	assert.Equal(t, true, providerStatusData["controlPlaneInstalled"], "unexpected controlPlaneInstalled")
 }
 
 func TestGetImage(t *testing.T) {
@@ -835,7 +832,9 @@ func newClusterVersion(name string) *clusteroperator.ClusterVersion {
 			Namespace: "testns",
 		},
 		Spec: clusteroperator.ClusterVersionSpec{
-			ImageFormat: "openshift/origin-${component}:${version}",
+			Images: clusteroperator.ClusterVersionImages{
+				ImageFormat: "openshift/origin-${component}:${version}",
+			},
 			VMImages: clusteroperator.VMImages{
 				AWSImages: &clusteroperator.AWSVMImages{
 					RegionAMIs: []clusteroperator.AWSRegionAMIs{
@@ -855,7 +854,7 @@ func newMachineSpec(msSpec *clusteroperator.MachineSetSpec) clusterapi.MachineSp
 	ms := clusterapi.MachineSpec{
 		Roles: []clustercommon.MachineRole{"Master"},
 	}
-	providerConfig, _ := ClusterAPIMachineProviderConfigFromMachineSetSpec(msSpec)
+	providerConfig, _ := MachineProviderConfigFromMachineSetSpec(msSpec)
 	ms.ProviderConfig.Value = providerConfig
 	return ms
 }

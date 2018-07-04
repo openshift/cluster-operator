@@ -52,7 +52,7 @@ type JobGenerator interface {
 	//   openshift-ansible image
 	GeneratePlaybookJob(
 		name string,
-		hardware *clusteroperator.ClusterHardwareSpec,
+		hardware clusteroperator.AWSClusterSpec,
 		playbook string,
 		inventory string,
 		vars string,
@@ -65,7 +65,7 @@ type JobGenerator interface {
 	// serviceAccount - ServiceAccount object to apply to job/pod
 	GeneratePlaybookJobWithServiceAccount(
 		name string,
-		hardware *clusteroperator.ClusterHardwareSpec,
+		hardware clusteroperator.AWSClusterSpec,
 		playbook string,
 		inventory string,
 		vars string,
@@ -90,7 +90,7 @@ type JobGenerator interface {
 	//   openshift-ansible image
 	GeneratePlaybooksJob(
 		name string,
-		hardware *clusteroperator.ClusterHardwareSpec,
+		hardware clusteroperator.AWSClusterSpec,
 		playbooks []string,
 		inventory,
 		vars,
@@ -114,7 +114,7 @@ type JobGenerator interface {
 	// serviceAccount - (optional) serviceaccount object to attach to the job/pod
 	GeneratePlaybooksJobWithServiceAccount(
 		name string,
-		hardware *clusteroperator.ClusterHardwareSpec,
+		hardware clusteroperator.AWSClusterSpec,
 		playbooks []string,
 		inventory string,
 		vars string,
@@ -150,14 +150,14 @@ func (r *jobGenerator) generateInventoryConfigMap(name, inventory, vars string, 
 	return cfgMap
 }
 
-func (r *jobGenerator) GeneratePlaybookJob(name string, hardware *clusteroperator.ClusterHardwareSpec, playbook, inventory, vars, openshiftAnsibleImage string, openshiftAnsibleImagePullPolicy kapi.PullPolicy) (*kbatch.Job, *kapi.ConfigMap) {
+func (r *jobGenerator) GeneratePlaybookJob(name string, hardware clusteroperator.AWSClusterSpec, playbook, inventory, vars, openshiftAnsibleImage string, openshiftAnsibleImagePullPolicy kapi.PullPolicy) (*kbatch.Job, *kapi.ConfigMap) {
 	return r.GeneratePlaybooksJobWithServiceAccount(name, hardware, []string{playbook},
 		inventory, vars, openshiftAnsibleImage, openshiftAnsibleImagePullPolicy, nil)
 }
 
 func (r *jobGenerator) GeneratePlaybookJobWithServiceAccount(
 	name string,
-	hardware *clusteroperator.ClusterHardwareSpec,
+	hardware clusteroperator.AWSClusterSpec,
 	playbook string,
 	inventory,
 	vars,
@@ -170,7 +170,7 @@ func (r *jobGenerator) GeneratePlaybookJobWithServiceAccount(
 
 func (r *jobGenerator) GeneratePlaybooksJob(
 	name string,
-	hardware *clusteroperator.ClusterHardwareSpec,
+	hardware clusteroperator.AWSClusterSpec,
 	playbooks []string,
 	inventory,
 	vars,
@@ -182,7 +182,7 @@ func (r *jobGenerator) GeneratePlaybooksJob(
 
 func (r *jobGenerator) GeneratePlaybooksJobWithServiceAccount(
 	name string,
-	hardware *clusteroperator.ClusterHardwareSpec,
+	hardware clusteroperator.AWSClusterSpec,
 	playbooks []string,
 	inventory,
 	vars,
@@ -211,13 +211,13 @@ func (r *jobGenerator) GeneratePlaybooksJobWithServiceAccount(
 		},
 	}
 
-	if hardware.AWS != nil && len(hardware.AWS.AccountSecret.Name) > 0 {
+	if len(hardware.AccountSecret.Name) > 0 {
 		env = append(env, []kapi.EnvVar{
 			{
 				Name: "AWS_ACCESS_KEY_ID",
 				ValueFrom: &kapi.EnvVarSource{
 					SecretKeyRef: &kapi.SecretKeySelector{
-						LocalObjectReference: hardware.AWS.AccountSecret,
+						LocalObjectReference: hardware.AccountSecret,
 						Key:                  "awsAccessKeyId",
 					},
 				},
@@ -226,7 +226,7 @@ func (r *jobGenerator) GeneratePlaybooksJobWithServiceAccount(
 				Name: "AWS_SECRET_ACCESS_KEY",
 				ValueFrom: &kapi.EnvVarSource{
 					SecretKeyRef: &kapi.SecretKeySelector{
-						LocalObjectReference: hardware.AWS.AccountSecret,
+						LocalObjectReference: hardware.AccountSecret,
 						Key:                  "awsSecretAccessKey",
 					},
 				},
@@ -253,44 +253,42 @@ func (r *jobGenerator) GeneratePlaybooksJobWithServiceAccount(
 		},
 	})
 
-	if hardware.AWS != nil {
-		if len(hardware.AWS.SSHSecret.Name) > 0 {
-			volumeMounts = append(volumeMounts, kapi.VolumeMount{
-				Name:      "sshkey",
-				MountPath: "/ansible/ssh/",
-			})
-			// sshKeyFileMode is used to set the file permissions for the private SSH key
-			sshKeyFileMode := int32(0600)
-			volumes = append(volumes, kapi.Volume{
-				Name: "sshkey",
-				VolumeSource: kapi.VolumeSource{
-					Secret: &kapi.SecretVolumeSource{
-						SecretName: hardware.AWS.SSHSecret.Name,
-						Items: []kapi.KeyToPath{
-							{
-								Key:  "ssh-privatekey",
-								Path: "privatekey.pem",
-								Mode: &sshKeyFileMode,
-							},
+	if len(hardware.SSHSecret.Name) > 0 {
+		volumeMounts = append(volumeMounts, kapi.VolumeMount{
+			Name:      "sshkey",
+			MountPath: "/ansible/ssh/",
+		})
+		// sshKeyFileMode is used to set the file permissions for the private SSH key
+		sshKeyFileMode := int32(0600)
+		volumes = append(volumes, kapi.Volume{
+			Name: "sshkey",
+			VolumeSource: kapi.VolumeSource{
+				Secret: &kapi.SecretVolumeSource{
+					SecretName: hardware.SSHSecret.Name,
+					Items: []kapi.KeyToPath{
+						{
+							Key:  "ssh-privatekey",
+							Path: "privatekey.pem",
+							Mode: &sshKeyFileMode,
 						},
 					},
 				},
-			})
-		}
-		if len(hardware.AWS.SSLSecret.Name) > 0 {
-			volumeMounts = append(volumeMounts, kapi.VolumeMount{
-				Name:      "sslkey",
-				MountPath: "/ansible/ssl/",
-			})
-			volumes = append(volumes, kapi.Volume{
-				Name: "sslkey",
-				VolumeSource: kapi.VolumeSource{
-					Secret: &kapi.SecretVolumeSource{
-						SecretName: hardware.AWS.SSLSecret.Name,
-					},
+			},
+		})
+	}
+	if len(hardware.SSLSecret.Name) > 0 {
+		volumeMounts = append(volumeMounts, kapi.VolumeMount{
+			Name:      "sslkey",
+			MountPath: "/ansible/ssl/",
+		})
+		volumes = append(volumes, kapi.Volume{
+			Name: "sslkey",
+			VolumeSource: kapi.VolumeSource{
+				Secret: &kapi.SecretVolumeSource{
+					SecretName: hardware.SSLSecret.Name,
 				},
-			})
-		}
+			},
+		})
 	}
 
 	containers := make([]kapi.Container, len(playbooks))

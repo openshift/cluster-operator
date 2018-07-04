@@ -67,11 +67,11 @@ func NewController(
 type installStrategy struct{}
 
 func (s *installStrategy) ReadyToInstall(cluster *clustop.CombinedCluster, masterMachineSet *capi.MachineSet) bool {
-	if !cluster.ClusterDeploymentStatus.ControlPlaneInstalled {
+	if !cluster.ClusterProviderStatus.ControlPlaneInstalled {
 		return false
 	}
-	return cluster.ClusterDeploymentStatus.ClusterAPIInstalledJobClusterGeneration != cluster.Generation ||
-		cluster.ClusterDeploymentStatus.ClusterAPIInstalledJobMachineSetGeneration != masterMachineSet.GetGeneration()
+	return cluster.ClusterProviderStatus.ClusterAPIInstalledJobClusterGeneration != cluster.Generation ||
+		cluster.ClusterProviderStatus.ClusterAPIInstalledJobMachineSetGeneration != masterMachineSet.GetGeneration()
 }
 
 func (s *installStrategy) IncludeInfraSizeInAnsibleVars() bool {
@@ -79,10 +79,10 @@ func (s *installStrategy) IncludeInfraSizeInAnsibleVars() bool {
 }
 
 func (s *installStrategy) OnInstall(succeeded bool, cluster *clustop.CombinedCluster, masterMachineSet *capi.MachineSet, job *batchv1.Job) {
-	cluster.ClusterDeploymentStatus.ClusterAPIInstalled = succeeded
-	cluster.ClusterDeploymentStatus.ClusterAPIInstalledJobClusterGeneration = cluster.Generation
-	cluster.ClusterDeploymentStatus.ClusterAPIInstalledJobMachineSetGeneration = masterMachineSet.GetGeneration()
-	cluster.ClusterDeploymentStatus.ClusterAPIInstalledTime = job.Status.CompletionTime
+	cluster.ClusterProviderStatus.ClusterAPIInstalled = succeeded
+	cluster.ClusterProviderStatus.ClusterAPIInstalledJobClusterGeneration = cluster.Generation
+	cluster.ClusterProviderStatus.ClusterAPIInstalledJobMachineSetGeneration = masterMachineSet.GetGeneration()
+	cluster.ClusterProviderStatus.ClusterAPIInstalledTime = job.Status.CompletionTime
 }
 
 func (s *installStrategy) ConvertJobSyncConditionType(conditionType controller.JobSyncConditionType) clustop.ClusterConditionType {
@@ -103,8 +103,8 @@ func (s *installStrategy) GetReprocessInterval() time.Duration {
 }
 
 func (s *installStrategy) GetLastJobSuccess(cluster *clustop.CombinedCluster) *time.Time {
-	if cluster.ClusterDeploymentStatus.ClusterAPIInstalledTime == nil {
+	if cluster.ClusterProviderStatus.ClusterAPIInstalledTime == nil {
 		return nil
 	}
-	return &cluster.ClusterDeploymentStatus.ClusterAPIInstalledTime.Time
+	return &cluster.ClusterProviderStatus.ClusterAPIInstalledTime.Time
 }

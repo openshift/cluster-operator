@@ -108,15 +108,6 @@ func TestValidateClusterDeployment(t *testing.T) {
 			}(),
 			valid: false,
 		},
-		{
-			name: "invalid status",
-			clusterDeployment: func() *clusteroperator.ClusterDeployment {
-				c := getValidClusterDeployment()
-				c.Status.MachineSetCount = -1
-				return c
-			}(),
-			valid: false,
-		},
 	}
 
 	for _, tc := range cases {
@@ -168,43 +159,6 @@ func TestValidateClusterDeploymentUpdate(t *testing.T) {
 
 	for _, tc := range cases {
 		errs := ValidateClusterDeploymentUpdate(tc.new, tc.old)
-		if len(errs) != 0 && tc.valid {
-			t.Errorf("%v: unexpected error: %v", tc.name, errs)
-			continue
-		} else if len(errs) == 0 && !tc.valid {
-			t.Errorf("%v: unexpected success", tc.name)
-		}
-	}
-}
-
-// TestValidateClusterDeploymentStatusUpdate tests the ValidateClusterDeploymentStatusUpdate function.
-func TestValidateClusterDeploymentStatusUpdate(t *testing.T) {
-	cases := []struct {
-		name  string
-		old   *clusteroperator.ClusterDeployment
-		new   *clusteroperator.ClusterDeployment
-		valid bool
-	}{
-		{
-			name:  "valid",
-			old:   getValidClusterDeployment(),
-			new:   getValidClusterDeployment(),
-			valid: true,
-		},
-		{
-			name: "invalid status",
-			old:  getValidClusterDeployment(),
-			new: func() *clusteroperator.ClusterDeployment {
-				c := getValidClusterDeployment()
-				c.Status.MachineSetCount = -1
-				return c
-			}(),
-			valid: false,
-		},
-	}
-
-	for _, tc := range cases {
-		errs := ValidateClusterDeploymentStatusUpdate(tc.new, tc.old)
 		if len(errs) != 0 && tc.valid {
 			t.Errorf("%v: unexpected error: %v", tc.name, errs)
 			continue
@@ -385,45 +339,6 @@ func TestValidateClusterDeploymentSpec(t *testing.T) {
 
 	for _, tc := range cases {
 		errs := validateClusterDeploymentSpec(tc.spec, field.NewPath("spec"))
-		if len(errs) != 0 && tc.valid {
-			t.Errorf("%v: unexpected error: %v", tc.name, errs)
-			continue
-		} else if len(errs) == 0 && !tc.valid {
-			t.Errorf("%v: unexpected success", tc.name)
-		}
-	}
-}
-
-// TestValidateClusterDeploymentStatus tests the validateClusterDeploymentStatus function.
-func TestValidateClusterDeploymentStatus(t *testing.T) {
-	cases := []struct {
-		name   string
-		status *clusteroperator.ClusterDeploymentStatus
-		valid  bool
-	}{
-		{
-			name:   "empty",
-			status: &clusteroperator.ClusterDeploymentStatus{},
-			valid:  true,
-		},
-		{
-			name: "positive machinesets",
-			status: &clusteroperator.ClusterDeploymentStatus{
-				MachineSetCount: 1,
-			},
-			valid: true,
-		},
-		{
-			name: "negative machinesets",
-			status: &clusteroperator.ClusterDeploymentStatus{
-				MachineSetCount: -1,
-			},
-			valid: false,
-		},
-	}
-
-	for _, tc := range cases {
-		errs := validateClusterDeploymentStatus(tc.status, field.NewPath("status"))
 		if len(errs) != 0 && tc.valid {
 			t.Errorf("%v: unexpected error: %v", tc.name, errs)
 			continue

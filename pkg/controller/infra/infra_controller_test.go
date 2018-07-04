@@ -111,7 +111,7 @@ func getKey(cluster metav1.Object, t *testing.T) string {
 func newCluster() *clusterapi.Cluster {
 	encodedClusterProviderConfigSpec := `
 apiVersion: "clusteroperator.openshift.io/v1alpha1"
-kind: "ClusterProviderConfigSpec"
+kind: "AWSClusterProviderConfig"
 machineSets:
 - nodeType: master
   infra: true

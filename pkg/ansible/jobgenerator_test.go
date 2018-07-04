@@ -57,7 +57,7 @@ func TestGeneratePlaybooksJob(t *testing.T) {
 	}
 	for _, tc := range cases {
 		generator := NewJobGenerator()
-		job, configmap := generator.GeneratePlaybooksJob(testJobName, testHardware, tc.playbooks, testInventory, testVars, "image-name", kapi.PullAlways)
+		job, configmap := generator.GeneratePlaybooksJob(testJobName, clusteroperator.AWSClusterSpec{}, tc.playbooks, testInventory, testVars, "image-name", kapi.PullAlways)
 		if assert.Equal(t, len(tc.playbooks), len(job.Spec.Template.Spec.Containers)) {
 			for i, playbook := range tc.playbooks {
 				assert.Equal(t, playbook, job.Spec.Template.Spec.Containers[i].Name)

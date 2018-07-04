@@ -116,7 +116,7 @@ func waitForClusterReady(capiClient capiclient.Interface, cluster *capiv1.Cluste
 		for e := range w.ResultChan() {
 			c := e.Object.(*capiv1.Cluster)
 			if c.Name == cluster.Name {
-				status, err := controller.ClusterStatusFromClusterAPI(c)
+				status, err := controller.ClusterProviderStatusFromCluster(c)
 				if err != nil {
 					continue
 				}

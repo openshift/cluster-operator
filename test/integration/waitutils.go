@@ -146,7 +146,7 @@ func waitForClusterProvisioned(capiClient capiclientset.Interface, namespace, na
 		capiClient,
 		namespace, name,
 		func(cluster *capiv1alpha1.Cluster) bool {
-			status, err := controller.ClusterStatusFromClusterAPI(cluster)
+			status, err := controller.ClusterProviderStatusFromCluster(cluster)
 			if err != nil {
 				return false
 			}
@@ -161,7 +161,7 @@ func waitForClusterReady(capiClient capiclientset.Interface, namespace, name str
 		capiClient,
 		namespace, name,
 		func(cluster *capiv1alpha1.Cluster) bool {
-			status, err := controller.ClusterStatusFromClusterAPI(cluster)
+			status, err := controller.ClusterProviderStatusFromCluster(cluster)
 			if err != nil {
 				return false
 			}

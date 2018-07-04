@@ -30,14 +30,14 @@ const (
 
 // GetAnsibleImageForClusterVersion gets the openshift-ansible image and pull
 // policy to use for clusters that use the specified ClusterVersion.
-func GetAnsibleImageForClusterVersion(cv *coapi.ClusterVersion) (string, kapi.PullPolicy) {
-	image := fmt.Sprintf("%s:%s", defaultImageName, cv.Spec.Version)
-	if cv.Spec.OpenshiftAnsibleImage != nil {
-		image = *cv.Spec.OpenshiftAnsibleImage
+func GetAnsibleImageForClusterVersion(cv coapi.OpenShiftConfigVersion) (string, kapi.PullPolicy) {
+	image := fmt.Sprintf("%s:%s", defaultImageName, cv.Version)
+	if cv.Images.OpenshiftAnsibleImage != nil {
+		image = *cv.Images.OpenshiftAnsibleImage
 	}
 	pullPolicy := kapi.PullAlways
-	if cv.Spec.OpenshiftAnsibleImagePullPolicy != nil {
-		pullPolicy = *cv.Spec.OpenshiftAnsibleImagePullPolicy
+	if cv.Images.OpenshiftAnsibleImagePullPolicy != nil {
+		pullPolicy = *cv.Images.OpenshiftAnsibleImagePullPolicy
 	}
 	return image, pullPolicy
 }

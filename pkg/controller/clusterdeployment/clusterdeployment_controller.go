@@ -503,7 +503,7 @@ func (c *Controller) syncClusterDeployment(key string) error {
 		return c.updateClusterDeploymentStatus(clusterDeployment, updatedClusterDeployment)
 	}
 
-	cluster, err := c.syncCluster(updatedClusterDeployment, clusterDeploymentLog)
+	cluster, err := c.syncCluster(updatedClusterDeployment, clusterVersion, clusterDeploymentLog)
 	if err != nil {
 		return err
 	}
@@ -575,15 +575,14 @@ func (c *Controller) syncDeletedClusterDeployment(clusterDeployment *clustop.Clu
 
 // syncCluster takes a cluster deployment and ensures that a corresponding cluster exists and that
 // it reflects the spec of the cluster deployment
-func (c *Controller) syncCluster(clusterDeployment *clustop.ClusterDeployment, logger log.FieldLogger) (*capi.Cluster, error) {
+func (c *Controller) syncCluster(clusterDeployment *clustop.ClusterDeployment, cv *clustop.ClusterVersion, logger log.FieldLogger) (*capi.Cluster, error) {
 	cluster, err := c.clustersLister.Clusters(clusterDeployment.Namespace).Get(clusterDeployment.Spec.ClusterID)
 	if err != nil && !errors.IsNotFound(err) {
 		return nil, fmt.Errorf("cannot retrieve cluster for cluster deployment %s/%s: %v", clusterDeployment.Namespace, clusterDeployment.Name, err)
 	}
 
 	if cluster == nil {
-		// cluster does not exist, it needs to be created
-		cluster, err = controller.BuildCluster(clusterDeployment)
+		cluster, err = controller.BuildCluster(clusterDeployment, cv.Spec)
 		if err != nil {
 			return nil, fmt.Errorf("cannot build cluster for cluster deployment %s/%s: %v", clusterDeployment.Namespace, clusterDeployment.Name, err)
 		}
@@ -595,16 +594,12 @@ func (c *Controller) syncCluster(clusterDeployment *clustop.ClusterDeployment, l
 	}
 
 	// cluster exists, make sure it reflects the current cluster deployment spec
-	specProviderConfig, err := controller.ClusterProviderConfigSpecFromClusterDeploymentSpec(&clusterDeployment.Spec)
+	providerConfig, err := controller.BuildAWSClusterProviderConfig(&clusterDeployment.Spec, cv.Spec)
 	if err != nil {
 		return nil, fmt.Errorf("cannot serialize provider config from existing cluster %s/%s: %v", cluster.Namespace, cluster.Name, err)
 	}
-	if !bytes.Equal(cluster.Spec.ProviderConfig.Value.Raw, specProviderConfig.Raw) {
+	if !bytes.Equal(cluster.Spec.ProviderConfig.Value.Raw, providerConfig.Raw) {
 		logger.Infof("cluster spec has changed, updating")
-		providerConfig, err := controller.ClusterProviderConfigSpecFromClusterDeploymentSpec(&clusterDeployment.Spec)
-		if err != nil {
-			return nil, fmt.Errorf("cannot create a cluster provider config spec from cluster deployment %s/%s: %v", clusterDeployment.Namespace, clusterDeployment.Name, err)
-		}
 		updatedCluster := cluster.DeepCopy()
 		updatedCluster.Spec.ProviderConfig.Value = providerConfig
 		updatedCluster, err = c.capiClient.ClusterV1alpha1().Clusters(updatedCluster.Namespace).Update(updatedCluster)
@@ -626,7 +621,7 @@ func (c *Controller) syncControlPlane(clusterDeployment *clustop.ClusterDeployme
 	}
 
 	if machineSet == nil {
-		clusterStatus, err := controller.ClusterStatusFromClusterAPI(cluster)
+		clusterStatus, err := controller.ClusterProviderStatusFromCluster(cluster)
 		if err != nil {
 			return fmt.Errorf("cannot obtain cluster deployment status from cluster resource %s/%s: %v", cluster.Namespace, cluster.Name, err)
 		}
@@ -758,7 +753,7 @@ func (c *Controller) setMissingClusterVersionStatus(clusterDeployment *clustop.C
 		updateCheck = controller.UpdateConditionNever
 		reason = versionExists
 	}
-	controller.SetClusterCondition(&clusterDeployment.Status, clustop.ClusterVersionMissing, status, reason, msg, updateCheck)
+	clusterDeployment.Status.Conditions = controller.SetClusterDeploymentCondition(clusterDeployment.Status.Conditions, clustop.ClusterVersionMissing, status, reason, msg, updateCheck)
 }
 
 // setMissingRegionStatus updates the cluster deployment status to indicate that the clusterVersion does not include an AMI for the region of
@@ -781,7 +776,7 @@ func (c *Controller) setMissingRegionStatus(clusterDeployment *clustop.ClusterDe
 		reason = versionHasRegion
 	}
 
-	controller.SetClusterCondition(&clusterDeployment.Status, clustop.ClusterVersionIncompatible, status, reason, msg, updateCheck)
+	clusterDeployment.Status.Conditions = controller.SetClusterDeploymentCondition(clusterDeployment.Status.Conditions, clustop.ClusterVersionIncompatible, status, reason, msg, updateCheck)
 }
 
 // getClusterVersion retrieves the cluster version referenced by the cluster deployment.

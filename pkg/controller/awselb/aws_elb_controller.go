@@ -340,7 +340,7 @@ func (c *Controller) updateStatus(machine *capiv1.Machine, mLog log.FieldLogger)
 	now := metav1.Now()
 	awsStatus.LastELBSync = &now
 	awsStatus.LastELBSyncGeneration = machine.Generation
-	awsStatusRaw, err := controller.ClusterAPIMachineProviderStatusFromAWSMachineProviderStatus(awsStatus)
+	awsStatusRaw, err := controller.EncodeAWSMachineProviderStatus(awsStatus)
 	if err != nil {
 		mLog.Errorf("error encoding AWS provider status: %v", err)
 		return err

@@ -97,7 +97,7 @@ func ValidateClusterVersionStatusUpdate(new *clusteroperator.ClusterVersion, old
 // ValidateClusterVersionSpec validates the spec of a ClusterVersion.
 func ValidateClusterVersionSpec(spec *clusteroperator.ClusterVersionSpec, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
-	if spec.ImageFormat == "" {
+	if spec.Images.ImageFormat == "" {
 		allErrs = append(allErrs, field.Required(field.NewPath("imageFormat"), "must define image format"))
 	}
 
@@ -121,9 +121,9 @@ func ValidateClusterVersionSpec(spec *clusteroperator.ClusterVersionSpec, fldPat
 		}
 	}
 
-	if spec.OpenshiftAnsibleImagePullPolicy != nil {
-		if !validPullPolicies[*spec.OpenshiftAnsibleImagePullPolicy] {
-			allErrs = append(allErrs, field.NotSupported(fldPath.Child("openshiftAnsibleImagePullPolicy"), spec.OpenshiftAnsibleImagePullPolicy, validPullPolicyValues))
+	if spec.Images.OpenshiftAnsibleImagePullPolicy != nil {
+		if !validPullPolicies[*spec.Images.OpenshiftAnsibleImagePullPolicy] {
+			allErrs = append(allErrs, field.NotSupported(fldPath.Child("openshiftAnsibleImagePullPolicy"), spec.Images.OpenshiftAnsibleImagePullPolicy, validPullPolicyValues))
 		}
 	}
 

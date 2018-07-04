@@ -21,8 +21,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	coapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 )
 
@@ -42,32 +40,13 @@ func testClusterSpec() *coapi.ClusterDeploymentSpec {
 	}
 }
 
-func testClusterVersion() *coapi.ClusterVersion {
-	masterAMI := "master-AMI-west"
-	return &coapi.ClusterVersion{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "origin-3-10",
-		},
-		Spec: coapi.ClusterVersionSpec{
+func testClusterVersion() *coapi.OpenShiftConfigVersion {
+	return &coapi.OpenShiftConfigVersion{
+		Images: coapi.ClusterVersionImages{
 			ImageFormat: imageFormat,
-			VMImages: coapi.VMImages{
-				AWSImages: &coapi.AWSVMImages{
-					RegionAMIs: []coapi.AWSRegionAMIs{
-						{
-							Region: "us-east-1",
-							AMI:    "compute-AMI-east",
-						},
-						{
-							Region:    "us-west-1",
-							AMI:       "compute-AMI-west",
-							MasterAMI: &masterAMI,
-						},
-					},
-				},
-			},
-			DeploymentType: coapi.ClusterDeploymentTypeOrigin,
-			Version:        "v3.10.0",
 		},
+		DeploymentType: coapi.ClusterDeploymentTypeOrigin,
+		Version:        "v3.10.0",
 	}
 }
 
@@ -77,7 +56,7 @@ func TestGenerateClusterWideVars(t *testing.T) {
 		clusterID        string
 		clusterSpec      *coapi.ClusterDeploymentSpec
 		infraSize        int
-		clusterVersion   *coapi.ClusterVersion
+		clusterVersion   *coapi.OpenShiftConfigVersion
 		shouldInclude    []string
 		shouldNotInclude []string
 	}{
@@ -125,71 +104,13 @@ func TestGenerateClusterWideVars(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result, err := GenerateClusterWideVars(tc.clusterID, &tc.clusterSpec.Hardware, tc.clusterVersion, tc.infraSize)
+			result, err := GenerateClusterWideVars(tc.clusterID, *tc.clusterSpec.Hardware.AWS, *tc.clusterVersion, tc.infraSize)
 			assert.Nil(t, err, "%s: unexpected: %v", tc.name, err)
 			for _, str := range tc.shouldInclude {
 				assert.Contains(t, result, str, "%s: result does not contain %q", tc.name, str)
 			}
 			for _, str := range tc.shouldNotInclude {
 				assert.NotContains(t, result, str, "%s: result contains %q", tc.name, str)
-			}
-		})
-	}
-}
-
-func TestLookupAMIForMachineSet(t *testing.T) {
-	tests := []struct {
-		name            string
-		isMaster        bool
-		clusterVersion  *coapi.ClusterVersion
-		clusterHardware *coapi.ClusterHardwareSpec
-		expectedAMI     string // empty string for expected error
-	}{
-		{
-			name:            "default AMI returned for compute node",
-			isMaster:        false,
-			clusterVersion:  testClusterVersion(),
-			clusterHardware: &testClusterSpec().Hardware,
-			expectedAMI:     "compute-AMI-east",
-		},
-		{
-			name:            "default AMI returned for master node when no master AMI set",
-			isMaster:        true,
-			clusterVersion:  testClusterVersion(),
-			clusterHardware: &testClusterSpec().Hardware,
-			expectedAMI:     "compute-AMI-east",
-		},
-		{
-			name:           "master AMI returned for master node",
-			isMaster:       true,
-			clusterVersion: testClusterVersion(),
-			clusterHardware: func() *coapi.ClusterHardwareSpec {
-				h := &testClusterSpec().Hardware
-				h.AWS.Region = "us-west-1"
-				return h
-			}(),
-			expectedAMI: "master-AMI-west",
-		},
-		{
-			name:           "error on no AMI for region",
-			isMaster:       false,
-			clusterVersion: testClusterVersion(),
-			clusterHardware: func() *coapi.ClusterHardwareSpec {
-				h := &testClusterSpec().Hardware
-				h.AWS.Region = "ca-central-1"
-				return h
-			}(),
-			expectedAMI: "",
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			amiID, err := lookupAMIForMachineSet(tc.isMaster, tc.clusterHardware, tc.clusterVersion)
-			assert.Equal(t, tc.expectedAMI, amiID)
-			if tc.expectedAMI != "" {
-				assert.NoError(t, err)
-			} else {
-				assert.Error(t, err)
 			}
 		})
 	}

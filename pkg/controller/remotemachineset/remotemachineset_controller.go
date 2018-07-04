@@ -347,12 +347,12 @@ func (c *Controller) syncClusterDeployment(key string) error {
 		return fmt.Errorf("error retrieving cluster object: %v", err)
 	}
 
-	clusterDeploymentStatus, err := controller.ClusterStatusFromClusterAPI(cluster)
+	clusterProviderStatus, err := controller.ClusterProviderStatusFromCluster(cluster)
 	if err != nil {
 		return fmt.Errorf("error fetching cluster status: %v", err)
 	}
 
-	if !clusterDeploymentStatus.ClusterAPIInstalled {
+	if !clusterProviderStatus.ClusterAPIInstalled {
 		c.logger.Debugf(errorMsgClusterAPINotInstalled)
 		return nil
 	}
@@ -398,7 +398,13 @@ func (c *Controller) syncCluster(cluster *clusterapiv1.Cluster, clusterDeploymen
 	remoteCluster, err := remoteClusterAPIClient.ClusterV1alpha1().Clusters(remoteClusterAPINamespace).Get(cluster.Name, metav1.GetOptions{})
 
 	if errors.IsNotFound(err) {
-		proposedRemoteCluster, err := createRemoteClusterAPICluster(clusterDeployment)
+		cv, err := c.client.ClusteroperatorV1alpha1().ClusterVersions(
+			clusterDeployment.Spec.ClusterVersionRef.Namespace).Get(
+			clusterDeployment.Spec.ClusterVersionRef.Name, metav1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("error looking up cluster version: %v", err)
+		}
+		proposedRemoteCluster, err := createRemoteClusterAPICluster(clusterDeployment, cv.Spec)
 		if err != nil {
 			return fmt.Errorf("error generating remote cluster from clusterdeployment: %v", err)
 		}
@@ -434,12 +440,12 @@ func (c *Controller) syncCluster(cluster *clusterapiv1.Cluster, clusterDeploymen
 
 // create new cluster from cluster deployment and update the namespace to the
 // remote namespace
-func createRemoteClusterAPICluster(clusterDeployment *cov1.ClusterDeployment) (*clusterapiv1.Cluster, error) {
+func createRemoteClusterAPICluster(clusterDeployment *cov1.ClusterDeployment, cv cov1.ClusterVersionSpec) (*clusterapiv1.Cluster, error) {
 	if clusterDeployment.Spec.Hardware.AWS != nil {
 		clusterDeployment = clusterDeployment.DeepCopy()
 		clusterDeployment.Spec.Hardware.AWS.AccountSecret.Name = ""
 	}
-	remoteCluster, err := controller.BuildCluster(clusterDeployment)
+	remoteCluster, err := controller.BuildCluster(clusterDeployment, cv)
 	if err != nil {
 		return nil, err
 	}
@@ -553,7 +559,7 @@ func computeClusterAPIMachineSetsFromClusterDeployment(clusterDeployment *cov1.C
 		if ms.NodeType == cov1.NodeTypeMaster {
 			continue
 		}
-		newMS, err := controller.BuildClusterAPIMachineSet(&ms, &clusterDeployment.Spec, coClusterVersion, remoteClusterAPINamespace)
+		newMS, err := controller.BuildMachineSet(&ms, &clusterDeployment.Spec, coClusterVersion, remoteClusterAPINamespace)
 		if err != nil {
 			return nil, err
 		}

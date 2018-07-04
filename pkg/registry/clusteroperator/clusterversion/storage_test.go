@@ -48,7 +48,9 @@ func validClusterVersion(name string) *clusteroperatorapi.ClusterVersion {
 			Name: name,
 		},
 		Spec: clusteroperatorapi.ClusterVersionSpec{
-			ImageFormat: "openshift/origin-${component}:v3.7.9",
+			Images: clusteroperatorapi.ClusterVersionImages{
+				ImageFormat: "openshift/origin-${component}:v3.7.9",
+			},
 			VMImages: clusteroperatorapi.VMImages{
 				AWSImages: &clusteroperatorapi.AWSVMImages{
 					RegionAMIs: []clusteroperatorapi.AWSRegionAMIs{

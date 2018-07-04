@@ -86,8 +86,8 @@ type installStrategy struct {
 var _ clusterinstallcontroller.InstallJobDecorationStrategy = (*installStrategy)(nil)
 
 func (s *installStrategy) ReadyToInstall(cluster *clustop.CombinedCluster, masterMachineSet *capi.MachineSet) bool {
-	return cluster.ClusterDeploymentStatus.ControlPlaneInstalledJobClusterGeneration != cluster.Generation ||
-		cluster.ClusterDeploymentStatus.ControlPlaneInstalledJobMachineSetGeneration != masterMachineSet.GetGeneration()
+	return cluster.ClusterProviderStatus.ControlPlaneInstalledJobClusterGeneration != cluster.Generation ||
+		cluster.ClusterProviderStatus.ControlPlaneInstalledJobMachineSetGeneration != masterMachineSet.GetGeneration()
 }
 
 func (s *installStrategy) DecorateJobGeneratorExecutor(executor *ansible.JobGeneratorExecutor, cluster *clustop.CombinedCluster) error {
@@ -162,9 +162,9 @@ func (s *installStrategy) IncludeInfraSizeInAnsibleVars() bool {
 }
 
 func (s *installStrategy) OnInstall(succeeded bool, cluster *clustop.CombinedCluster, masterMachineSet *capi.MachineSet, job *batchv1.Job) {
-	cluster.ClusterDeploymentStatus.ControlPlaneInstalled = succeeded
-	cluster.ClusterDeploymentStatus.ControlPlaneInstalledJobClusterGeneration = cluster.Generation
-	cluster.ClusterDeploymentStatus.ControlPlaneInstalledJobMachineSetGeneration = masterMachineSet.GetGeneration()
+	cluster.ClusterProviderStatus.ControlPlaneInstalled = succeeded
+	cluster.ClusterProviderStatus.ControlPlaneInstalledJobClusterGeneration = cluster.Generation
+	cluster.ClusterProviderStatus.ControlPlaneInstalledJobMachineSetGeneration = masterMachineSet.GetGeneration()
 }
 
 func (s *installStrategy) ConvertJobSyncConditionType(conditionType controller.JobSyncConditionType) clustop.ClusterConditionType {

@@ -33,7 +33,9 @@ func getValidClusterVersion() *clusteroperator.ClusterVersion {
 			Name: "test-cluster-version",
 		},
 		Spec: clusteroperator.ClusterVersionSpec{
-			ImageFormat: "openshift/origin-${component}:${version}",
+			Images: clusteroperator.ClusterVersionImages{
+				ImageFormat: "openshift/origin-${component}:${version}",
+			},
 			VMImages: clusteroperator.VMImages{
 				AWSImages: &clusteroperator.AWSVMImages{
 					RegionAMIs: []clusteroperator.AWSRegionAMIs{
@@ -67,7 +69,7 @@ func TestValidateClusterVersion(t *testing.T) {
 			name: "missing image format",
 			clusterVersion: func() *clusteroperator.ClusterVersion {
 				c := getValidClusterVersion()
-				c.Spec.ImageFormat = ""
+				c.Spec.Images.ImageFormat = ""
 				return c
 			}(),
 			valid: false,
@@ -251,7 +253,7 @@ func TestValidateClusterVersion(t *testing.T) {
 			name: "ansible pull policy - nil",
 			clusterVersion: func() *clusteroperator.ClusterVersion {
 				c := getValidClusterVersion()
-				c.Spec.OpenshiftAnsibleImagePullPolicy = nil
+				c.Spec.Images.OpenshiftAnsibleImagePullPolicy = nil
 				return c
 			}(),
 			valid: true,
@@ -260,7 +262,7 @@ func TestValidateClusterVersion(t *testing.T) {
 			name: "ansible pull policy - always",
 			clusterVersion: func() *clusteroperator.ClusterVersion {
 				c := getValidClusterVersion()
-				c.Spec.OpenshiftAnsibleImagePullPolicy = func(s kapi.PullPolicy) *kapi.PullPolicy { return &s }(kapi.PullAlways)
+				c.Spec.Images.OpenshiftAnsibleImagePullPolicy = func(s kapi.PullPolicy) *kapi.PullPolicy { return &s }(kapi.PullAlways)
 				return c
 			}(),
 			valid: true,
@@ -269,7 +271,7 @@ func TestValidateClusterVersion(t *testing.T) {
 			name: "ansible pull policy - if not present",
 			clusterVersion: func() *clusteroperator.ClusterVersion {
 				c := getValidClusterVersion()
-				c.Spec.OpenshiftAnsibleImagePullPolicy = func(s kapi.PullPolicy) *kapi.PullPolicy { return &s }(kapi.PullIfNotPresent)
+				c.Spec.Images.OpenshiftAnsibleImagePullPolicy = func(s kapi.PullPolicy) *kapi.PullPolicy { return &s }(kapi.PullIfNotPresent)
 				return c
 			}(),
 			valid: true,
@@ -278,7 +280,7 @@ func TestValidateClusterVersion(t *testing.T) {
 			name: "ansible pull policy - never",
 			clusterVersion: func() *clusteroperator.ClusterVersion {
 				c := getValidClusterVersion()
-				c.Spec.OpenshiftAnsibleImagePullPolicy = func(s kapi.PullPolicy) *kapi.PullPolicy { return &s }(kapi.PullNever)
+				c.Spec.Images.OpenshiftAnsibleImagePullPolicy = func(s kapi.PullPolicy) *kapi.PullPolicy { return &s }(kapi.PullNever)
 				return c
 			}(),
 			valid: true,
@@ -287,7 +289,7 @@ func TestValidateClusterVersion(t *testing.T) {
 			name: "ansible pull policy - bad",
 			clusterVersion: func() *clusteroperator.ClusterVersion {
 				c := getValidClusterVersion()
-				c.Spec.OpenshiftAnsibleImagePullPolicy = func(s kapi.PullPolicy) *kapi.PullPolicy { return &s }(kapi.PullPolicy("bad"))
+				c.Spec.Images.OpenshiftAnsibleImagePullPolicy = func(s kapi.PullPolicy) *kapi.PullPolicy { return &s }(kapi.PullPolicy("bad"))
 				return c
 			}(),
 			valid: false,
@@ -296,7 +298,7 @@ func TestValidateClusterVersion(t *testing.T) {
 			name: "ansible pull policy - empty",
 			clusterVersion: func() *clusteroperator.ClusterVersion {
 				c := getValidClusterVersion()
-				c.Spec.OpenshiftAnsibleImagePullPolicy = func(s kapi.PullPolicy) *kapi.PullPolicy { return &s }(kapi.PullPolicy(""))
+				c.Spec.Images.OpenshiftAnsibleImagePullPolicy = func(s kapi.PullPolicy) *kapi.PullPolicy { return &s }(kapi.PullPolicy(""))
 				return c
 			}(),
 			valid: false,
@@ -334,7 +336,7 @@ func TestValidateClusterVersionUpdate(t *testing.T) {
 			old:  getValidClusterVersion(),
 			new: func() *clusteroperator.ClusterVersion {
 				c := getValidClusterVersion()
-				c.Spec.ImageFormat = "abc"
+				c.Spec.Images.ImageFormat = "abc"
 				return c
 			}(),
 			valid: false,

@@ -30,8 +30,6 @@ import (
 func RegisterDefaults(scheme *runtime.Scheme) error {
 	scheme.AddTypeDefaultingFunc(&ClusterDeployment{}, func(obj interface{}) { SetObjectDefaults_ClusterDeployment(obj.(*ClusterDeployment)) })
 	scheme.AddTypeDefaultingFunc(&ClusterDeploymentList{}, func(obj interface{}) { SetObjectDefaults_ClusterDeploymentList(obj.(*ClusterDeploymentList)) })
-	scheme.AddTypeDefaultingFunc(&ClusterProviderConfigSpec{}, func(obj interface{}) { SetObjectDefaults_ClusterProviderConfigSpec(obj.(*ClusterProviderConfigSpec)) })
-	scheme.AddTypeDefaultingFunc(&CombinedCluster{}, func(obj interface{}) { SetObjectDefaults_CombinedCluster(obj.(*CombinedCluster)) })
 	return nil
 }
 
@@ -43,15 +41,5 @@ func SetObjectDefaults_ClusterDeploymentList(in *ClusterDeploymentList) {
 	for i := range in.Items {
 		a := &in.Items[i]
 		SetObjectDefaults_ClusterDeployment(a)
-	}
-}
-
-func SetObjectDefaults_ClusterProviderConfigSpec(in *ClusterProviderConfigSpec) {
-	SetDefaults_ClusterDeploymentSpec(&in.ClusterDeploymentSpec)
-}
-
-func SetObjectDefaults_CombinedCluster(in *CombinedCluster) {
-	if in.ClusterDeploymentSpec != nil {
-		SetDefaults_ClusterDeploymentSpec(in.ClusterDeploymentSpec)
 	}
 }
