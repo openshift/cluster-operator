@@ -43,6 +43,7 @@ import (
 	clustopinformers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions"
 	"github.com/openshift/cluster-operator/pkg/controller"
 	"github.com/openshift/cluster-operator/pkg/controller/awselb"
+	clusterdeploymentcontroller "github.com/openshift/cluster-operator/pkg/controller/clusterdeployment"
 	componentscontroller "github.com/openshift/cluster-operator/pkg/controller/components"
 	deployclusterapicontroller "github.com/openshift/cluster-operator/pkg/controller/deployclusterapi"
 	infracontroller "github.com/openshift/cluster-operator/pkg/controller/infra"
@@ -111,7 +112,6 @@ func TestClusterCreate(t *testing.T) {
 			name: "no compute machine sets",
 			machineSets: []clustopv1alpha1.ClusterMachineSet{
 				{
-					ShortName: "master",
 					MachineSetConfig: clustopv1alpha1.MachineSetConfig{
 						Size:     3,
 						NodeType: clustopv1alpha1.NodeTypeMaster,
@@ -124,7 +124,6 @@ func TestClusterCreate(t *testing.T) {
 			name: "single compute machine sets",
 			machineSets: []clustopv1alpha1.ClusterMachineSet{
 				{
-					ShortName: "master",
 					MachineSetConfig: clustopv1alpha1.MachineSetConfig{
 						Size:     3,
 						NodeType: clustopv1alpha1.NodeTypeMaster,
@@ -145,7 +144,6 @@ func TestClusterCreate(t *testing.T) {
 			name: "multiple compute machine sets",
 			machineSets: []clustopv1alpha1.ClusterMachineSet{
 				{
-					ShortName: "master",
 					MachineSetConfig: clustopv1alpha1.MachineSetConfig{
 						Size:     3,
 						NodeType: clustopv1alpha1.NodeTypeMaster,
@@ -183,8 +181,6 @@ func TestClusterCreate(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			kubeClient, _, clustopClient, capiClient, _, tearDown := startServerAndControllers(t)
 			defer tearDown()
-
-			// TODO: these tests could use some love, we're bypassing ClusterDeployment for starters.
 
 			clusterVersion := &clustopv1alpha1.ClusterVersion{
 				ObjectMeta: metav1.ObjectMeta{
@@ -231,99 +227,33 @@ func TestClusterCreate(t *testing.T) {
 				},
 				MachineSets: tc.machineSets,
 			}
-			providerConfig, err := controller.BuildAWSClusterProviderConfig(clusterDeploymentSpec, clusterVersion.Spec)
-			if !assert.NoError(t, err, "could not create the cluster provider config") {
-				return
-			}
-
-			cluster := &capiv1alpha1.Cluster{
+			cd := &clustopv1alpha1.ClusterDeployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: testNamespace,
 					Name:      testClusterName,
 				},
-				Spec: capiv1alpha1.ClusterSpec{
-					ClusterNetwork: capiv1alpha1.ClusterNetworkingConfig{
-						Services: capiv1alpha1.NetworkRanges{
-							CIDRBlocks: []string{"255.255.255.255"},
-						},
-						Pods: capiv1alpha1.NetworkRanges{
-							CIDRBlocks: []string{"255.255.255.255"},
-						},
-						ServiceDomain: "service-domain",
-					},
-					ProviderConfig: capiv1alpha1.ProviderConfig{
-						Value: providerConfig,
-					},
-				},
+				Spec: *clusterDeploymentSpec,
 			}
-
-			cluster, err = capiClient.ClusterV1alpha1().Clusters(testNamespace).Create(cluster)
-			if !assert.NoError(t, err, "could not create the cluster") {
+			cd, err := clustopClient.ClusteroperatorV1alpha1().ClusterDeployments(testNamespace).Create(cd)
+			if !assert.NoError(t, err, "could not create the cluster deployment") {
 				return
 			}
 
-			machineSets := make([]*capiv1alpha1.MachineSet, len(tc.machineSets))
-			var masterMachineSet *capiv1alpha1.MachineSet
-
-			for i, clustopClusterMS := range tc.machineSets {
-
-				role := capicommon.NodeRole
-				if clustopClusterMS.NodeType == clustopv1alpha1.NodeTypeMaster {
-					role = capicommon.MasterRole
-				}
-
-				machineSet := testMachineSet(
-					fmt.Sprintf("%s-%s", cluster.Name, clustopClusterMS.ShortName),
-					int32(clustopClusterMS.Size),
-					[]capicommon.MachineRole{role},
-					clustopClusterMS.Infra)
-
-				if machineSet.Labels == nil {
-					machineSet.Labels = map[string]string{}
-				}
-				machineSet.Labels["clusteroperator.openshift.io/cluster"] = cluster.Name
-				ms, err := capiClient.ClusterV1alpha1().MachineSets(testNamespace).Create(machineSet)
-				if !assert.NoError(t, err, "could not create machineset %v", machineSet.Name) {
-					return
-				}
-				machineSets[i] = ms
-
-				if clustopClusterMS.NodeType == clustopv1alpha1.NodeTypeMaster {
-					if masterMachineSet != nil {
-						t.Fatalf("multiple master machinesets: %s and %s", masterMachineSet.Name, ms.Name)
-					}
-					masterMachineSet = ms
-				}
-			}
-
-			if masterMachineSet == nil {
-				t.Fatalf("no master machineset")
-			}
-
-			if err := waitForClusterToExist(capiClient, testNamespace, testClusterName); err != nil {
+			if err := waitForClusterToExist(capiClient, testNamespace, cd.Spec.ClusterID); err != nil {
 				t.Fatalf("error waiting for Cluster to exist: %v", err)
 			}
 
-			// TODO: temporarily removing the upstream cluster finalizer here. If we port these tests to use
-			// the cluster deployment controller it will do this for us.
-			cluster, err = capiClient.ClusterV1alpha1().Clusters(testNamespace).Get(cluster.Name, metav1.GetOptions{})
+			cluster, err := capiClient.ClusterV1alpha1().Clusters(testNamespace).Get(cd.Spec.ClusterID, metav1.GetOptions{})
 			if err != nil {
 				t.Fatalf("error looking up cluster: %v", err)
-			}
-			controller.DeleteFinalizer(cluster, capiv1alpha1.ClusterFinalizer)
-			cluster, err = capiClient.ClusterV1alpha1().Clusters(testNamespace).Update(cluster)
-			if err != nil {
-				t.Fatalf("error updating cluster: %v", err)
-			}
-
-			for _, ms := range machineSets {
-				if err := waitForMachineSetToExist(capiClient, testNamespace, ms.Name); err != nil {
-					t.Fatalf("error waiting for MachineSet %v to exist: %v", ms.Name, err)
-				}
 			}
 
 			if !completeInfraProvision(t, kubeClient, capiClient, cluster) {
 				return
+			}
+
+			if err := waitForMachineSetToExist(capiClient, testNamespace, fmt.Sprintf("%s-%s", cd.Spec.ClusterID, "master")); err != nil {
+				t.Fatalf("error waiting for master MachineSet to exist: %v", err)
 			}
 
 			if !completeControlPlaneInstall(t, kubeClient, capiClient, cluster) {
@@ -342,8 +272,8 @@ func TestClusterCreate(t *testing.T) {
 				return
 			}
 
-			if err := capiClient.ClusterV1alpha1().Clusters(cluster.Namespace).Delete(cluster.Name, &metav1.DeleteOptions{}); err != nil {
-				t.Fatalf("could not delete cluster: %v", err)
+			if err := clustopClient.ClusteroperatorV1alpha1().ClusterDeployments(testNamespace).Delete(cd.Name, &metav1.DeleteOptions{}); err != nil {
+				t.Fatalf("could not delete cluster deployment: %v", err)
 			}
 
 			if !completeInfraDeprovision(t, kubeClient, capiClient, cluster) {
@@ -430,6 +360,7 @@ func startServerAndControllers(t *testing.T) (
 	kubeInformerFactory := kubeinformers.NewSharedInformerFactory(fakeKubeClient, 10*time.Second)
 	batchSharedInformers := kubeInformerFactory.Batch().V1()
 	clustopInformerFactory := clustopinformers.NewSharedInformerFactory(clustopClient, 10*time.Second)
+	clustopSharedInformers := clustopInformerFactory.Clusteroperator().V1alpha1()
 	capiInformerFactory := capiinformers.NewSharedInformerFactory(capiClient, 10*time.Second)
 	capiSharedInformers := capiInformerFactory.Cluster().V1alpha1()
 
@@ -440,6 +371,19 @@ func startServerAndControllers(t *testing.T) (
 	// Otherwise, the controllers will not get the initial sync from the
 	// informer and will time out waiting to sync.
 	runControllers := []func(){
+		// clusterdeployment
+		func() func() {
+			controller := clusterdeploymentcontroller.NewController(
+				clustopSharedInformers.ClusterDeployments(),
+				capiSharedInformers.Clusters(),
+				capiSharedInformers.MachineSets(),
+				clustopSharedInformers.ClusterVersions(),
+				fakeKubeClient,
+				clustopClient,
+				capiClient,
+			)
+			return func() { controller.Run(1, stopCh) }
+		}(),
 		// infra
 		func() func() {
 			controller := infracontroller.NewController(
