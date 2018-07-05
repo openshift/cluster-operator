@@ -80,7 +80,7 @@
     changed_when: false
     ignore_errors: yes
     register: cluster_version_exists_reg
-    retries: 5
+    retries: 30
     until: cluster_version_exists_reg.stderr.find("ServiceUnavailable") == -1
 
   - set_fact:
