@@ -421,6 +421,8 @@ func Convert_clusteroperator_ClusterDeploymentSpec_To_v1alpha1_ClusterDeployment
 }
 
 func autoConvert_v1alpha1_ClusterDeploymentStatus_To_clusteroperator_ClusterDeploymentStatus(in *ClusterDeploymentStatus, out *clusteroperator.ClusterDeploymentStatus, s conversion.Scope) error {
+	out.RemoteMachineSetsSynced = in.RemoteMachineSetsSynced
+	out.RemoteMachineSetsSyncedGeneration = in.RemoteMachineSetsSyncedGeneration
 	out.Conditions = *(*[]clusteroperator.ClusterCondition)(unsafe.Pointer(&in.Conditions))
 	return nil
 }
@@ -431,6 +433,8 @@ func Convert_v1alpha1_ClusterDeploymentStatus_To_clusteroperator_ClusterDeployme
 }
 
 func autoConvert_clusteroperator_ClusterDeploymentStatus_To_v1alpha1_ClusterDeploymentStatus(in *clusteroperator.ClusterDeploymentStatus, out *ClusterDeploymentStatus, s conversion.Scope) error {
+	out.RemoteMachineSetsSynced = in.RemoteMachineSetsSynced
+	out.RemoteMachineSetsSyncedGeneration = in.RemoteMachineSetsSyncedGeneration
 	out.Conditions = *(*[]ClusterDeploymentCondition)(unsafe.Pointer(&in.Conditions))
 	return nil
 }

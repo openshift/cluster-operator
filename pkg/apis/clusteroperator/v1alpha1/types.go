@@ -441,6 +441,14 @@ type ClusterProviderStatus struct {
 
 // ClusterDeploymentStatus contains the status for a cluster
 type ClusterDeploymentStatus struct {
+	// RemoteMachineSetsSynced is true if remote machinesets have been created/updated for the
+	// target cluster
+	RemoteMachineSetsSynced bool
+
+	// RemoteMachinesetsSyncedGeneration is the generation of the cluster deployment that was
+	// last used to sync remote machinesets
+	RemoteMachineSetsSyncedGeneration int64
+
 	// Conditions includes more detailed status for the cluster
 	Conditions []ClusterDeploymentCondition `json:"conditions"`
 }
