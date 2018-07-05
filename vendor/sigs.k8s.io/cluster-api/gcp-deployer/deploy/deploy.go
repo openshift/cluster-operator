@@ -29,13 +29,13 @@ import (
 	"sigs.k8s.io/cluster-api/pkg/cert"
 	"sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 	"sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset/typed/cluster/v1alpha1"
-	"sigs.k8s.io/cluster-api/util"
-	apiutil "sigs.k8s.io/cluster-api/util"
+	"sigs.k8s.io/cluster-api/pkg/util"
 )
 
 type deployer struct {
 	token               string
 	configPath          string
+	clusterDeployer     clusterDeployer
 	machineDeployer     machineDeployer
 	client              v1alpha1.ClusterV1alpha1Interface
 	clientSet           clientset.Interface
@@ -49,7 +49,7 @@ func NewDeployer(provider string, kubeConfigPath string, machineSetupConfigPath 
 	if kubeConfigPath == "" {
 		kubeConfigPath = os.Getenv("KUBECONFIG")
 		if kubeConfigPath == "" {
-			kubeConfigPath = apiutil.GetDefaultKubeConfigPath()
+			kubeConfigPath = util.GetDefaultKubeConfigPath()
 		}
 	} else {
 		// This is needed for kubectl commands run later to create secret in function
@@ -58,22 +58,29 @@ func NewDeployer(provider string, kubeConfigPath string, machineSetupConfigPath 
 			glog.Exit(fmt.Sprintf("Failed to set Kubeconfig path err %v\n", err))
 		}
 	}
+
+	clusterParams := google.ClusterActuatorParams{}
+	clusterActuator, err := google.NewClusterActuator(clusterParams)
+	if err != nil {
+		glog.Exit(err)
+	}
+
 	configWatch, err := newConfigWatchOrNil(machineSetupConfigPath)
 	if err != nil {
 		glog.Exit(fmt.Sprintf("Could not create config watch: %v\n", err))
 	}
-	params := google.MachineActuatorParams{
+	machineParams := google.MachineActuatorParams{
 		CertificateAuthority:     ca,
 		MachineSetupConfigGetter: configWatch,
-		KubeadmToken:             token,
 	}
-	ma, err := google.NewMachineActuator(params)
+	machineActuator, err := google.NewMachineActuator(machineParams)
 	if err != nil {
 		glog.Exit(err)
 	}
 	return &deployer{
 		token:           token,
-		machineDeployer: ma,
+		clusterDeployer: clusterActuator,
+		machineDeployer: machineActuator,
 		configPath:      kubeConfigPath,
 	}
 }
@@ -84,7 +91,7 @@ func (d *deployer) CreateCluster(c *clusterv1.Cluster, machines []*clusterv1.Mac
 		if vmCreated {
 			d.deleteMasterVM(c, machines)
 		}
-		d.machineDeployer.PostDelete(c, machines)
+		d.machineDeployer.PostDelete(c)
 		return err
 	}
 
@@ -126,7 +133,7 @@ func (d *deployer) DeleteCluster() error {
 	}
 
 	glog.Info("Running post delete operations")
-	if err := d.machineDeployer.PostDelete(cluster, machines); err != nil {
+	if err := d.machineDeployer.PostDelete(cluster); err != nil {
 		return err
 	}
 	glog.Infof("Deletion complete")

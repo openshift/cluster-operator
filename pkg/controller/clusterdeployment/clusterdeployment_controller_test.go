@@ -154,6 +154,7 @@ func TestSync(t *testing.T) {
 			clusterDeployment: testDeletedClusterDeployment(),
 			existingCluster:   testCluster(),
 			expectedCAPIActions: []expectedClientAction{
+				clusterFinalizerRemovedAction{},
 				clusterDeleteAction{
 					name: testCluster().Name,
 				},
@@ -198,6 +199,7 @@ func TestSync(t *testing.T) {
 			}
 		})
 	}
+
 }
 
 type testContext struct {
@@ -619,6 +621,36 @@ func (a clusterDeploymentFinalizerAddedAction) validate(t *testing.T, testName s
 	}
 	if !controller.HasFinalizer(clusterDeployment, clustop.FinalizerClusterDeployment) {
 		t.Errorf("%s: cluster deployment does not have the expected finalizer", testName)
+		return false
+	}
+	return true
+}
+
+type clusterFinalizerRemovedAction struct {
+}
+
+func (a clusterFinalizerRemovedAction) resource() schema.GroupVersionResource {
+	return capi.SchemeGroupVersion.WithResource("clusters")
+}
+
+func (a clusterFinalizerRemovedAction) verb() string {
+	return "update"
+}
+
+func (a clusterFinalizerRemovedAction) validate(t *testing.T, testName string, action clientgotesting.Action) bool {
+	updateAction, ok := action.(clientgotesting.UpdateAction)
+	if !ok {
+		t.Errorf("%s: action is not a update action: %t", testName, action)
+		return false
+	}
+	updatedObject := updateAction.GetObject()
+	cluster, ok := updatedObject.(*capi.Cluster)
+	if !ok {
+		t.Errorf("%s: updated object is not a cluster: %t", testName, updatedObject)
+		return false
+	}
+	if controller.HasFinalizer(cluster, capi.ClusterFinalizer) {
+		t.Errorf("%s: cluster does has unexpected finalizer", testName)
 		return false
 	}
 	return true

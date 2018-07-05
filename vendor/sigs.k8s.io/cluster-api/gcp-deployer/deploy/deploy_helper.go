@@ -28,7 +28,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	clusterv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
-	"sigs.k8s.io/cluster-api/util"
+	"sigs.k8s.io/cluster-api/pkg/clientcmd"
+	"sigs.k8s.io/cluster-api/pkg/util"
 )
 
 const (
@@ -57,7 +58,7 @@ func (d *deployer) createCluster(c *clusterv1.Cluster, machines []*clusterv1.Mac
 
 	glog.Infof("Starting cluster dependency creation %s", c.GetName())
 
-	if err := d.machineDeployer.ProvisionClusterDependencies(c, machines); err != nil {
+	if err := d.machineDeployer.ProvisionClusterDependencies(c); err != nil {
 		return err
 	}
 
@@ -99,7 +100,7 @@ func (d *deployer) createCluster(c *clusterv1.Cluster, machines []*clusterv1.Mac
 	}
 
 	glog.Info("Creating additional cluster resources...")
-	if err := d.machineDeployer.PostCreate(c, machines); err != nil {
+	if err := d.machineDeployer.PostCreate(c); err != nil {
 		return fmt.Errorf("can't create additional cluster resources: %v", err)
 	}
 
@@ -257,11 +258,7 @@ func (d *deployer) copyKubeConfig(cluster *clusterv1.Cluster, master *clusterv1.
 }
 
 func (d *deployer) initApiClient() error {
-	c, err := util.NewClientSet(d.configPath)
-	if err != nil {
-		return err
-	}
-	kubernetesClientSet, err := util.NewKubernetesClient(d.configPath)
+	kubernetesClientSet, c, err := clientcmd.NewClientsForDefaultSearchpath(d.configPath, clientcmd.NewConfigOverrides())
 	if err != nil {
 		return err
 	}

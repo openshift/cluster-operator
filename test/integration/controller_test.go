@@ -184,6 +184,8 @@ func TestClusterCreate(t *testing.T) {
 			kubeClient, _, clustopClient, capiClient, _, tearDown := startServerAndControllers(t)
 			defer tearDown()
 
+			// TODO: these tests could use some love, we're bypassing ClusterDeployment for starters.
+
 			clusterVersion := &clustopv1alpha1.ClusterVersion{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: testNamespace,
@@ -300,6 +302,18 @@ func TestClusterCreate(t *testing.T) {
 
 			if err := waitForClusterToExist(capiClient, testNamespace, testClusterName); err != nil {
 				t.Fatalf("error waiting for Cluster to exist: %v", err)
+			}
+
+			// TODO: temporarily removing the upstream cluster finalizer here. If we port these tests to use
+			// the cluster deployment controller it will do this for us.
+			cluster, err = capiClient.ClusterV1alpha1().Clusters(testNamespace).Get(cluster.Name, metav1.GetOptions{})
+			if err != nil {
+				t.Fatalf("error looking up cluster: %v", err)
+			}
+			controller.DeleteFinalizer(cluster, capiv1alpha1.ClusterFinalizer)
+			cluster, err = capiClient.ClusterV1alpha1().Clusters(testNamespace).Update(cluster)
+			if err != nil {
+				t.Fatalf("error updating cluster: %v", err)
 			}
 
 			for _, ms := range machineSets {

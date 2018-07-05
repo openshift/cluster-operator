@@ -25,6 +25,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
@@ -476,23 +477,39 @@ func (a *Actuator) updateStatus(machine *clusterv1.Machine, instance *ec2.Instan
 	}
 	// Save this, we need to check if it changed later.
 	origInstanceID := awsStatus.InstanceID
+	networkAddresses := []corev1.NodeAddress{}
 
 	// Instance may have existed but been deleted outside our control, clear it's status if so:
 	if instance == nil {
 		awsStatus.InstanceID = nil
 		awsStatus.InstanceState = nil
-		awsStatus.PublicIP = nil
-		awsStatus.PublicDNS = nil
-		awsStatus.PrivateIP = nil
-		awsStatus.PrivateDNS = nil
 	} else {
 		awsStatus.InstanceID = instance.InstanceId
 		awsStatus.InstanceState = instance.State.Name
-		// Some of these pointers may still be nil (public IP and DNS):
-		awsStatus.PublicIP = instance.PublicIpAddress
-		awsStatus.PublicDNS = instance.PublicDnsName
-		awsStatus.PrivateIP = instance.PrivateIpAddress
-		awsStatus.PrivateDNS = instance.PrivateDnsName
+		if instance.PublicIpAddress != nil {
+			networkAddresses = append(networkAddresses, corev1.NodeAddress{
+				Type:    corev1.NodeExternalIP,
+				Address: *instance.PublicIpAddress,
+			})
+		}
+		if instance.PrivateIpAddress != nil {
+			networkAddresses = append(networkAddresses, corev1.NodeAddress{
+				Type:    corev1.NodeInternalIP,
+				Address: *instance.PrivateIpAddress,
+			})
+		}
+		if instance.PublicDnsName != nil {
+			networkAddresses = append(networkAddresses, corev1.NodeAddress{
+				Type:    corev1.NodeExternalDNS,
+				Address: *instance.PublicDnsName,
+			})
+		}
+		if instance.PrivateDnsName != nil {
+			networkAddresses = append(networkAddresses, corev1.NodeAddress{
+				Type:    corev1.NodeInternalDNS,
+				Address: *instance.PrivateDnsName,
+			})
+		}
 	}
 	mLog.Debug("finished calculating AWS status")
 
@@ -509,6 +526,7 @@ func (a *Actuator) updateStatus(machine *clusterv1.Machine, instance *ec2.Instan
 
 	machineCopy := machine.DeepCopy()
 	machineCopy.Status.ProviderStatus = awsStatusRaw
+	machineCopy.Status.Addresses = networkAddresses
 
 	if !equality.Semantic.DeepEqual(machine.Status, machineCopy.Status) {
 		mLog.Info("machine status has changed, updating")
