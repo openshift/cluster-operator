@@ -11,7 +11,7 @@ configures load balancers, or provisions other resources, amend this guide as
 necessary.
 
 1. Delete all of the node `Machine`s in the cluster. Make sure to wait for the corresponding Nodes to be deleted before moving onto the next step. After this step, the master node will be the only remaining node.
-
+   
 ```bash
 kubectl get nodes
 

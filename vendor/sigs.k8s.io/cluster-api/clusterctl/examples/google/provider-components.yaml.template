@@ -347,14 +347,14 @@ data:
           # Our Debian packages have versions like "1.8.0-00" or "1.8.0-01". Do a prefix
           # search based on our SemVer to find the right (newest) package version.
           function getversion() {
-		name=$1
-		prefix=$2
-		version=$(apt-cache madison $name | awk '{ print $3 }' | grep ^$prefix | head -n1)
-		if [[ -z "$version" ]]; then
-			echo Can\'t find package $name with prefix $prefix
-			exit 1
-		fi
-		echo $version
+          	name=$1
+          	prefix=$2
+          	version=$(apt-cache madison $name | awk '{ print $3 }' | grep ^$prefix | head -n1)
+          	if [[ -z "$version" ]]; then
+          		echo Can\'t find package $name with prefix $prefix
+          		exit 1
+          	fi
+          	echo $version
           }
           KUBELET=$(getversion kubelet ${KUBELET_VERSION}-)
           KUBEADM=$(getversion kubeadm ${KUBELET_VERSION}-)
@@ -374,8 +374,8 @@ data:
           systemctl restart kubelet.service
           kubeadm join --token "${TOKEN}" "${MASTER}" --ignore-preflight-errors=all --discovery-token-unsafe-skip-ca-verification
           for tries in $(seq 1 60); do
-		kubectl --kubeconfig /etc/kubernetes/kubelet.conf annotate --overwrite node $(hostname) machine=${MACHINE} && break
-		sleep 1
+          	kubectl --kubeconfig /etc/kubernetes/kubelet.conf annotate --overwrite node $(hostname) machine=${MACHINE} && break
+          	sleep 1
           done
           echo done.
           ) 2>&1 | tee /var/log/startup.log

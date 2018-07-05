@@ -1,5 +1,5 @@
-hash: fd7865846480287d3a1fc4f9d47be4579b0be1a57394189edcfecf056b8635b0
-updated: 2018-07-04T09:38:35.413978643-03:00
+hash: 3fbb58c4a691706e5d094889e048a77402f2a464e8366e6019396ba4ea46356c
+updated: 2018-07-05T17:06:40.980911839-04:00
 imports:
 - name: bitbucket.org/ww/goautoneg
   version: 75cd24fc2f2c2a2088577d12123ddee5f54e0675
@@ -134,7 +134,7 @@ imports:
 - name: github.com/ghodss/yaml
   version: 73d445a93680fa1a78ae23a5839bad48f32ba1ee
 - name: github.com/go-ini/ini
-  version: 300e940a926eb277d3901b20bdfcc54928ad3642
+  version: cec2bdc49009247305a260b082a18e802d0fe292
 - name: github.com/go-openapi/jsonpointer
   version: 46af16f9f7b149af66e5d1bd010e3574dc06de98
 - name: github.com/go-openapi/jsonreference
@@ -149,7 +149,7 @@ imports:
   - proto
   - sortkeys
 - name: github.com/golang/glog
-  version: 44145f04b68cf362d9c4df2182967c2275eaefed
+  version: 23def4e6c14b4da8ac2ed8007337bc5eb5007998
 - name: github.com/golang/groupcache
   version: 02826c3e79038b59d737d3b1c0a1d937f71a4433
   subpackages:
@@ -237,6 +237,10 @@ imports:
   - flowrate
 - name: github.com/NYTimes/gziphandler
   version: 56545f4a5d46df9a6648819d1664c3a03a13ffdb
+- name: github.com/openshift/api
+  version: aaea23fe8f58729c8196c8e7f4f40d12bd0e2135
+- name: github.com/openshift/client-go
+  version: 4688ad28de2e88110c0ea30179c51b9b205f99be
 - name: github.com/pborman/uuid
   version: ca53cad383cad2479bbba7f7a1a05797ec1386e4
 - name: github.com/peterbourgon/diskv

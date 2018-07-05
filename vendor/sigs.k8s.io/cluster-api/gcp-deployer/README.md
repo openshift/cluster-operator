@@ -1,6 +1,6 @@
 ## gcp-deployer is deprecated in favor of clusterctl. It will be deleted soon*.
 
-*\*after we change the integration test to use clusterctl, and cluster delete is implemented in clusterctl.*
+*\*after we change the integration test to use clusterctl, and cluster delete is implemented in clusterctl.* 
 
 # Cluster API GCP Prototype
 

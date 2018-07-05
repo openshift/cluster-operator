@@ -5,7 +5,7 @@
 This guide explains how to delete all resources that were created as part of
 your Cluster API Kubernetes cluster.
 
-If your cluster was created using the gcp-deployer tool, see the
+If your cluster was created using the gcp-deployer tool, see the 
 [gcp-deployer docs](../../gcp-deployer/README.md).
 
 1. Remember the service accounts that were created for your cluster

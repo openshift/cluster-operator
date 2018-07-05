@@ -25,3 +25,5 @@ import:
   version: ^1.9.0-alpha.3
 - package: sigs.k8s.io/cluster-api
 - package: github.com/stretchr/testify
+- package: github.com/openshift/api
+- package: github.com/openshift/client-go
