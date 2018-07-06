@@ -58,13 +58,9 @@
       chdir: "{{ playbook_dir }}/../../"
     when: push_images | bool
 
-  - name: wait for apiserver deployment to finish
+  - name: wait for cluster operator apiservice
     command: |-
-      oc rollout status deploymentconfig/cluster-operator-apiserver -n {{ cluster_operator_namespace | quote }}
-
-  - name: wait for controller-manager deployment to finish
-    command: |-
-      oc rollout status deploymentconfig/cluster-operator-controller-manager -n {{ cluster_operator_namespace | quote }}
+      {{ playbook_dir }}/../../bin/wait-for-apiservice v1alpha1.clusteroperator.openshift.io
 
   - import_role:
       name: kubectl-ansible
@@ -80,8 +76,6 @@
     changed_when: false
     ignore_errors: yes
     register: cluster_version_exists_reg
-    retries: 30
-    until: cluster_version_exists_reg.rc == 0 or cluster_version_exists_reg.stderr.find("NotFound") != -1
 
   - set_fact:
       process_cluster_versions: True
