@@ -22,7 +22,7 @@ The instructions below will enable you to get started with running your own vers
 
 ### Verifying Your Environment
 
-1. Install `jq`. Instructions can be found [here](https://stedolan.github.io/jq/download/).
-1. Run the following, `kubectl get pods -o json | jq '.items[].status.containerStatuses[] | select(.name=="gce-controller")'`. Validate the the hash in the `imageID` field matches the image you built above.
+1. Install `jq`. Instructions can be found [here](https://stedolan.github.io/jq/download/). 
+1. Run the following, `kubectl get pods -o json | jq '.items[].status.containerStatuses[] | select(.name=="gce-controller")'`. Validate the the hash in the `imageID` field matches the image you built above. 
 1. Run the following, it will store, in `${POD_NAME}`, the name of your main clusterapi pod, `POD_NAME=$(kubectl get pods -o json | jq '.items[] | select(.status.containerStatuses[].name=="gce-controller") | .metadata.name' --raw-output)`.
 1. Run `kubectl logs --namespace=default ${POD_NAME} -c gce-controller`. Look for the output or change that you added to gce-controller.

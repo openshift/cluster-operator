@@ -25,7 +25,7 @@ To learn more, see the [Cluster API KEP][cluster-api-kep].
 ### Prerequisites
 * `kubectl` is required, see [here](http://kubernetes.io/docs/user-guide/prereqs/).
 * `clusterctl` is a SIG-cluster-lifecycle sponsored tool to manage Cluster API clusters. See [here](clusterctl)
-
+ 
 ## How to use the API
 
 To see how to build tooling on top of the Cluster API, please check out a few examples below:

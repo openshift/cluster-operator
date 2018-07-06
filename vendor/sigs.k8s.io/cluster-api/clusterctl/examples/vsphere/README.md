@@ -24,3 +24,4 @@ manually edit `providerConfig`.
 
 ## Manual Modification
 You may always manually curate files based on the examples provided.
+
