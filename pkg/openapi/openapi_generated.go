@@ -535,6 +535,20 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 				SchemaProps: spec.SchemaProps{
 					Description: "ClusterDeploymentStatus contains the status for a cluster",
 					Properties: map[string]spec.Schema{
+						"RemoteMachineSetsSynced": {
+							SchemaProps: spec.SchemaProps{
+								Description: "RemoteMachineSetsSynced is true if remote machinesets have been created/updated for the target cluster",
+								Type:        []string{"boolean"},
+								Format:      "",
+							},
+						},
+						"RemoteMachineSetsSyncedGeneration": {
+							SchemaProps: spec.SchemaProps{
+								Description: "RemoteMachinesetsSyncedGeneration is the generation of the cluster deployment that was last used to sync remote machinesets",
+								Type:        []string{"integer"},
+								Format:      "int64",
+							},
+						},
 						"conditions": {
 							SchemaProps: spec.SchemaProps{
 								Description: "Conditions includes more detailed status for the cluster",
@@ -549,7 +563,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 							},
 						},
 					},
-					Required: []string{"conditions"},
+					Required: []string{"RemoteMachineSetsSynced", "RemoteMachineSetsSyncedGeneration", "conditions"},
 				},
 			},
 			Dependencies: []string{

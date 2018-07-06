@@ -338,10 +338,6 @@ func (c *Controller) syncClusterDeployment(key string) error {
 		return c.syncDeletedClusterDeployment(clusterDeployment)
 	}
 
-	if !hasFinalizer(clusterDeployment) {
-		return c.addFinalizer(clusterDeployment)
-	}
-
 	cluster, err := c.clusterInformer.Clusters(clusterDeployment.Namespace).Get(clusterDeployment.Spec.ClusterID)
 	if err != nil {
 		return fmt.Errorf("error retrieving cluster object: %v", err)
@@ -544,7 +540,7 @@ func (c *Controller) syncMachineSets(clusterDeployment *cov1.ClusterDeployment, 
 		}
 	}
 
-	return nil
+	return c.setMachineSetsSyncedStatus(clusterDeployment)
 }
 
 // return list of non-master machinesets from a given ClusterDeployment
@@ -575,9 +571,11 @@ func (c *Controller) deleteFinalizer(clusterDeployment *cov1.ClusterDeployment) 
 	return err
 }
 
-func (c *Controller) addFinalizer(clusterDeployment *cov1.ClusterDeployment) error {
+func (c *Controller) setMachineSetsSyncedStatus(clusterDeployment *cov1.ClusterDeployment) error {
 	clusterDeployment = clusterDeployment.DeepCopy()
 	controller.AddFinalizer(clusterDeployment, cov1.FinalizerRemoteMachineSets)
+	clusterDeployment.Status.RemoteMachineSetsSynced = true
+	clusterDeployment.Status.RemoteMachineSetsSyncedGeneration = clusterDeployment.Generation
 	_, err := c.client.ClusteroperatorV1alpha1().ClusterDeployments(clusterDeployment.Namespace).UpdateStatus(clusterDeployment)
 	return err
 }

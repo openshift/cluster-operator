@@ -172,24 +172,6 @@ func TestClusterSyncing(t *testing.T) {
 				return clusterList
 			},
 		},
-		{
-			name:              "add finalizer",
-			clusterDeployment: newTestClusterDeploymentWithoutFinalizer(),
-			expectedClustopActions: []expectedAction{
-				{
-					namespace: newTestClusterDeploymentWithoutFinalizer().Namespace,
-					verb:      "update",
-					gvr:       cov1.SchemeGroupVersion.WithResource("clusterdeployments"),
-					validate: func(t *testing.T, action clientgotesting.Action) {
-						updateAction := action.(clientgotesting.UpdateAction)
-						clusterDeployment := updateAction.GetObject().(*cov1.ClusterDeployment)
-						if !hasFinalizer(clusterDeployment) {
-							t.Errorf("add finalizer - no finalizer found on updated cluster deployment")
-						}
-					},
-				},
-			},
-		},
 	}
 
 	for _, tc := range cases {
@@ -410,7 +392,7 @@ func TestMachineSetSyncing(t *testing.T) {
 		},
 		{
 			name:              "delete remote machinesets",
-			clusterDeployment: newDeletedTestClusterWithCompute(),
+			clusterDeployment: newDeletedTestClusterWithFinalizer(),
 			controlPlaneReady: true,
 			remoteMachineSets: []clusterapiv1.MachineSet{
 				{
@@ -434,6 +416,11 @@ func TestMachineSetSyncing(t *testing.T) {
 					gvr:       clusterapiv1.SchemeGroupVersion.WithResource("machinesets"),
 				},
 			},
+		},
+		{
+			name:              "no-op when deleted and machinesets not synced",
+			clusterDeployment: newDeletedTestClusterWithoutFinalizer(),
+			controlPlaneReady: true,
 		},
 	}
 
@@ -632,7 +619,16 @@ func newTestClusterWithCompute() *cov1.ClusterDeployment {
 	return cluster
 }
 
-func newDeletedTestClusterWithCompute() *cov1.ClusterDeployment {
+func newDeletedTestClusterWithFinalizer() *cov1.ClusterDeployment {
+	clusterDeployment := newTestClusterDeployment()
+	now := metav1.Now()
+	clusterDeployment.Finalizers = []string{cov1.FinalizerRemoteMachineSets}
+	clusterDeployment.DeletionTimestamp = &now
+	clusterDeployment.Status.RemoteMachineSetsSynced = true
+	return clusterDeployment
+}
+
+func newDeletedTestClusterWithoutFinalizer() *cov1.ClusterDeployment {
 	clusterDeployment := newTestClusterDeployment()
 	now := metav1.Now()
 	clusterDeployment.DeletionTimestamp = &now
@@ -642,10 +638,9 @@ func newDeletedTestClusterWithCompute() *cov1.ClusterDeployment {
 func newTestClusterDeployment() *cov1.ClusterDeployment {
 	clusterDeployment := &cov1.ClusterDeployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:       testClusterName,
-			Namespace:  testClusterNamespace,
-			UID:        testClusterUUID,
-			Finalizers: []string{cov1.FinalizerRemoteMachineSets},
+			Name:      testClusterName,
+			Namespace: testClusterNamespace,
+			UID:       testClusterUUID,
 		},
 		Spec: cov1.ClusterDeploymentSpec{
 			ClusterID: testClusterID,
@@ -670,12 +665,6 @@ func newTestClusterDeployment() *cov1.ClusterDeployment {
 			},
 		},
 	}
-	return clusterDeployment
-}
-
-func newTestClusterDeploymentWithoutFinalizer() *cov1.ClusterDeployment {
-	clusterDeployment := newTestClusterDeployment()
-	clusterDeployment.Finalizers = []string{}
 	return clusterDeployment
 }
 
