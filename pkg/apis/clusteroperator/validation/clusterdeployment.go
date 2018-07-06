@@ -86,6 +86,33 @@ func validateClusterDeploymentSpec(spec *clusteroperator.ClusterDeploymentSpec, 
 		allErrs = append(allErrs, field.Required(versionPath.Child("name"), "must specify a cluster version to install"))
 	}
 
+	if spec.NetworkConfig.ServiceDomain == "" {
+		allErrs = append(allErrs, field.Invalid(
+			field.NewPath("spec", "networkConfig", "serviceDomain"),
+			spec.NetworkConfig.ServiceDomain,
+			"invalid cluster configuration: missing service domain"))
+	}
+
+	if len(spec.NetworkConfig.Pods.CIDRBlocks) == 0 {
+		allErrs = append(allErrs, field.Invalid(
+			fldPath.Child("networkConfig", "pods"),
+			spec.NetworkConfig.Pods,
+			"missing cluster network POD CIDR"))
+	}
+	if len(spec.NetworkConfig.Services.CIDRBlocks) == 0 {
+		allErrs = append(allErrs, field.Invalid(
+			fldPath.Child("networkConfig", "services"),
+			spec.NetworkConfig.Services,
+			"missing cluster network services CIDR"))
+	}
+
+	if len(spec.NetworkConfig.Services.CIDRBlocks) > 1 {
+		allErrs = append(allErrs, field.Invalid(fldPath.Child("networkConfig").Child("services"), &spec.NetworkConfig.Services, "only one service network subnet is currently supported"))
+	}
+	if len(spec.NetworkConfig.Pods.CIDRBlocks) > 1 {
+		allErrs = append(allErrs, field.Invalid(fldPath.Child("networkConfig").Child("pods"), &spec.NetworkConfig.Pods, "only one pod network subnet is currently supported"))
+	}
+
 	return allErrs
 }
 
@@ -132,6 +159,8 @@ func ValidateClusterDeploymentUpdate(new *clusteroperator.ClusterDeployment, old
 	allErrs = append(allErrs, validateClusterDeploymentSpec(&new.Spec, field.NewPath("spec"))...)
 
 	allErrs = append(allErrs, apivalidation.ValidateImmutableField(new.Spec.ClusterID, old.Spec.ClusterID, field.NewPath("spec", "clusterID"))...)
+	allErrs = append(allErrs, apivalidation.ValidateImmutableField(new.Spec.NetworkConfig.Services, old.Spec.NetworkConfig.Services, field.NewPath("spec", "networkConfig", "services"))...)
+	allErrs = append(allErrs, apivalidation.ValidateImmutableField(new.Spec.NetworkConfig.Pods, old.Spec.NetworkConfig.Pods, field.NewPath("spec", "networkConfig", "pods"))...)
 
 	return allErrs
 }

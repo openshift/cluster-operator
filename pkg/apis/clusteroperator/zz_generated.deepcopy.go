@@ -305,6 +305,7 @@ func (in *ClusterDeploymentSpec) DeepCopyInto(out *ClusterDeploymentSpec) {
 	*out = *in
 	in.Hardware.DeepCopyInto(&out.Hardware)
 	out.Config = in.Config
+	in.NetworkConfig.DeepCopyInto(&out.NetworkConfig)
 	if in.DefaultHardwareSpec != nil {
 		in, out := &in.DefaultHardwareSpec, &out.DefaultHardwareSpec
 		if *in == nil {

@@ -24,6 +24,8 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
+	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+
 	coapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	"github.com/openshift/cluster-operator/pkg/controller"
 )
@@ -145,6 +147,9 @@ openshift_cloudprovider_aws_secret_key: "{{ lookup('env','AWS_SECRET_ACCESS_KEY'
 # TODO: Disable this when we have a controller that accepts nodes based on
 # the existing cluster API machine resources
 openshift_master_bootstrap_auto_approve: true
+
+openshift_portal_net: [[ .ServiceCIDR ]]
+osm_cluster_network_cidr: [[ .PodCIDR ]]
 
 # --- #
 # VPC #
@@ -320,6 +325,8 @@ type clusterParams struct {
 	ClusterAPIImagePullPolicy        corev1.PullPolicy
 	MachineControllerImage           string
 	MachineControllerImagePullPolicy corev1.PullPolicy
+	PodCIDR                          string
+	ServiceCIDR                      string
 }
 
 type clusterVersionParams struct {
@@ -334,6 +341,8 @@ func GenerateClusterWideVars(
 	hardwareSpec coapi.AWSClusterSpec,
 	version coapi.OpenShiftConfigVersion,
 	infraSize int,
+	serviceCIDRs capiv1.NetworkRanges,
+	podCIDRs capiv1.NetworkRanges,
 ) (string, error) {
 
 	// Change template delimiters to avoid conflict with {{ }} use in ansible vars:
@@ -353,6 +362,9 @@ func GenerateClusterWideVars(
 		VPCDefaults:           vpcDefaults,
 		DeploymentType:        version.DeploymentType,
 		InfraSize:             infraSize,
+		// Openshift-ansible only supports a single value:
+		ServiceCIDR: serviceCIDRs.CIDRBlocks[0],
+		PodCIDR:     podCIDRs.CIDRBlocks[0],
 	}
 
 	if version.Images.ClusterAPIImage != nil {
@@ -395,9 +407,16 @@ func convertVersionToRelease(version string) (string, error) {
 // GenerateClusterWideVarsForMachineSet generates the vars to pass to the
 // ansible playbook that are set at the cluster level for a machine set in
 // that cluster.
-func GenerateClusterWideVarsForMachineSet(isMaster bool, clusterID string, clusterHardware coapi.AWSClusterSpec, clusterVersion coapi.OpenShiftConfigVersion) (string, error) {
+func GenerateClusterWideVarsForMachineSet(
+	isMaster bool,
+	clusterID string,
+	clusterHardware coapi.AWSClusterSpec,
+	clusterVersion coapi.OpenShiftConfigVersion,
+	serviceCIDRs capiv1.NetworkRanges,
+	podCIDRs capiv1.NetworkRanges,
+) (string, error) {
 	// since we haven't been passed an infraSize, just assume minimum size of 1
-	return GenerateClusterWideVarsForMachineSetWithInfraSize(isMaster, clusterID, clusterHardware, clusterVersion, 1)
+	return GenerateClusterWideVarsForMachineSetWithInfraSize(isMaster, clusterID, clusterHardware, clusterVersion, 1, serviceCIDRs, podCIDRs)
 }
 
 // GenerateClusterWideVarsForMachineSetWithInfraSize generates the vars to pass to the
@@ -409,8 +428,10 @@ func GenerateClusterWideVarsForMachineSetWithInfraSize(
 	clusterHardware coapi.AWSClusterSpec,
 	clusterVersion coapi.OpenShiftConfigVersion,
 	infraSize int,
+	serviceCIDRs capiv1.NetworkRanges,
+	podCIDRs capiv1.NetworkRanges,
 ) (string, error) {
-	commonVars, err := GenerateClusterWideVars(clusterID, clusterHardware, clusterVersion, infraSize)
+	commonVars, err := GenerateClusterWideVars(clusterID, clusterHardware, clusterVersion, infraSize, serviceCIDRs, podCIDRs)
 
 	// Layer in the vars that depend on the ClusterVersion:
 	var buf bytes.Buffer

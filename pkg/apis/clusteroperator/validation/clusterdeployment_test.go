@@ -24,6 +24,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
+	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 )
 
 // getValidClusterDeployment gets a cluster deployment that passes all validity checks.
@@ -50,6 +51,11 @@ func getValidClusterDeploymentSpec() clusteroperator.ClusterDeploymentSpec {
 		},
 		ClusterVersionRef: clusteroperator.ClusterVersionReference{
 			Name: "v3-9",
+		},
+		NetworkConfig: capiv1.ClusterNetworkingConfig{
+			ServiceDomain: "test.svc.local",
+			Services:      capiv1.NetworkRanges{CIDRBlocks: []string{"172.50.1.1/16"}},
+			Pods:          capiv1.NetworkRanges{CIDRBlocks: []string{"10.140.5.5/14"}},
 		},
 	}
 }
@@ -108,6 +114,44 @@ func TestValidateClusterDeployment(t *testing.T) {
 			}(),
 			valid: false,
 		},
+		{
+			name: "missing service network CIDRs",
+			clusterDeployment: func() *clusteroperator.ClusterDeployment {
+				c := getValidClusterDeployment()
+				c.Spec.NetworkConfig.Services = capiv1.NetworkRanges{CIDRBlocks: []string{}}
+				return c
+			}(),
+			valid: false,
+		},
+		{
+			name: "missing pod network CIDRs",
+			clusterDeployment: func() *clusteroperator.ClusterDeployment {
+				c := getValidClusterDeployment()
+				c.Spec.NetworkConfig.Pods = capiv1.NetworkRanges{CIDRBlocks: []string{}}
+				return c
+			}(),
+			valid: false,
+		},
+		{
+			// NOTE: this isn't supported yet
+			name: "multiple service network CIDRs",
+			clusterDeployment: func() *clusteroperator.ClusterDeployment {
+				c := getValidClusterDeployment()
+				c.Spec.NetworkConfig.Services = capiv1.NetworkRanges{CIDRBlocks: []string{"192.168.1.1/10", "196.168.1.2/20"}}
+				return c
+			}(),
+			valid: false,
+		},
+		{
+			// NOTE: this isn't supported yet
+			name: "multiple pod network CIDRs",
+			clusterDeployment: func() *clusteroperator.ClusterDeployment {
+				c := getValidClusterDeployment()
+				c.Spec.NetworkConfig.Pods = capiv1.NetworkRanges{CIDRBlocks: []string{"192.168.1.1/10", "196.168.1.2/20"}}
+				return c
+			}(),
+			valid: false,
+		},
 	}
 
 	for _, tc := range cases {
@@ -151,6 +195,26 @@ func TestValidateClusterDeploymentUpdate(t *testing.T) {
 			new: func() *clusteroperator.ClusterDeployment {
 				c := getValidClusterDeployment()
 				c.Spec.ClusterID = "mutated-cluster-id"
+				return c
+			}(),
+			valid: false,
+		},
+		{
+			name: "mutated service network CIDR",
+			old:  getValidClusterDeployment(),
+			new: func() *clusteroperator.ClusterDeployment {
+				c := getValidClusterDeployment()
+				c.Spec.NetworkConfig.Services = capiv1.NetworkRanges{CIDRBlocks: []string{"172.60.0.0/16"}}
+				return c
+			}(),
+			valid: false,
+		},
+		{
+			name: "mutated pod network CIDR",
+			old:  getValidClusterDeployment(),
+			new: func() *clusteroperator.ClusterDeployment {
+				c := getValidClusterDeployment()
+				c.Spec.NetworkConfig.Pods = capiv1.NetworkRanges{CIDRBlocks: []string{"172.60.0.0/16"}}
 				return c
 			}(),
 			valid: false,
