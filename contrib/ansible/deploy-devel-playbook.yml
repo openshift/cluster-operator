@@ -29,7 +29,6 @@
       ansible_image_pull_policy: "{{ ansible_image_pull_policy | default('Never') }}"
 
       # Normally we assume to build and push images for devel deployments:
-      build_images: "{{ build_images | default(True) }}"
       push_images: "{{ push_images | default(True) }}"
       process_cluster_versions: False
 
@@ -50,7 +49,7 @@
     shell: make images
     args:
       chdir: "{{ playbook_dir }}/../../"
-    when: build_images | bool
+    when: push_images | bool
 
   - name: push devel images to integrated registry
     command: make integrated-registry-push
