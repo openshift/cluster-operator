@@ -74,6 +74,7 @@ func (e *JobGeneratorExecutor) Execute(name string) (*kbatch.Job, *kapi.ConfigMa
 			e.cluster.AWSClusterProviderConfig.Hardware,
 			e.clusterVersion,
 			*e.infraSize,
+			e.cluster.AWSClusterProviderConfig.OpenShiftConfig.SDNPluginName,
 			e.cluster.ClusterSpec.ClusterNetwork.Services,
 			e.cluster.ClusterSpec.ClusterNetwork.Pods,
 		)
@@ -83,6 +84,7 @@ func (e *JobGeneratorExecutor) Execute(name string) (*kbatch.Job, *kapi.ConfigMa
 			e.cluster.Name,
 			e.cluster.AWSClusterProviderConfig.Hardware,
 			e.clusterVersion,
+			e.cluster.AWSClusterProviderConfig.OpenShiftConfig.SDNPluginName,
 			e.cluster.ClusterSpec.ClusterNetwork.Services,
 			e.cluster.ClusterSpec.ClusterNetwork.Pods,
 		)
@@ -93,6 +95,7 @@ func (e *JobGeneratorExecutor) Execute(name string) (*kbatch.Job, *kapi.ConfigMa
 			e.cluster.AWSClusterProviderConfig.Hardware,
 			e.clusterVersion,
 			*e.infraSize,
+			e.cluster.AWSClusterProviderConfig.OpenShiftConfig.SDNPluginName,
 			e.cluster.ClusterSpec.ClusterNetwork.Services,
 			e.cluster.ClusterSpec.ClusterNetwork.Pods,
 		)

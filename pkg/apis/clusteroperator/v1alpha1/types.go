@@ -324,7 +324,7 @@ type AWSClusterSpec struct {
 
 // ClusterConfigSpec contains OpenShift configuration for a cluster
 type ClusterConfigSpec struct {
-	// SDNPluginName is the name of the SDN plugin to use for this install
+	// SDNPluginName is the name of the OpenShift SDN plugin to use for this install. Defaults to 'redhat/openshift-ovs-multitenant'.
 	SDNPluginName string `json:"sdnPluginName"`
 }
 

@@ -63,6 +63,9 @@ func validNewClusterDeployment(name string) *clusteroperatorapi.ClusterDeploymen
 				Namespace: "openshift-cluster-operator",
 				Name:      "v3-9",
 			},
+			Config: clusteroperatorapi.ClusterConfigSpec{
+				SDNPluginName: "redhat/openshift-ovs-multitenant",
+			},
 			NetworkConfig: capiv1.ClusterNetworkingConfig{
 				Services:      capiv1.NetworkRanges{CIDRBlocks: []string{"172.30.0.0/16"}},
 				Pods:          capiv1.NetworkRanges{CIDRBlocks: []string{"10.128.0.0/14"}},

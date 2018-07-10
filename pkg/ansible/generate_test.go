@@ -58,6 +58,7 @@ func TestGenerateClusterWideVars(t *testing.T) {
 		clusterSpec      *coapi.ClusterDeploymentSpec
 		infraSize        int
 		clusterVersion   *coapi.OpenShiftConfigVersion
+		sdnPluginName    string
 		serviceCIDRs     capiv1.NetworkRanges
 		podCIDRs         capiv1.NetworkRanges
 		shouldInclude    []string
@@ -69,6 +70,7 @@ func TestGenerateClusterWideVars(t *testing.T) {
 			clusterSpec:    testClusterSpec(),
 			infraSize:      2,
 			clusterVersion: testClusterVersion(),
+			sdnPluginName:  "fakeplugin",
 			serviceCIDRs:   capiv1.NetworkRanges{CIDRBlocks: []string{"172.30.0.0/16"}},
 			podCIDRs:       capiv1.NetworkRanges{CIDRBlocks: []string{"10.128.0.0/14"}},
 			shouldInclude: []string{
@@ -84,6 +86,7 @@ func TestGenerateClusterWideVars(t *testing.T) {
 				"openshift_hosted_registry_replicas: 1",
 				"openshift_portal_net: 172.30.0.0/16",
 				"osm_cluster_network_cidr: 10.128.0.0/14",
+				"os_sdn_network_plugin_name: \"fakeplugin\"",
 			},
 			shouldNotInclude: []string{
 				"openshift_release",
@@ -113,7 +116,7 @@ func TestGenerateClusterWideVars(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result, err := GenerateClusterWideVars(tc.clusterID, *tc.clusterSpec.Hardware.AWS, *tc.clusterVersion, tc.infraSize, tc.serviceCIDRs, tc.podCIDRs)
+			result, err := GenerateClusterWideVars(tc.clusterID, *tc.clusterSpec.Hardware.AWS, *tc.clusterVersion, tc.infraSize, tc.sdnPluginName, tc.serviceCIDRs, tc.podCIDRs)
 			assert.Nil(t, err, "%s: unexpected: %v", tc.name, err)
 			for _, str := range tc.shouldInclude {
 				assert.Contains(t, result, str, "%s: result does not contain %q", tc.name, str)
