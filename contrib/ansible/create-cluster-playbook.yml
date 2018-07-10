@@ -45,8 +45,6 @@
     # in the cert dir defined above.
     cluster_ca_name: ca
 
-    new_cluster_api: false
-
   tasks:
 
   - import_role:
@@ -134,32 +132,9 @@
         SSH_KEY: "{{ l_aws_ssh_private_key }}"
         SSH_KEYPAIR_NAME: "{{ aws_ssh_keypair }}"
     register: cluster_reg
-    when: not new_cluster_api | bool
 
   - name: create/update cluster
     kubectl_apply:
       definition: "{{ cluster_reg.result | to_json }}"
-    when: not new_cluster_api | bool
 
-  - name: process new clusterapi template
-    oc_process:
-      template_file: "{{ playbook_dir }}/../examples/clusterapi-template.yml"
-      parameters:
-        CLUSTER_NAME: "{{ cluster_name }}"
-        CLUSTER_NAMESPACE: "{{ cluster_namespace }}"
-        CLUSTER_VERSION: "{{ cluster_version }}"
-        CLUSTER_VERSION_NAMESPACE: "{{ cluster_version_namespace }}"
-        CLUSTER_CERT: "{{ l_cluster_cert }}"
-        CLUSTER_PRIVATE_KEY: "{{ l_cluster_cert_key }}"
-        AWS_ACCESS_KEY_ID: "{{ l_aws_access_key_id }}"
-        AWS_SECRET_ACCESS_KEY: "{{ l_aws_secret_access_key }}"
-        SSH_KEY: "{{ l_aws_ssh_private_key }}"
-        SSH_KEYPAIR_NAME: "{{ aws_ssh_keypair }}"
-    register: new_cluster_reg
-    when: new_cluster_api
-
-  - name: create/update cluster
-    kubectl_apply:
-      definition: "{{ new_cluster_reg.result | to_json }}"
-    when: new_cluster_api
 
