@@ -319,20 +319,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Format:      "",
 							},
 						},
-						"serviceNetowrkSubnet": {
-							SchemaProps: spec.SchemaProps{
-								Description: "ServiceNetworkSubnet is the CIDR to use for service IPs in the cluster",
-								Type:        []string{"string"},
-								Format:      "",
-							},
-						},
-						"podNetworkSubnet": {
-							SchemaProps: spec.SchemaProps{
-								Description: "PodNetworkSubnet is the CIDR to use for pod IPs in the cluster",
-								Type:        []string{"string"},
-								Format:      "",
-							},
-						},
 					},
 					Required: []string{"sdnPluginName"},
 				},
@@ -498,6 +484,12 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Ref:         ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterConfigSpec"),
 							},
 						},
+						"networkConfig": {
+							SchemaProps: spec.SchemaProps{
+								Description: "NetworkConfig specifies cluster-wide Kubernetes networking configuration.",
+								Ref:         ref("sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1.ClusterNetworkingConfig"),
+							},
+						},
 						"defaultHardwareSpec": {
 							SchemaProps: spec.SchemaProps{
 								Description: "DefaultHardwareSpec specifies hardware defaults for all machine sets in this cluster",
@@ -524,11 +516,11 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 							},
 						},
 					},
-					Required: []string{"clusterID", "hardware", "config", "machineSets", "clusterVersionRef"},
+					Required: []string{"clusterID", "hardware", "config", "networkConfig", "machineSets", "clusterVersionRef"},
 				},
 			},
 			Dependencies: []string{
-				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterConfigSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterHardwareSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterMachineSet", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterVersionReference", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetHardwareSpec"},
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterConfigSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterHardwareSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterMachineSet", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterVersionReference", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetHardwareSpec", "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1.ClusterNetworkingConfig"},
 		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterDeploymentStatus": {
 			Schema: spec.Schema{
@@ -1378,20 +1370,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 						"sdnPluginName": {
 							SchemaProps: spec.SchemaProps{
 								Description: "SDNPluginName is the name of the SDN plugin to use for this install",
-								Type:        []string{"string"},
-								Format:      "",
-							},
-						},
-						"serviceNetowrkSubnet": {
-							SchemaProps: spec.SchemaProps{
-								Description: "ServiceNetworkSubnet is the CIDR to use for service IPs in the cluster",
-								Type:        []string{"string"},
-								Format:      "",
-							},
-						},
-						"podNetworkSubnet": {
-							SchemaProps: spec.SchemaProps{
-								Description: "PodNetworkSubnet is the CIDR to use for pod IPs in the cluster",
 								Type:        []string{"string"},
 								Format:      "",
 							},

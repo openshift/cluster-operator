@@ -19,8 +19,7 @@ package v1alpha1
 import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	clusterapi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 )
 
 // Annotation constants
@@ -236,6 +235,9 @@ type ClusterDeploymentSpec struct {
 	// Config specifies cluster-wide OpenShift configuration
 	Config ClusterConfigSpec `json:"config"`
 
+	// NetworkConfig specifies cluster-wide Kubernetes networking configuration.
+	NetworkConfig capiv1.ClusterNetworkingConfig `json:"networkConfig"`
+
 	// DefaultHardwareSpec specifies hardware defaults for all machine sets
 	// in this cluster
 	// +optional
@@ -320,14 +322,6 @@ type AWSClusterSpec struct {
 type ClusterConfigSpec struct {
 	// SDNPluginName is the name of the SDN plugin to use for this install
 	SDNPluginName string `json:"sdnPluginName"`
-
-	// ServiceNetworkSubnet is the CIDR to use for service IPs in the cluster
-	// +optional
-	ServiceNetworkSubnet string `json:"serviceNetowrkSubnet,omitempty"`
-
-	// PodNetworkSubnet is the CIDR to use for pod IPs in the cluster
-	// +optional
-	PodNetworkSubnet string `json:"podNetworkSubnet,omitempty"`
 }
 
 // ClusterDeploymentType is a valid value for ClusterConfigSpec.DeploymentType
@@ -687,7 +681,7 @@ type CombinedCluster struct {
 
 	AWSClusterProviderConfig *AWSClusterProviderConfig
 
-	ClusterSpec           *clusterapi.ClusterSpec
-	ClusterStatus         *clusterapi.ClusterStatus
+	ClusterSpec           *capiv1.ClusterSpec
+	ClusterStatus         *capiv1.ClusterStatus
 	ClusterProviderStatus *ClusterProviderStatus
 }

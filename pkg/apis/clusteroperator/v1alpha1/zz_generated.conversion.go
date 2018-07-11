@@ -272,8 +272,6 @@ func Convert_clusteroperator_ClusterCondition_To_v1alpha1_ClusterCondition(in *c
 
 func autoConvert_v1alpha1_ClusterConfigSpec_To_clusteroperator_ClusterConfigSpec(in *ClusterConfigSpec, out *clusteroperator.ClusterConfigSpec, s conversion.Scope) error {
 	out.SDNPluginName = in.SDNPluginName
-	out.ServiceNetworkSubnet = in.ServiceNetworkSubnet
-	out.PodNetworkSubnet = in.PodNetworkSubnet
 	return nil
 }
 
@@ -284,8 +282,6 @@ func Convert_v1alpha1_ClusterConfigSpec_To_clusteroperator_ClusterConfigSpec(in 
 
 func autoConvert_clusteroperator_ClusterConfigSpec_To_v1alpha1_ClusterConfigSpec(in *clusteroperator.ClusterConfigSpec, out *ClusterConfigSpec, s conversion.Scope) error {
 	out.SDNPluginName = in.SDNPluginName
-	out.ServiceNetworkSubnet = in.ServiceNetworkSubnet
-	out.PodNetworkSubnet = in.PodNetworkSubnet
 	return nil
 }
 
@@ -386,6 +382,7 @@ func autoConvert_v1alpha1_ClusterDeploymentSpec_To_clusteroperator_ClusterDeploy
 	if err := Convert_v1alpha1_ClusterConfigSpec_To_clusteroperator_ClusterConfigSpec(&in.Config, &out.Config, s); err != nil {
 		return err
 	}
+	out.NetworkConfig = in.NetworkConfig
 	out.DefaultHardwareSpec = (*clusteroperator.MachineSetHardwareSpec)(unsafe.Pointer(in.DefaultHardwareSpec))
 	out.MachineSets = *(*[]clusteroperator.ClusterMachineSet)(unsafe.Pointer(&in.MachineSets))
 	if err := Convert_v1alpha1_ClusterVersionReference_To_clusteroperator_ClusterVersionReference(&in.ClusterVersionRef, &out.ClusterVersionRef, s); err != nil {
@@ -407,6 +404,7 @@ func autoConvert_clusteroperator_ClusterDeploymentSpec_To_v1alpha1_ClusterDeploy
 	if err := Convert_clusteroperator_ClusterConfigSpec_To_v1alpha1_ClusterConfigSpec(&in.Config, &out.Config, s); err != nil {
 		return err
 	}
+	out.NetworkConfig = in.NetworkConfig
 	out.DefaultHardwareSpec = (*MachineSetHardwareSpec)(unsafe.Pointer(in.DefaultHardwareSpec))
 	out.MachineSets = *(*[]ClusterMachineSet)(unsafe.Pointer(&in.MachineSets))
 	if err := Convert_clusteroperator_ClusterVersionReference_To_v1alpha1_ClusterVersionReference(&in.ClusterVersionRef, &out.ClusterVersionRef, s); err != nil {

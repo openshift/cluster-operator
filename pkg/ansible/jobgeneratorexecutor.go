@@ -74,6 +74,8 @@ func (e *JobGeneratorExecutor) Execute(name string) (*kbatch.Job, *kapi.ConfigMa
 			e.cluster.AWSClusterProviderConfig.Hardware,
 			e.clusterVersion,
 			*e.infraSize,
+			e.cluster.ClusterSpec.ClusterNetwork.Services,
+			e.cluster.ClusterSpec.ClusterNetwork.Pods,
 		)
 	case e.infraSize == nil:
 		vars, err = GenerateClusterWideVarsForMachineSet(
@@ -81,6 +83,8 @@ func (e *JobGeneratorExecutor) Execute(name string) (*kbatch.Job, *kapi.ConfigMa
 			e.cluster.Name,
 			e.cluster.AWSClusterProviderConfig.Hardware,
 			e.clusterVersion,
+			e.cluster.ClusterSpec.ClusterNetwork.Services,
+			e.cluster.ClusterSpec.ClusterNetwork.Pods,
 		)
 	default:
 		vars, err = GenerateClusterWideVarsForMachineSetWithInfraSize(
@@ -89,6 +93,8 @@ func (e *JobGeneratorExecutor) Execute(name string) (*kbatch.Job, *kapi.ConfigMa
 			e.cluster.AWSClusterProviderConfig.Hardware,
 			e.clusterVersion,
 			*e.infraSize,
+			e.cluster.ClusterSpec.ClusterNetwork.Services,
+			e.cluster.ClusterSpec.ClusterNetwork.Pods,
 		)
 	}
 	if err != nil {

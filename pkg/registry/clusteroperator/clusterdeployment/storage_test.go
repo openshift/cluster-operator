@@ -28,6 +28,8 @@ import (
 
 	clusteroperatorapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
 	"github.com/openshift/cluster-operator/pkg/registry/registrytest"
+
+	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 )
 
 func newStorage(t *testing.T) (*genericregistry.Store, *etcdtesting.EtcdTestServer) {
@@ -60,6 +62,11 @@ func validNewClusterDeployment(name string) *clusteroperatorapi.ClusterDeploymen
 			ClusterVersionRef: clusteroperatorapi.ClusterVersionReference{
 				Namespace: "openshift-cluster-operator",
 				Name:      "v3-9",
+			},
+			NetworkConfig: capiv1.ClusterNetworkingConfig{
+				Services:      capiv1.NetworkRanges{CIDRBlocks: []string{"172.30.0.0/16"}},
+				Pods:          capiv1.NetworkRanges{CIDRBlocks: []string{"10.128.0.0/14"}},
+				ServiceDomain: "svc.cluster.local",
 			},
 		},
 	}
