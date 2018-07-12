@@ -115,7 +115,8 @@ build: .init .generate_files \
 	$(BINDIR)/aws-machine-controller \
 	$(BINDIR)/fake-machine-controller \
 	$(BINDIR)/aws-actuator-test \
-	$(BINDIR)/wait-for-cluster-ready
+	$(BINDIR)/wait-for-cluster-ready \
+	$(BINDIR)/wait-for-apiservice
 
 .PHONY: $(BINDIR)/cluster-operator
 cluster-operator: $(BINDIR)/cluster-operator
@@ -136,6 +137,11 @@ $(BINDIR)/fake-machine-controller: .init
 wait-for-cluster-ready: $(BINDIR)/wait-for-cluster-ready
 $(BINDIR)/wait-for-cluster-ready: .init
 	$(DOCKER_CMD) $(GO_BUILD) -o $@ $(CLUSTER_OPERATOR_PKG)/contrib/cmd/wait-for-cluster-ready
+
+.PHONY: $(BINDIR)/wait-for-apiservice
+wait-for-apiservice: $(BINDIR)/wait-for-apiservice
+$(BINDIR)/wait-for-apiservice: .init
+	$(DOCKER_CMD) $(GO_BUILD) -o $@ $(CLUSTER_OPERATOR_PKG)/contrib/cmd/wait-for-apiservice
 
 .PHONY: $(BINDIR)/aws-actuator-test
 aws-actuator-test: $(BINDIR)/aws-actuator-test
@@ -339,7 +345,9 @@ images: cluster-operator-image \
 	cluster-operator-ansible-images \
 	fake-openshift-ansible-image \
 	aws-machine-controller-image \
-	fake-machine-controller-image
+	fake-machine-controller-image \
+	$(BINDIR)/wait-for-cluster-ready \
+	$(BINDIR)/wait-for-apiservice
 
 images-all: $(addprefix arch-image-,$(ALL_ARCH))
 arch-image-%:
