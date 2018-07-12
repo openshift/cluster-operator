@@ -88,10 +88,10 @@ objects:
     networkConfig:
       services:
         cidrBlocks:
-          - "172.60.0.0/20"
+          - "172.30.0.0/16"
       pods:
         cidrBlocks:
-          - "10.128.10.0/24"
+          - "10.128.0.0/14"
     hardware:
       aws:
         accountSecret:
