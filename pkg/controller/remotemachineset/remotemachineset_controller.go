@@ -283,7 +283,7 @@ func (c *Controller) buildRemoteClusterClient(clusterDeployment *cov1.ClusterDep
 	// if clusterConfig == nil {
 	// 	return nil, fmt.Errorf("unable to retrieve AdminKubeConfig from cluster status")
 	// }
-	secretName := clusterDeployment.Spec.ClusterID + "-kubeconfig"
+	secretName := clusterDeployment.Spec.ClusterName + "-kubeconfig"
 
 	// Step 2: Retrieve secret
 	secret, err := c.kubeClient.CoreV1().Secrets(clusterDeployment.Namespace).Get(secretName, metav1.GetOptions{})
@@ -338,7 +338,7 @@ func (c *Controller) syncClusterDeployment(key string) error {
 		return c.syncDeletedClusterDeployment(clusterDeployment)
 	}
 
-	cluster, err := c.clusterInformer.Clusters(clusterDeployment.Namespace).Get(clusterDeployment.Spec.ClusterID)
+	cluster, err := c.clusterInformer.Clusters(clusterDeployment.Namespace).Get(clusterDeployment.Spec.ClusterName)
 	if err != nil {
 		return fmt.Errorf("error retrieving cluster object: %v", err)
 	}
@@ -373,7 +373,7 @@ func (c *Controller) syncDeletedClusterDeployment(clusterDeployment *cov1.Cluste
 	if err != nil {
 		return fmt.Errorf("error bulding remoteclusterclient connection: %v", err)
 	}
-	labelSelector := fmt.Sprintf("%s=%s", cov1.ClusterNameLabel, clusterDeployment.Spec.ClusterID)
+	labelSelector := fmt.Sprintf("%s=%s", cov1.ClusterNameLabel, clusterDeployment.Spec.ClusterName)
 	remoteMachineSets, err := remoteClusterAPIClient.ClusterV1alpha1().MachineSets(remoteClusterAPINamespace).List(metav1.ListOptions{LabelSelector: labelSelector})
 	if err != nil {
 		return fmt.Errorf("error retrieving remote machinesets: %v", err)

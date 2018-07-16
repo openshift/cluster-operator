@@ -56,7 +56,7 @@ const (
 	testNamespace             = "test-namespace"
 	testClusterDeploymentName = "test-cluster-deployment"
 	testClusterDeploymentUUID = types.UID("test-cluster-deployment-uuid")
-	testClusterID             = "test-cluster-id"
+	testClusterName           = "test-cluster-name"
 	testRegion                = "us-east-1"
 	testClusterVerName        = "v3-10"
 	testClusterVerNS          = "cluster-operator"
@@ -121,9 +121,9 @@ func TestSyncMachine(t *testing.T) {
 
 			mockAWSClient := mockaws.NewMockClient(mockCtrl)
 			if tc.resyncExpected {
-				mockTestInstance(mockAWSClient, "i1", machine.Name, testClusterID)
-				mockRegisterInstancesWithELB(mockAWSClient, "i1", controller.ELBMasterExternalName(testClusterID))
-				mockRegisterInstancesWithELB(mockAWSClient, "i1", controller.ELBMasterInternalName(testClusterID))
+				mockTestInstance(mockAWSClient, "i1", machine.Name, testClusterName)
+				mockRegisterInstancesWithELB(mockAWSClient, "i1", controller.ELBMasterExternalName(testClusterName))
+				mockRegisterInstancesWithELB(mockAWSClient, "i1", controller.ELBMasterInternalName(testClusterName))
 			}
 
 			ctrlr := NewController(capiInformers.Cluster().V1alpha1().Machines(),
@@ -205,7 +205,7 @@ func testClusterDeployment() *clustopv1.ClusterDeployment {
 			Namespace: testNamespace,
 		},
 		Spec: clustopv1.ClusterDeploymentSpec{
-			ClusterID: testClusterID,
+			ClusterName: testClusterName,
 			MachineSets: []clustopv1.ClusterMachineSet{
 				{
 					ShortName: "",

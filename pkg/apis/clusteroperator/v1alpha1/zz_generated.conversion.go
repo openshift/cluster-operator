@@ -375,7 +375,7 @@ func Convert_clusteroperator_ClusterDeploymentList_To_v1alpha1_ClusterDeployment
 }
 
 func autoConvert_v1alpha1_ClusterDeploymentSpec_To_clusteroperator_ClusterDeploymentSpec(in *ClusterDeploymentSpec, out *clusteroperator.ClusterDeploymentSpec, s conversion.Scope) error {
-	out.ClusterID = in.ClusterID
+	out.ClusterName = in.ClusterName
 	if err := Convert_v1alpha1_ClusterHardwareSpec_To_clusteroperator_ClusterHardwareSpec(&in.Hardware, &out.Hardware, s); err != nil {
 		return err
 	}
@@ -397,7 +397,7 @@ func Convert_v1alpha1_ClusterDeploymentSpec_To_clusteroperator_ClusterDeployment
 }
 
 func autoConvert_clusteroperator_ClusterDeploymentSpec_To_v1alpha1_ClusterDeploymentSpec(in *clusteroperator.ClusterDeploymentSpec, out *ClusterDeploymentSpec, s conversion.Scope) error {
-	out.ClusterID = in.ClusterID
+	out.ClusterName = in.ClusterName
 	if err := Convert_clusteroperator_ClusterHardwareSpec_To_v1alpha1_ClusterHardwareSpec(&in.Hardware, &out.Hardware, s); err != nil {
 		return err
 	}

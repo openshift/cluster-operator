@@ -43,14 +43,14 @@ import (
 )
 
 const (
-	testRegion           = "us-east-1"
-	testClusterVerUID    = types.UID("test-cluster-version")
-	testClusterVerName   = "v3-9"
-	testClusterVerNS     = "cluster-operator"
-	testClusterUUID      = types.UID("test-cluster-uuid")
-	testClusterName      = "testcluster"
-	testClusterID        = "testcluster-id"
-	testClusterNamespace = "testsyncns"
+	testRegion                = "us-east-1"
+	testClusterVerUID         = types.UID("test-cluster-version")
+	testClusterVerName        = "v3-9"
+	testClusterVerNS          = "cluster-operator"
+	testClusterUUID           = types.UID("test-cluster-uuid")
+	testClusterDeploymentName = "testcluster"
+	testClusterName           = "testcluster-id"
+	testClusterNamespace      = "testsyncns"
 )
 
 func init() {
@@ -291,7 +291,7 @@ func TestMachineSetSyncing(t *testing.T) {
 			remoteMachineSets: []clusterapiv1.MachineSet{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      testClusterID + "-compute",
+						Name:      testClusterName + "-compute",
 						Namespace: remoteClusterAPINamespace,
 					},
 					Spec: clusterapiv1.MachineSetSpec{
@@ -314,7 +314,7 @@ func TestMachineSetSyncing(t *testing.T) {
 			remoteMachineSets: []clusterapiv1.MachineSet{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      testClusterID + "-compute",
+						Name:      testClusterName + "-compute",
 						Namespace: remoteClusterAPINamespace,
 					},
 					Spec: clusterapiv1.MachineSetSpec{
@@ -364,11 +364,11 @@ func TestMachineSetSyncing(t *testing.T) {
 			remoteMachineSets: []clusterapiv1.MachineSet{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      testClusterID + "-compute",
+						Name:      testClusterName + "-compute",
 						Namespace: remoteClusterAPINamespace,
 						Labels: map[string]string{
-							"clusteroperator.openshift.io/cluster":    testClusterID,
-							"clusteroperator.openshift.io/machineset": testClusterID + "-compute",
+							"clusteroperator.openshift.io/cluster":    testClusterName,
+							"clusteroperator.openshift.io/machineset": testClusterName + "-compute",
 						},
 					},
 					Spec: clusterapiv1.MachineSetSpec{
@@ -377,11 +377,11 @@ func TestMachineSetSyncing(t *testing.T) {
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      testClusterID + "-compute2",
+						Name:      testClusterName + "-compute2",
 						Namespace: remoteClusterAPINamespace,
 						Labels: map[string]string{
-							"clusteroperator.openshift.io/cluster":    testClusterID,
-							"clusteroperator.openshift.io/machineset": testClusterID + "-compute2",
+							"clusteroperator.openshift.io/cluster":    testClusterName,
+							"clusteroperator.openshift.io/machineset": testClusterName + "-compute2",
 						},
 					},
 					Spec: clusterapiv1.MachineSetSpec{
@@ -397,11 +397,11 @@ func TestMachineSetSyncing(t *testing.T) {
 			remoteMachineSets: []clusterapiv1.MachineSet{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      testClusterID + "-compute",
+						Name:      testClusterName + "-compute",
 						Namespace: remoteClusterAPINamespace,
 						Labels: map[string]string{
-							"clusteroperator.openshift.io/cluster":    testClusterID,
-							"clusteroperator.openshift.io/machineset": testClusterID + "-compute",
+							"clusteroperator.openshift.io/cluster":    testClusterName,
+							"clusteroperator.openshift.io/machineset": testClusterName + "-compute",
 						},
 					},
 					Spec: clusterapiv1.MachineSetSpec{
@@ -538,7 +538,7 @@ func getKey(clusterDeployment *cov1.ClusterDeployment, t *testing.T) string {
 func newCapiCluster(t *testing.T, clusterDeployment *cov1.ClusterDeployment, controlPlaneReady bool) clusterapiv1.Cluster {
 	cluster := clusterapiv1.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      clusterDeployment.Spec.ClusterID,
+			Name:      clusterDeployment.Spec.ClusterName,
 			Namespace: clusterDeployment.Namespace,
 		},
 		Spec: clusterapiv1.ClusterSpec{
@@ -642,12 +642,12 @@ func newDeletedTestClusterWithoutFinalizer() *cov1.ClusterDeployment {
 func newTestClusterDeployment() *cov1.ClusterDeployment {
 	clusterDeployment := &cov1.ClusterDeployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      testClusterName,
+			Name:      testClusterDeploymentName,
 			Namespace: testClusterNamespace,
 			UID:       testClusterUUID,
 		},
 		Spec: cov1.ClusterDeploymentSpec{
-			ClusterID: testClusterID,
+			ClusterName: testClusterName,
 			Hardware: cov1.ClusterHardwareSpec{
 				AWS: &cov1.AWSClusterSpec{
 					Region: testRegion,

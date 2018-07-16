@@ -490,7 +490,7 @@ func MachineSetSpecFromClusterAPIMachineSpec(ms *clusterapi.MachineSpec) (*clust
 // BuildCluster builds a cluster for the given cluster deployment.
 func BuildCluster(clusterDeployment *clusteroperator.ClusterDeployment, cv clusteroperator.ClusterVersionSpec) (*clusterapi.Cluster, error) {
 	cluster := &clusterapi.Cluster{}
-	cluster.Name = clusterDeployment.Spec.ClusterID
+	cluster.Name = clusterDeployment.Spec.ClusterName
 	cluster.Labels = clusterDeployment.Labels
 	cluster.Namespace = clusterDeployment.Namespace
 	if cluster.Labels == nil {
@@ -721,7 +721,7 @@ func trimForELBBasename(s string, maxLen int) string {
 // BuildMachineSet returns a clusterapi.MachineSet from the combination of various clusteroperator
 // objects (ClusterMachineSet/ClusterDeploymentSpec/ClusterVersion) in the provided 'namespace'
 func BuildMachineSet(ms *clusteroperator.ClusterMachineSet, clusterDeploymentSpec *clusteroperator.ClusterDeploymentSpec, clusterVersion *clusteroperator.ClusterVersion, namespace string) (*clusterapi.MachineSet, error) {
-	machineSetName := fmt.Sprintf("%s-%s", clusterDeploymentSpec.ClusterID, ms.ShortName)
+	machineSetName := fmt.Sprintf("%s-%s", clusterDeploymentSpec.ClusterName, ms.ShortName)
 	capiMachineSet := clusterapi.MachineSet{}
 	capiMachineSet.Name = machineSetName
 	capiMachineSet.Namespace = namespace
@@ -729,7 +729,7 @@ func BuildMachineSet(ms *clusteroperator.ClusterMachineSet, clusterDeploymentSpe
 	capiMachineSet.Spec.Replicas = &replicas
 	labels := map[string]string{
 		clusteroperator.MachineSetNameLabel: machineSetName,
-		clusteroperator.ClusterNameLabel:    clusterDeploymentSpec.ClusterID,
+		clusteroperator.ClusterNameLabel:    clusterDeploymentSpec.ClusterName,
 	}
 	capiMachineSet.Labels = labels
 	capiMachineSet.Spec.Selector.MatchLabels = labels
