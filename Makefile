@@ -380,10 +380,11 @@ OA_ANSIBLE_URL    ?= https://github.com/openshift/openshift-ansible.git
 OA_ANSIBLE_BRANCH ?= release-3.10
 
 define build-cluster-operator-ansible-image #(repo, branch, imagename, tag)
+        cp bin/aws-machine-controller build/cluster-operator-ansible/playbooks/cluster-api-prep/files
 	docker build -t "$3:$4" --build-arg=CO_ANSIBLE_URL=$1 --build-arg=CO_ANSIBLE_BRANCH=$2 build/cluster-operator-ansible
 endef
 
-cluster-operator-ansible-images: build/cluster-operator-ansible/Dockerfile build/cluster-operator-ansible/playbooks/cluster-api-prep/deploy-cluster-api.yaml build/cluster-operator-ansible/playbooks/cluster-api-prep/files/cluster-api-template.yaml build/cluster-operator-ansible/playbooks/cluster-operator/node-config-daemonset.yml
+cluster-operator-ansible-images: build/cluster-operator-ansible/Dockerfile build/cluster-operator-ansible/playbooks/cluster-api-prep/deploy-cluster-api.yaml build/cluster-operator-ansible/playbooks/cluster-api-prep/files/cluster-api-template.yaml build/cluster-operator-ansible/playbooks/cluster-operator/node-config-daemonset.yml $(BINDIR)/aws-machine-controller
 	# build v3.9 on openshift-ansible:release-3.9
 	$(call build-cluster-operator-ansible-image,$(OA_ANSIBLE_URL),"release-3.9",$(CLUSTER_OPERATOR_ANSIBLE_IMAGE_NAME),"v3.9")
 

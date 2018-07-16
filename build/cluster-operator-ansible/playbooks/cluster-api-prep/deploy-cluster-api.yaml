@@ -29,6 +29,13 @@
     import_role:
       name: lib_openshift
 
+  - name: copy cluster-operator binary to master
+    copy:
+      src: files/aws-machine-controller
+      dest: /usr/bin/aws-machine-controller
+      setype: container_file_t
+      mode: 0755
+
   - name: slurp local template content
     slurp:
       src: files/cluster-api-template.yaml
