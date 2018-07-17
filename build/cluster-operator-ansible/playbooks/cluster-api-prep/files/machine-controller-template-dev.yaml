@@ -1,0 +1,122 @@
+########
+#
+# Template for deploying the AWS Machine Controller on the target cluster
+# This is the development version which mounts a binary from the host file
+# system and runs that instead of the binary burned in the image.
+#
+# Parameters:
+#   CLUSTER_API_NAMESPACE: namespace to hold clusterapi objects/services
+#   MACHINE_CONTROLLER_IMAGE: machine controller image reference
+#   MACHINE_CONTROLLER_IMAGE_PULL_POLICY: pull policy for machine controller image
+#
+########
+
+apiVersion: v1
+kind: Template
+metadata:
+  name: machine-controller-template-dev
+
+objects:
+- apiVersion: apps/v1beta1
+  kind: Deployment
+  metadata:
+    name: aws-machine-controller
+    namespace: ${CLUSTER_API_NAMESPACE}
+    labels:
+      app: aws-machine-controller
+  spec:
+    selector:
+      matchLabels:
+        app: aws-machine-controller
+    replicas: 1
+    template:
+      metadata:
+        labels:
+          app: aws-machine-controller
+      spec:
+        serviceAccountName: cluster-api-controller-manager
+        nodeSelector:
+          node-role.kubernetes.io/master: "true"
+        containers:
+        - name: machine-controller
+          image: ${MACHINE_CONTROLLER_IMAGE}
+          imagePullPolicy: ${MACHINE_CONTROLLER_IMAGE_PULL_POLICY}
+          command:
+          - /opt/services/aws-machine-controller
+          args:
+          - --log-level=debug
+          - --default-availability-zone=${DEFAULT_AVAILABILITY_ZONE}
+          volumeMounts:
+          - name: bootstrap-kubeconfig
+            mountPath: /etc/origin/master
+            readOnly: true
+          - name: aws-machine-controller
+            mountPath: /opt/services/aws-machine-controller
+            readOnly: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 20Mi
+            limits:
+              cpu: 100m
+              memory: 30Mi
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - name: aws-machine-controller
+          hostPath:
+            path: /usr/bin/aws-machine-controller
+        - name: bootstrap-kubeconfig
+          secret:
+            secretName: bootstrap-kubeconfig
+
+- allowHostDirVolumePlugin: true
+  allowHostIPC: false
+  allowHostNetwork: false
+  allowHostPID: false
+  allowHostPorts: false
+  allowPrivilegedContainer: false
+  allowedCapabilities: null
+  apiVersion: security.openshift.io/v1
+  defaultAddCapabilities: null
+  fsGroup:
+    type: MustRunAs
+  groups: []
+  kind: SecurityContextConstraints
+  metadata:
+    name: hostmount-restricted-clusterapi
+  readOnlyRootFilesystem: false
+  requiredDropCapabilities:
+  - KILL
+  - MKNOD
+  - SETUID
+  - SETGID
+  runAsUser:
+    type: MustRunAsRange
+  seLinuxContext:
+    type: MustRunAs
+  supplementalGroups:
+    type: RunAsAny
+  users:
+  - system:serviceaccount:${CLUSTER_API_NAMESPACE}:cluster-api-controller-manager
+  volumes:
+  - configMap
+  - downwardAPI
+  - emptyDir
+  - persistentVolumeClaim
+  - projected
+  - secret
+  - hostPath
+
+
+parameters:
+# namespace to install clusterapi services onto
+- name: CLUSTER_API_NAMESPACE
+  value: kube-cluster
+- name: MACHINE_CONTROLLER_IMAGE
+- name: MACHINE_CONTROLLER_IMAGE_PULL_POLICY
+  value: Always
+- name: DEFAULT_AVAILABILITY_ZONE
+  value: us-east-1c

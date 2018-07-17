@@ -1,0 +1,16 @@
+---
+- name: Setup the master node group
+  hosts: localhost
+  tasks:
+  - import_role:
+      name: openshift_aws
+      tasks_from: setup_master_group.yml
+
+- hosts: masters[0]
+  gather_facts: no
+  tasks:
+  - name: set machine controller template
+    set_fact:
+      machine_controller_template: machine-controller-template.yaml
+
+- import_playbook: deploy-cluster-api-common.yaml

@@ -68,6 +68,7 @@ export GOPATH  = $(BASE_PATH):$(ROOT)/vendor
 PUBLIC_REGISTRY=quay.io/openshift/
 
 MUTABLE_TAG                         ?= canary
+DEVELOPMENT_TAG                     ?= dev
 CLUSTER_OPERATOR_IMAGE               = $(REGISTRY)cluster-operator-$(ARCH):$(VERSION)
 CLUSTER_OPERATOR_MUTABLE_IMAGE       = $(REGISTRY)cluster-operator-$(ARCH):$(MUTABLE_TAG)
 FAKE_OPENSHIFT_ANSIBLE_IMAGE         = $(REGISTRY)fake-openshift-ansible:$(VERSION)
@@ -79,6 +80,8 @@ AWS_MACHINE_CONTROLLER_MUTABLE_IMAGE = $(REGISTRY)aws-machine-controller:$(MUTAB
 AWS_MACHINE_CONTROLLER_PUBLIC_IMAGE  = $(PUBLIC_REGISTRY)aws-machine-controller:latest
 FAKE_MACHINE_CONTROLLER_IMAGE         = $(REGISTRY)fake-machine-controller:$(VERSION)
 FAKE_MACHINE_CONTROLLER_MUTABLE_IMAGE = $(REGISTRY)fake-machine-controller:$(MUTABLE_TAG)
+CLUSTER_API_DEPLOYMENT_PLAYBOOK       = deploy-cluster-api-production.yaml
+CLUSTER_API_DEPLOYMENT_PLAYBOOK_DEV   = deploy-cluster-api-development.yaml
 
 
 $(if $(realpath vendor/k8s.io/apimachinery/vendor), \
@@ -379,21 +382,25 @@ endif
 OA_ANSIBLE_URL    ?= https://github.com/openshift/openshift-ansible.git
 OA_ANSIBLE_BRANCH ?= release-3.10
 
-define build-cluster-operator-ansible-image #(repo, branch, imagename, tag)
+define build-cluster-operator-ansible-image #(repo, branch, imagename, tag, clusterapi_playbook)
+        cp build/cluster-operator-ansible/playbooks/cluster-api-prep/$5 build/cluster-operator-ansible/playbooks/cluster-api-prep/deploy-cluster-api.yaml
         cp bin/aws-machine-controller build/cluster-operator-ansible/playbooks/cluster-api-prep/files
 	docker build -t "$3:$4" --build-arg=CO_ANSIBLE_URL=$1 --build-arg=CO_ANSIBLE_BRANCH=$2 build/cluster-operator-ansible
 endef
 
-cluster-operator-ansible-images: build/cluster-operator-ansible/Dockerfile build/cluster-operator-ansible/playbooks/cluster-api-prep/deploy-cluster-api.yaml build/cluster-operator-ansible/playbooks/cluster-api-prep/files/cluster-api-template.yaml build/cluster-operator-ansible/playbooks/cluster-operator/node-config-daemonset.yml $(BINDIR)/aws-machine-controller
+cluster-operator-ansible-images: build/cluster-operator-ansible/Dockerfile build/cluster-operator-ansible/playbooks/cluster-api-prep/deploy-cluster-api-production.yaml build/cluster-operator-ansible/playbooks/cluster-api-prep/deploy-cluster-api-development.yaml build/cluster-operator-ansible/playbooks/cluster-api-prep/files/cluster-api-template.yaml build/cluster-operator-ansible/playbooks/cluster-operator/node-config-daemonset.yml $(BINDIR)/aws-machine-controller
 	# build v3.9 on openshift-ansible:release-3.9
-	$(call build-cluster-operator-ansible-image,$(OA_ANSIBLE_URL),"release-3.9",$(CLUSTER_OPERATOR_ANSIBLE_IMAGE_NAME),"v3.9")
+	$(call build-cluster-operator-ansible-image,$(OA_ANSIBLE_URL),"release-3.9",$(CLUSTER_OPERATOR_ANSIBLE_IMAGE_NAME),"v3.9",$(CLUSTER_API_DEPLOYMENT_PLAYBOOK))
 
 	# build v3.10 on openshift-ansible:master
-	$(call build-cluster-operator-ansible-image,$(OA_ANSIBLE_URL),"openshift-ansible-3.10.0-0.32.0",$(CLUSTER_OPERATOR_ANSIBLE_IMAGE_NAME),"v3.10")
+	$(call build-cluster-operator-ansible-image,$(OA_ANSIBLE_URL),"openshift-ansible-3.10.0-0.32.0",$(CLUSTER_OPERATOR_ANSIBLE_IMAGE_NAME),"v3.10",$(CLUSTER_API_DEPLOYMENT_PLAYBOOK))
 
 	# build master/canary
-	$(call build-cluster-operator-ansible-image,$(OA_ANSIBLE_URL),$(OA_ANSIBLE_BRANCH),$(CLUSTER_OPERATOR_ANSIBLE_IMAGE_NAME),$(VERSION))
+	$(call build-cluster-operator-ansible-image,$(OA_ANSIBLE_URL),$(OA_ANSIBLE_BRANCH),$(CLUSTER_OPERATOR_ANSIBLE_IMAGE_NAME),$(VERSION),$(CLUSTER_API_DEPLOYMENT_PLAYBOOK))
 	docker tag $(CLUSTER_OPERATOR_ANSIBLE_IMAGE_NAME):$(VERSION) $(CLUSTER_OPERATOR_ANSIBLE_IMAGE_NAME):$(MUTABLE_TAG)
+
+        # build master/canary development version
+	$(call build-cluster-operator-ansible-image,$(OA_ANSIBLE_URL),$(OA_ANSIBLE_BRANCH),$(CLUSTER_OPERATOR_ANSIBLE_IMAGE_NAME),$(DEVELOPMENT_TAG),$(CLUSTER_API_DEPLOYMENT_PLAYBOOK_DEV))
 
 fake-openshift-ansible-image: cluster-operator-ansible-images build/fake-openshift-ansible/Dockerfile $(BINDIR)/fake-openshift-ansible
 	$(call build-and-tag,"fake-openshift-ansible",$(FAKE_OPENSHIFT_ANSIBLE_IMAGE),$(FAKE_OPENSHIFT_ANSIBLE_MUTABLE_IMAGE))
