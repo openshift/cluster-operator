@@ -1179,13 +1179,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
 							},
 						},
-						"clusterID": {
-							SchemaProps: spec.SchemaProps{
-								Description: "ClusterID is the ID of the cluster in the cloud provider.",
-								Type:        []string{"string"},
-								Format:      "",
-							},
-						},
 						"nodeType": {
 							SchemaProps: spec.SchemaProps{
 								Description: "NodeType is the type of nodes that comprise the MachineSet",
@@ -1246,7 +1239,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 							},
 						},
 					},
-					Required: []string{"clusterID", "nodeType", "infra", "size", "nodeLabels", "clusterHardware", "clusterVersionRef", "vmImage"},
+					Required: []string{"nodeType", "infra", "size", "nodeLabels", "clusterHardware", "clusterVersionRef", "vmImage"},
 				},
 			},
 			Dependencies: []string{
@@ -1257,13 +1250,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 				SchemaProps: spec.SchemaProps{
 					Description: "MachineSetSpec is the Cluster Operator specification for a Cluster API machine template provider config.",
 					Properties: map[string]spec.Schema{
-						"clusterID": {
-							SchemaProps: spec.SchemaProps{
-								Description: "ClusterID is the ID of the cluster in the cloud provider.",
-								Type:        []string{"string"},
-								Format:      "",
-							},
-						},
 						"nodeType": {
 							SchemaProps: spec.SchemaProps{
 								Description: "NodeType is the type of nodes that comprise the MachineSet",
@@ -1324,7 +1310,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 							},
 						},
 					},
-					Required: []string{"clusterID", "nodeType", "infra", "size", "nodeLabels", "clusterHardware", "clusterVersionRef", "vmImage"},
+					Required: []string{"nodeType", "infra", "size", "nodeLabels", "clusterHardware", "clusterVersionRef", "vmImage"},
 				},
 			},
 			Dependencies: []string{

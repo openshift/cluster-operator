@@ -743,7 +743,6 @@ func testCluster(t *testing.T) (*capiv1.Cluster, error) {
 func testMachine(name, clusterName string, nodeType clustopv1.NodeType, isInfra bool, currentStatus *capiv1.MachineStatus) *capiv1.Machine {
 	testAMI := testImage
 	msSpec := clustopv1.MachineSetSpec{
-		ClusterID: testClusterID,
 		MachineSetConfig: clustopv1.MachineSetConfig{
 			Infra:    isInfra,
 			Size:     3,

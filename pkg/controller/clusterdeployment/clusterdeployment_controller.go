@@ -66,8 +66,6 @@ const (
 
 	// versionExists indicates that the cluster's desired version does exist
 	versionExists = "VersionExists"
-
-	machineSetNameLabel = "clusteroperator.openshift.io/machineset"
 )
 
 // NewController returns a new cluster deployment controller.
@@ -709,7 +707,7 @@ func buildMasterMachineSet(clusterDeployment *clustop.ClusterDeployment, cluster
 	ownerRef.BlockOwnerDeletion = &blockOwnerDeletion
 	machineSet.OwnerReferences = []metav1.OwnerReference{*ownerRef}
 	machineSetLabels := map[string]string{
-		machineSetNameLabel:            machineSet.Name,
+		clustop.MachineSetNameLabel:    machineSet.Name,
 		clustop.ClusterDeploymentLabel: clusterDeployment.Name,
 		clustop.ClusterNameLabel:       cluster.Name,
 	}

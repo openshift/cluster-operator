@@ -543,12 +543,9 @@ func (a *Actuator) updateStatus(machine *clusterv1.Machine, instance *ec2.Instan
 	return nil
 }
 
-func getClusterID(machine *clusterv1.Machine) (string, error) {
-	coMachineSetSpec, err := controller.MachineSetSpecFromClusterAPIMachineSpec(&machine.Spec)
-	if err != nil {
-		return "", err
-	}
-	return coMachineSetSpec.ClusterID, nil
+func getClusterID(machine *clusterv1.Machine) (string, bool) {
+	clusterID, ok := machine.Labels[cov1.ClusterNameLabel]
+	return clusterID, ok
 }
 
 // template for user data

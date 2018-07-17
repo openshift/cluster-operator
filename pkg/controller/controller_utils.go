@@ -73,9 +73,6 @@ var (
 	// MachineSetUIDLabel is the label to apply to objects that belong to the
 	// machine set with the UID.
 	MachineSetUIDLabel = "machine-set-uid"
-	// MachineSetNameLabel is the label to apply to objects that belong to the
-	// machine set with the name.
-	MachineSetNameLabel = "machine-set"
 	// JobTypeLabel is the label to apply to jobs and configmaps that are used
 	// to execute the type of job.
 	JobTypeLabel = "job-type"
@@ -580,7 +577,6 @@ func EncodeAWSMachineProviderStatus(awsStatus *clusteroperator.AWSMachineProvide
 // MachineProviderConfigFromMachineSetConfig returns a RawExtension with a machine ProviderConfig from a MachineSetConfig
 func MachineProviderConfigFromMachineSetConfig(machineSetConfig *clusteroperator.MachineSetConfig, clusterDeploymentSpec *clusteroperator.ClusterDeploymentSpec, clusterVersion *clusteroperator.ClusterVersion) (*runtime.RawExtension, error) {
 	msSpec := &clusteroperator.MachineSetSpec{
-		ClusterID:        clusterDeploymentSpec.ClusterID,
 		MachineSetConfig: *machineSetConfig,
 	}
 	vmImage, err := getImage(clusterDeploymentSpec, clusterVersion)
@@ -732,8 +728,8 @@ func BuildMachineSet(ms *clusteroperator.ClusterMachineSet, clusterDeploymentSpe
 	replicas := int32(ms.Size)
 	capiMachineSet.Spec.Replicas = &replicas
 	labels := map[string]string{
-		"machineset": machineSetName,
-		"cluster":    clusterDeploymentSpec.ClusterID,
+		clusteroperator.MachineSetNameLabel: machineSetName,
+		clusteroperator.ClusterNameLabel:    clusterDeploymentSpec.ClusterID,
 	}
 	capiMachineSet.Labels = labels
 	capiMachineSet.Spec.Selector.MatchLabels = labels

@@ -373,7 +373,7 @@ func (c *Controller) syncDeletedClusterDeployment(clusterDeployment *cov1.Cluste
 	if err != nil {
 		return fmt.Errorf("error bulding remoteclusterclient connection: %v", err)
 	}
-	labelSelector := fmt.Sprintf("cluster=%s", clusterDeployment.Spec.ClusterID)
+	labelSelector := fmt.Sprintf("%s=%s", cov1.ClusterNameLabel, clusterDeployment.Spec.ClusterID)
 	remoteMachineSets, err := remoteClusterAPIClient.ClusterV1alpha1().MachineSets(remoteClusterAPINamespace).List(metav1.ListOptions{LabelSelector: labelSelector})
 	if err != nil {
 		return fmt.Errorf("error retrieving remote machinesets: %v", err)
