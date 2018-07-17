@@ -310,7 +310,7 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 		MaxCount:     aws.Int64(1),
 		KeyName:      aws.String(clusterSpec.Hardware.KeyPairName),
 		IamInstanceProfile: &ec2.IamInstanceProfileSpecification{
-			Name: aws.String(iamRole(machine)),
+			Name: aws.String(iamRole(machine, cluster.Name)),
 		},
 		BlockDeviceMappings: blkDeviceMappings,
 		TagSpecifications:   []*ec2.TagSpecification{tagInstance, tagVolume},
@@ -633,11 +633,11 @@ func getBootstrapKubeconfig() (string, error) {
 	return base64.StdEncoding.EncodeToString(content), nil
 }
 
-func iamRole(machine *clusterv1.Machine) string {
+func iamRole(machine *clusterv1.Machine, clusterID string) string {
 	if controller.MachineHasRole(machine, capicommon.MasterRole) {
-		return masterIAMRole
+		return masterIAMRole + "_" + clusterID
 	}
-	return defaultIAMRole
+	return defaultIAMRole + "_" + clusterID
 }
 
 func buildDescribeSecurityGroupsInput(vpcID, vpcName string, isMaster, isInfra bool) *ec2.DescribeSecurityGroupsInput {

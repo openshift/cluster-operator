@@ -18,4 +18,6 @@
 
 - import_playbook: ../../aws/openshift-cluster/uninstall_ssh_keypair.yml
 
+- import_playbook: uninstall_iam.yml
+
 - import_playbook: ../../aws/openshift-cluster/uninstall_vpc.yml
