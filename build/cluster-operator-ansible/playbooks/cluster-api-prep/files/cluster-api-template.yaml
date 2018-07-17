@@ -215,6 +215,9 @@ objects:
           - name: bootstrap-kubeconfig
             mountPath: /etc/origin/master
             readOnly: true
+          - name: aws-machine-controller
+            mountPath: /opt/services/aws-machine-controller
+            readOnly: true
           resources:
             requests:
               cpu: 100m
@@ -227,6 +230,9 @@ objects:
         securityContext: {}
         terminationGracePeriodSeconds: 30
         volumes:
+        - name: aws-machine-controller
+          hostPath:
+            path: /usr/bin/aws-machine-controller
         - name: bootstrap-kubeconfig
           secret:
             secretName: bootstrap-kubeconfig
@@ -365,6 +371,43 @@ objects:
     kind: ServiceAccount
     name: cluster-api-controller-manager
     namespace: ${CLUSTER_API_NAMESPACE}
+- allowHostDirVolumePlugin: true
+  allowHostIPC: false
+  allowHostNetwork: false
+  allowHostPID: false
+  allowHostPorts: false
+  allowPrivilegedContainer: false
+  allowedCapabilities: null
+  apiVersion: security.openshift.io/v1
+  defaultAddCapabilities: null
+  fsGroup:
+    type: MustRunAs
+  groups: []
+  kind: SecurityContextConstraints
+  metadata:
+    name: hostmount-restricted-clusterapi
+  readOnlyRootFilesystem: false
+  requiredDropCapabilities:
+  - KILL
+  - MKNOD
+  - SETUID
+  - SETGID
+  runAsUser:
+    type: MustRunAsRange
+  seLinuxContext:
+    type: MustRunAs
+  supplementalGroups:
+    type: RunAsAny
+  users:
+  - system:serviceaccount:${CLUSTER_API_NAMESPACE}:cluster-api-controller-manager
+  volumes:
+  - configMap
+  - downwardAPI
+  - emptyDir
+  - persistentVolumeClaim
+  - projected
+  - secret
+  - hostPath
 
 
 parameters:
