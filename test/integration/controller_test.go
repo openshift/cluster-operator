@@ -210,7 +210,7 @@ func TestClusterCreate(t *testing.T) {
 			clustopClient.ClusteroperatorV1alpha1().ClusterVersions(testNamespace).Create(clusterVersion)
 
 			clusterDeploymentSpec := &clustopv1alpha1.ClusterDeploymentSpec{
-				ClusterID: testClusterName + "-abcde",
+				ClusterName: testClusterName + "-abcde",
 				ClusterVersionRef: clustopv1alpha1.ClusterVersionReference{
 					Namespace: clusterVersion.Namespace,
 					Name:      clusterVersion.Name,
@@ -239,11 +239,11 @@ func TestClusterCreate(t *testing.T) {
 				return
 			}
 
-			if err := waitForClusterToExist(capiClient, testNamespace, cd.Spec.ClusterID); err != nil {
+			if err := waitForClusterToExist(capiClient, testNamespace, cd.Spec.ClusterName); err != nil {
 				t.Fatalf("error waiting for Cluster to exist: %v", err)
 			}
 
-			cluster, err := capiClient.ClusterV1alpha1().Clusters(testNamespace).Get(cd.Spec.ClusterID, metav1.GetOptions{})
+			cluster, err := capiClient.ClusterV1alpha1().Clusters(testNamespace).Get(cd.Spec.ClusterName, metav1.GetOptions{})
 			if err != nil {
 				t.Fatalf("error looking up cluster: %v", err)
 			}
@@ -252,7 +252,7 @@ func TestClusterCreate(t *testing.T) {
 				return
 			}
 
-			if err := waitForMachineSetToExist(capiClient, testNamespace, fmt.Sprintf("%s-%s", cd.Spec.ClusterID, "master")); err != nil {
+			if err := waitForMachineSetToExist(capiClient, testNamespace, fmt.Sprintf("%s-%s", cd.Spec.ClusterName, "master")); err != nil {
 				t.Fatalf("error waiting for master MachineSet to exist: %v", err)
 			}
 

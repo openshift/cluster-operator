@@ -527,7 +527,7 @@ func (c *Controller) syncDeletedClusterDeployment(clusterDeployment *clustop.Clu
 		return nil
 	}
 	// Ensure that the master machineset is deleted
-	machineSetName := masterMachineSetName(clusterDeployment.Spec.ClusterID)
+	machineSetName := masterMachineSetName(clusterDeployment.Spec.ClusterName)
 	machineSet, err := c.machineSetsLister.MachineSets(clusterDeployment.Namespace).Get(machineSetName)
 
 	// If there's an arbitrary error retrieving the machineset, return the error and retry
@@ -547,11 +547,11 @@ func (c *Controller) syncDeletedClusterDeployment(clusterDeployment *clustop.Clu
 	}
 
 	// If we've reached this point, the master machineset no longer exists, clean up the cluster
-	cluster, err := c.clustersLister.Clusters(clusterDeployment.Namespace).Get(clusterDeployment.Spec.ClusterID)
+	cluster, err := c.clustersLister.Clusters(clusterDeployment.Namespace).Get(clusterDeployment.Spec.ClusterName)
 
 	// If there's an arbitrary error retrieving the cluster, return the error and retry
 	if err != nil && !errors.IsNotFound(err) {
-		return fmt.Errorf("error retrieving the cluster %s/%s: %v", clusterDeployment.Namespace, clusterDeployment.Spec.ClusterID, err)
+		return fmt.Errorf("error retrieving the cluster %s/%s: %v", clusterDeployment.Namespace, clusterDeployment.Spec.ClusterName, err)
 	}
 
 	if cluster != nil {
@@ -573,7 +573,7 @@ func (c *Controller) syncDeletedClusterDeployment(clusterDeployment *clustop.Clu
 	// If the DeletionTimestamp is not set, then delete the cluster
 	if err == nil {
 		clustoplog.WithCluster(clusterDeploymentLog, cluster).Debugf("deleting cluster")
-		return c.capiClient.ClusterV1alpha1().Clusters(clusterDeployment.Namespace).Delete(clusterDeployment.Spec.ClusterID, &metav1.DeleteOptions{})
+		return c.capiClient.ClusterV1alpha1().Clusters(clusterDeployment.Namespace).Delete(clusterDeployment.Spec.ClusterName, &metav1.DeleteOptions{})
 	}
 
 	// If we've reached this point, the cluster no longer exists, remove the cluster deployment finalizer
@@ -584,7 +584,7 @@ func (c *Controller) syncDeletedClusterDeployment(clusterDeployment *clustop.Clu
 // syncCluster takes a cluster deployment and ensures that a corresponding cluster exists and that
 // it reflects the spec of the cluster deployment
 func (c *Controller) syncCluster(clusterDeployment *clustop.ClusterDeployment, cv *clustop.ClusterVersion, logger log.FieldLogger) (*capi.Cluster, error) {
-	cluster, err := c.clustersLister.Clusters(clusterDeployment.Namespace).Get(clusterDeployment.Spec.ClusterID)
+	cluster, err := c.clustersLister.Clusters(clusterDeployment.Namespace).Get(clusterDeployment.Spec.ClusterName)
 	if err != nil && !errors.IsNotFound(err) {
 		return nil, fmt.Errorf("cannot retrieve cluster for cluster deployment %s/%s: %v", clusterDeployment.Namespace, clusterDeployment.Name, err)
 	}

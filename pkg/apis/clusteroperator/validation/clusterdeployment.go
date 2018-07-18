@@ -43,8 +43,8 @@ func ValidateClusterDeployment(cluster *clusteroperator.ClusterDeployment) field
 // validateClusterDeploymentSpec validates the spec of a cluster.
 func validateClusterDeploymentSpec(spec *clusteroperator.ClusterDeploymentSpec, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
-	if spec.ClusterID == "" {
-		allErrs = append(allErrs, field.Required(fldPath.Child("clusterID"), "clusterID must be set"))
+	if spec.ClusterName == "" {
+		allErrs = append(allErrs, field.Required(fldPath.Child("clusterName"), "ClusterName must be set"))
 	}
 	machineSetsPath := fldPath.Child("machineSets")
 	versionPath := fldPath.Child("clusterVersionRef")
@@ -158,7 +158,7 @@ func ValidateClusterDeploymentUpdate(new *clusteroperator.ClusterDeployment, old
 
 	allErrs = append(allErrs, validateClusterDeploymentSpec(&new.Spec, field.NewPath("spec"))...)
 
-	allErrs = append(allErrs, apivalidation.ValidateImmutableField(new.Spec.ClusterID, old.Spec.ClusterID, field.NewPath("spec", "clusterID"))...)
+	allErrs = append(allErrs, apivalidation.ValidateImmutableField(new.Spec.ClusterName, old.Spec.ClusterName, field.NewPath("spec", "clusterName"))...)
 	allErrs = append(allErrs, apivalidation.ValidateImmutableField(new.Spec.NetworkConfig.Services, old.Spec.NetworkConfig.Services, field.NewPath("spec", "networkConfig", "services"))...)
 	allErrs = append(allErrs, apivalidation.ValidateImmutableField(new.Spec.NetworkConfig.Pods, old.Spec.NetworkConfig.Pods, field.NewPath("spec", "networkConfig", "pods"))...)
 

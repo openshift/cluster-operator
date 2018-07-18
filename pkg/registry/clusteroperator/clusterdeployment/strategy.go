@@ -89,7 +89,7 @@ func (clusterDeploymentRESTStrategy) PrepareForCreate(ctx genericapirequest.Cont
 		glog.Fatal("received a non-cluster object to create")
 	}
 
-	clusterDeployment.Spec.ClusterID = clusterDeployment.Name + "-" + utilrand.String(5)
+	clusterDeployment.Spec.ClusterName = clusterDeployment.Name + "-" + utilrand.String(5)
 
 	// Creating a brand new object, thus it must have no
 	// status. We can't fail here if they passed a status in, so

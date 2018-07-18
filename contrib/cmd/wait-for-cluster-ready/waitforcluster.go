@@ -489,12 +489,12 @@ func (o *WaitForClusterOptions) getClusterName(client clustopclient.Interface) (
 		cdLog.WithError(err).Error("Cannot retrieve cluster deployment")
 		return "", err
 	}
-	if clusterDeployment.Spec.ClusterID == "" {
+	if clusterDeployment.Spec.ClusterName == "" {
 		cdLog.Error("cluster ID not set")
 		return "", fmt.Errorf("cluster ID not set")
 	}
-	log.WithField("name", clusterDeployment.Spec.ClusterID).Debug("Obtained cluster name")
-	return clusterDeployment.Spec.ClusterID, nil
+	log.WithField("name", clusterDeployment.Spec.ClusterName).Debug("Obtained cluster name")
+	return clusterDeployment.Spec.ClusterName, nil
 }
 
 func (o *WaitForClusterOptions) getLocalClients() (*localClientContext, error) {

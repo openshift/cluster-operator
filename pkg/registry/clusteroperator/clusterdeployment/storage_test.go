@@ -102,7 +102,7 @@ func TestUpdate(t *testing.T) {
 		// valid
 		func() runtime.Object {
 			cd := validNewClusterDeployment("foo")
-			cd.Spec.ClusterID = "cluster-id"
+			cd.Spec.ClusterName = "cluster-id"
 			return cd
 		}(),
 		// updateFunc
