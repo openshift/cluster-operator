@@ -1,23 +1,4 @@
 ---
-- name: Setup the master node group
-  hosts: localhost
-  tasks:
-  - import_role:
-      name: openshift_aws
-      tasks_from: setup_master_group.yml
-
-#- name: set the master facts for hostname to elb
-#  hosts: masters
-#  gather_facts: no
-#  remote_user: root
-#  tasks:
-#  - import_role:
-#      name: openshift_aws
-#      tasks_from: master_facts.yml
-
-#- name: run the init
-#  import_playbook: ../init/main.yml
-
 - name: install cluster-api
   hosts: masters[0]
   gather_facts: no
@@ -28,19 +9,6 @@
   - name: import lib_openshift
     import_role:
       name: lib_openshift
-
-  - name: copy cluster-operator binary to master
-    copy:
-      src: files/aws-machine-controller
-      dest: /usr/bin/aws-machine-controller
-      setype: container_file_t
-      mode: 0755
-
-  - name: slurp local template content
-    slurp:
-      src: files/cluster-api-template.yaml
-    delegate_to: localhost
-    register: template
 
   - name: "create {{ cluster_api_namespace }} namesapce"
     oc_project:
@@ -89,33 +57,41 @@
         cluster_api_key: "{{ clusterapi_key.content }}"
         cluster_api_ca_bundle: "{{ clusterapi_crt.content }}"
 
-  - name: create temp file to hold the template
+  - name: create temp directory to hold templates
     tempfile:
-      state: file
-    register: temp_file
+      state: directory
+    register: temp_dir
 
-  - name: copy template over
+  - name: copy main template over
     copy:
       src: files/cluster-api-template.yaml
-      dest: "{{ temp_file.path }}"
+      dest: "{{ temp_dir.path }}/cluster-api-template.yaml"
 
-  - name: process template
+  - name: copy machine controller template over
+    copy:
+      src: "files/{{ machine_controller_template }}"
+      dest: "{{ temp_dir.path }}/machine-controller-template.yaml"
+
+  - name: process templates
     shell: |-
-      oc process -f {{ temp_file.path }} \
+      oc process -f {{ temp_dir.path }}/cluster-api-template.yaml \
          -p CLUSTER_API_NAMESPACE={{ cluster_api_namespace }} \
          -p SERVING_CA={{ cluster_api_ca_bundle }} \
          -p SERVING_CERT={{ cluster_api_cert }} \
          -p SERVING_KEY={{ cluster_api_key }} \
          -p BOOTSTRAP_KUBECONFIG='{{ bootstrap_kubeconfig.content }}' \
          -p CLUSTER_API_IMAGE='{{ cluster_api_image }}' \
-         -p CLUSTER_API_IMAGE_PULL_POLICY='{{ cluster_api_image_pull_policy }}' \
+         -p CLUSTER_API_IMAGE_PULL_POLICY='{{ cluster_api_image_pull_policy }}' | oc apply -f -
+
+      oc process -f {{ temp_dir.path }}/machine-controller-template.yaml \
+         -p CLUSTER_API_NAMESPACE={{ cluster_api_namespace }} \
          -p MACHINE_CONTROLLER_IMAGE='{{ machine_controller_image }}' \
          -p MACHINE_CONTROLLER_IMAGE_PULL_POLICY='{{ machine_controller_image_pull_policy }}' | oc apply -f -
 
-  - name: remove template file
+  - name: remove template files
     file:
       state: absent
-      path: "{{ temp_file.path }}"
+      path: "{{ temp_dir.path }}"
 
   - name: Wait for cluster api deployment to complete
     oc_obj:

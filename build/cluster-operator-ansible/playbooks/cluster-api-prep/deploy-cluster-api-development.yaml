@@ -1,0 +1,28 @@
+---
+- name: Setup the master node group
+  hosts: localhost
+  tasks:
+  - import_role:
+      name: openshift_aws
+      tasks_from: setup_master_group.yml
+
+- name: copy aws-machine-controller binary to target masters
+  hosts: masters
+  gather_facts: no
+  remote_user: root
+  tasks:
+  - name: copy machine controller binary to master
+    copy:
+      src: files/aws-machine-controller
+      dest: /usr/bin/aws-machine-controller
+      setype: container_file_t
+      mode: 0755
+
+- hosts: masters[0]
+  gather_facts: no
+  tasks:
+  - name: set machine controller template
+    set_fact:
+      machine_controller_template: machine-controller-template-dev.yaml
+
+- import_playbook: deploy-cluster-api-common.yaml
