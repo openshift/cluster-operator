@@ -206,11 +206,9 @@ openshift_aws_create_security_groups: true
 openshift_aws_ssh_key_name: [[ .SSHKeyName ]]
 
 # This will ensure these user and public keys are created.
-#openshift_aws_users:
-#- key_name: myuser_key
-#  username: myuser
-#  pub_key: |
-#         ssh-rsa AAAA
+openshift_aws_users:
+- key_name: [[ .SSHKeyName ]]
+  pub_key: "{{ lookup('file', '/ansible/ssh/publickey.pub') }}"
 
 # -- #
 # S3 #

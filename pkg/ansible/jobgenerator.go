@@ -271,6 +271,11 @@ func (r *jobGenerator) GeneratePlaybooksJobWithServiceAccount(
 							Path: "privatekey.pem",
 							Mode: &sshKeyFileMode,
 						},
+						{
+							Key:  "ssh-publickey",
+							Path: "publickey.pub",
+							Mode: &sshKeyFileMode,
+						},
 					},
 				},
 			},

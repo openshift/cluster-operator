@@ -33,9 +33,12 @@ parameters:
 - name: AWS_SECRET_ACCESS_KEY
   required: true
   description: Base64 encoded AWS secret access key that can be used to provision cluster resources.
-- name: SSH_KEY
+- name: SSH_PRIVATE_KEY
   required: true
   description: Base64 encoded SSH private key that can be used to access the provisioned servers.
+- name: SSH_PUBLIC_KEY
+  required: true
+  description: Base64 encoded SSH public key that can be used to access the provisioned servers.
 - name: SSH_KEYPAIR_NAME
   required: true
   value: libra
@@ -74,7 +77,8 @@ objects:
       app: cluster-operator
   type: Opaque
   data:
-    ssh-privatekey: ${SSH_KEY}
+    ssh-privatekey: ${SSH_PRIVATE_KEY}
+    ssh-publickey: ${SSH_PUBLIC_KEY}
 
 - apiVersion: clusteroperator.openshift.io/v1alpha1
   kind: ClusterDeployment
