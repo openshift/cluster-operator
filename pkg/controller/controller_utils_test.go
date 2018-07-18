@@ -506,31 +506,14 @@ func TestGetObjectController(t *testing.T) {
 	}
 }
 
-func TestMachineSetLabels(t *testing.T) {
-	clusterDeployment := &clusteroperator.ClusterDeployment{
-		ObjectMeta: metav1.ObjectMeta{
-			UID:  "test-uid",
-			Name: "test-name",
-		},
-	}
-	expected := map[string]string{
-		"cluster-uid":            "test-uid",
-		"cluster":                "test-name",
-		"machine-set-short-name": "test-short-name",
-	}
-	actual := MachineSetLabels(clusterDeployment, "test-short-name")
-	assert.Equal(t, expected, actual)
-}
-
 func TestJobLabelsForClusterController(t *testing.T) {
 	cluster := &metav1.ObjectMeta{
 		UID:  "test-uid",
 		Name: "test-name",
 	}
 	expected := map[string]string{
-		"cluster-uid": "test-uid",
-		"cluster":     "test-name",
-		"job-type":    "test-job-type",
+		"clusteroperator.openshift.io/cluster": "test-name",
+		"job-type":                             "test-job-type",
 	}
 	actual := JobLabelsForClusterController(cluster, "test-job-type")
 	assert.Equal(t, expected, actual)
