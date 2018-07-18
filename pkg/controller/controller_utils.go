@@ -49,7 +49,9 @@ const (
 	// 7 = length of longest ELB name suffix ("-cp-ext")
 	maxELBBasenameLen = 32 - 7
 
-	clusterDeploymentLabel = "clusteroperator.openshift.io/cluster-deployment"
+	// JobTypeLabel is the label to apply to jobs and configmaps that are used
+	// to execute the type of job.
+	JobTypeLabel = "job-type"
 )
 
 var (
@@ -60,22 +62,6 @@ var (
 	ClusterDeploymentKind = clusteroperator.SchemeGroupVersion.WithKind("ClusterDeployment")
 
 	clusterKind = clusterapi.SchemeGroupVersion.WithKind("Cluster")
-
-	// ClusterUIDLabel is the label to apply to objects that belong to the cluster
-	// with the UID.
-	ClusterUIDLabel = "cluster-uid"
-	// ClusterNameLabel is the label to apply to objects that belong to the
-	// cluster with the name.
-	ClusterNameLabel = "cluster"
-	// MachineSetShortNameLabel is the label to apply to machine sets, and their
-	// descendants, with the short name.
-	MachineSetShortNameLabel = "machine-set-short-name"
-	// MachineSetUIDLabel is the label to apply to objects that belong to the
-	// machine set with the UID.
-	MachineSetUIDLabel = "machine-set-uid"
-	// JobTypeLabel is the label to apply to jobs and configmaps that are used
-	// to execute the type of job.
-	JobTypeLabel = "job-type"
 )
 
 // WaitForCacheSync is a wrapper around cache.WaitForCacheSync that generates log messages
@@ -347,25 +333,14 @@ func ClusterDeploymentForMachineSet(machineSet *clusterapi.MachineSet, clusterDe
 	return clusterDeployment, nil
 }
 
-// MachineSetLabels returns the labels to apply to a machine set belonging to the
-// specified cluster deployment and having the specified short name.
-func MachineSetLabels(clusterDeployment *clusteroperator.ClusterDeployment, machineSetShortName string) map[string]string {
-	return map[string]string{
-		ClusterUIDLabel:          string(clusterDeployment.UID),
-		ClusterNameLabel:         clusterDeployment.Name,
-		MachineSetShortNameLabel: machineSetShortName,
-	}
-}
-
 // JobLabelsForClusterController returns the labels to apply to a job doing a task
 // for the specified cluster.
 // The cluster parameter is a metav1.Object because it could be either a
 // cluster-operator Cluster, and cluster-api Cluster, or a CombinedCluster.
 func JobLabelsForClusterController(cluster metav1.Object, jobType string) map[string]string {
 	return map[string]string{
-		ClusterUIDLabel:  string(cluster.GetUID()),
-		ClusterNameLabel: cluster.GetName(),
-		JobTypeLabel:     jobType,
+		clusteroperator.ClusterNameLabel: cluster.GetName(),
+		JobTypeLabel:                     jobType,
 	}
 }
 
