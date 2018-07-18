@@ -184,6 +184,9 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 
 	// Describe VPC
 	vpcName := cluster.Name
+	if len(clusterSpec.Hardware.VPCName) > 0 {
+		vpcName = clusterSpec.Hardware.VPCName
+	}
 	vpcNameFilter := "tag:Name"
 	describeVpcsRequest := ec2.DescribeVpcsInput{
 		Filters: []*ec2.Filter{{Name: &vpcNameFilter, Values: []*string{&vpcName}}},
@@ -217,7 +220,7 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 	}
 
 	// Determine security groups
-	describeSecurityGroupsInput := buildDescribeSecurityGroupsInput(vpcID, vpcName, controller.MachineHasRole(machine, capicommon.MasterRole), coMachineSetSpec.Infra)
+	describeSecurityGroupsInput := buildDescribeSecurityGroupsInput(vpcID, cluster.Name, controller.MachineHasRole(machine, capicommon.MasterRole), coMachineSetSpec.Infra)
 	describeSecurityGroupsOutput, err := client.DescribeSecurityGroups(describeSecurityGroupsInput)
 	if err != nil {
 		return nil, err
@@ -640,19 +643,19 @@ func iamRole(machine *clusterv1.Machine, clusterID string) string {
 	return defaultIAMRole + "_" + clusterID
 }
 
-func buildDescribeSecurityGroupsInput(vpcID, vpcName string, isMaster, isInfra bool) *ec2.DescribeSecurityGroupsInput {
-	groupNames := []*string{aws.String(vpcName)}
+func buildDescribeSecurityGroupsInput(vpcID, prefix string, isMaster, isInfra bool) *ec2.DescribeSecurityGroupsInput {
+	groupNames := []*string{aws.String(prefix)}
 	if isMaster {
-		groupNames = append(groupNames, aws.String(vpcName+"_master"))
-		groupNames = append(groupNames, aws.String(vpcName+"_master_k8s"))
+		groupNames = append(groupNames, aws.String(prefix+"_master"))
+		groupNames = append(groupNames, aws.String(prefix+"_master_k8s"))
 	}
 	if isInfra {
-		groupNames = append(groupNames, aws.String(vpcName+"_infra"))
-		groupNames = append(groupNames, aws.String(vpcName+"_infra_k8s"))
+		groupNames = append(groupNames, aws.String(prefix+"_infra"))
+		groupNames = append(groupNames, aws.String(prefix+"_infra_k8s"))
 	}
 	if !isMaster && !isInfra {
-		groupNames = append(groupNames, aws.String(vpcName+"_compute"))
-		groupNames = append(groupNames, aws.String(vpcName+"_compute_k8s"))
+		groupNames = append(groupNames, aws.String(prefix+"_compute"))
+		groupNames = append(groupNames, aws.String(prefix+"_compute_k8s"))
 	}
 
 	return &ec2.DescribeSecurityGroupsInput{

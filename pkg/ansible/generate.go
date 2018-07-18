@@ -157,11 +157,21 @@ osm_cluster_network_cidr: [[ .PodCIDR ]]
 
 # openshift_aws_create_vpc defaults to true.  If you don't wish to provision
 # a vpc, set this to false.
+[[if .VPCName ]]
+openshift_aws_vpc_name: [[ .VPCName ]]
+openshift_aws_create_vpc: false
+[[else]]
+openshift_aws_vpc_name: [[ .ClusterID ]]
+openshift_aws_vpc: [[ .VPCDefaults ]]
 openshift_aws_create_vpc: true
+[[end]]
 
 # Name of the subnet in the vpc to use.  Needs to be set if using a pre-existing
 # vpc + subnet.
 #openshift_aws_subnet_name: cluster-engine-subnet-1
+[[if .SubnetName ]]
+openshift_aws_subnet_name: [[ .SubnetName ]]
+[[end]]
 
 # -------------- #
 # Security Group #
@@ -242,9 +252,6 @@ openshift_clusterid: [[ .ClusterID ]]
 openshift_aws_elb_master_external_name: [[ .ELBMasterExternalName ]]
 openshift_aws_elb_master_internal_name: [[ .ELBMasterInternalName ]]
 openshift_aws_elb_infra_name: [[ .ELBInfraName ]]
-openshift_aws_vpc_name: [[ .ClusterID ]]
-
-openshift_aws_vpc: [[ .VPCDefaults ]]
 
 [[if .ClusterAPIImage]]
 cluster_api_image: [[ .ClusterAPIImage ]]
@@ -327,6 +334,8 @@ type clusterParams struct {
 	MachineControllerImagePullPolicy corev1.PullPolicy
 	PodCIDR                          string
 	ServiceCIDR                      string
+	VPCName                          string
+	SubnetName                       string
 }
 
 type clusterVersionParams struct {
@@ -362,6 +371,8 @@ func GenerateClusterWideVars(
 		VPCDefaults:           vpcDefaults,
 		DeploymentType:        version.DeploymentType,
 		InfraSize:             infraSize,
+		VPCName:               hardwareSpec.VPCName,
+		SubnetName:            hardwareSpec.VPCSubnet,
 		// Openshift-ansible only supports a single value:
 		ServiceCIDR: serviceCIDRs.CIDRBlocks[0],
 		PodCIDR:     podCIDRs.CIDRBlocks[0],
