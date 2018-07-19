@@ -668,6 +668,19 @@ func (c *Controller) syncControlPlane(clusterDeployment *clustop.ClusterDeployme
 		updatedMachineSet.Spec.Replicas = &machineSetSize
 	}
 
+	// Build a new set of expected labels so we clear out any previous:
+	newLabels := map[string]string{
+		clustop.ClusterDeploymentLabel: clusterDeployment.Name,
+		clustop.ClusterNameLabel:       cluster.Name,
+		clustop.MachineSetNameLabel:    machineSet.Name,
+	}
+	for k, v := range machineSetConfig.NodeLabels {
+		newLabels[k] = v
+	}
+	updatedMachineSet.Spec.Template.Spec.Labels = newLabels
+
+	updatedMachineSet.Spec.Template.Spec.Taints = machineSetConfig.NodeTaints
+
 	specProviderConfig, err := controller.MachineProviderConfigFromMachineSetConfig(machineSetConfig, &clusterDeployment.Spec, clusterVersion)
 	if err != nil {
 		return fmt.Errorf("cannot create a machine providerconfig from machineset config for cluster deployment %s/%s: %v", clusterDeployment.Namespace, clusterDeployment.Name, err)
@@ -701,6 +714,9 @@ func buildMasterMachineSet(clusterDeployment *clustop.ClusterDeployment, cluster
 	}
 	machineSet.Labels[clustop.ClusterDeploymentLabel] = clusterDeployment.Name
 	machineSet.Labels[clustop.ClusterNameLabel] = cluster.Name
+	for k, v := range machineSetConfig.NodeLabels {
+		machineSet.Labels[k] = v
+	}
 	blockOwnerDeletion := false
 	ownerRef := metav1.NewControllerRef(clusterDeployment, controller.ClusterDeploymentKind)
 	ownerRef.BlockOwnerDeletion = &blockOwnerDeletion
@@ -714,7 +730,16 @@ func buildMasterMachineSet(clusterDeployment *clustop.ClusterDeployment, cluster
 	replicas := int32(machineSetConfig.Size)
 	machineSet.Spec.Replicas = &replicas
 	machineSet.Spec.Template.Labels = machineSetLabels
-	machineSet.Spec.Template.Spec.Labels = machineSetLabels
+
+	// Transfer node labels onto the machine template:
+	machineSet.Spec.Template.Spec.Labels = map[string]string{}
+	for k, v := range machineSetLabels {
+		machineSet.Spec.Template.Spec.Labels[k] = v
+	}
+	for k, v := range machineSetConfig.NodeLabels {
+		machineSet.Spec.Template.Spec.Labels[k] = v
+	}
+	machineSet.Spec.Template.Spec.Taints = machineSetConfig.NodeTaints
 
 	providerConfig, err := controller.MachineProviderConfigFromMachineSetConfig(machineSetConfig, &clusterDeployment.Spec, clusterVersion)
 	if err != nil {

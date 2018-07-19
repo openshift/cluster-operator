@@ -753,6 +753,13 @@ func (in *MachineSetConfig) DeepCopyInto(out *MachineSetConfig) {
 			(*out)[key] = val
 		}
 	}
+	if in.NodeTaints != nil {
+		in, out := &in.NodeTaints, &out.NodeTaints
+		*out = make([]core_v1.Taint, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
 	return
 }
 

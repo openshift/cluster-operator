@@ -599,6 +599,11 @@ type MachineSetConfig struct {
 	// NodeLabels specifies the labels that will be applied to nodes in this
 	// MachineSet
 	NodeLabels map[string]string `json:"nodeLabels"`
+
+	// NodeTaints specifies the taints that should be applied to nodes in this MachineSet.
+	// This list is authoritative and will always be reconciled to the node, fully replacing
+	// past values.
+	NodeTaints []corev1.Taint `json:"nodeTaints"`
 }
 
 // MachineSetSpec is the Cluster Operator specification for a Cluster API machine template provider config.

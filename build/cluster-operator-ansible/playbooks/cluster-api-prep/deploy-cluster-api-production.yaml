@@ -13,5 +13,6 @@
     set_fact:
       machine_controller_template: machine-controller-template.yaml
       cluster_api_template: cluster-api-template.yaml
+      cluster_operator_controllers_template: cluster-operator-remote-controllers-template.yaml
 
 - import_playbook: deploy-cluster-api-common.yaml

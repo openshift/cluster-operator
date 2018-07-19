@@ -112,11 +112,20 @@ objects:
     machineSets:
     - nodeType: Master
       size: 1
+      nodeLabels:
+        testnodetype: master
+        hello: world
     - shortName: infra
       nodeType: Compute
       infra: true
       size: 1
+      nodeLabels:
+        testnodetype: infra
+        foo: bar
     - shortName: compute
       nodeType: Compute
       size: 1
+      nodeLabels:
+        testnodetype: compute
+        bar: foo
 

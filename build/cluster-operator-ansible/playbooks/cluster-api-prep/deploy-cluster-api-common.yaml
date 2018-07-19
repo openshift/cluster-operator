@@ -10,7 +10,7 @@
     import_role:
       name: lib_openshift
 
-  - name: "create {{ cluster_api_namespace }} namesapce"
+  - name: "create {{ cluster_api_namespace }} namespace"
     oc_project:
       state: present
       name: "{{ cluster_api_namespace }}"
@@ -72,6 +72,11 @@
       src: "files/{{ machine_controller_template }}"
       dest: "{{ temp_dir.path }}/machine-controller-template.yaml"
 
+  - name: copy cluster operator controllers template over
+    copy:
+      src: "files/{{ cluster_operator_controllers_template }}"
+      dest: "{{ temp_dir.path }}/cluster-operator-remote-controllers-template.yaml"
+
   - name: process templates
     shell: |-
       oc process -f {{ temp_dir.path }}/cluster-api-template.yaml \
@@ -87,6 +92,11 @@
          -p CLUSTER_API_NAMESPACE={{ cluster_api_namespace }} \
          -p MACHINE_CONTROLLER_IMAGE='{{ machine_controller_image }}' \
          -p MACHINE_CONTROLLER_IMAGE_PULL_POLICY='{{ machine_controller_image_pull_policy }}' | oc apply -f -
+
+      oc process -f {{ temp_dir.path }}/cluster-operator-remote-controllers-template.yaml \
+         -p CLUSTER_API_NAMESPACE={{ cluster_api_namespace }} \
+         -p CONTROLLER_IMAGE='{{ machine_controller_image }}' \
+         -p CONTROLLER_IMAGE_PULL_POLICY='{{ machine_controller_image_pull_policy }}' | oc apply -f -
 
   - name: remove template files
     file:

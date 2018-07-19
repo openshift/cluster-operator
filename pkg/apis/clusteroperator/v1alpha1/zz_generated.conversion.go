@@ -734,6 +734,7 @@ func autoConvert_v1alpha1_MachineSetConfig_To_clusteroperator_MachineSetConfig(i
 	out.Size = in.Size
 	out.Hardware = (*clusteroperator.MachineSetHardwareSpec)(unsafe.Pointer(in.Hardware))
 	out.NodeLabels = *(*map[string]string)(unsafe.Pointer(&in.NodeLabels))
+	out.NodeTaints = *(*[]core_v1.Taint)(unsafe.Pointer(&in.NodeTaints))
 	return nil
 }
 
@@ -748,6 +749,7 @@ func autoConvert_clusteroperator_MachineSetConfig_To_v1alpha1_MachineSetConfig(i
 	out.Size = in.Size
 	out.Hardware = (*MachineSetHardwareSpec)(unsafe.Pointer(in.Hardware))
 	out.NodeLabels = *(*map[string]string)(unsafe.Pointer(&in.NodeLabels))
+	out.NodeTaints = *(*[]core_v1.Taint)(unsafe.Pointer(&in.NodeTaints))
 	return nil
 }
 

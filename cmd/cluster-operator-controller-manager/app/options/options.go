@@ -71,6 +71,7 @@ func NewCMServer() *CMServer {
 			ConcurrentNodeConfigSyncs:        defaultConcurrentSyncs,
 			ConcurrentDeployClusterAPISyncs:  defaultConcurrentSyncs,
 			ConcurrentELBMachineSyncs:        defaultConcurrentSyncs,
+			ConcurrentNodeLinkSyncs:          defaultConcurrentSyncs,
 			ConcurrentClusterDeploymentSyncs: defaultConcurrentSyncs,
 			ConcurrentRemoteMachineSetSyncs:  defaultConcurrentSyncs,
 			LeaderElection:                   leaderelectionconfig.DefaultLeaderElectionConfiguration(),
@@ -99,6 +100,7 @@ func (s *CMServer) AddFlags(fs *pflag.FlagSet, allControllers []string, disabled
 	fs.StringVar(&s.ClusterOperatorAPIServerURL, "clusteroperator-api-server-url", "", "The URL for the clusteroperator API server")
 	fs.StringVar(&s.ClusterOperatorKubeconfigPath, "clusteroperator-kubeconfig", "", "Path to clusteroperator kubeconfig")
 	fs.BoolVar(&s.ClusterOperatorInsecureSkipVerify, "clusteroperator-insecure-skip-verify", s.ClusterOperatorInsecureSkipVerify, "Skip verification of the TLS certificate for the clusteroperator API server")
+	fs.BoolVar(&s.ClusterOperatorSkipAPIServerWait, "clusteroperator-skip-apiserver-wait", s.ClusterOperatorSkipAPIServerWait, "Skip waiting for the types registered by the clusteroperator API server")
 	fs.DurationVar(&s.MinResyncPeriod.Duration, "min-resync-period", s.MinResyncPeriod.Duration, "The resync period in reflectors will be random between MinResyncPeriod and 2*MinResyncPeriod")
 	fs.Int32Var(&s.ConcurrentClusterSyncs, "concurrent-cluster-syncs", s.ConcurrentClusterSyncs, "The number of cluster objects that are allowed to sync concurrently. Larger number = more responsive clusters, but more CPU (and network) load")
 	fs.Int32Var(&s.ConcurrentMasterSyncs, "concurrent-master-syncs", s.ConcurrentMasterSyncs, "The number of master machine objects that are allowed to sync concurrently. Larger number = more responsive master machines, but more CPU (and network) load")
@@ -108,6 +110,7 @@ func (s *CMServer) AddFlags(fs *pflag.FlagSet, allControllers []string, disabled
 	fs.Int32Var(&s.ConcurrentDeployClusterAPISyncs, "concurrent-deploy-cluster-api-syncs", s.ConcurrentDeployClusterAPISyncs, "The number of master machine set objects that are allowed to install the upstream cluster API controllers concurrently. Larger number = more responsive accept jobs, but more CPU (and network) load")
 	fs.Int32Var(&s.ConcurrentClusterDeploymentSyncs, "concurrent-cluster-deployment-syncs", s.ConcurrentClusterDeploymentSyncs, "The number of cluster deployment objects that are allowed to sync concurrently. Larger number = more responsive accept jobs, but more CPU (and network) load")
 	fs.Int32Var(&s.ConcurrentELBMachineSyncs, "concurrent-elb-machine-syncs", s.ConcurrentELBMachineSyncs, "The number of master machine objects that are allowed to be added to the internal/external AWS ELB concurrently. Larger number = more responsive accept jobs, but more CPU (and network) load")
+	fs.Int32Var(&s.ConcurrentNodeLinkSyncs, "concurrent-node-link-syncs", s.ConcurrentNodeLinkSyncs, "The number of node objects that are allowed to be linked concurrently. Larger number = more responsive machine to node linking, but more CPU (and network) load")
 	fs.BoolVar(&s.EnableProfiling, "profiling", s.EnableProfiling, "Enable profiling via web interface host:port/debug/pprof/")
 	fs.BoolVar(&s.EnableContentionProfiling, "contention-profiling", s.EnableContentionProfiling, "Enable lock contention profiling, if profiling is enabled")
 	leaderelectionconfig.BindFlags(&s.LeaderElection, fs)

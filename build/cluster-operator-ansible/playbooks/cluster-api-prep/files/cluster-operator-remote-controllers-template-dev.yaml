@@ -1,0 +1,146 @@
+########
+#
+# Template for deploying the Cluster Operator Controllers that run in the target cluster.
+# This is the development version which mounts a binary from the host file
+# system and runs that instead of the binary burned in the image.
+#
+# Parameters:
+#   CLUSTER_API_NAMESPACE: namespace to hold clusterapi objects/services
+#   CONTROLLER_IMAGE: machine controller image reference
+#   CONTROLLER_IMAGE_PULL_POLICY: pull policy for machine controller image
+#
+########
+
+apiVersion: v1
+kind: Template
+metadata:
+  name: cluster-operator-controllers-template-dev
+
+objects:
+- apiVersion: apps/v1beta1
+  kind: Deployment
+  metadata:
+    name: cluster-operator-remote-controller-manager
+    namespace: ${CLUSTER_API_NAMESPACE}
+    labels:
+      app: cluster-operator-remote-controller
+  spec:
+    selector:
+      matchLabels:
+        app: cluster-operator-remote-controller
+    replicas: 1
+    template:
+      metadata:
+        labels:
+          app: cluster-operator-remote-controller
+      spec:
+        serviceAccountName: cluster-api-controller-manager
+        nodeSelector:
+          node-role.kubernetes.io/master: "true"
+        containers:
+        - name: cluster-operator-controllers
+          image: ${CONTROLLER_IMAGE}
+          imagePullPolicy: ${CONTROLLER_IMAGE_PULL_POLICY}
+          command:
+          - /opt/services/cluster-operator
+          args:
+          - controller-manager
+          - --port
+          - "8080"
+          - --leader-election-namespace
+          - ${CLUSTER_API_NAMESPACE}
+          - --leader-elect-resource-lock
+          - "configmaps"
+          - --profiling
+          - "false"
+          - --contention-profiling
+          - "false"
+          - -v
+          - "1"
+          - --log-level
+          - "debug"
+          - --controllers
+          - "nodelink"
+          - --clusteroperator-skip-apiserver-wait
+          volumeMounts:
+          - name: cluster-operator-binary
+            mountPath: /opt/services/cluster-operator
+            readOnly: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 20Mi
+            limits:
+              cpu: 100m
+              memory: 30Mi
+          ports:
+          - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              port: 8080
+              path: /healthz
+            failureThreshold: 1
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 2
+          livenessProbe:
+            httpGet:
+              port: 8080
+              path: /healthz
+            failureThreshold: 3
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 2
+        volumes:
+        - name: cluster-operator-binary
+          hostPath:
+            path: /usr/bin/cluster-operator
+
+- allowHostDirVolumePlugin: true
+  allowHostIPC: false
+  allowHostNetwork: false
+  allowHostPID: false
+  allowHostPorts: false
+  allowPrivilegedContainer: false
+  allowedCapabilities: null
+  apiVersion: security.openshift.io/v1
+  defaultAddCapabilities: null
+  fsGroup:
+    type: MustRunAs
+  groups: []
+  kind: SecurityContextConstraints
+  metadata:
+    name: hostmount-restricted-co-controllers
+  readOnlyRootFilesystem: false
+  requiredDropCapabilities:
+  - KILL
+  - MKNOD
+  - SETUID
+  - SETGID
+  runAsUser:
+    type: MustRunAsRange
+  seLinuxContext:
+    type: MustRunAs
+  supplementalGroups:
+    type: RunAsAny
+  users:
+  - system:serviceaccount:${CLUSTER_API_NAMESPACE}:cluster-api-controller-manager
+  volumes:
+  - configMap
+  - downwardAPI
+  - emptyDir
+  - persistentVolumeClaim
+  - projected
+  - secret
+  - hostPath
+
+
+parameters:
+# namespace to install clusterapi services onto
+- name: CLUSTER_API_NAMESPACE
+  value: kube-cluster
+- name: CONTROLLER_IMAGE
+- name: CONTROLLER_IMAGE_PULL_POLICY
+  value: Always

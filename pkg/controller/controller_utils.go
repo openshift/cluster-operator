@@ -709,16 +709,26 @@ func BuildMachineSet(ms *clusteroperator.ClusterMachineSet, clusterDeploymentSpe
 	capiMachineSet.Namespace = namespace
 	replicas := int32(ms.Size)
 	capiMachineSet.Spec.Replicas = &replicas
+	machineTemplate := clusterapi.MachineTemplateSpec{}
 	labels := map[string]string{
 		clusteroperator.MachineSetNameLabel: machineSetName,
 		clusteroperator.ClusterNameLabel:    clusterDeploymentSpec.ClusterName,
 	}
 	capiMachineSet.Labels = labels
+	// Assign the same set of labels for the machine template and the selector:
 	capiMachineSet.Spec.Selector.MatchLabels = labels
-
-	machineTemplate := clusterapi.MachineTemplateSpec{}
 	machineTemplate.Labels = labels
-	machineTemplate.Spec.Labels = labels
+
+	// We also want to apply labels to the resulting nodes:
+	machineTemplate.Spec.Labels = map[string]string{}
+	for k, v := range labels {
+		machineTemplate.Spec.Labels[k] = v
+	}
+	for k, v := range ms.NodeLabels {
+		machineTemplate.Spec.Labels[k] = v
+	}
+
+	machineTemplate.Spec.Taints = ms.NodeTaints
 
 	capiMachineSet.Spec.Template = machineTemplate
 

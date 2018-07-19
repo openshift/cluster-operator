@@ -23,6 +23,7 @@
       dest: /usr/bin/cluster-operator
       setype: container_file_t
       mode: 0755
+
 - hosts: masters[0]
   gather_facts: no
   tasks:
@@ -30,5 +31,6 @@
     set_fact:
       machine_controller_template: machine-controller-template-dev.yaml
       cluster_api_template: cluster-api-template-dev.yaml
+      cluster_operator_controllers_template: cluster-operator-remote-controllers-template-dev.yaml
 
 - import_playbook: deploy-cluster-api-common.yaml
