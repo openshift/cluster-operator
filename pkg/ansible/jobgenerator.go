@@ -45,7 +45,9 @@ type JobGenerator interface {
 	// hardware - details of the hardware of the target cluster
 	// playbook - name of the playbook to run
 	// inventory - inventory to pass to the playbook
-	// vars - Ansible variables to the pass to the playbook
+	// vars - Ansible variables to the pass to the playbook (expected to be
+	//   in ansible inventory format where the variables apply to the
+	//   [all] host group)
 	// openshiftAnsibleImage - name of the openshift-ansible image that the
 	//   jobs created by the job generator will use
 	// openshiftAnsibleImagePullPolicy - policy to use to pull the
@@ -198,8 +200,8 @@ func (r *jobGenerator) GeneratePlaybooksJobWithServiceAccount(
 
 	env := []kapi.EnvVar{
 		{
-			Name:  "INVENTORY_FILE",
-			Value: "/ansible/inventory/hosts",
+			Name:  "INVENTORY_DIR",
+			Value: "/ansible/inventory",
 		},
 		{
 			Name:  "ANSIBLE_HOST_KEY_CHECKING",
@@ -207,7 +209,7 @@ func (r *jobGenerator) GeneratePlaybooksJobWithServiceAccount(
 		},
 		{
 			Name:  "OPTS",
-			Value: "-vvv --private-key=/ansible/ssh/privatekey.pem -e @/ansible/inventory/vars",
+			Value: "-vvv --private-key=/ansible/ssh/privatekey.pem",
 		},
 	}
 

@@ -42,6 +42,11 @@ WORKDIR ${CLONE_LOCATION}
 RUN mkdir ${CLONE_LOCATION}/playbooks/cluster-api-prep && ln -s ../../roles ./playbooks/cluster-api-prep
 COPY playbooks/cluster-api-prep/ ${CLONE_LOCATION}/playbooks/cluster-api-prep
 
+# WORKAROUND: /usr/local/bin/run doesn't handle INVENTORY_DIR when the
+# files are symlinks (like when pointing to a configmap).
+# Remove when openshift-ansible image has fix https://github.com/openshift/openshift-ansible/pull/9309
+COPY run /usr/local/bin/run
+
 # Remove any remnants of our playbooks in the upstream openshift-ansible image:
 # TODO: This can be removed once we drop our directory from openshift-ansible.
 RUN rm -rf /usr/share/ansible/openshift-ansible/playbooks/cluster-operator/
