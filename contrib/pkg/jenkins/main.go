@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package jenkins
 
 import (
 	"fmt"
@@ -24,57 +24,51 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 
-	"github.com/openshift/cluster-operator/contrib/cmd/extract-co-jenkins-logs/util"
+	"github.com/openshift/cluster-operator/contrib/pkg/jenkins/util"
 )
 
 // Given a Jenkins URL, extracts logs of relevant containers to current or specified
 // directory
 
 // NewExtractLogsCommand returns a command that will extract logs
-func NewExtractLogsCommand(outputDir, containersLog, dockerInfoLog string) *cobra.Command {
-	return &cobra.Command{
-		Use: "extract-co-jenkins-logs JENKINS_BUILD_URL",
+func NewExtractLogsCommand() *cobra.Command {
+	var logLevel,
+		outputDir,
+		containersLog,
+		dockerInfoLog string
+
+	cmd := &cobra.Command{
+		Use:   "extract-jenkins-logs JENKINS_BUILD_URL",
+		Short: "Extracts container logs from cluster operator jenkins e2e test",
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) < 1 && (len(containersLog) == 0 || len(dockerInfoLog) == 0) {
 				cmd.Usage()
 				return
 			}
+			level, err := log.ParseLevel(logLevel)
+			if err == nil {
+				log.SetLevel(level)
+			} else {
+				log.Warningf("Invalid log level: %s. Defaulting to 'info'.\n", logLevel)
+			}
 			var jenkinsURL string
 			if len(args) > 0 {
 				jenkinsURL = args[0]
 			}
-			err := extractLogs(jenkinsURL, outputDir, containersLog, dockerInfoLog)
+			err = extractLogs(jenkinsURL, outputDir, containersLog, dockerInfoLog)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 				os.Exit(1)
 			}
 		},
 	}
-}
-
-func main() {
-	log.SetOutput(os.Stdout)
-	var logLevel,
-		outputDir,
-		containersLog,
-		dockerInfoLog string
-
-	pflag.CommandLine.StringVar(&logLevel, "log-level", "info", "Log level: debug, info, warning, error, fatal, panic")
-	pflag.CommandLine.StringVar(&outputDir, "output-dir", "", "Output directory")
-	pflag.CommandLine.StringVar(&containersLog, "containers-log", "", "File containing containers log")
-	pflag.CommandLine.StringVar(&dockerInfoLog, "docker-info", "", "File containing docker.info")
-
-	pflag.Parse()
-	level, err := log.ParseLevel(logLevel)
-	if err == nil {
-		log.SetLevel(level)
-	} else {
-		log.Warningf("Invalid log level: %s. Defaulting to 'info'.\n", logLevel)
-	}
-	cmd := NewExtractLogsCommand(outputDir, containersLog, dockerInfoLog)
-	cmd.Execute()
+	flags := cmd.Flags()
+	flags.StringVar(&logLevel, "log-level", "info", "Log level: debug, info, warning, error, fatal, panic")
+	flags.StringVar(&outputDir, "output-dir", "", "Output directory")
+	flags.StringVar(&containersLog, "containers-log", "", "File containing containers log")
+	flags.StringVar(&dockerInfoLog, "docker-info", "", "File containing docker.info")
+	return cmd
 }
 
 func extractLogs(jobURLString, outputDir, containersLog, dockerInfo string) error {

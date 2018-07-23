@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package apiservice
 
 // Waits for a given apiservice to exist and become available
 
@@ -33,11 +33,6 @@ import (
 )
 
 var log *logger.Entry
-
-func main() {
-	cmd := NewWaitForAPIServiceCommand()
-	cmd.Execute()
-}
 
 type WaitForAPIServiceOptions struct {
 	Name    string

@@ -114,12 +114,9 @@ NON_VENDOR_DIRS = $(shell $(DOCKER_CMD) glide nv)
 build: .init .generate_files \
 	$(BINDIR)/cluster-operator \
 	$(BINDIR)/fake-openshift-ansible \
-	$(BINDIR)/playbook-mock \
 	$(BINDIR)/aws-machine-controller \
 	$(BINDIR)/fake-machine-controller \
-	$(BINDIR)/aws-actuator-test \
-	$(BINDIR)/wait-for-cluster-ready \
-	$(BINDIR)/wait-for-apiservice
+	$(BINDIR)/wait-for-cluster-ready
 
 .PHONY: $(BINDIR)/cluster-operator
 cluster-operator: $(BINDIR)/cluster-operator
@@ -141,24 +138,14 @@ wait-for-cluster-ready: $(BINDIR)/wait-for-cluster-ready
 $(BINDIR)/wait-for-cluster-ready: .init
 	$(DOCKER_CMD) $(GO_BUILD) -o $@ $(CLUSTER_OPERATOR_PKG)/contrib/cmd/wait-for-cluster-ready
 
-.PHONY: $(BINDIR)/wait-for-apiservice
-wait-for-apiservice: $(BINDIR)/wait-for-apiservice
-$(BINDIR)/wait-for-apiservice: .init
-	$(DOCKER_CMD) $(GO_BUILD) -o $@ $(CLUSTER_OPERATOR_PKG)/contrib/cmd/wait-for-apiservice
-
-.PHONY: $(BINDIR)/aws-actuator-test
-aws-actuator-test: $(BINDIR)/aws-actuator-test
-$(BINDIR)/aws-actuator-test: .init
-	$(DOCKER_CMD) $(GO_BUILD) -o $@ $(CLUSTER_OPERATOR_PKG)/contrib/cmd/aws-actuator-test
+.PHONY: $(BINDIR)/coutil
+coutil: $(BINDIR)/coutil
+$(BINDIR)/coutil: .init
+	$(DOCKER_CMD) $(GO_BUILD) -o $@ $(CLUSTER_OPERATOR_PKG)/contrib/cmd/coutil
 
 fake-openshift-ansible: $(BINDIR)/fake-openshift-ansible
 $(BINDIR)/fake-openshift-ansible: contrib/fake-openshift-ansible/fake-openshift-ansible
 	$(DOCKER_CMD) cp contrib/fake-openshift-ansible/fake-openshift-ansible $(BINDIR)
-
-.PHONY: $(BINDIR)/playbook-mock
-playbook-mock: $(BINDIR)/playbook-mock
-$(BINDIR)/playbook-mock:
-	$(DOCKER_CMD) $(GO_BUILD) -o $@ $(CLUSTER_OPERATOR_PKG)/contrib/cmd/playbook-mock
 
 
 # This section contains the code generation stuff
@@ -350,7 +337,7 @@ images: cluster-operator-image \
 	aws-machine-controller-image \
 	fake-machine-controller-image \
 	$(BINDIR)/wait-for-cluster-ready \
-	$(BINDIR)/wait-for-apiservice
+	$(BINDIR)/coutil
 
 images-all: $(addprefix arch-image-,$(ALL_ARCH))
 arch-image-%:
@@ -407,7 +394,7 @@ fake-openshift-ansible-image: cluster-operator-ansible-images build/fake-openshi
 	docker tag $(FAKE_OPENSHIFT_ANSIBLE_IMAGE) $(REGISTRY)fake-openshift-ansible:$(VERSION)
 	docker tag $(FAKE_OPENSHIFT_ANSIBLE_MUTABLE_IMAGE) $(REGISTRY)fake-openshift-ansible:$(MUTABLE_TAG)
 
-playbook-mock-image: build/playbook-mock/Dockerfile $(BINDIR)/playbook-mock
+playbook-mock-image: build/playbook-mock/Dockerfile $(BINDIR)/coutil
 	$(call build-and-tag,"playbook-mock",$(PLAYBOOK_MOCK_IMAGE),$(PLAYBOOK_MOCK_MUTABLE_IMAGE))
 	docker tag $(PLAYBOOK_MOCK_IMAGE) $(REGISTRY)playbook-mock:$(VERSION)
 	docker tag $(PLAYBOOK_MOCK_MUTABLE_IMAGE) $(REGISTRY)playbook-mock:$(MUTABLE_TAG)

@@ -22,9 +22,6 @@ spec:
         args:
         - --port
         - "8080"
-        - --logtostderr
-        - -v
-        - "10"
         ports:
         - containerPort: 8080
         readinessProbe:

@@ -24,8 +24,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/golang/glog"
 	"github.com/gorilla/mux"
+	logger "github.com/sirupsen/logrus"
 )
 
 type action struct {
@@ -52,7 +52,7 @@ func createHandler() http.Handler {
 
 // Run creates the HTTP handler, and begins to listen on the specified address.
 func Run(ctx context.Context, addr string) error {
-	glog.Infof("Starting server on %d\n", addr)
+	logger.Infof("Starting server on %s\n", addr)
 	srv := &http.Server{
 		Addr:    addr,
 		Handler: createHandler(),
@@ -69,10 +69,10 @@ func Run(ctx context.Context, addr string) error {
 }
 
 func (s *server) postPlaybookAction(w http.ResponseWriter, r *http.Request) {
-	glog.Infof("Post playbook action...")
+	logger.Infof("Post playbook action...")
 	var payload map[string]interface{}
 	if err := bodyToObject(r, &payload); err != nil {
-		glog.Errorf("error unmarshalling: %v", err)
+		logger.Errorf("error unmarshalling: %v", err)
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte(err.Error()))
 		return
@@ -84,10 +84,10 @@ func (s *server) postPlaybookAction(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) getPlaybookActions(w http.ResponseWriter, r *http.Request) {
-	glog.Infof("Get playbook actions...")
+	logger.Infof("Get playbook actions...")
 	s.rwMutex.Lock()
 	defer s.rwMutex.Unlock()
-	glog.Infof("actions = %+v", s.actions)
+	logger.Infof("actions = %+v", s.actions)
 	data, err := json.Marshal(s.actions)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
