@@ -71,6 +71,9 @@ func validNewClusterDeployment(name string) *clusteroperatorapi.ClusterDeploymen
 				Pods:          capiv1.NetworkRanges{CIDRBlocks: []string{"10.128.0.0/14"}},
 				ServiceDomain: "svc.cluster.local",
 			},
+			Hardware: clusteroperatorapi.ClusterHardwareSpec{
+				AWS: &clusteroperatorapi.AWSClusterSpec{},
+			},
 		},
 	}
 }
@@ -92,6 +95,11 @@ func TestCreate(t *testing.T) {
 		// invalid
 		&clusteroperatorapi.ClusterDeployment{
 			ObjectMeta: metav1.ObjectMeta{Name: "*BadName!"},
+			Spec: clusteroperatorapi.ClusterDeploymentSpec{
+				Hardware: clusteroperatorapi.ClusterHardwareSpec{
+					AWS: &clusteroperatorapi.AWSClusterSpec{},
+				},
+			},
 		},
 	)
 }

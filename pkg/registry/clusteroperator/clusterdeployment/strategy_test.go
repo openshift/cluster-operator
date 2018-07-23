@@ -19,6 +19,8 @@ package clusterdeployment
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -50,13 +52,58 @@ func TestClusterDeploymentStrategyTrivial(t *testing.T) {
 	}
 }
 
-// TestClusterDeploymentCreate
-func TestClusterDeploymentCreate(t *testing.T) {
-	// Create a clusterdeployment or clusterdeployments
-	clusterDeployment := &clusteroperator.ClusterDeployment{}
+// TestClusterDeploymentCreateWithSshKeyName
+func TestClusterDeploymentCreateWithSshKeyName(t *testing.T) {
+	cases := []struct {
+		name                          string
+		clusterDeploymentName         string
+		keyPairName                   string
+		keyPairNameGenerationExpected bool
+	}{
+		{
+			name: "specify ssh keypair name",
+			clusterDeploymentName:         "testcluster",
+			keyPairName:                   "TEST KEYPAIR NAME",
+			keyPairNameGenerationExpected: false,
+		},
+		{
+			name: "generate ssh keypair name",
+			clusterDeploymentName:         "testcluster",
+			keyPairNameGenerationExpected: true,
+		},
+	}
 
-	// Canonicalize the cluster
-	clusterDeploymentRESTStrategies.PrepareForCreate(nil, clusterDeployment)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			// Create a clusterdeployment or clusterdeployments
+			clusterDeployment := &clusteroperator.ClusterDeployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: tc.clusterDeploymentName,
+				},
+				Spec: clusteroperator.ClusterDeploymentSpec{
+					Hardware: clusteroperator.ClusterHardwareSpec{
+						AWS: &clusteroperator.AWSClusterSpec{
+							KeyPairName: tc.keyPairName,
+						},
+					},
+				},
+			}
+
+			// Act
+			// Canonicalize the cluster
+			clusterDeploymentRESTStrategies.PrepareForCreate(nil, clusterDeployment)
+
+			// Assert
+			assert.Regexp(t, "^testcluster-\\w\\w\\w\\w\\w$", clusterDeployment.Spec.ClusterName)
+
+			if tc.keyPairNameGenerationExpected {
+				assert.Equal(t, clusterDeployment.Spec.ClusterName, clusterDeployment.Spec.Hardware.AWS.KeyPairName)
+			} else {
+				assert.Equal(t, tc.keyPairName, clusterDeployment.Spec.Hardware.AWS.KeyPairName)
+			}
+		})
+	}
 }
 
 // TestClusterDeploymentUpdate tests that generation is incremented correctly when the

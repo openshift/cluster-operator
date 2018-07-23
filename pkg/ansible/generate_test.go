@@ -29,12 +29,12 @@ const (
 	imageFormat = "openshift/origin-${component}:v3.10.0"
 )
 
-func testClusterSpec() *coapi.ClusterDeploymentSpec {
+func testClusterSpec(sshKeyPairName string) *coapi.ClusterDeploymentSpec {
 	return &coapi.ClusterDeploymentSpec{
 		Hardware: coapi.ClusterHardwareSpec{
 			AWS: &coapi.AWSClusterSpec{
 				Region:      "us-east-1",
-				KeyPairName: "mykey",
+				KeyPairName: sshKeyPairName,
 				SSHUser:     "centos",
 			},
 		},
@@ -67,7 +67,7 @@ func TestGenerateClusterWideVars(t *testing.T) {
 		{
 			name:           "cluster",
 			clusterID:      "testcluster",
-			clusterSpec:    testClusterSpec(),
+			clusterSpec:    testClusterSpec("testcluster"),
 			infraSize:      2,
 			clusterVersion: testClusterVersion(),
 			sdnPluginName:  "fakeplugin",
@@ -79,7 +79,7 @@ func TestGenerateClusterWideVars(t *testing.T) {
 				"openshift_aws_elb_master_external_name: testcluster-cp-ext",
 				"openshift_aws_elb_master_internal_name: testcluster-cp-int",
 				"openshift_aws_elb_infra_name: testcluster-infra",
-				"openshift_aws_ssh_key_name: mykey",
+				"openshift_aws_ssh_key_name: testcluster",
 				"openshift_aws_region: us-east-1",
 				"ansible_ssh_user: centos",
 				"openshift_deployment_type: origin",
@@ -87,6 +87,7 @@ func TestGenerateClusterWideVars(t *testing.T) {
 				"openshift_portal_net: 172.30.0.0/16",
 				"osm_cluster_network_cidr: 10.128.0.0/14",
 				"os_sdn_network_plugin_name: \"fakeplugin\"",
+				"openshift_aws_enable_uninstall_shared_objects: true",
 			},
 			shouldNotInclude: []string{
 				"openshift_release",
@@ -100,7 +101,7 @@ func TestGenerateClusterWideVars(t *testing.T) {
 		{
 			name:           "long clusterID",
 			clusterID:      "012345678901234567890123456789-abcde",
-			clusterSpec:    testClusterSpec(),
+			clusterSpec:    testClusterSpec("not_same_as_clusterid"),
 			infraSize:      2,
 			clusterVersion: testClusterVersion(),
 			serviceCIDRs:   capiv1.NetworkRanges{CIDRBlocks: []string{"172.30.0.0/16"}},
@@ -110,6 +111,8 @@ func TestGenerateClusterWideVars(t *testing.T) {
 				"openshift_aws_elb_master_external_name: 0123456789012345678-abcde-cp-ext",
 				"openshift_aws_elb_master_internal_name: 0123456789012345678-abcde-cp-int",
 				"openshift_aws_elb_infra_name: 0123456789012345678-abcde-infra",
+				"openshift_aws_ssh_key_name: not_same_as_clusterid",
+				"openshift_aws_enable_uninstall_shared_objects: false",
 			},
 		},
 	}

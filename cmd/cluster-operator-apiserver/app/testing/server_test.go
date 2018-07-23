@@ -54,6 +54,9 @@ func TestRun(t *testing.T) {
 					},
 				},
 			},
+			Hardware: clusteroperator.ClusterHardwareSpec{
+				AWS: &clusteroperator.AWSClusterSpec{},
+			},
 		},
 	})
 	if err != nil {
