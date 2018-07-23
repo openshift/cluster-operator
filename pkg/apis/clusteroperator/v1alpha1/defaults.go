@@ -32,6 +32,9 @@ const (
 
 	// Domain for service names in the cluster. This is not configurable for OpenShift clusters.
 	defaultServiceDomain = "svc.cluster.local"
+
+	// Default SDN plugin to match openshift-ansible.
+	defaultSDNPluginName = "redhat/openshift-ovs-multitenant"
 )
 
 func addDefaultingFuncs(scheme *runtime.Scheme) error {
@@ -41,6 +44,10 @@ func addDefaultingFuncs(scheme *runtime.Scheme) error {
 func SetDefaults_ClusterDeploymentSpec(spec *ClusterDeploymentSpec) {
 	if spec.Hardware.AWS != nil && spec.Hardware.AWS.SSHUser == "" {
 		spec.Hardware.AWS.SSHUser = defaultSSHUser
+	}
+
+	if len(spec.Config.SDNPluginName) == 0 {
+		spec.Config.SDNPluginName = defaultSDNPluginName
 	}
 
 	if len(spec.NetworkConfig.ServiceDomain) == 0 {

@@ -82,6 +82,10 @@ func validateClusterDeploymentSpec(spec *clusteroperator.ClusterDeploymentSpec, 
 		allErrs = append(allErrs, field.Invalid(machineSetsPath, &spec.MachineSets, "must have one machineset that hosts infra pods"))
 	}
 
+	if len(spec.Config.SDNPluginName) == 0 {
+		allErrs = append(allErrs, field.Required(fldPath.Child("config").Child("sdnPluginName"), "must specify an SDN plugin name to install"))
+	}
+
 	if len(spec.ClusterVersionRef.Name) == 0 {
 		allErrs = append(allErrs, field.Required(versionPath.Child("name"), "must specify a cluster version to install"))
 	}
@@ -161,6 +165,7 @@ func ValidateClusterDeploymentUpdate(new *clusteroperator.ClusterDeployment, old
 	allErrs = append(allErrs, apivalidation.ValidateImmutableField(new.Spec.ClusterName, old.Spec.ClusterName, field.NewPath("spec", "clusterName"))...)
 	allErrs = append(allErrs, apivalidation.ValidateImmutableField(new.Spec.NetworkConfig.Services, old.Spec.NetworkConfig.Services, field.NewPath("spec", "networkConfig", "services"))...)
 	allErrs = append(allErrs, apivalidation.ValidateImmutableField(new.Spec.NetworkConfig.Pods, old.Spec.NetworkConfig.Pods, field.NewPath("spec", "networkConfig", "pods"))...)
+	allErrs = append(allErrs, apivalidation.ValidateImmutableField(new.Spec.Config.SDNPluginName, old.Spec.Config.SDNPluginName, field.NewPath("spec", "config", "sdnPluginName"))...)
 
 	return allErrs
 }

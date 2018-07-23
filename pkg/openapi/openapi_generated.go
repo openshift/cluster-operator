@@ -314,7 +314,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 					Properties: map[string]spec.Schema{
 						"sdnPluginName": {
 							SchemaProps: spec.SchemaProps{
-								Description: "SDNPluginName is the name of the SDN plugin to use for this install",
+								Description: "SDNPluginName is the name of the OpenShift SDN plugin to use for this install. Defaults to 'redhat/openshift-ovs-multitenant'.",
 								Type:        []string{"string"},
 								Format:      "",
 							},
@@ -1355,7 +1355,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 					Properties: map[string]spec.Schema{
 						"sdnPluginName": {
 							SchemaProps: spec.SchemaProps{
-								Description: "SDNPluginName is the name of the SDN plugin to use for this install",
+								Description: "SDNPluginName is the name of the OpenShift SDN plugin to use for this install. Defaults to 'redhat/openshift-ovs-multitenant'.",
 								Type:        []string{"string"},
 								Format:      "",
 							},

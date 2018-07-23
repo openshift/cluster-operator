@@ -148,6 +148,7 @@ openshift_cloudprovider_aws_secret_key: "{{ lookup('env','AWS_SECRET_ACCESS_KEY'
 # the existing cluster API machine resources
 openshift_master_bootstrap_auto_approve: true
 
+os_sdn_network_plugin_name: "[[ .SDNPluginName ]]"
 openshift_portal_net: [[ .ServiceCIDR ]]
 osm_cluster_network_cidr: [[ .PodCIDR ]]
 
@@ -334,6 +335,7 @@ type clusterParams struct {
 	ServiceCIDR                      string
 	VPCName                          string
 	SubnetName                       string
+	SDNPluginName                    string
 }
 
 type clusterVersionParams struct {
@@ -348,6 +350,7 @@ func GenerateClusterWideVars(
 	hardwareSpec coapi.AWSClusterSpec,
 	version coapi.OpenShiftConfigVersion,
 	infraSize int,
+	sdnPluginName string,
 	serviceCIDRs capiv1.NetworkRanges,
 	podCIDRs capiv1.NetworkRanges,
 ) (string, error) {
@@ -371,6 +374,7 @@ func GenerateClusterWideVars(
 		InfraSize:             infraSize,
 		VPCName:               hardwareSpec.VPCName,
 		SubnetName:            hardwareSpec.VPCSubnet,
+		SDNPluginName:         sdnPluginName,
 		// Openshift-ansible only supports a single value:
 		ServiceCIDR: serviceCIDRs.CIDRBlocks[0],
 		PodCIDR:     podCIDRs.CIDRBlocks[0],
@@ -421,11 +425,12 @@ func GenerateClusterWideVarsForMachineSet(
 	clusterID string,
 	clusterHardware coapi.AWSClusterSpec,
 	clusterVersion coapi.OpenShiftConfigVersion,
+	sdnPluginName string,
 	serviceCIDRs capiv1.NetworkRanges,
 	podCIDRs capiv1.NetworkRanges,
 ) (string, error) {
 	// since we haven't been passed an infraSize, just assume minimum size of 1
-	return GenerateClusterWideVarsForMachineSetWithInfraSize(isMaster, clusterID, clusterHardware, clusterVersion, 1, serviceCIDRs, podCIDRs)
+	return GenerateClusterWideVarsForMachineSetWithInfraSize(isMaster, clusterID, clusterHardware, clusterVersion, 1, sdnPluginName, serviceCIDRs, podCIDRs)
 }
 
 // GenerateClusterWideVarsForMachineSetWithInfraSize generates the vars to pass to the
@@ -437,10 +442,11 @@ func GenerateClusterWideVarsForMachineSetWithInfraSize(
 	clusterHardware coapi.AWSClusterSpec,
 	clusterVersion coapi.OpenShiftConfigVersion,
 	infraSize int,
+	sdnPluginName string,
 	serviceCIDRs capiv1.NetworkRanges,
 	podCIDRs capiv1.NetworkRanges,
 ) (string, error) {
-	commonVars, err := GenerateClusterWideVars(clusterID, clusterHardware, clusterVersion, infraSize, serviceCIDRs, podCIDRs)
+	commonVars, err := GenerateClusterWideVars(clusterID, clusterHardware, clusterVersion, infraSize, sdnPluginName, serviceCIDRs, podCIDRs)
 
 	// Layer in the vars that depend on the ClusterVersion:
 	var buf bytes.Buffer

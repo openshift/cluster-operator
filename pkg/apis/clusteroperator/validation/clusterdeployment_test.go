@@ -57,6 +57,9 @@ func getValidClusterDeploymentSpec() clusteroperator.ClusterDeploymentSpec {
 			Services:      capiv1.NetworkRanges{CIDRBlocks: []string{"172.50.1.1/16"}},
 			Pods:          capiv1.NetworkRanges{CIDRBlocks: []string{"10.140.5.5/14"}},
 		},
+		Config: clusteroperator.ClusterConfigSpec{
+			SDNPluginName: "redhat/openshift-ovs-multitenant",
+		},
 	}
 }
 
@@ -152,6 +155,15 @@ func TestValidateClusterDeployment(t *testing.T) {
 			}(),
 			valid: false,
 		},
+		{
+			name: "missing SDN plugin name",
+			clusterDeployment: func() *clusteroperator.ClusterDeployment {
+				c := getValidClusterDeployment()
+				c.Spec.Config.SDNPluginName = ""
+				return c
+			}(),
+			valid: false,
+		},
 	}
 
 	for _, tc := range cases {
@@ -215,6 +227,16 @@ func TestValidateClusterDeploymentUpdate(t *testing.T) {
 			new: func() *clusteroperator.ClusterDeployment {
 				c := getValidClusterDeployment()
 				c.Spec.NetworkConfig.Pods = capiv1.NetworkRanges{CIDRBlocks: []string{"172.60.0.0/16"}}
+				return c
+			}(),
+			valid: false,
+		},
+		{
+			name: "mutated SDN plugin name",
+			old:  getValidClusterDeployment(),
+			new: func() *clusteroperator.ClusterDeployment {
+				c := getValidClusterDeployment()
+				c.Spec.Config.SDNPluginName = "newplugin"
 				return c
 			}(),
 			valid: false,
