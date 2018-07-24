@@ -14,50 +14,52 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package playbookmock
 
 import (
 	"context"
-	"flag"
-	"fmt"
 	"os"
 	"os/signal"
 	"strconv"
 	"syscall"
 
-	"github.com/golang/glog"
-
-	"github.com/openshift/cluster-operator/contrib/pkg/playbookmock"
+	logger "github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
 )
 
-var options struct {
+type options struct {
 	Port int
 }
 
-func init() {
-	flag.IntVar(&options.Port, "port", 8055, "use '--port' option to specify the port to listen on")
-	flag.Parse()
-}
-
-func main() {
-	fmt.Printf("args = %v", os.Args)
-	if err := run(); err != nil && err != context.Canceled && err != context.DeadlineExceeded {
-		glog.Fatalln(err)
+func NewPlaybookMockCommand() *cobra.Command {
+	opts := &options{}
+	cmd := &cobra.Command{
+		Use:   "playbook-mock",
+		Short: "Mock playbook command for fake-openshift-ansible",
+		Run: func(cmd *cobra.Command, args []string) {
+			logger.Infof("args = %v", args)
+			if err := opts.run(); err != nil && err != context.Canceled && err != context.DeadlineExceeded {
+				logger.Fatal(err)
+			}
+		},
 	}
+	flags := cmd.Flags()
+	flags.IntVar(&opts.Port, "port", 8055, "use '--port' option to specify the port to listen on")
+	return cmd
 }
 
-func run() error {
+func (o *options) run() error {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
 	cancelOnInterrupt(ctx, cancelFunc)
 
-	return runWithContext(ctx)
+	return o.runWithContext(ctx)
 }
 
-func runWithContext(ctx context.Context) error {
-	addr := ":" + strconv.Itoa(options.Port)
+func (o *options) runWithContext(ctx context.Context) error {
+	addr := ":" + strconv.Itoa(o.Port)
 
-	return playbookmock.Run(ctx, addr)
+	return Run(ctx, addr)
 }
 
 // cancelOnInterrupt calls f when os.Interrupt or SIGTERM is received.

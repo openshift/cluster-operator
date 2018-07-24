@@ -14,6 +14,6 @@
 
 FROM gcr.io/google-containers/debian-base-amd64:0.2
 
-ADD playbook-mock /usr/sbin
+ADD coutil /usr/sbin
 
-ENTRYPOINT ["/usr/sbin/playbook-mock"]
+ENTRYPOINT ["/usr/sbin/coutil", "playbook-mock"]

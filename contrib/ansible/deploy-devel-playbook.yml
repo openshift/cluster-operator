@@ -60,7 +60,7 @@
 
   - name: wait for cluster operator apiservice
     command: |-
-      {{ playbook_dir }}/../../bin/wait-for-apiservice v1alpha1.clusteroperator.openshift.io
+      {{ playbook_dir }}/../../bin/coutil wait-for-apiservice v1alpha1.clusteroperator.openshift.io
 
   - import_role:
       name: kubectl-ansible

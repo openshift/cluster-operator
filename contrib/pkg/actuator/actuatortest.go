@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package actuator
 
 // Tests individual AWS actuator actions. This is meant to be executed
 // in a machine that has access to AWS either as an instance with the right role
@@ -23,7 +23,6 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"os"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -43,10 +42,6 @@ import (
 )
 
 const instanceIDAnnotation = "cluster-operator.openshift.io/aws-instance-id"
-
-func usage() {
-	fmt.Printf("Usage: %s CLUSTER-NAME\n\n", os.Args[0])
-}
 
 func strptr(str string) *string {
 	return &str
@@ -91,7 +86,7 @@ func clusterMachineExists(instanceID string) error {
 	return nil
 }
 
-func newActuatorTestCommand() *cobra.Command {
+func NewAWSActuatorTestCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "aws-actuator-test",
 		Short: "Test for Cluster API AWS actuator",
@@ -130,18 +125,6 @@ func newActuatorTestCommand() *cobra.Command {
 		},
 	})
 	return cmd
-}
-
-func main() {
-	log.SetOutput(os.Stdout)
-	log.SetLevel(log.DebugLevel)
-
-	cmd := newActuatorTestCommand()
-	err := cmd.Execute()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error occurred: %v\n", err)
-		os.Exit(1)
-	}
 }
 
 func testClusterAPIResources(name string) (*clusterv1.Cluster, *clusterv1.Machine) {

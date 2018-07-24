@@ -147,3 +147,14 @@ $ gogitit sync
 ### Roles Template Duplication
 
 For OpenShift CI our roles template, which we do not have permissions to apply ourselves, had to be copied to https://github.com/openshift/release/blob/master/projects/cluster-operator/cluster-operator-roles-template.yaml. Our copy in this repo is authoritative, we need to remember to copy the file and submit a PR, and request someone run the make target for us whenever the auth/roles definitions change.
+
+## Utilities
+
+You can build the development utilities binary `coutil` by running: `make coutil`. Once built, the binary will be placed in `bin/coutil`.
+Utilities are subcommands under `coutil` and include: 
+
+- `aws-actuator-test` - allows invoking AWS actuator actions (create, update, delete) without requiring a cluster to be present.
+- `extract-jenkins-logs` - extracts container logs from a cluster operator e2e run, given a Jenkins job URL
+- `playbook-mock` - used by the fake-ansible image to track invocations of ansible by cluster operator controllers
+- `wait-for-apiservice` - given the name of an API service, waits for the API service to be functional.
+- `wait-for-cluster-ready` - waits for a cluster operator ClusterDeployment to be provisioned and functional, reporting on its progress along the way.
