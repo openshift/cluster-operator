@@ -12,8 +12,8 @@ set -o errexit
 [ ! -f "${PLAYBOOK_FILE}" ] && { echo "Playbook file ${PLAYBOOK_FILE} not found."; exit 1; }
 
 # Ensure that the inventory file exists.
-[ -z $INVENTORY_FILE ] && { echo "INVENTORY_FILE environment variable not set."; exit 1; }
-[ ! -f "${INVENTORY_FILE}" ] && { echo "Inventory file ${INVENTORY_FILE} not found."; exit 1; }
+[ -z $INVENTORY_DIR ] && { echo "INVENTORY_DIR environment variable not set."; exit 1; }
+[ ! -d "${INVENTORY_DIR}" ] && { echo "Inventory directory ${INVENTORY_DIR} not found."; exit 1; }
 
 # Ensure that the AWS access key ID exists.
 [ -z $AWS_ACCESS_KEY_ID ] && { echo "AWS_ACCESS_KEY_ID environment variable not set."; exit 1; }
