@@ -62,7 +62,7 @@ const (
 	testClusterVersionName = "v3-9"
 )
 
-func testMachineSet(name string, replicas int32, roles []capicommon.MachineRole, infra bool) *capiv1alpha1.MachineSet {
+func testMachineSet(name string, replicas int32, infra bool) *capiv1alpha1.MachineSet {
 	return &capiv1alpha1.MachineSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: testNamespace,
@@ -85,7 +85,6 @@ func testMachineSet(name string, replicas int32, roles []capicommon.MachineRole,
 					},
 				},
 				Spec: capiv1alpha1.MachineSpec{
-					Roles: roles,
 					ProviderConfig: capiv1alpha1.ProviderConfig{
 						Value: func() *runtime.RawExtension {
 							r, _ := controller.MachineProviderConfigFromMachineSetSpec(&clustopv1alpha1.MachineSetSpec{

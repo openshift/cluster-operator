@@ -37,7 +37,6 @@ import (
 
 	"github.com/openshift/cluster-operator/pkg/kubernetes/pkg/util/metrics"
 
-	clustercommon "sigs.k8s.io/cluster-api/pkg/apis/cluster/common"
 	capi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	capiclientset "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 	capiinformers "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions/cluster/v1alpha1"
@@ -716,7 +715,6 @@ func buildMasterMachineSet(clusterDeployment *clustop.ClusterDeployment, cluster
 	machineSet.Spec.Replicas = &replicas
 	machineSet.Spec.Template.Labels = machineSetLabels
 	machineSet.Spec.Template.Spec.Labels = machineSetLabels
-	machineSet.Spec.Template.Spec.Roles = []clustercommon.MachineRole{clustercommon.MasterRole}
 
 	providerConfig, err := controller.MachineProviderConfigFromMachineSetConfig(machineSetConfig, &clusterDeployment.Spec, clusterVersion)
 	if err != nil {

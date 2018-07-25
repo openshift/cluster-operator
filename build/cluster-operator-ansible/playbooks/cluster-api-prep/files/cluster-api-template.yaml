@@ -88,9 +88,8 @@ objects:
           - name: cluster-apiserver-certs
             mountPath: /var/run/cluster-api-apiserver
             readOnly: true
-          command:
-          - "./apiserver"
           args:
+          - "cluster-api-server"
           - "--etcd-servers=http://localhost:2379"
           - "--tls-cert-file=/var/run/cluster-api-apiserver/tls.crt"
           - "--tls-private-key-file=/var/run/cluster-api-apiserver/tls.key"
@@ -204,8 +203,8 @@ objects:
         - name: controller-manager
           image: ${CLUSTER_API_IMAGE}
           imagePullPolicy: ${CLUSTER_API_IMAGE_PULL_POLICY}
-          command:
-          - "./controller-manager"
+          args:
+          - "cluster-api-controller-manager"
           resources:
             requests:
               cpu: 100m

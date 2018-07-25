@@ -47,7 +47,9 @@ objects:
   metadata:
     name: cluster-operator
     namespace: ${CLUSTER_OPERATOR_NAMESPACE}
-  spec: {}
+  spec:
+    lookupPolicy:
+      local: true
 
 - kind: BuildConfig
   apiVersion: build.openshift.io/v1

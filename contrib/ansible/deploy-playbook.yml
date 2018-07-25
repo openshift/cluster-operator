@@ -30,8 +30,6 @@
     # Cluster operator git repository to build:
     cluster_operator_git_repo: "https://github.com/openshift/cluster-operator"
     cluster_operator_git_ref: master
-    # Cluster API controller image to deploy on root cluster
-    cluster_api_image: "registry.svc.ci.openshift.org/openshift-cluster-operator/kubernetes-cluster-api:latest"
     cluster_api_image_pull_policy: "Always"
 
     fake_deployment: False
@@ -167,7 +165,6 @@
       template_file: "{{ playbook_dir }}/../examples/cluster-api-controllers-template.yaml"
       parameters:
         CLUSTER_API_NAMESPACE: "{{ cluster_operator_namespace }}"
-        CLUSTER_API_IMAGE: "{{ cluster_api_image }}"
         MACHINE_CONTROLLER_IMAGESTREAM: "{{ machine_controller_imagestream }}"
         MACHINE_CONTROLLER_ENTRYPOINT: "{{ machine_controller_entrypoint }}"
         IMAGE_PULL_POLICY: "{{ cluster_api_image_pull_policy }}"

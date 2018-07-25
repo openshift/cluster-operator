@@ -202,9 +202,6 @@ $(BINDIR)/e2e.test: .init
 	sed "s/GO_VERSION/$(GO_VERSION)/g" < build/build-image/Dockerfile | \
 	  docker build -t clusteroperatorbuildimage -
 
-.apiServerBuilderImage: .clusterOperatorBuildImage build/apiserver-builder/Dockerfile
-	docker build -t apiserverbuilderimage ./build/apiserver-builder
-
 # Util targets
 ##############
 .PHONY: verify verify-generated verify-client-gen verify-mocks
@@ -398,15 +395,6 @@ playbook-mock-image: build/playbook-mock/Dockerfile $(BINDIR)/coutil
 	$(call build-and-tag,"playbook-mock",$(PLAYBOOK_MOCK_IMAGE),$(PLAYBOOK_MOCK_MUTABLE_IMAGE))
 	docker tag $(PLAYBOOK_MOCK_IMAGE) $(REGISTRY)playbook-mock:$(VERSION)
 	docker tag $(PLAYBOOK_MOCK_MUTABLE_IMAGE) $(REGISTRY)playbook-mock:$(MUTABLE_TAG)
-
-.PHONY: $(CLUSTERAPI_BIN)/apiserver
-$(CLUSTERAPI_BIN)/apiserver: .apiServerBuilderImage
-	mkdir -p $(PWD)/$(CLUSTERAPI_BIN) && docker run --security-opt label:disable -v $(PWD)/$(CLUSTERAPI_BIN):/output --entrypoint=/bin/bash apiserverbuilderimage -c "export GOPATH=/go && mkdir -p /go/src/sigs.k8s.io/cluster-api && cd /go/src/sigs.k8s.io/cluster-api && git clone https://github.com/kubernetes-sigs/cluster-api.git . && apiserver-boot build executables --generate=false && touch /output/controller-manager /output/apiserver && cp bin/* /output"
-
-.PHONY: kubernetes-cluster-api
-kubernetes-cluster-api: $(CLUSTERAPI_BIN)/apiserver build/clusterapi-image/Dockerfile
-	cp build/clusterapi-image/Dockerfile $(CLUSTERAPI_BIN)
-	docker build -t clusterapi ./$(CLUSTERAPI_BIN)
 
 .PHONY: aws-machine-controller-image
 aws-machine-controller-image: build/aws-machine-controller/Dockerfile $(BINDIR)/aws-machine-controller
