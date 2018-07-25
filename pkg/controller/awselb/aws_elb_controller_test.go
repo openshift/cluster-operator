@@ -17,6 +17,7 @@ limitations under the License.
 package awselb
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -39,6 +40,7 @@ import (
 	capiclientfake "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset/fake"
 	capiinformers "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
@@ -70,12 +72,14 @@ func TestSyncMachine(t *testing.T) {
 		lastSuccessfulSyncGeneration int64
 		lastSuccessfulSync           time.Time
 		resyncExpected               bool
+		regErrorExpected             bool
 	}{
 		{
 			name:                         "no last sync",
 			generation:                   1,
 			lastSuccessfulSyncGeneration: 1,
 			resyncExpected:               true,
+			regErrorExpected:             false,
 		},
 		{
 			name:                         "no re-sync required",
@@ -83,6 +87,7 @@ func TestSyncMachine(t *testing.T) {
 			generation:                   1,
 			lastSuccessfulSyncGeneration: 1,
 			resyncExpected:               false,
+			regErrorExpected:             false,
 		},
 		{
 			name:                         "re-sync due",
@@ -90,6 +95,7 @@ func TestSyncMachine(t *testing.T) {
 			generation:                   1,
 			lastSuccessfulSyncGeneration: 1,
 			resyncExpected:               true,
+			regErrorExpected:             false,
 		},
 		{
 			name:                         "re-sync for generation change",
@@ -97,6 +103,14 @@ func TestSyncMachine(t *testing.T) {
 			generation:                   4,
 			lastSuccessfulSyncGeneration: 1,
 			resyncExpected:               true,
+			regErrorExpected:             false,
+		},
+		{
+			name:                         "registration fails",
+			generation:                   1,
+			lastSuccessfulSyncGeneration: 1,
+			resyncExpected:               true,
+			regErrorExpected:             true,
 		},
 	}
 	for _, tc := range cases {
@@ -121,8 +135,11 @@ func TestSyncMachine(t *testing.T) {
 			mockAWSClient := mockaws.NewMockClient(mockCtrl)
 			if tc.resyncExpected {
 				mockTestInstance(mockAWSClient, "i1", machine.Name, testClusterName)
-				mockRegisterInstancesWithELB(mockAWSClient, "i1", controller.ELBMasterExternalName(testClusterName))
-				mockRegisterInstancesWithELB(mockAWSClient, "i1", controller.ELBMasterInternalName(testClusterName))
+				mockRegisterInstancesWithELB(mockAWSClient, "i1", controller.ELBMasterExternalName(testClusterName), tc.regErrorExpected)
+				// Internal ELB registration will not be attempted when a registration error is expected
+				if !tc.regErrorExpected {
+					mockRegisterInstancesWithELB(mockAWSClient, "i1", controller.ELBMasterInternalName(testClusterName), tc.regErrorExpected)
+				}
 			}
 
 			ctrlr := NewController(capiInformers.Cluster().V1alpha1().Machines(),
@@ -132,7 +149,12 @@ func TestSyncMachine(t *testing.T) {
 			}
 
 			err := ctrlr.processMachine(machine)
-			assert.NoError(t, err)
+
+			if tc.regErrorExpected {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
 
 			if tc.resyncExpected {
 				if !assert.Equal(t, 1, len(capiClient.Actions())) {
@@ -147,11 +169,24 @@ func TestSyncMachine(t *testing.T) {
 				updatedObject := updateAction.GetObject()
 				machine, ok := updatedObject.(*capiv1.Machine)
 				clustopStatus, err := controller.AWSMachineProviderStatusFromClusterAPIMachine(machine)
+
 				assert.NoError(t, err)
 				assert.NotNil(t, clustopStatus.LastELBSync)
 				assert.True(t, clustopStatus.LastELBSync.Time.After(tc.lastSuccessfulSync))
 				assert.Equal(t, machine.Generation, clustopStatus.LastELBSyncGeneration)
 				assert.Equal(t, "preserveme", *clustopStatus.InstanceID)
+				assert.NotEqual(t, clustopStatus.Conditions, nil)
+				assert.NotEqual(t, 0, len(clustopStatus.Conditions))
+
+				if tc.regErrorExpected {
+					assert.Equal(t, clustopStatus.Conditions[0].Reason, "ExtELBRegistrationFailed")
+					assert.Equal(t, clustopStatus.Conditions[0].Status, corev1.ConditionTrue)
+				} else {
+					assert.Equal(t, clustopStatus.Conditions[0].Reason, "ExtELBRegistrationSucceeded")
+					assert.Equal(t, clustopStatus.Conditions[0].Status, corev1.ConditionTrue)
+					assert.Equal(t, clustopStatus.Conditions[1].Reason, "IntELBRegistrationSucceeded")
+					assert.Equal(t, clustopStatus.Conditions[1].Status, corev1.ConditionTrue)
+				}
 			} else {
 				assert.Equal(t, 0, len(capiClient.Actions()))
 			}
@@ -159,13 +194,20 @@ func TestSyncMachine(t *testing.T) {
 	}
 }
 
-func mockRegisterInstancesWithELB(mockAWSClient *mockaws.MockClient, instanceID, elbName string) {
+func mockRegisterInstancesWithELB(mockAWSClient *mockaws.MockClient, instanceID, elbName string, genRegError bool) {
+	var err error
+
 	input := elb.RegisterInstancesWithLoadBalancerInput{
 		Instances:        []*elb.Instance{{InstanceId: &instanceID}},
 		LoadBalancerName: &elbName,
 	}
+
+	if genRegError {
+		err = errors.New("kablooey")
+	}
+
 	mockAWSClient.EXPECT().RegisterInstancesWithLoadBalancer(&input).Return(
-		&elb.RegisterInstancesWithLoadBalancerOutput{}, nil)
+		&elb.RegisterInstancesWithLoadBalancerOutput{}, err)
 }
 
 func mockTestInstance(mockAWSClient *mockaws.MockClient, instanceID, machineName, clusterID string) {

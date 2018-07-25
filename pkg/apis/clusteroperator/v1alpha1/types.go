@@ -665,7 +665,42 @@ type AWSMachineProviderStatus struct {
 
 	// LastELBSyncGeneration is the generation of the machine resource last added to the ELB.
 	LastELBSyncGeneration int64 `json:"lastELBSyncGeneration"`
+
+	// Conditions contains more detailed status about the machine.
+	Conditions []AWSMachineCondition `json:"conditions"`
 }
+
+// AWSMachineCondition contains details for the current condition of a machine
+type AWSMachineCondition struct {
+	// Type is the type of the condition.
+	Type AWSMachineConditionType `json:"type"`
+	// Status is the status of the condition.
+	Status corev1.ConditionStatus `json:"status"`
+	// LastProbeTime is the last time we probed the condition.
+	// +optional
+	LastProbeTime metav1.Time `json:"lastProbeTime,omitempty"`
+	// LastTransitionTime is the last time the condition transitioned from one status to another.
+	// +optional
+	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
+	// Reason is a unique, one-word, CamelCase reason for the condition's last transition.
+	// +optional
+	Reason string `json:"reason,omitempty"`
+	// Message is a human-readable message indicating details about last transition.
+	// +optional
+	Message string `json:"message,omitempty"`
+}
+
+// AWSMachineConditionType is a valid value for AWSMachineCondition.Type
+type AWSMachineConditionType string
+
+// These are valid conditions for an AWS machine
+const (
+	// ExtELBRegistration is a condition representing external ELB registration
+	ExtELBRegistration AWSMachineConditionType = "ExtELBRegistration"
+
+	// IntELBRegistration is a condition representing internal ELB registration
+	IntELBRegistration AWSMachineConditionType = "IntELBRegistration"
+)
 
 // NodeType is the type of the Node
 type NodeType string

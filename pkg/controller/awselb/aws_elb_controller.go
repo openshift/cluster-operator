@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -65,6 +66,18 @@ const (
 	// this duration is exceeded and if so, re-add to the ELB to ensure we repair any machines
 	// accidentally taken out of rotation.
 	elbResyncDuration = 2 * time.Hour
+
+	// ExtELBRegistrationSucceeded indicates success for external ELB registration
+	ExtELBRegistrationSucceeded = "ExtELBRegistrationSucceeded"
+
+	// ExtELBRegistrationFailed indicates that external ELB registration has failed
+	ExtELBRegistrationFailed = "ExtELBRegistrationFailed"
+
+	// IntELBRegistrationSucceeded indicates success for internal ELB registration
+	IntELBRegistrationSucceeded = "IntELBRegistrationSucceeded"
+
+	// IntELBRegistrationFailed indicates that internal ELB registration has failed
+	IntELBRegistrationFailed = "IntELBRegistrationFailed"
 )
 
 // NewController returns a new *Controller.
@@ -343,18 +356,68 @@ func (c *Controller) processMachine(machine *capiv1.Machine) error {
 
 	err = c.addInstanceToELB(instance, controller.ELBMasterExternalName(clusterID), client, mLog)
 	if err != nil {
+		updateConditionError := c.updateMachineConditions(machine, mLog, clustopv1.ExtELBRegistration, ExtELBRegistrationFailed, err.Error())
+		if updateConditionError != nil {
+			mLog.Errorf("error updating machine conditions: %v", updateConditionError)
+		}
 		return err
 	}
 	err = c.addInstanceToELB(instance, controller.ELBMasterInternalName(clusterID), client, mLog)
 	if err != nil {
+		updateConditionError := c.updateMachineConditions(machine, mLog, clustopv1.IntELBRegistration, IntELBRegistrationFailed, err.Error())
+		if updateConditionError != nil {
+			mLog.Errorf("error updating machine conditions: %v", updateConditionError)
+		}
 		return err
 	}
 
 	return c.updateStatus(machine, mLog)
 }
 
+func (c *Controller) updateMachineConditions(machine *capiv1.Machine, mLog log.FieldLogger, conditionType clustopv1.AWSMachineConditionType, reason string, message string) error {
+	var (
+		updateCheck controller.UpdateConditionCheck
+	)
+
+	mLog.Debug("updating machine conditions")
+
+	// Get current aws machine provider status
+	awsStatus, err := controller.AWSMachineProviderStatusFromClusterAPIMachine(machine)
+	if err != nil {
+		return err
+	}
+
+	updateCheck = controller.UpdateConditionIfReasonOrMessageChange
+
+	now := metav1.Now()
+	awsStatus.LastELBSync = &now
+	awsStatus.LastELBSyncGeneration = machine.Generation
+	awsStatus.Conditions = controller.SetAWSMachineCondition(awsStatus.Conditions, conditionType, corev1.ConditionTrue, reason, message, updateCheck)
+
+	// Update machine with updated status
+	awsStatusRaw, err := controller.EncodeAWSMachineProviderStatus(awsStatus)
+	if err != nil {
+		mLog.Errorf("error encoding AWS provider status: %v", err)
+		return err
+	}
+
+	machineCopy := machine.DeepCopy()
+	machineCopy.Status.ProviderStatus = awsStatusRaw
+	machineCopy.Status.LastUpdated = now
+	_, err = c.capiClient.ClusterV1alpha1().Machines(machineCopy.Namespace).UpdateStatus(machineCopy)
+	if err != nil {
+		mLog.Errorf("error updating machine status: %v", err)
+		return err
+	}
+	return nil
+}
+
 // updateStatus sets the LastELBSync time in status to now, and updates the machine.
 func (c *Controller) updateStatus(machine *capiv1.Machine, mLog log.FieldLogger) error {
+	var (
+		msg         string
+		updateCheck controller.UpdateConditionCheck
+	)
 
 	mLog.Debug("updating machine status")
 
@@ -362,6 +425,12 @@ func (c *Controller) updateStatus(machine *capiv1.Machine, mLog log.FieldLogger)
 	if err != nil {
 		return err
 	}
+
+	msg = "successfully registered"
+	updateCheck = controller.UpdateConditionIfReasonOrMessageChange
+	awsStatus.Conditions = controller.SetAWSMachineCondition(awsStatus.Conditions, clustopv1.ExtELBRegistration, corev1.ConditionTrue, ExtELBRegistrationSucceeded, msg, updateCheck)
+	awsStatus.Conditions = controller.SetAWSMachineCondition(awsStatus.Conditions, clustopv1.IntELBRegistration, corev1.ConditionTrue, IntELBRegistrationSucceeded, msg, updateCheck)
+
 	now := metav1.Now()
 	awsStatus.LastELBSync = &now
 	awsStatus.LastELBSyncGeneration = machine.Generation
