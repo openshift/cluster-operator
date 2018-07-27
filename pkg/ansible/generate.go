@@ -222,6 +222,9 @@ all:
     openshift_aws_users:
     - key_name: [[ .SSHKeyName ]]
       pub_key: "{{ lookup('file', '/ansible/ssh/publickey.pub') }}"
+
+    # This will remove the .SSHKeyName keypair from AWS
+    openshift_aws_enable_uninstall_shared_objects: [[ .UninstallSSHKeyPair ]]
     
     # -- #
     # S3 #
@@ -323,6 +326,7 @@ type clusterParams struct {
 	Region                           string
 	SSHKeyName                       string
 	SSHUser                          string
+	UninstallSSHKeyPair              bool
 	VPCDefaults                      string
 	ELBMasterExternalName            string
 	ELBMasterInternalName            string
@@ -368,6 +372,7 @@ func GenerateClusterWideVars(
 		Region:                hardwareSpec.Region,
 		SSHKeyName:            hardwareSpec.KeyPairName,
 		SSHUser:               hardwareSpec.SSHUser,
+		UninstallSSHKeyPair:   hardwareSpec.KeyPairName == clusterID, // only uninstall the cloud ssh keypair when it's unique to the cluster
 		ELBMasterExternalName: controller.ELBMasterExternalName(clusterID),
 		ELBMasterInternalName: controller.ELBMasterInternalName(clusterID),
 		ELBInfraName:          controller.ELBInfraName(clusterID),

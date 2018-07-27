@@ -31,9 +31,6 @@
     # SSH private key used for access to all VMs CO creates:
     ssh_priv_key: '~/.ssh/libra.pem'
 
-    # AWS keypair name to use for cluster machines
-    aws_ssh_keypair: "libra"
-
     # Force regeneration of cluster cert. Will happen regardless if one does not exist.
     redeploy_cluster_cert: False
 
@@ -136,7 +133,6 @@
         AWS_SECRET_ACCESS_KEY: "{{ l_aws_secret_access_key }}"
         SSH_PRIVATE_KEY: "{{ l_aws_ssh_private_key }}"
         SSH_PUBLIC_KEY: "{{ l_aws_ssh_public_key }}"
-        SSH_KEYPAIR_NAME: "{{ aws_ssh_keypair }}"
     register: cluster_reg
 
   - name: create/update cluster

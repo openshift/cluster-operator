@@ -91,6 +91,11 @@ func (clusterDeploymentRESTStrategy) PrepareForCreate(ctx genericapirequest.Cont
 
 	clusterDeployment.Spec.ClusterName = clusterDeployment.Name + "-" + utilrand.String(5)
 
+	if clusterDeployment.Spec.Hardware.AWS.KeyPairName == "" {
+		// This is how the KeyPairName is generated.
+		clusterDeployment.Spec.Hardware.AWS.KeyPairName = clusterDeployment.Spec.ClusterName
+	}
+
 	// Creating a brand new object, thus it must have no
 	// status. We can't fail here if they passed a status in, so
 	// we just wipe it clean.

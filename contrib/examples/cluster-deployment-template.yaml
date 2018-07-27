@@ -40,8 +40,7 @@ parameters:
   required: true
   description: Base64 encoded SSH public key that can be used to access the provisioned servers.
 - name: SSH_KEYPAIR_NAME
-  required: true
-  value: libra
+  required: false
   description: Name of AWS keypair to use for machines in this cluster.
 
 objects:
