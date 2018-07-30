@@ -25,6 +25,7 @@ type ClusteroperatorInterface interface {
 	RESTClient() rest.Interface
 	ClusterDeploymentsGetter
 	ClusterVersionsGetter
+	DNSZonesGetter
 }
 
 // ClusteroperatorClient is used to interact with features provided by the clusteroperator.openshift.io group.
@@ -38,6 +39,10 @@ func (c *ClusteroperatorClient) ClusterDeployments(namespace string) ClusterDepl
 
 func (c *ClusteroperatorClient) ClusterVersions(namespace string) ClusterVersionInterface {
 	return newClusterVersions(c, namespace)
+}
+
+func (c *ClusteroperatorClient) DNSZones(namespace string) DNSZoneInterface {
+	return newDNSZones(c, namespace)
 }
 
 // NewForConfig creates a new ClusteroperatorClient for the given config.

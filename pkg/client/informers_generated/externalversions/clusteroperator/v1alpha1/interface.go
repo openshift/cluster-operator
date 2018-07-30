@@ -28,6 +28,8 @@ type Interface interface {
 	ClusterDeployments() ClusterDeploymentInformer
 	// ClusterVersions returns a ClusterVersionInformer.
 	ClusterVersions() ClusterVersionInformer
+	// DNSZones returns a DNSZoneInformer.
+	DNSZones() DNSZoneInformer
 }
 
 type version struct {
@@ -49,4 +51,9 @@ func (v *version) ClusterDeployments() ClusterDeploymentInformer {
 // ClusterVersions returns a ClusterVersionInformer.
 func (v *version) ClusterVersions() ClusterVersionInformer {
 	return &clusterVersionInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// DNSZones returns a DNSZoneInformer.
+func (v *version) DNSZones() DNSZoneInformer {
+	return &dNSZoneInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }

@@ -8,6 +8,7 @@ import (
 	ec2 "github.com/aws/aws-sdk-go/service/ec2"
 	elb "github.com/aws/aws-sdk-go/service/elb"
 	iam "github.com/aws/aws-sdk-go/service/iam"
+	route53 "github.com/aws/aws-sdk-go/service/route53"
 	s3 "github.com/aws/aws-sdk-go/service/s3"
 	s3iface "github.com/aws/aws-sdk-go/service/s3/s3iface"
 	gomock "github.com/golang/mock/gomock"
@@ -307,4 +308,43 @@ func (m *MockClient) GetS3API() s3iface.S3API {
 // GetS3API indicates an expected call of GetS3API
 func (mr *MockClientMockRecorder) GetS3API() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetS3API", reflect.TypeOf((*MockClient)(nil).GetS3API))
+}
+
+// CreateHostedZone mocks base method
+func (m *MockClient) CreateHostedZone(input *route53.CreateHostedZoneInput) (*route53.CreateHostedZoneOutput, error) {
+	ret := m.ctrl.Call(m, "CreateHostedZone", input)
+	ret0, _ := ret[0].(*route53.CreateHostedZoneOutput)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateHostedZone indicates an expected call of CreateHostedZone
+func (mr *MockClientMockRecorder) CreateHostedZone(input interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateHostedZone", reflect.TypeOf((*MockClient)(nil).CreateHostedZone), input)
+}
+
+// DeleteHostedZone mocks base method
+func (m *MockClient) DeleteHostedZone(input *route53.DeleteHostedZoneInput) (*route53.DeleteHostedZoneOutput, error) {
+	ret := m.ctrl.Call(m, "DeleteHostedZone", input)
+	ret0, _ := ret[0].(*route53.DeleteHostedZoneOutput)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteHostedZone indicates an expected call of DeleteHostedZone
+func (mr *MockClientMockRecorder) DeleteHostedZone(input interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteHostedZone", reflect.TypeOf((*MockClient)(nil).DeleteHostedZone), input)
+}
+
+// ListHostedZones mocks base method
+func (m *MockClient) ListHostedZones(input *route53.ListHostedZonesInput) (*route53.ListHostedZonesOutput, error) {
+	ret := m.ctrl.Call(m, "ListHostedZones", input)
+	ret0, _ := ret[0].(*route53.ListHostedZonesOutput)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListHostedZones indicates an expected call of ListHostedZones
+func (mr *MockClientMockRecorder) ListHostedZones(input interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListHostedZones", reflect.TypeOf((*MockClient)(nil).ListHostedZones), input)
 }
