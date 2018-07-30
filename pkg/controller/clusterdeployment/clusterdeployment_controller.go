@@ -65,6 +65,9 @@ const (
 
 	// versionExists indicates that the cluster's desired version does exist
 	versionExists = "VersionExists"
+
+	// deleteAfterAnnotation is the annotation that contains a duration after which the cluster should be cleaned up.
+	deleteAfterAnnotation = "clusteroperator.openshift.io/delete-after"
 )
 
 // NewController returns a new cluster deployment controller.
@@ -465,6 +468,31 @@ func (c *Controller) syncClusterDeployment(key string) error {
 			return nil
 		}
 		return c.syncDeletedClusterDeployment(clusterDeployment, clusterDeploymentLog)
+	}
+
+	// Check for the delete-after annotation, and if the cluster has expired, delete it:
+	deleteAfter, ok := clusterDeployment.Annotations[deleteAfterAnnotation]
+	if ok {
+		clusterDeploymentLog.Debugf("found delete after annotation: %s", deleteAfter)
+		dur, err := time.ParseDuration(deleteAfter)
+		if err != nil {
+			return fmt.Errorf("error parsing %s as a duration: %v", deleteAfterAnnotation, err)
+		}
+		if !clusterDeployment.CreationTimestamp.IsZero() {
+			expiry := clusterDeployment.CreationTimestamp.Add(dur)
+			clusterDeploymentLog.Debugf("cluster expires at: %s", expiry)
+			if time.Now().After(expiry) {
+				clusterDeploymentLog.WithField("expiry", expiry).Info("cluster has expired, issuing delete")
+				c.clustopClient.ClusteroperatorV1alpha1().ClusterDeployments(clusterDeployment.Namespace).Delete(clusterDeployment.Name, &metav1.DeleteOptions{})
+				return nil
+			}
+
+			// We have an expiry time, we're not expired yet, lets make sure to enqueue the cluster for
+			// just after its expiry time:
+			enqueueDur := expiry.Sub(time.Now()) + 60*time.Second
+			clusterDeploymentLog.Debugf("cluster will re-sync due to expiry time in: %v", enqueueDur)
+			c.enqueueAfter(clusterDeployment, enqueueDur)
+		}
 	}
 
 	if !hasClusterDeploymentFinalizer(clusterDeployment) {
