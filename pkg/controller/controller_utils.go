@@ -765,3 +765,18 @@ func DeleteFinalizer(object metav1.Object, finalizer string) {
 	finalizers.Delete(finalizer)
 	object.SetFinalizers(finalizers.List())
 }
+
+// GetSecretNameFromMachineSetSpec will retrieve the secret name holding AWS credentials
+// from a machcinesetspec if it exists. Otherwise it will return an empty string.
+func GetSecretNameFromMachineSetSpec(msSpec *clusteroperator.MachineSetSpec) (string, error) {
+	secretName := ""
+	if msSpec.ClusterHardware.AWS == nil {
+		return "", fmt.Errorf("no AWS cluster hardware set on machine spec")
+	}
+
+	if msSpec.ClusterHardware.AWS.AccountSecret.Name != "" {
+		secretName = msSpec.ClusterHardware.AWS.AccountSecret.Name
+	}
+
+	return secretName, nil
+}

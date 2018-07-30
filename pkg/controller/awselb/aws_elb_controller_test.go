@@ -127,7 +127,7 @@ func TestSyncMachine(t *testing.T) {
 
 			ctrlr := NewController(capiInformers.Cluster().V1alpha1().Machines(),
 				kubeClient, clustopClient, capiClient)
-			ctrlr.clientBuilder = func(kubeClient kubernetes.Interface, mSpec *clustopv1.MachineSetSpec, namespace, region string) (clustopaws.Client, error) {
+			ctrlr.clientBuilder = func(kubeClient kubernetes.Interface, secretName, namespace, region string) (clustopaws.Client, error) {
 				return mockAWSClient, nil
 			}
 

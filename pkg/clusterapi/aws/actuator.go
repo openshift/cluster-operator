@@ -82,7 +82,7 @@ type Actuator struct {
 	codecFactory            serializer.CodecFactory
 	defaultAvailabilityZone string
 	logger                  *log.Entry
-	clientBuilder           func(kubeClient kubernetes.Interface, mSpec *cov1.MachineSetSpec, namespace, region string) (Client, error)
+	clientBuilder           func(kubeClient kubernetes.Interface, secretName, namespace, region string) (Client, error)
 	userDataGenerator       func(master, infra bool) (string, error)
 }
 
@@ -147,9 +147,15 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 
 	region := clusterSpec.Hardware.Region
 	mLog.Debugf("Obtaining EC2 client for region %q", region)
-	client, err := a.clientBuilder(a.kubeClient, coMachineSetSpec, machine.Namespace, region)
+
+	secretName, err := controller.GetSecretNameFromMachineSetSpec(coMachineSetSpec)
 	if err != nil {
-		return nil, fmt.Errorf("unable to obtain EC2 client: %v", err)
+		return nil, err
+	}
+
+	client, err := a.clientBuilder(a.kubeClient, secretName, machine.Namespace, region)
+	if err != nil {
+		return nil, fmt.Errorf("unable to obtain AWS client: %v", err)
 	}
 
 	// We explicitly do NOT want to remove stopped masters.
@@ -352,11 +358,13 @@ func (a *Actuator) DeleteMachine(machine *clusterv1.Machine) error {
 		return err
 	}
 
-	if coMachineSetSpec.ClusterHardware.AWS == nil {
-		return fmt.Errorf("machine does not contain AWS hardware spec")
+	secretName, err := controller.GetSecretNameFromMachineSetSpec(coMachineSetSpec)
+	if err != nil {
+		return err
 	}
+
 	region := coMachineSetSpec.ClusterHardware.AWS.Region
-	client, err := a.clientBuilder(a.kubeClient, coMachineSetSpec, machine.Namespace, region)
+	client, err := a.clientBuilder(a.kubeClient, secretName, machine.Namespace, region)
 	if err != nil {
 		return fmt.Errorf("error getting EC2 client: %v", err)
 	}
@@ -390,9 +398,14 @@ func (a *Actuator) Update(cluster *clusterv1.Cluster, machine *clusterv1.Machine
 		return err
 	}
 
+	secretName, err := controller.GetSecretNameFromMachineSetSpec(coMachineSetSpec)
+	if err != nil {
+		return err
+	}
+
 	region := clusterSpec.Hardware.Region
 	mLog.WithField("region", region).Debugf("obtaining EC2 client for region")
-	client, err := a.clientBuilder(a.kubeClient, coMachineSetSpec, machine.Namespace, region)
+	client, err := a.clientBuilder(a.kubeClient, secretName, machine.Namespace, region)
 	if err != nil {
 		return fmt.Errorf("unable to obtain EC2 client: %v", err)
 	}
@@ -444,11 +457,13 @@ func (a *Actuator) Exists(cluster *clusterv1.Cluster, machine *clusterv1.Machine
 		return false, err
 	}
 
-	if coMachineSetSpec.ClusterHardware.AWS == nil {
-		return false, fmt.Errorf("machineSet does not contain AWS hardware spec")
+	secretName, err := controller.GetSecretNameFromMachineSetSpec(coMachineSetSpec)
+	if err != nil {
+		return false, err
 	}
+
 	region := coMachineSetSpec.ClusterHardware.AWS.Region
-	client, err := a.clientBuilder(a.kubeClient, coMachineSetSpec, machine.Namespace, region)
+	client, err := a.clientBuilder(a.kubeClient, secretName, machine.Namespace, region)
 	if err != nil {
 		return false, fmt.Errorf("error getting EC2 client: %v", err)
 	}

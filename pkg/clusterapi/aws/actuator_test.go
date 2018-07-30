@@ -348,7 +348,7 @@ func TestCreateMachine(t *testing.T) {
 			}, nil)
 
 			actuator := NewActuator(kubeClient, capiClient, log.WithField("test", "TestActuator"), "us-east-1c")
-			actuator.clientBuilder = func(kubeClient kubernetes.Interface, mSpec *clustopv1.MachineSetSpec, namespace, region string) (Client, error) {
+			actuator.clientBuilder = func(kubeClient kubernetes.Interface, secretName, namespace, region string) (Client, error) {
 				return mockAWSClient, nil
 			}
 			actuator.userDataGenerator = func(master, infra bool) (string, error) {
@@ -454,7 +454,7 @@ func TestUpdate(t *testing.T) {
 			}
 
 			actuator := NewActuator(kubeClient, capiClient, log.WithField("test", "TestActuator"), "us-east-1c")
-			actuator.clientBuilder = func(kubeClient kubernetes.Interface, mSpec *clustopv1.MachineSetSpec, namespace, region string) (Client, error) {
+			actuator.clientBuilder = func(kubeClient kubernetes.Interface, secretName, namespace, region string) (Client, error) {
 				return mockAWSClient, nil
 			}
 
@@ -555,7 +555,7 @@ func TestDeleteMachine(t *testing.T) {
 			}
 
 			actuator := NewActuator(kubeClient, capiClient, log.WithField("test", "TestActuator"), "us-east-1c")
-			actuator.clientBuilder = func(kubeClient kubernetes.Interface, mSpec *clustopv1.MachineSetSpec, namespace, region string) (Client, error) {
+			actuator.clientBuilder = func(kubeClient kubernetes.Interface, secretName, namespace, region string) (Client, error) {
 				return mockAWSClient, nil
 			}
 

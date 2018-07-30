@@ -29,8 +29,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	"github.com/aws/aws-sdk-go/service/elb"
 	"github.com/aws/aws-sdk-go/service/elb/elbiface"
-
-	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 )
 
 //go:generate mockgen -source=./client.go -destination=./mock/client_generated.go -package=mock
@@ -89,29 +87,24 @@ func (c *awsClient) RegisterInstancesWithLoadBalancer(input *elb.RegisterInstanc
 // For authentication the underlying clients will use either the cluster AWS credentials
 // secret if defined (i.e. in the root cluster),
 // otherwise the IAM profile of the master where the actuator will run. (target clusters)
-func NewClient(kubeClient kubernetes.Interface, mSpec *cov1.MachineSetSpec, namespace, region string) (Client, error) {
+func NewClient(kubeClient kubernetes.Interface, secretName, namespace, region string) (Client, error) {
 	awsConfig := &aws.Config{Region: aws.String(region)}
 
-	if mSpec.ClusterHardware.AWS == nil {
-		return nil, fmt.Errorf("no AWS cluster hardware set on machine spec")
-	}
-
-	// If the cluster specifies an AWS credentials secret and it exists, use it for our client credentials:
-	if mSpec.ClusterHardware.AWS.AccountSecret.Name != "" {
+	if secretName != "" {
 		secret, err := kubeClient.CoreV1().Secrets(namespace).Get(
-			mSpec.ClusterHardware.AWS.AccountSecret.Name, metav1.GetOptions{})
+			secretName, metav1.GetOptions{})
 		if err != nil {
 			return nil, err
 		}
 		accessKeyID, ok := secret.Data[awsCredsSecretIDKey]
 		if !ok {
 			return nil, fmt.Errorf("AWS credentials secret %v did not contain key %v",
-				mSpec.ClusterHardware.AWS.AccountSecret.Name, awsCredsSecretIDKey)
+				secretName, awsCredsSecretIDKey)
 		}
 		secretAccessKey, ok := secret.Data[awsCredsSecretAccessKey]
 		if !ok {
 			return nil, fmt.Errorf("AWS credentials secret %v did not contain key %v",
-				mSpec.ClusterHardware.AWS.AccountSecret.Name, awsCredsSecretAccessKey)
+				secretName, awsCredsSecretAccessKey)
 		}
 
 		awsConfig.Credentials = credentials.NewStaticCredentials(
