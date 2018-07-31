@@ -88,6 +88,9 @@ objects:
           - name: cluster-apiserver-certs
             mountPath: /var/run/cluster-api-apiserver
             readOnly: true
+          - name: cluster-operator
+            mountPath: /opt/services/cluster-operator
+            readOnly: true
           args:
           - "cluster-api-server"
           - "--etcd-servers=http://localhost:2379"
@@ -177,6 +180,9 @@ objects:
         - name: cluster-apiserver-certs
           secret:
             secretName: cluster-apiserver-certs
+        - name: cluster-operator
+          hostPath:
+            path: /usr/bin/cluster-operator
 
 - apiVersion: apps/v1beta1
   kind: Deployment
@@ -204,6 +210,10 @@ objects:
           imagePullPolicy: ${CLUSTER_API_IMAGE_PULL_POLICY}
           args:
           - "cluster-api-controller-manager"
+          volumeMounts:
+          - name: cluster-operator
+            mountPath: /opt/services/cluster-operator
+            readOnly: true
           resources:
             requests:
               cpu: 100m
@@ -215,6 +225,10 @@ objects:
         restartPolicy: Always
         securityContext: {}
         terminationGracePeriodSeconds: 30
+        volumes:
+        - name: cluster-operator
+          hostPath:
+            path: /usr/bin/cluster-operator
 
 - apiVersion: v1
   kind: Secret
@@ -312,6 +326,45 @@ objects:
     kind: ServiceAccount
     name: cluster-api-controller-manager
     namespace: ${CLUSTER_API_NAMESPACE}
+
+- allowHostDirVolumePlugin: true
+  allowHostIPC: false
+  allowHostNetwork: false
+  allowHostPID: false
+  allowHostPorts: false
+  allowPrivilegedContainer: false
+  allowedCapabilities: null
+  apiVersion: security.openshift.io/v1
+  defaultAddCapabilities: null
+  fsGroup:
+    type: MustRunAs
+  groups: []
+  kind: SecurityContextConstraints
+  metadata:
+    name: hostmount-restricted-clusterapi-svc
+  readOnlyRootFilesystem: false
+  requiredDropCapabilities:
+  - KILL
+  - MKNOD
+  - SETUID
+  - SETGID
+  runAsUser:
+    type: MustRunAsRange
+  seLinuxContext:
+    type: MustRunAs
+  supplementalGroups:
+    type: RunAsAny
+  users:
+  - system:serviceaccount:${CLUSTER_API_NAMESPACE}:cluster-api-controller-manager
+  - system:serviceaccount:${CLUSTER_API_NAMESPACE}:cluster-api-apiserver
+  volumes:
+  - configMap
+  - downwardAPI
+  - emptyDir
+  - persistentVolumeClaim
+  - projected
+  - secret
+  - hostPath
 
 parameters:
 # namespace to install clusterapi services onto
