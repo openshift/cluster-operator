@@ -19,13 +19,10 @@ package main
 import (
 	"os"
 
-	_ "github.com/go-openapi/loads"
-	_ "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"github.com/kubernetes-incubator/apiserver-builder/pkg/cmd/server"
-	_ "k8s.io/client-go/plugin/pkg/client/auth" // Enable cloud provider auth
 
-	"sigs.k8s.io/cluster-api/pkg/apis"
+	capis "sigs.k8s.io/cluster-api/pkg/apis"
+	"sigs.k8s.io/cluster-api/pkg/openapi"
 
 	"github.com/openshift/cluster-operator/pkg/hyperkube"
 )
@@ -36,11 +33,12 @@ func NewClusterAPIServer() *hyperkube.Server {
 
 	// APIServer parameters
 	etcdPath := "/registry/k8s.io"
-	apis := apis.GetAllApiBuilders()
+	apis := capis.GetAllApiBuilders()
 	serverStopCh := make(chan struct{})
 	title := "Api"
 	version := "v0"
 
+	server.GetOpenApiDefinition = openapi.GetOpenAPIDefinitions
 	// APIServer command
 	cmd, _ := server.NewCommandStartServer(etcdPath, os.Stdout, os.Stderr, apis, serverStopCh, title, version)
 

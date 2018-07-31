@@ -86,7 +86,7 @@
       certgen_ca_name: "{{ apiserver_ca_name }}"
       certgen_cert_name: "apiserver"
       certgen_cn: cluster-operator-apiserver
-      certgen_alt_names: "\"cluster-operator-apiserver.{{ cluster_operator_namespace }}\",\"cluster-operator-apiserver.{{ cluster_operator_namespace }}.svc\""
+      certgen_alt_names: "\"cluster-operator-apiserver.{{ cluster_operator_namespace }}\",\"cluster-operator-apiserver.{{ cluster_operator_namespace }}.svc\",\"clusster-api-apiserver\",\"cluster-api-apiserver.{{ cluster_operator_namespace }}\",\"cluster-api-apiserver.{{ cluster_operator_namespace }}.svc\""
 
   # These are expected locations of the files given the directory and names provided when
   # we called the role.

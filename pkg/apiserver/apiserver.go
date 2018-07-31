@@ -20,7 +20,6 @@ import (
 	cov1alpha1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	serverstorage "k8s.io/apiserver/pkg/server/storage"
-	cav1alpha1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 )
 
 // ClusterOperatorAPIServer contains the base GenericAPIServer along with other
@@ -39,7 +38,6 @@ func DefaultAPIResourceConfigSource() *serverstorage.ResourceConfig {
 	ret := serverstorage.NewResourceConfig()
 	ret.EnableVersions(
 		cov1alpha1.SchemeGroupVersion,
-		cav1alpha1.SchemeGroupVersion,
 	)
 
 	return ret
