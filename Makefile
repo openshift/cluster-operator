@@ -281,7 +281,7 @@ test-unit: .init build .generate_mocks
 
 test-integration: .init build
 	@echo Running integration tests:
-	$(DOCKER_CMD) go test -race $(TEST_FLAGS) \
+	$(DOCKER_CMD) go test -parallel 1 -race $(TEST_FLAGS) \
 	  $(addprefix $(CLUSTER_OPERATOR_PKG)/,$(INT_TEST_DIRS)) $(TEST_LOG_FLAGS)
 
 clean-e2e:

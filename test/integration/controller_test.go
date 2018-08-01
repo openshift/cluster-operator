@@ -37,6 +37,7 @@ import (
 	// avoid error `clusteroperator/v1alpha1 is not enabled`
 	_ "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/install"
 
+	capiservertesting "github.com/openshift/cluster-operator/cmd/cluster-api-apiserver/testing"
 	servertesting "github.com/openshift/cluster-operator/cmd/cluster-operator-apiserver/app/testing"
 	clustopv1alpha1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	clustopclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
@@ -49,7 +50,6 @@ import (
 	infracontroller "github.com/openshift/cluster-operator/pkg/controller/infra"
 	mastercontroller "github.com/openshift/cluster-operator/pkg/controller/master"
 	nodeconfigcontroller "github.com/openshift/cluster-operator/pkg/controller/nodeconfig"
-	capicommon "sigs.k8s.io/cluster-api/pkg/apis/cluster/common"
 	capiv1alpha1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	capiclientset "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 	capifakeclientset "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset/fake"
@@ -179,6 +179,7 @@ func TestClusterCreate(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			kubeClient, _, clustopClient, capiClient, _, tearDown := startServerAndControllers(t)
+
 			defer tearDown()
 
 			clusterVersion := &clustopv1alpha1.ClusterVersion{
@@ -341,6 +342,9 @@ func startServerAndControllers(t *testing.T) (
 	// start the cluster-operator api server
 	apiServerClientConfig, shutdownServer := servertesting.StartTestServerOrDie(t)
 
+	// start the cluster-api api server
+	capiServerClientConfig, shutdownCapiServer := capiservertesting.StartTestServerOrDie(t)
+
 	// create a cluster-operator client
 	clustopClient, err := clustopclientset.NewForConfig(apiServerClientConfig)
 	if err != nil {
@@ -348,7 +352,7 @@ func startServerAndControllers(t *testing.T) (
 	}
 
 	// create a cluster-api client
-	capiClient, err := capiclientset.NewForConfig(apiServerClientConfig)
+	capiClient, err := capiclientset.NewForConfig(capiServerClientConfig)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -474,6 +478,8 @@ func startServerAndControllers(t *testing.T) (
 		wg.Wait()
 		// Shut down api server
 		shutdownServer()
+		// Shut down capi server
+		shutdownCapiServer()
 	}
 
 	return fakeKubeClient, kubeWatch, clustopClient, capiClient, fakeCAPIClient, shutdown
