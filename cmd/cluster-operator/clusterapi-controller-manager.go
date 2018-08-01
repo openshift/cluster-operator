@@ -57,7 +57,6 @@ func NewClusterAPIControllerManager(programName string) *hyperkube.Server {
 			case <-stopCh:
 				return nil
 			}
-			return nil
 		},
 		RespectsStopCh: false,
 	}
