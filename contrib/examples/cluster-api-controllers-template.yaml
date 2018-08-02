@@ -46,6 +46,7 @@ objects:
           command:
           - ${MACHINE_CONTROLLER_ENTRYPOINT}
           args:
+          - aws-machine-controller
           - --log-level=debug
           - --default-availability-zone=${DEFAULT_AVAILABILITY_ZONE}
           volumeMounts:
@@ -138,4 +139,4 @@ parameters:
 - name: MACHINE_CONTROLLER_IMAGESTREAM
   value: cluster-operator
 - name: MACHINE_CONTROLLER_ENTRYPOINT
-  value: /opt/services/aws-machine-controller
+  value: /opt/services/cluster-operator

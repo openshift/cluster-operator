@@ -39,9 +39,8 @@ objects:
         - name: machine-controller
           image: ${MACHINE_CONTROLLER_IMAGE}
           imagePullPolicy: ${MACHINE_CONTROLLER_IMAGE_PULL_POLICY}
-          command:
-          - /opt/services/aws-machine-controller
           args:
+          - aws-machine-controller
           - --log-level=debug
           - --default-availability-zone=${DEFAULT_AVAILABILITY_ZONE}
           volumeMounts:

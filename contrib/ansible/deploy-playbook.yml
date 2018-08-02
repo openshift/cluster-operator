@@ -34,7 +34,7 @@
 
     fake_deployment: False
     machine_controller_imagestream: "cluster-operator"
-    machine_controller_entrypoint: "/opt/services/aws-machine-controller"
+    machine_controller_entrypoint: "/opt/services/cluster-operator"
 
   tasks:
   - import_role:
