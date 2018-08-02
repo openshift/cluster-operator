@@ -31,7 +31,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/client-go/kubernetes"
 
-	capicommon "sigs.k8s.io/cluster-api/pkg/apis/cluster/common"
 	clusterv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	clusterclient "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 
@@ -133,8 +132,6 @@ func (a *Actuator) removeStoppedMachine(machine *clusterv1.Machine, client Clien
 func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.Machine) (*ec2.Instance, error) {
 	mLog := clustoplog.WithMachine(a.logger, machine)
 
-	isMaster := controller.MachineHasRole(machine, capicommon.MasterRole)
-
 	// Extract cluster operator cluster
 	clusterSpec, err := controller.AWSClusterProviderConfigFromCluster(cluster)
 	if err != nil {
@@ -145,6 +142,8 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 	if err != nil {
 		return nil, err
 	}
+
+	isMaster := coMachineSetSpec.NodeType == cov1.NodeTypeMaster
 
 	region := clusterSpec.Hardware.Region
 	mLog.Debugf("Obtaining EC2 client for region %q", region)
@@ -220,7 +219,7 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 	}
 
 	// Determine security groups
-	describeSecurityGroupsInput := buildDescribeSecurityGroupsInput(vpcID, cluster.Name, controller.MachineHasRole(machine, capicommon.MasterRole), coMachineSetSpec.Infra)
+	describeSecurityGroupsInput := buildDescribeSecurityGroupsInput(vpcID, cluster.Name, isMaster, coMachineSetSpec.Infra)
 	describeSecurityGroupsOutput, err := client.DescribeSecurityGroups(describeSecurityGroupsInput)
 	if err != nil {
 		return nil, err
@@ -300,7 +299,7 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 	// Only compute nodes should get user data, and it's quite important that masters do not as the
 	// AWS actuator for these is running on the root CO cluster currently, and we do not want to leak
 	// root CO cluster bootstrap kubeconfigs to the target cluster.
-	userData, err := a.userDataGenerator(controller.MachineHasRole(machine, capicommon.MasterRole), coMachineSetSpec.Infra)
+	userData, err := a.userDataGenerator(isMaster, coMachineSetSpec.Infra)
 	if err != nil {
 		return nil, err
 	}
@@ -637,7 +636,7 @@ func getBootstrapKubeconfig() (string, error) {
 }
 
 func iamRole(machine *clusterv1.Machine, clusterID string) string {
-	if controller.MachineHasRole(machine, capicommon.MasterRole) {
+	if isMaster, err := controller.MachineIsMaster(machine); isMaster && err == nil {
 		return masterIAMRole + "_" + clusterID
 	}
 	return defaultIAMRole + "_" + clusterID

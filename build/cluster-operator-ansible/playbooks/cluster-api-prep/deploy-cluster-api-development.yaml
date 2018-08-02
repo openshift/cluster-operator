@@ -17,12 +17,18 @@
       dest: /usr/bin/aws-machine-controller
       setype: container_file_t
       mode: 0755
-
+  - name: copy cluster operator binary to master
+    copy:
+      src: files/cluster-operator
+      dest: /usr/bin/cluster-operator
+      setype: container_file_t
+      mode: 0755
 - hosts: masters[0]
   gather_facts: no
   tasks:
   - name: set machine controller template
     set_fact:
       machine_controller_template: machine-controller-template-dev.yaml
+      cluster_api_template: cluster-api-template-dev.yaml
 
 - import_playbook: deploy-cluster-api-common.yaml

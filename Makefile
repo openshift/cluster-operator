@@ -202,9 +202,6 @@ $(BINDIR)/e2e.test: .init
 	sed "s/GO_VERSION/$(GO_VERSION)/g" < build/build-image/Dockerfile | \
 	  docker build -t clusteroperatorbuildimage -
 
-.apiServerBuilderImage: .clusterOperatorBuildImage build/apiserver-builder/Dockerfile
-	docker build -t apiserverbuilderimage ./build/apiserver-builder
-
 # Util targets
 ##############
 .PHONY: verify verify-generated verify-client-gen verify-mocks
@@ -284,7 +281,7 @@ test-unit: .init build .generate_mocks
 
 test-integration: .init build
 	@echo Running integration tests:
-	$(DOCKER_CMD) go test -race $(TEST_FLAGS) \
+	$(DOCKER_CMD) go test -parallel 1 -race $(TEST_FLAGS) \
 	  $(addprefix $(CLUSTER_OPERATOR_PKG)/,$(INT_TEST_DIRS)) $(TEST_LOG_FLAGS)
 
 clean-e2e:
@@ -372,6 +369,7 @@ OA_ANSIBLE_BRANCH ?= release-3.10
 define build-cluster-operator-ansible-image #(repo, branch, imagename, tag, clusterapi_playbook)
         cp build/cluster-operator-ansible/playbooks/cluster-api-prep/$5 build/cluster-operator-ansible/playbooks/cluster-api-prep/deploy-cluster-api.yaml
         cp bin/aws-machine-controller build/cluster-operator-ansible/playbooks/cluster-api-prep/files
+	cp bin/cluster-operator build/cluster-operator-ansible/playbooks/cluster-api-prep/files
 	docker build -t "$3:$4" --build-arg=CO_ANSIBLE_URL=$1 --build-arg=CO_ANSIBLE_BRANCH=$2 build/cluster-operator-ansible
 endef
 
@@ -398,15 +396,6 @@ playbook-mock-image: build/playbook-mock/Dockerfile $(BINDIR)/coutil
 	$(call build-and-tag,"playbook-mock",$(PLAYBOOK_MOCK_IMAGE),$(PLAYBOOK_MOCK_MUTABLE_IMAGE))
 	docker tag $(PLAYBOOK_MOCK_IMAGE) $(REGISTRY)playbook-mock:$(VERSION)
 	docker tag $(PLAYBOOK_MOCK_MUTABLE_IMAGE) $(REGISTRY)playbook-mock:$(MUTABLE_TAG)
-
-.PHONY: $(CLUSTERAPI_BIN)/apiserver
-$(CLUSTERAPI_BIN)/apiserver: .apiServerBuilderImage
-	mkdir -p $(PWD)/$(CLUSTERAPI_BIN) && docker run --security-opt label:disable -v $(PWD)/$(CLUSTERAPI_BIN):/output --entrypoint=/bin/bash apiserverbuilderimage -c "export GOPATH=/go && mkdir -p /go/src/sigs.k8s.io/cluster-api && cd /go/src/sigs.k8s.io/cluster-api && git clone https://github.com/kubernetes-sigs/cluster-api.git . && apiserver-boot build executables --generate=false && touch /output/controller-manager /output/apiserver && cp bin/* /output"
-
-.PHONY: kubernetes-cluster-api
-kubernetes-cluster-api: $(CLUSTERAPI_BIN)/apiserver build/clusterapi-image/Dockerfile
-	cp build/clusterapi-image/Dockerfile $(CLUSTERAPI_BIN)
-	docker build -t clusterapi ./$(CLUSTERAPI_BIN)
 
 .PHONY: aws-machine-controller-image
 aws-machine-controller-image: build/aws-machine-controller/Dockerfile $(BINDIR)/aws-machine-controller

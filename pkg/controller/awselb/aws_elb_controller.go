@@ -38,7 +38,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/elb"
 
-	capicommon "sigs.k8s.io/cluster-api/pkg/apis/cluster/common"
 	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	capiclient "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 	informers "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions/cluster/v1alpha1"
@@ -130,7 +129,12 @@ type Controller struct {
 func (c *Controller) addMachine(obj interface{}) {
 	machine := obj.(*capiv1.Machine)
 
-	if !controller.MachineHasRole(machine, capicommon.MasterRole) {
+	isMaster, err := controller.MachineIsMaster(machine)
+	if err != nil {
+		utilruntime.HandleError(fmt.Errorf("Couldn't decode provider config from %#v: %v", machine, err))
+		return
+	}
+	if !isMaster {
 		clustoplog.WithMachine(c.logger, machine).Debug("skipping non-master machine")
 		return
 	}
@@ -143,7 +147,12 @@ func (c *Controller) updateMachine(old, cur interface{}) {
 	oldMachine := old.(*capiv1.Machine)
 	curMachine := cur.(*capiv1.Machine)
 
-	if !controller.MachineHasRole(curMachine, capicommon.MasterRole) {
+	isMaster, err := controller.MachineIsMaster(curMachine)
+	if err != nil {
+		utilruntime.HandleError(fmt.Errorf("Couldn't decode provider config from %#v: %v", curMachine, err))
+		return
+	}
+	if !isMaster {
 		clustoplog.WithMachine(c.logger, curMachine).Debug("skipping non-master machine")
 		return
 	}
@@ -168,7 +177,13 @@ func (c *Controller) deleteMachine(obj interface{}) {
 		}
 	}
 
-	if !controller.MachineHasRole(machine, capicommon.MasterRole) {
+	isMaster, err := controller.MachineIsMaster(machine)
+	if err != nil {
+		utilruntime.HandleError(fmt.Errorf("Couldn't decode provider config from %#v: %v", machine, err))
+		return
+	}
+
+	if !isMaster {
 		clustoplog.WithMachine(c.logger, machine).Debug("skipping non-master machine")
 		return
 	}

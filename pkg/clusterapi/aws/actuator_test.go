@@ -32,7 +32,6 @@ import (
 	mockaws "github.com/openshift/cluster-operator/pkg/clusterapi/aws/mock"
 	"github.com/openshift/cluster-operator/pkg/controller"
 
-	capicommon "sigs.k8s.io/cluster-api/pkg/apis/cluster/common"
 	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	capiclientfake "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset/fake"
 
@@ -776,11 +775,6 @@ func testMachine(name, clusterName string, nodeType clustopv1.NodeType, isInfra 
 				Value: rawProviderConfig,
 			},
 		},
-	}
-	if nodeType == clustopv1.NodeTypeMaster {
-		machine.Spec.Roles = []capicommon.MachineRole{capicommon.MasterRole}
-	} else {
-		machine.Spec.Roles = []capicommon.MachineRole{capicommon.NodeRole}
 	}
 	if currentStatus != nil {
 		/*

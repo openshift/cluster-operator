@@ -17,32 +17,30 @@ limitations under the License.
 package api
 
 import (
+	"k8s.io/apimachinery/pkg/apimachinery/announced"
+	"k8s.io/apimachinery/pkg/apimachinery/registered"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
 
-	co_install "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/install"
-
-	"github.com/kubernetes-incubator/apiserver-builder/pkg/builders"
-	ca_install "sigs.k8s.io/cluster-api/pkg/apis/cluster/install"
+	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/install"
 )
 
 var (
-	groupFactoryRegistry = builders.GroupFactoryRegistry
+	groupFactoryRegistry = make(announced.APIGroupFactoryRegistry)
 	// Registry is an instance of an API registry.
-	Registry = builders.Registry
+	Registry = registered.NewOrDie("")
 	// Scheme for API object types
-	Scheme = builders.Scheme
+	Scheme = runtime.NewScheme()
 	// ParameterCodec handles versioning of objects that are converted to query parameters.
 	ParameterCodec = runtime.NewParameterCodec(Scheme)
 	// Codecs for creating a server config
-	Codecs = builders.Codecs
+	Codecs = serializer.NewCodecFactory(Scheme)
 )
 
 func init() {
-	co_install.Install(groupFactoryRegistry, Registry, Scheme)
-
-	ca_install.Install(groupFactoryRegistry, Registry, Scheme)
+	install.Install(groupFactoryRegistry, Registry, Scheme)
 
 	// we need to add the options to empty v1
 	// TODO fix the server code to avoid this

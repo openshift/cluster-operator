@@ -12,5 +12,6 @@
   - name: set machine controller template
     set_fact:
       machine_controller_template: machine-controller-template.yaml
+      cluster_api_template: cluster-api-template.yaml
 
 - import_playbook: deploy-cluster-api-common.yaml

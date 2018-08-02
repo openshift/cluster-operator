@@ -39,7 +39,6 @@ import (
 	"github.com/openshift/cluster-operator/pkg/api"
 	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	clustoplister "github.com/openshift/cluster-operator/pkg/client/listers_generated/clusteroperator/v1alpha1"
-	capicommon "sigs.k8s.io/cluster-api/pkg/apis/cluster/common"
 	clusterapi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	capilister "sigs.k8s.io/cluster-api/pkg/client/listers_generated/cluster/v1alpha1"
 )
@@ -635,24 +634,32 @@ func GetMasterMachineSet(cluster *clusteroperator.CombinedCluster, machineSetLis
 	if err != nil {
 		return nil, err
 	}
-	for _, ms := range machineSets {
-		for _, role := range ms.Spec.Template.Spec.Roles {
-			if role == capicommon.MasterRole {
-				return ms, nil
-			}
+	// Given that compute/infra machinesets get created on the target cluster, only
+	// the master machineset is expected to exist.
+	for _, machineSet := range machineSets {
+		if machineSet.DeletionTimestamp.IsZero() {
+			return machineSet, nil
 		}
 	}
 	return nil, fmt.Errorf("no master machineset found")
 }
 
-// MachineHasRole returns true if the machine has the given cluster-api role.
-func MachineHasRole(machine *clusterapi.Machine, role capicommon.MachineRole) bool {
-	for _, r := range machine.Spec.Roles {
-		if r == role {
-			return true
-		}
+// MachineIsMaster returns true if the machine is part of a cluster's control plane
+func MachineIsMaster(machine *clusterapi.Machine) (bool, error) {
+	coMachineSetSpec, err := MachineSetSpecFromClusterAPIMachineSpec(&machine.Spec)
+	if err != nil {
+		return false, err
 	}
-	return false
+	return coMachineSetSpec.NodeType == clusteroperator.NodeTypeMaster, nil
+}
+
+// MachineIsInfra returns true if the machine is part of a cluster's control plane
+func MachineIsInfra(machine *clusterapi.Machine) (bool, error) {
+	coMachineSetSpec, err := MachineSetSpecFromClusterAPIMachineSpec(&machine.Spec)
+	if err != nil {
+		return false, err
+	}
+	return coMachineSetSpec.Infra, nil
 }
 
 // ELBMasterExternalName gets the name of the external master ELB for the cluster

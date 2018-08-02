@@ -41,7 +41,6 @@ import (
 	"github.com/openshift/cluster-operator/pkg/controller"
 	"github.com/openshift/cluster-operator/pkg/kubernetes/pkg/util/metrics"
 	"github.com/openshift/cluster-operator/pkg/logging"
-	capicommon "sigs.k8s.io/cluster-api/pkg/apis/cluster/common"
 	capi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	capiclientset "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 	capiinformers "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions/cluster/v1alpha1"
@@ -345,12 +344,12 @@ func (c *Controller) handleErr(err error, key interface{}) {
 }
 
 func isMasterMachineSet(machineSet *capi.MachineSet) bool {
-	for _, role := range machineSet.Spec.Template.Spec.Roles {
-		if role == capicommon.MasterRole {
-			return true
-		}
+	coMachineSetSpec, err := controller.MachineSetSpecFromClusterAPIMachineSpec(&machineSet.Spec.Template.Spec)
+	if err != nil {
+		utilruntime.HandleError(fmt.Errorf("Couldn't decode provider config from %#v: %v", machineSet, err))
+		return false
 	}
-	return false
+	return coMachineSetSpec.NodeType == clustop.NodeTypeMaster
 }
 
 type jobFactory func(string) (*v1batch.Job, *kapi.ConfigMap, error)

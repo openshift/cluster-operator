@@ -27,3 +27,5 @@ import:
 - package: github.com/stretchr/testify
 - package: github.com/openshift/api
 - package: github.com/openshift/client-go
+- package: github.com/go-openapi/analysis
+  version: 8ed83f2ea9f00f945516462951a288eaa68bf0d6

@@ -64,7 +64,7 @@
 
   - name: copy main template over
     copy:
-      src: files/cluster-api-template.yaml
+      src: "files/{{ cluster_api_template }}"
       dest: "{{ temp_dir.path }}/cluster-api-template.yaml"
 
   - name: copy machine controller template over

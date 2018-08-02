@@ -32,7 +32,6 @@ import (
 
 	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 
-	clustercommon "sigs.k8s.io/cluster-api/pkg/apis/cluster/common"
 	clusterapi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 )
 
@@ -834,9 +833,7 @@ func newClusterVersion(name string) *clusteroperator.ClusterVersion {
 }
 
 func newMachineSpec(msSpec *clusteroperator.MachineSetSpec) clusterapi.MachineSpec {
-	ms := clusterapi.MachineSpec{
-		Roles: []clustercommon.MachineRole{"Master"},
-	}
+	ms := clusterapi.MachineSpec{}
 	providerConfig, _ := MachineProviderConfigFromMachineSetSpec(msSpec)
 	ms.ProviderConfig.Value = providerConfig
 	return ms

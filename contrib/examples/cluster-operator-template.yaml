@@ -47,7 +47,9 @@ objects:
   metadata:
     name: cluster-operator
     namespace: ${CLUSTER_OPERATOR_NAMESPACE}
-  spec: {}
+  spec:
+    lookupPolicy:
+      local: true
 
 - kind: BuildConfig
   apiVersion: build.openshift.io/v1
@@ -102,6 +104,7 @@ objects:
           automatic: true
           containerNames:
             - "apiserver"
+            - "clusterapiserver"
           from:
             kind: "ImageStreamTag"
             name: "cluster-operator:latest"
@@ -122,7 +125,6 @@ objects:
           - -v
           - "10"
           image: cluster-operator:latest
-          name: apiserver
           ports:
           - containerPort: 6443
             protocol: TCP
@@ -144,6 +146,42 @@ objects:
           livenessProbe:
             httpGet:
               port: 6443
+              path: /healthz
+              scheme: HTTPS
+            failureThreshold: 3
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 2
+        - name: clusterapiserver
+          args:
+          - "cluster-api-server"
+          - "--etcd-servers=http://localhost:2379"
+          - "--tls-cert-file=/var/run/cluster-api-apiserver/apiserver.crt"
+          - "--tls-private-key-file=/var/run/cluster-api-apiserver/apiserver.key"
+          - "--secure-port=7443"
+          image: cluster-operator:latest
+          ports:
+          - containerPort: 7443
+            protocol: TCP
+          terminationMessagePath: /dev/termination-log
+          volumeMounts:
+          - mountPath: /var/run/cluster-api-apiserver
+            name: apiserver-ssl
+            readOnly: true
+          readinessProbe:
+            httpGet:
+              port: 7443
+              path: /healthz
+              scheme: HTTPS
+            failureThreshold: 3
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 2
+          livenessProbe:
+            httpGet:
+              port: 7443
               path: /healthz
               scheme: HTTPS
             failureThreshold: 3
@@ -306,6 +344,25 @@ objects:
       targetPort: 6443
       nodePort: 30443
 
+# Service for the Cluster API Server
+- kind: Service
+  apiVersion: v1
+  metadata:
+    name: cluster-api-apiserver
+    namespace: ${CLUSTER_OPERATOR_NAMESPACE}
+    labels:
+      app: cluster-operator-apiserver
+  spec:
+    type: NodePort
+    selector:
+      app: cluster-operator-apiserver
+    ports:
+    - name: secure
+      protocol: TCP
+      port: 443
+      targetPort: 7443
+      nodePort: 30444
+
 # Registration of the cluster-operator API with the aggregator
 - apiVersion: apiregistration.k8s.io/v1beta1
   kind: APIService
@@ -333,7 +390,7 @@ objects:
     version: v1alpha1
     service:
       namespace: ${CLUSTER_OPERATOR_NAMESPACE}
-      name: cluster-operator-apiserver
+      name: cluster-api-apiserver
     caBundle: ${SERVING_CA}
     groupPriorityMinimum: 10000
     versionPriority: 20

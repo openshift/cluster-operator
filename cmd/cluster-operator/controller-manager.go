@@ -24,11 +24,6 @@ import (
 	"github.com/openshift/cluster-operator/pkg/hyperkube"
 )
 
-const (
-	// program name for debug builds
-	debugProgramName = "debug"
-)
-
 // NewControllerManager creates a new hyperkube Server object that includes the
 // description and flags.
 func NewControllerManager(programName string) *hyperkube.Server {

@@ -68,8 +68,8 @@ objects:
           secret:
             secretName: bootstrap-kubeconfig
 
-- apiVersion: apps/v1beta1
-  kind: Deployment
+- kind: DeploymentConfig
+  apiVersion: apps.openshift.io/v1
   metadata:
     name: cluster-api-controller-manager
     namespace: ${CLUSTER_API_NAMESPACE}
@@ -77,9 +77,20 @@ objects:
       app: cluster-api-controller-manager
   spec:
     selector:
-      matchLabels:
-        app: cluster-api-controller-manager
+      app: cluster-api-controller-manager
+    triggers:
+      - type: "ConfigChange"
+      - type: "ImageChange"
+        imageChangeParams:
+          automatic: true
+          containerNames:
+            - "controller-manager"
+          from:
+            # Uses the same ImageStream as our main controllers:
+            kind: "ImageStreamTag"
+            name: "${MACHINE_CONTROLLER_IMAGESTREAM}:latest"
     replicas: 1
+    revisionHistoryLimit: 4
     template:
       metadata:
         labels:
@@ -88,10 +99,10 @@ objects:
         serviceAccountName: cluster-api-controller-manager
         containers:
         - name: controller-manager
-          image: ${CLUSTER_API_IMAGE}
+          image: " "
           imagePullPolicy: ${IMAGE_PULL_POLICY}
-          command:
-          - "./controller-manager"
+          args:
+          - cluster-api-controller-manager
           resources:
             requests:
               cpu: 100m
@@ -117,9 +128,6 @@ parameters:
 - name: CLUSTER_API_NAMESPACE
   value: openshift-cluster-operator
 # location of cluster-api container image
-- name: CLUSTER_API_IMAGE
-  value: registry.svc.ci.openshift.org/openshift-cluster-operator/kubernetes-cluster-api:latest
-# machine controller image
 - name: DEFAULT_AVAILABILITY_ZONE
   value: us-east-1c
 # pull policy (for testing)
