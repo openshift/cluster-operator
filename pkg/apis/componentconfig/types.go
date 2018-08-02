@@ -70,6 +70,11 @@ type ControllerManagerConfiguration struct {
 	// This should be used only for testing.
 	ClusterOperatorInsecureSkipVerify bool
 
+	// ClusterOperatorSkipAPIServerWait controls whether the controller manager should
+	// wait for the types registered by the cluster operator API Server. Useful in deployments
+	// where the Cluster Operator API server is not used. (in remote clusters)
+	ClusterOperatorSkipAPIServerWait bool
+
 	// minResyncPeriod is the resync period in reflectors; will be random between
 	// minResyncPeriod and 2*minResyncPeriod.
 	MinResyncPeriod metav1.Duration
@@ -111,6 +116,11 @@ type ControllerManagerConfiguration struct {
 	// allowed to sync concurrently in the controller which adds them to the internal/external master ELBs.
 	// Larger number = more responsive master machines, but more CPU (and network) load.
 	ConcurrentELBMachineSyncs int32
+
+	// ConcurrentNodeLinkSyncs is the number of node objects that are
+	// allowed to sync concurrently in the controller which links them to their respective machines.
+	// Larger number = more responsive node linking, but more CPU (and network) load.
+	ConcurrentNodeLinkSyncs int32
 
 	// leaderElection defines the configuration of leader election client.
 	LeaderElection componentconfig.LeaderElectionConfiguration

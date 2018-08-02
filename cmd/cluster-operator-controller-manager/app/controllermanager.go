@@ -70,6 +70,7 @@ import (
 	"github.com/openshift/cluster-operator/pkg/controller/infra"
 	"github.com/openshift/cluster-operator/pkg/controller/master"
 	"github.com/openshift/cluster-operator/pkg/controller/nodeconfig"
+	"github.com/openshift/cluster-operator/pkg/controller/nodelink"
 	"github.com/openshift/cluster-operator/pkg/controller/remotemachineset"
 	"github.com/openshift/cluster-operator/pkg/version"
 	cav1alpha1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
@@ -320,7 +321,7 @@ func KnownControllers() []string {
 
 // ControllersDisabledByDefault are the names of the controllers that are
 // disabled by default.
-var ControllersDisabledByDefault = sets.NewString()
+var ControllersDisabledByDefault = sets.NewString("nodelink")
 
 // NewControllerInitializers is a public map of named controller groups (you can start more than one in an init func)
 // paired to their InitFunc.  This allows for structured downstream composition and subdivision.
@@ -334,6 +335,7 @@ func NewControllerInitializers() map[string]InitFunc {
 	controllers["deployclusterapi"] = startDeployClusterAPIController
 	controllers["clusterdeployment"] = startClusterDeploymentController
 	controllers["awselb"] = startAWSELBController
+	controllers["nodelink"] = startNodeLinkController
 	controllers["remotemachineset"] = startRemoteMachineSetController
 
 	return controllers
@@ -344,34 +346,8 @@ func NewControllerInitializers() map[string]InitFunc {
 // TODO: In general, any controller checking this needs to be dynamic so
 //  users don't have to restart their controller manager if they change the apiserver.
 // Until we get there, the structure here needs to be exposed for the construction of a proper ControllerContext.
-func GetAvailableResources(clientBuilder controller.ClientBuilder) (map[schema.GroupVersionResource]bool, error) {
+func GetAvailableResources(clientBuilder controller.ClientBuilder, resourceGroups []resourceGroup) (map[schema.GroupVersionResource]bool, error) {
 	var allResources = make(map[schema.GroupVersionResource]bool)
-
-	resourceGroups := []struct {
-		discoveryClientFn func() (discovery.DiscoveryInterface, error)
-		groupVersion      string
-	}{
-		{
-			discoveryClientFn: func() (discovery.DiscoveryInterface, error) {
-				coClient, err := clientBuilder.Client("controller-discovery")
-				if err != nil {
-					return nil, err
-				}
-				return coClient.Discovery(), nil
-			},
-			groupVersion: cov1alpha1.SchemeGroupVersion.String(),
-		},
-		{
-			discoveryClientFn: func() (discovery.DiscoveryInterface, error) {
-				capiClient, err := clientBuilder.ClusterAPIClient("controller-discovery")
-				if err != nil {
-					return nil, err
-				}
-				return capiClient.Discovery(), nil
-			},
-			groupVersion: cav1alpha1.SchemeGroupVersion.String(),
-		},
-	}
 
 	errc := make(chan error, len(resourceGroups))
 	resourcesc := make(chan []schema.GroupVersionResource, len(resourceGroups))
@@ -464,6 +440,11 @@ func waitForAPIServer(discoveryClientFn func() (discovery.DiscoveryInterface, er
 	return resources, nil
 }
 
+type resourceGroup struct {
+	discoveryClientFn func() (discovery.DiscoveryInterface, error)
+	groupVersion      string
+}
+
 // CreateControllerContext creates a context struct containing references to resources needed by the
 // controllers such as the clientBuilder.
 func CreateControllerContext(s *options.CMServer, clientBuilder controller.ClientBuilder, stop <-chan struct{}) (ControllerContext, error) {
@@ -474,7 +455,34 @@ func CreateControllerContext(s *options.CMServer, clientBuilder controller.Clien
 	kubeSharedInformers := kubeinformers.NewSharedInformerFactory(kubeClient, ResyncPeriod(s)())
 	capiInformers := capiinformers.NewSharedInformerFactory(capiClient, ResyncPeriod(s)())
 
-	availableResources, err := GetAvailableResources(clientBuilder)
+	resourceGroups := []resourceGroup{
+		{
+			discoveryClientFn: func() (discovery.DiscoveryInterface, error) {
+				capiClient, err := clientBuilder.ClusterAPIClient("controller-discovery")
+				if err != nil {
+					return nil, err
+				}
+				return capiClient.Discovery(), nil
+			},
+			groupVersion: cav1alpha1.SchemeGroupVersion.String(),
+		},
+	}
+
+	if !s.ClusterOperatorSkipAPIServerWait {
+		resourceGroups = append(resourceGroups,
+			resourceGroup{
+				discoveryClientFn: func() (discovery.DiscoveryInterface, error) {
+					coClient, err := clientBuilder.Client("controller-discovery")
+					if err != nil {
+						return nil, err
+					}
+					return coClient.Discovery(), nil
+				},
+				groupVersion: cov1alpha1.SchemeGroupVersion.String(),
+			})
+	}
+
+	availableResources, err := GetAvailableResources(clientBuilder, resourceGroups)
 	if err != nil {
 		return ControllerContext{}, err
 	}
@@ -632,6 +640,19 @@ func startAWSELBController(ctx ControllerContext) (bool, error) {
 		ctx.ClientBuilder.ClientOrDie("clusteroperator-awselb-controller"),
 		ctx.ClientBuilder.ClusterAPIClientOrDie("clusteroperator-awselb-controller"),
 	).Run(int(ctx.Options.ConcurrentELBMachineSyncs), ctx.Stop)
+	return true, nil
+}
+
+func startNodeLinkController(ctx ControllerContext) (bool, error) {
+	if !clusterAPIResourcesAvailable(ctx) {
+		return false, nil
+	}
+	go nodelink.NewController(
+		ctx.KubeInformerFactory.Core().V1().Nodes(),
+		ctx.ClusterAPIInformerFactory.Cluster().V1alpha1().Machines(),
+		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-nodelink-controller"),
+		ctx.ClientBuilder.ClusterAPIClientOrDie("clusteroperator-nodelink-controller"),
+	).Run(int(ctx.Options.ConcurrentNodeLinkSyncs), ctx.Stop)
 	return true, nil
 }
 

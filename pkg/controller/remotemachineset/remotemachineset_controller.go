@@ -19,6 +19,7 @@ package remotemachineset
 import (
 	"bytes"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/golang/glog"
@@ -485,7 +486,13 @@ func (c *Controller) syncMachineSets(clusterDeployment *cov1.ClusterDeployment, 
 			if ms.Name == rMS.Name {
 				found = true
 				// TODO what other fields do we want to check for?
-				if *rMS.Spec.Replicas != *ms.Spec.Replicas {
+				// labels and taints
+				c.logger.Debugf("rMS labels: %v", rMS.Spec.Template.Spec.Labels)
+				c.logger.Debugf("ms labels: %v", ms.Spec.Template.Spec.Labels)
+
+				if *rMS.Spec.Replicas != *ms.Spec.Replicas ||
+					!reflect.DeepEqual(rMS.Spec.Template.Spec.Labels, ms.Spec.Template.Spec.Labels) ||
+					!reflect.DeepEqual(rMS.Spec.Template.Spec.Taints, ms.Spec.Template.Spec.Taints) {
 					machineSetsToUpdate = append(machineSetsToUpdate, ms)
 				}
 				break

@@ -217,7 +217,7 @@ func TestClusterSyncing(t *testing.T) {
 			// Mock that the informer's cache has a cluster api cluster object in it.
 			ctx.clusterStore.Add(&capiCluster)
 
-			// Mock that the informer's cache has a cluster opertaor cluster deployment in it.
+			// Mock that the informer's cache has a cluster operator cluster deployment in it.
 			ctx.clusterDeploymentStore.Add(tc.clusterDeployment)
 
 			// Act

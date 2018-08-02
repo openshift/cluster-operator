@@ -369,7 +369,7 @@ OA_ANSIBLE_BRANCH ?= release-3.10
 define build-cluster-operator-ansible-image #(repo, branch, imagename, tag, clusterapi_playbook)
         cp build/cluster-operator-ansible/playbooks/cluster-api-prep/$5 build/cluster-operator-ansible/playbooks/cluster-api-prep/deploy-cluster-api.yaml
         cp bin/aws-machine-controller build/cluster-operator-ansible/playbooks/cluster-api-prep/files
-	cp bin/cluster-operator build/cluster-operator-ansible/playbooks/cluster-api-prep/files
+        cp bin/cluster-operator build/cluster-operator-ansible/playbooks/cluster-api-prep/files
 	docker build -t "$3:$4" --build-arg=CO_ANSIBLE_URL=$1 --build-arg=CO_ANSIBLE_BRANCH=$2 build/cluster-operator-ansible
 endef
 

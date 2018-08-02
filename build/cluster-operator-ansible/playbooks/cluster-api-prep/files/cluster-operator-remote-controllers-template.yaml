@@ -1,0 +1,97 @@
+########
+#
+# Template for deploying the Cluster Operator Controllers that run in the target cluster.
+#
+# Parameters:
+#   CLUSTER_API_NAMESPACE: namespace to hold clusterapi objects/services
+#   CONTROLLER_IMAGE: machine controller image reference
+#   CONTROLLER_IMAGE_PULL_POLICY: pull policy for machine controller image
+#
+########
+
+apiVersion: v1
+kind: Template
+metadata:
+  name: cluster-operator-controllers-template
+
+objects:
+- apiVersion: apps/v1beta1
+  kind: Deployment
+  metadata:
+    name: cluster-operator-remote-controller-manager
+    namespace: ${CLUSTER_API_NAMESPACE}
+    labels:
+      app: cluster-operator-remote-controller
+  spec:
+    selector:
+      matchLabels:
+        app: cluster-operator-remote-controller
+    replicas: 1
+    template:
+      metadata:
+        labels:
+          app: cluster-operator-remote-controller
+      spec:
+        serviceAccountName: cluster-api-controller-manager
+        nodeSelector:
+          node-role.kubernetes.io/master: "true"
+        containers:
+        - name: cluster-operator-controllers
+          image: ${CONTROLLER_IMAGE}
+          imagePullPolicy: ${CONTROLLER_IMAGE_PULL_POLICY}
+          command:
+          - /opt/services/cluster-operator
+          args:
+          - controller-manager
+          - --port
+          - "8080"
+          - --leader-election-namespace
+          - ${CLUSTER_API_NAMESPACE}
+          - --leader-elect-resource-lock
+          - "configmaps"
+          - --profiling
+          - "false"
+          - --contention-profiling
+          - "false"
+          - -v
+          - "1"
+          - --log-level
+          - "debug"
+          - --controllers
+          - "nodelink"
+          - --clusteroperator-skip-apiserver-wait
+          resources:
+            requests:
+              cpu: 100m
+              memory: 20Mi
+            limits:
+              cpu: 100m
+              memory: 30Mi
+          ports:
+          - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              port: 8080
+              path: /healthz
+            failureThreshold: 1
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 2
+          livenessProbe:
+            httpGet:
+              port: 8080
+              path: /healthz
+            failureThreshold: 3
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 2
+
+parameters:
+# namespace to install clusterapi services onto
+- name: CLUSTER_API_NAMESPACE
+  value: kube-cluster
+- name: CONTROLLER_IMAGE
+- name: CONTROLLER_IMAGE_PULL_POLICY
+  value: Always

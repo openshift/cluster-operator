@@ -631,12 +631,25 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								},
 							},
 						},
+						"nodeTaints": {
+							SchemaProps: spec.SchemaProps{
+								Description: "NodeTaints specifies the taints that should be applied to nodes in this MachineSet. This list is authoritative and will always be reconciled to the node, fully replacing past values.",
+								Type:        []string{"array"},
+								Items: &spec.SchemaOrArray{
+									Schema: &spec.Schema{
+										SchemaProps: spec.SchemaProps{
+											Ref: ref("k8s.io/api/core/v1.Taint"),
+										},
+									},
+								},
+							},
+						},
 					},
-					Required: []string{"shortName", "nodeType", "infra", "size", "nodeLabels"},
+					Required: []string{"shortName", "nodeType", "infra", "size", "nodeLabels", "nodeTaints"},
 				},
 			},
 			Dependencies: []string{
-				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetHardwareSpec"},
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetHardwareSpec", "k8s.io/api/core/v1.Taint"},
 		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterProviderStatus": {
 			Schema: spec.Schema{
@@ -1131,12 +1144,25 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								},
 							},
 						},
+						"nodeTaints": {
+							SchemaProps: spec.SchemaProps{
+								Description: "NodeTaints specifies the taints that should be applied to nodes in this MachineSet. This list is authoritative and will always be reconciled to the node, fully replacing past values.",
+								Type:        []string{"array"},
+								Items: &spec.SchemaOrArray{
+									Schema: &spec.Schema{
+										SchemaProps: spec.SchemaProps{
+											Ref: ref("k8s.io/api/core/v1.Taint"),
+										},
+									},
+								},
+							},
+						},
 					},
-					Required: []string{"nodeType", "infra", "size", "nodeLabels"},
+					Required: []string{"nodeType", "infra", "size", "nodeLabels", "nodeTaints"},
 				},
 			},
 			Dependencies: []string{
-				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetHardwareSpec"},
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetHardwareSpec", "k8s.io/api/core/v1.Taint"},
 		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetHardwareSpec": {
 			Schema: spec.Schema{
@@ -1220,6 +1246,19 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								},
 							},
 						},
+						"nodeTaints": {
+							SchemaProps: spec.SchemaProps{
+								Description: "NodeTaints specifies the taints that should be applied to nodes in this MachineSet. This list is authoritative and will always be reconciled to the node, fully replacing past values.",
+								Type:        []string{"array"},
+								Items: &spec.SchemaOrArray{
+									Schema: &spec.Schema{
+										SchemaProps: spec.SchemaProps{
+											Ref: ref("k8s.io/api/core/v1.Taint"),
+										},
+									},
+								},
+							},
+						},
 						"clusterHardware": {
 							SchemaProps: spec.SchemaProps{
 								Description: "ClusterHardware specifies the hardware that the cluster will run on. It is typically a copy of the clusters data and set automatically by controllers.",
@@ -1239,11 +1278,11 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 							},
 						},
 					},
-					Required: []string{"nodeType", "infra", "size", "nodeLabels", "clusterHardware", "clusterVersionRef", "vmImage"},
+					Required: []string{"nodeType", "infra", "size", "nodeLabels", "nodeTaints", "clusterHardware", "clusterVersionRef", "vmImage"},
 				},
 			},
 			Dependencies: []string{
-				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterHardwareSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetHardwareSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.VMImage", "k8s.io/api/core/v1.ObjectReference", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterHardwareSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetHardwareSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.VMImage", "k8s.io/api/core/v1.ObjectReference", "k8s.io/api/core/v1.Taint", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetSpec": {
 			Schema: spec.Schema{
@@ -1291,6 +1330,19 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								},
 							},
 						},
+						"nodeTaints": {
+							SchemaProps: spec.SchemaProps{
+								Description: "NodeTaints specifies the taints that should be applied to nodes in this MachineSet. This list is authoritative and will always be reconciled to the node, fully replacing past values.",
+								Type:        []string{"array"},
+								Items: &spec.SchemaOrArray{
+									Schema: &spec.Schema{
+										SchemaProps: spec.SchemaProps{
+											Ref: ref("k8s.io/api/core/v1.Taint"),
+										},
+									},
+								},
+							},
+						},
 						"clusterHardware": {
 							SchemaProps: spec.SchemaProps{
 								Description: "ClusterHardware specifies the hardware that the cluster will run on. It is typically a copy of the clusters data and set automatically by controllers.",
@@ -1310,11 +1362,11 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 							},
 						},
 					},
-					Required: []string{"nodeType", "infra", "size", "nodeLabels", "clusterHardware", "clusterVersionRef", "vmImage"},
+					Required: []string{"nodeType", "infra", "size", "nodeLabels", "nodeTaints", "clusterHardware", "clusterVersionRef", "vmImage"},
 				},
 			},
 			Dependencies: []string{
-				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterHardwareSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetHardwareSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.VMImage", "k8s.io/api/core/v1.ObjectReference"},
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterHardwareSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetHardwareSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.VMImage", "k8s.io/api/core/v1.ObjectReference", "k8s.io/api/core/v1.Taint"},
 		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.OpenShiftConfigVersion": {
 			Schema: spec.Schema{
