@@ -123,7 +123,7 @@ type Controller struct {
 	queue workqueue.RateLimitingInterface
 
 	logger        log.FieldLogger
-	clientBuilder func(kubeClient kubernetes.Interface, mSpec *clustopv1.MachineSetSpec, namespace, region string) (clustopaws.Client, error)
+	clientBuilder func(kubeClient kubernetes.Interface, secretName, namespace, region string) (clustopaws.Client, error)
 }
 
 func (c *Controller) addMachine(obj interface{}) {
@@ -325,7 +325,12 @@ func (c *Controller) processMachine(machine *capiv1.Machine) error {
 		}
 	}
 
-	client, err := c.clientBuilder(c.kubeClient, coMachineSetSpec, machine.Namespace, region)
+	secretName, err := controller.GetSecretNameFromMachineSetSpec(coMachineSetSpec)
+	if err != nil {
+		return err
+	}
+
+	client, err := c.clientBuilder(c.kubeClient, secretName, machine.Namespace, region)
 	if err != nil {
 		return err
 	}
