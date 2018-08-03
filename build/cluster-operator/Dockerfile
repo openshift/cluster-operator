@@ -20,6 +20,5 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
     rm -rf /var/lib/apt/lists/*
 
 ADD cluster-operator opt/services/
-ADD aws-machine-controller opt/services/
 
 ENTRYPOINT ["/opt/services/cluster-operator"]

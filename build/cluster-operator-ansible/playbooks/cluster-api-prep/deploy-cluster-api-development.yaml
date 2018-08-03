@@ -11,12 +11,6 @@
   gather_facts: no
   remote_user: root
   tasks:
-  - name: copy machine controller binary to master
-    copy:
-      src: files/aws-machine-controller
-      dest: /usr/bin/aws-machine-controller
-      setype: container_file_t
-      mode: 0755
   - name: copy cluster operator binary to master
     copy:
       src: files/cluster-operator

@@ -42,16 +42,16 @@ objects:
           image: ${MACHINE_CONTROLLER_IMAGE}
           imagePullPolicy: ${MACHINE_CONTROLLER_IMAGE_PULL_POLICY}
           command:
-          - /opt/services/aws-machine-controller
           args:
+          - aws-machine-controller
           - --log-level=debug
           - --default-availability-zone=${DEFAULT_AVAILABILITY_ZONE}
           volumeMounts:
           - name: bootstrap-kubeconfig
             mountPath: /etc/origin/master
             readOnly: true
-          - name: aws-machine-controller
-            mountPath: /opt/services/aws-machine-controller
+          - name: cluster-operator
+            mountPath: /opt/services/cluster-operator
             readOnly: true
           resources:
             requests:
@@ -65,9 +65,9 @@ objects:
         securityContext: {}
         terminationGracePeriodSeconds: 30
         volumes:
-        - name: aws-machine-controller
+        - name: cluster-operator
           hostPath:
-            path: /usr/bin/aws-machine-controller
+            path: /usr/bin/cluster-operator
         - name: bootstrap-kubeconfig
           secret:
             secretName: bootstrap-kubeconfig

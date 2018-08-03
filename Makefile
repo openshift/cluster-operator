@@ -75,9 +75,6 @@ FAKE_OPENSHIFT_ANSIBLE_IMAGE         = $(REGISTRY)fake-openshift-ansible:$(VERSI
 FAKE_OPENSHIFT_ANSIBLE_MUTABLE_IMAGE = $(REGISTRY)fake-openshift-ansible:$(MUTABLE_TAG)
 PLAYBOOK_MOCK_IMAGE                  = $(REGISTRY)playbook-mock:$(VERSION)
 PLAYBOOK_MOCK_MUTABLE_IMAGE          = $(REGISTRY)playbook-mock:$(MUTABLE_TAG)
-AWS_MACHINE_CONTROLLER_IMAGE         = $(REGISTRY)aws-machine-controller:$(VERSION)
-AWS_MACHINE_CONTROLLER_MUTABLE_IMAGE = $(REGISTRY)aws-machine-controller:$(MUTABLE_TAG)
-AWS_MACHINE_CONTROLLER_PUBLIC_IMAGE  = $(PUBLIC_REGISTRY)aws-machine-controller:latest
 FAKE_MACHINE_CONTROLLER_IMAGE         = $(REGISTRY)fake-machine-controller:$(VERSION)
 FAKE_MACHINE_CONTROLLER_MUTABLE_IMAGE = $(REGISTRY)fake-machine-controller:$(MUTABLE_TAG)
 CLUSTER_API_DEPLOYMENT_PLAYBOOK       = deploy-cluster-api-production.yaml
@@ -114,19 +111,14 @@ NON_VENDOR_DIRS = $(shell $(DOCKER_CMD) glide nv)
 build: .init .generate_files \
 	$(BINDIR)/cluster-operator \
 	$(BINDIR)/fake-openshift-ansible \
-	$(BINDIR)/aws-machine-controller \
 	$(BINDIR)/fake-machine-controller \
+	$(BINDIR)/coutil \
 	$(BINDIR)/wait-for-cluster-ready
 
 .PHONY: $(BINDIR)/cluster-operator
 cluster-operator: $(BINDIR)/cluster-operator
 $(BINDIR)/cluster-operator: .init .generate_files
 	$(DOCKER_CMD) $(GO_BUILD) -o $@ $(CLUSTER_OPERATOR_PKG)/cmd/cluster-operator
-
-.PHONY: $(BINDIR)/aws-machine-controller
-aws-machine-controller: $(BINDIR)/aws-machine-controller
-$(BINDIR)/aws-machine-controller: .init
-	$(DOCKER_CMD) $(GO_BUILD) -o $@ $(CLUSTER_OPERATOR_PKG)/cmd/aws-machine-controller
 
 .PHONY: $(BINDIR)/fake-machine-controller
 fake-machine-controller: $(BINDIR)/fake-machine-controller
@@ -331,7 +323,6 @@ images: cluster-operator-image \
         playbook-mock-image \
 	cluster-operator-ansible-images \
 	fake-openshift-ansible-image \
-	aws-machine-controller-image \
 	fake-machine-controller-image \
 	$(BINDIR)/wait-for-cluster-ready \
 	$(BINDIR)/coutil
@@ -356,7 +347,7 @@ define build-and-tag # (service, image, mutable_image, prefix)
 	rm -rf $(tmp_build_path)
 endef
 
-cluster-operator-image: build/cluster-operator/Dockerfile $(BINDIR)/cluster-operator $(BINDIR)/aws-machine-controller
+cluster-operator-image: build/cluster-operator/Dockerfile $(BINDIR)/cluster-operator
 	$(call build-and-tag,"cluster-operator",$(CLUSTER_OPERATOR_IMAGE),$(CLUSTER_OPERATOR_MUTABLE_IMAGE))
 ifeq ($(ARCH),amd64)
 	docker tag $(CLUSTER_OPERATOR_IMAGE) $(REGISTRY)cluster-operator:$(VERSION)
@@ -368,12 +359,11 @@ OA_ANSIBLE_BRANCH ?= release-3.10
 
 define build-cluster-operator-ansible-image #(repo, branch, imagename, tag, clusterapi_playbook)
         cp build/cluster-operator-ansible/playbooks/cluster-api-prep/$5 build/cluster-operator-ansible/playbooks/cluster-api-prep/deploy-cluster-api.yaml
-        cp bin/aws-machine-controller build/cluster-operator-ansible/playbooks/cluster-api-prep/files
-        cp bin/cluster-operator build/cluster-operator-ansible/playbooks/cluster-api-prep/files
+	cp bin/cluster-operator build/cluster-operator-ansible/playbooks/cluster-api-prep/files
 	docker build -t "$3:$4" --build-arg=CO_ANSIBLE_URL=$1 --build-arg=CO_ANSIBLE_BRANCH=$2 build/cluster-operator-ansible
 endef
 
-cluster-operator-ansible-images: build/cluster-operator-ansible/Dockerfile build/cluster-operator-ansible/playbooks/cluster-api-prep/deploy-cluster-api-production.yaml build/cluster-operator-ansible/playbooks/cluster-api-prep/deploy-cluster-api-development.yaml build/cluster-operator-ansible/playbooks/cluster-api-prep/files/cluster-api-template.yaml build/cluster-operator-ansible/playbooks/cluster-operator/node-config-daemonset.yml $(BINDIR)/aws-machine-controller
+cluster-operator-ansible-images: build/cluster-operator-ansible/Dockerfile build/cluster-operator-ansible/playbooks/cluster-api-prep/deploy-cluster-api-production.yaml build/cluster-operator-ansible/playbooks/cluster-api-prep/deploy-cluster-api-development.yaml build/cluster-operator-ansible/playbooks/cluster-api-prep/files/cluster-api-template.yaml build/cluster-operator-ansible/playbooks/cluster-operator/node-config-daemonset.yml
 	# build v3.9 on openshift-ansible:release-3.9
 	$(call build-cluster-operator-ansible-image,$(OA_ANSIBLE_URL),"release-3.9",$(CLUSTER_OPERATOR_ANSIBLE_IMAGE_NAME),"v3.9",$(CLUSTER_API_DEPLOYMENT_PLAYBOOK))
 
@@ -396,12 +386,6 @@ playbook-mock-image: build/playbook-mock/Dockerfile $(BINDIR)/coutil
 	$(call build-and-tag,"playbook-mock",$(PLAYBOOK_MOCK_IMAGE),$(PLAYBOOK_MOCK_MUTABLE_IMAGE))
 	docker tag $(PLAYBOOK_MOCK_IMAGE) $(REGISTRY)playbook-mock:$(VERSION)
 	docker tag $(PLAYBOOK_MOCK_MUTABLE_IMAGE) $(REGISTRY)playbook-mock:$(MUTABLE_TAG)
-
-.PHONY: aws-machine-controller-image
-aws-machine-controller-image: build/aws-machine-controller/Dockerfile $(BINDIR)/aws-machine-controller
-	$(call build-and-tag,"aws-machine-controller",$(AWS_MACHINE_CONTROLLER_IMAGE),$(AWS_MACHINE_CONTROLLER_MUTABLE_IMAGE))
-	docker tag $(AWS_MACHINE_CONTROLLER_IMAGE) $(AWS_MACHINE_CONTROLLER_MUTABLE_IMAGE)
-	docker tag $(AWS_MACHINE_CONTROLLER_IMAGE) $(AWS_MACHINE_CONTROLLER_PUBLIC_IMAGE)
 
 .PHONY: fake-machine-controller-image
 fake-machine-controller-image: build/fake-machine-controller/Dockerfile $(BINDIR)/fake-machine-controller

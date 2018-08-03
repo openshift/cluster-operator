@@ -35,6 +35,7 @@ func main() {
 	hk.AddServer(NewControllerManager(os.Args[0]))
 	hk.AddServer(NewClusterAPIServer())
 	hk.AddServer(NewClusterAPIControllerManager(os.Args[0]))
+	hk.AddServer(NewAWSMachineController(os.Args[0]))
 
 	hk.RunToExit(os.Args)
 }
