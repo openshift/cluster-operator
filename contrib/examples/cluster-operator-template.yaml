@@ -58,6 +58,7 @@ objects:
       app: cluster-operator-apiserver
     replicas: 1
     revisionHistoryLimit: 4
+    test: false
     # NOTE: can't do Rolling here yet, the new etcd container can't come up due to a lock on the snap/db
     # in the persistent volume which is held by the running deployment.
     strategy:
@@ -225,6 +226,9 @@ objects:
   spec:
     selector:
       app: cluster-operator-controller-manager
+    test: false
+    strategy:
+      type: Recreate
     triggers:
       - type: "ConfigChange"
       - type: "ImageChange"

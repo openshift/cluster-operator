@@ -20,6 +20,9 @@ objects:
   spec:
     selector:
       app: aws-machine-controller
+    test: false
+    strategy:
+      type: Recreate
     triggers:
       - type: "ConfigChange"
       - type: "ImageChange"
@@ -78,6 +81,9 @@ objects:
   spec:
     selector:
       app: cluster-api-controller-manager
+    test: false
+    strategy:
+      type: Recreate
     triggers:
       - type: "ConfigChange"
       - type: "ImageChange"
