@@ -21,6 +21,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	"time"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -166,6 +168,16 @@ func TestSync(t *testing.T) {
 			existingCluster:    testCluster(),
 			existingMachineSet: testMasterMachineSet(),
 		},
+		{
+			name:              "delete expired cluster deployment",
+			clusterDeployment: testExpiredClusterDeployment(),
+			existingCluster:   testCluster(),
+			expectedClustopActions: []expectedClientAction{
+				clusterDeploymentDeleteAction{
+					name: testExpiredClusterDeployment().Name,
+				},
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -290,10 +302,11 @@ type expectedClientAction interface {
 func testClusterDeployment() *clustop.ClusterDeployment {
 	clusterDeployment := &clustop.ClusterDeployment{
 		ObjectMeta: metav1.ObjectMeta{
-			UID:        testClusterDeploymentUUID,
-			Name:       testClusterDeploymentName,
-			Namespace:  testNamespace,
-			Finalizers: []string{clustop.FinalizerClusterDeployment},
+			UID:         testClusterDeploymentUUID,
+			Name:        testClusterDeploymentName,
+			Namespace:   testNamespace,
+			Finalizers:  []string{clustop.FinalizerClusterDeployment},
+			Annotations: map[string]string{},
 		},
 		Spec: clustop.ClusterDeploymentSpec{
 			MachineSets: []clustop.ClusterMachineSet{
@@ -357,6 +370,13 @@ func testDeletedClusterDeployment() *clustop.ClusterDeployment {
 	clusterDeployment := testClusterDeployment()
 	now := metav1.Now()
 	clusterDeployment.DeletionTimestamp = &now
+	return clusterDeployment
+}
+
+func testExpiredClusterDeployment() *clustop.ClusterDeployment {
+	clusterDeployment := testClusterDeployment()
+	clusterDeployment.CreationTimestamp = metav1.Time{Time: metav1.Now().Add(-60 * time.Minute)}
+	clusterDeployment.Annotations[deleteAfterAnnotation] = "5m"
 	return clusterDeployment
 }
 
@@ -746,6 +766,32 @@ func (a clusterDeleteAction) verb() string {
 }
 
 func (a clusterDeleteAction) validate(t *testing.T, testName string, action clientgotesting.Action) bool {
+	deleteAction, ok := action.(clientgotesting.DeleteAction)
+	if !ok {
+		t.Errorf("%s: action is not a delete action: %t", testName, action)
+		return false
+	}
+
+	if deleteAction.GetName() != a.name {
+		t.Errorf("%s: did not get expected name, actual: %s, expected: %s", testName, deleteAction.GetName(), a.name)
+		return false
+	}
+	return true
+}
+
+type clusterDeploymentDeleteAction struct {
+	name string
+}
+
+func (a clusterDeploymentDeleteAction) resource() schema.GroupVersionResource {
+	return clustop.SchemeGroupVersion.WithResource("clusterdeployments")
+}
+
+func (a clusterDeploymentDeleteAction) verb() string {
+	return "delete"
+}
+
+func (a clusterDeploymentDeleteAction) validate(t *testing.T, testName string, action clientgotesting.Action) bool {
 	deleteAction, ok := action.(clientgotesting.DeleteAction)
 	if !ok {
 		t.Errorf("%s: action is not a delete action: %t", testName, action)
