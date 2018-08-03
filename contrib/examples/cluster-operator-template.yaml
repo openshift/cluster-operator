@@ -90,7 +90,7 @@ objects:
           - http://localhost:2379
           - -v
           - "10"
-          image: cluster-operator:latest
+          image: " "
           ports:
           - containerPort: 6443
             protocol: TCP
@@ -126,7 +126,7 @@ objects:
           - "--tls-cert-file=/var/run/cluster-api-apiserver/apiserver.crt"
           - "--tls-private-key-file=/var/run/cluster-api-apiserver/apiserver.key"
           - "--secure-port=7443"
-          image: cluster-operator:latest
+          image: " "
           ports:
           - containerPort: 7443
             protocol: TCP
