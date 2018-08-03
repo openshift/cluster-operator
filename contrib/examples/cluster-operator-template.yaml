@@ -22,12 +22,6 @@ parameters:
 # Namespace of kube-system. Do not change. Required due to oc process behavior.
 - name: KUBE_SYSTEM_NAMESPACE
   value: kube-system
-- name: GIT_REPO
-  description: Cluster Operator git repository the BuildConfig will use.
-  value: https://github.com/openshift/cluster-operator
-- name: GIT_REF
-  description: Cluster Operator git repository branch/tag/commit the BuildConfig will use.
-  value: master
 objects:
 - kind: PersistentVolumeClaim
   apiVersion: v1
@@ -50,35 +44,6 @@ objects:
   spec:
     lookupPolicy:
       local: true
-
-- kind: BuildConfig
-  apiVersion: build.openshift.io/v1
-  metadata:
-    name: cluster-operator
-    namespace: ${CLUSTER_OPERATOR_NAMESPACE}
-  spec:
-    source:
-      type: "Git"
-      git:
-        uri: ${GIT_REPO}
-        ref: ${GIT_REF}
-    strategy:
-      type: "Docker"
-      dockerStrategy:
-        from:
-          kind: DockerImage
-          name: golang:1.9
-        dockerfilePath:
-    output:
-      to:
-        kind: ImageStreamTag
-        name: cluster-operator:latest
-    triggers: []
-    nodeSelector: {}
-    successfulBuildsHistoryLimit: 3
-    failedBuildsHistoryLimit: 3
-  status:
-    lastVersion: 0
 
 # Deployment of the API Server pod
 - kind: DeploymentConfig
