@@ -22,12 +22,6 @@ parameters:
 # Namespace of kube-system. Do not change. Required due to oc process behavior.
 - name: KUBE_SYSTEM_NAMESPACE
   value: kube-system
-- name: GIT_REPO
-  description: Cluster Operator git repository the BuildConfig will use.
-  value: https://github.com/openshift/cluster-operator
-- name: GIT_REF
-  description: Cluster Operator git repository branch/tag/commit the BuildConfig will use.
-  value: master
 objects:
 - kind: PersistentVolumeClaim
   apiVersion: v1
@@ -51,35 +45,6 @@ objects:
     lookupPolicy:
       local: true
 
-- kind: BuildConfig
-  apiVersion: build.openshift.io/v1
-  metadata:
-    name: cluster-operator
-    namespace: ${CLUSTER_OPERATOR_NAMESPACE}
-  spec:
-    source:
-      type: "Git"
-      git:
-        uri: ${GIT_REPO}
-        ref: ${GIT_REF}
-    strategy:
-      type: "Docker"
-      dockerStrategy:
-        from:
-          kind: DockerImage
-          name: golang:1.9
-        dockerfilePath:
-    output:
-      to:
-        kind: ImageStreamTag
-        name: cluster-operator:latest
-    triggers: []
-    nodeSelector: {}
-    successfulBuildsHistoryLimit: 3
-    failedBuildsHistoryLimit: 3
-  status:
-    lastVersion: 0
-
 # Deployment of the API Server pod
 - kind: DeploymentConfig
   apiVersion: apps.openshift.io/v1
@@ -93,6 +58,7 @@ objects:
       app: cluster-operator-apiserver
     replicas: 1
     revisionHistoryLimit: 4
+    test: false
     # NOTE: can't do Rolling here yet, the new etcd container can't come up due to a lock on the snap/db
     # in the persistent volume which is held by the running deployment.
     strategy:
@@ -124,7 +90,7 @@ objects:
           - http://localhost:2379
           - -v
           - "10"
-          image: cluster-operator:latest
+          image: " "
           ports:
           - containerPort: 6443
             protocol: TCP
@@ -160,7 +126,7 @@ objects:
           - "--tls-cert-file=/var/run/cluster-api-apiserver/apiserver.crt"
           - "--tls-private-key-file=/var/run/cluster-api-apiserver/apiserver.key"
           - "--secure-port=7443"
-          image: cluster-operator:latest
+          image: " "
           ports:
           - containerPort: 7443
             protocol: TCP
@@ -260,6 +226,9 @@ objects:
   spec:
     selector:
       app: cluster-operator-controller-manager
+    test: false
+    strategy:
+      type: Recreate
     triggers:
       - type: "ConfigChange"
       - type: "ImageChange"
