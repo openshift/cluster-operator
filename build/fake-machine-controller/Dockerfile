@@ -14,11 +14,6 @@
 
 FROM BASEIMAGE
 
-RUN export DEBIAN_FRONTEND=noninteractive && \
-    apt-get update && \
-    apt-get install ca-certificates -y && \
-    rm -rf /var/lib/apt/lists/*
-
 COPY fake-machine-controller opt/services/fake-machine-controller
 
 ENTRYPOINT ["/opt/services/fake-machine-controller"]

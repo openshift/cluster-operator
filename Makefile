@@ -57,8 +57,7 @@ ALL_ARCH=amd64 arm arm64 ppc64le s390x
 PLATFORM?=linux
 ARCH?=amd64
 
-# TODO: Consider using busybox instead of debian
-BASEIMAGE?=gcr.io/google-containers/debian-base-$(ARCH):0.2
+BASEIMAGE?=centos:7
 
 GO_BUILD       = env GOOS=$(PLATFORM) GOARCH=$(ARCH) go build -i $(GOFLAGS) \
                    -ldflags "-X $(CLUSTER_OPERATOR_PKG)/pkg.VERSION=$(VERSION) $(BUILD_LDFLAGS)"

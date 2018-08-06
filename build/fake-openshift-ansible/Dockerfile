@@ -15,6 +15,6 @@
 # If we're building this image, assuming canary mutable tag should exist:
 FROM cluster-operator-ansible:canary
 
-ADD fake-openshift-ansible /usr/local/bin
+COPY fake-openshift-ansible /usr/local/bin
 
 ENTRYPOINT ["/usr/local/bin/fake-openshift-ansible"]

@@ -14,11 +14,6 @@
 
 FROM BASEIMAGE
 
-RUN export DEBIAN_FRONTEND=noninteractive && \
-    apt-get update && \
-    apt-get install ca-certificates -y && \
-    rm -rf /var/lib/apt/lists/*
-
-ADD cluster-operator opt/services/
+COPY cluster-operator opt/services/
 
 ENTRYPOINT ["/opt/services/cluster-operator"]
