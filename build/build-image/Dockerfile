@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM golang:GO_VERSION
+FROM openshift/origin-release:golang-GO_VERSION
 
 # Avoid permission issues when glide pulls mercurial repos as root
 RUN printf "[trusted]\nusers = *\n" > /root/.hgrc

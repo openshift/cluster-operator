@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM gcr.io/google-containers/debian-base-amd64:0.2
+FROM BASEIMAGE
 
-ADD coutil /usr/sbin
+COPY coutil /usr/sbin
 
 ENTRYPOINT ["/usr/sbin/coutil", "playbook-mock"]
