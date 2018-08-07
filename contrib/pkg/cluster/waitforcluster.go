@@ -46,7 +46,6 @@ import (
 
 var log *logger.Entry
 
-
 type WaitForClusterOptions struct {
 	Name                      string
 	Namespace                 string
@@ -186,10 +185,9 @@ func (o *WaitForClusterOptions) WaitForCluster() error {
 // waitForClusterResource waits for a cluster resource with the given name to exist.
 func (o *WaitForClusterOptions) waitForClusterResource(client capiclient.Interface, name string) error {
 	log.Info("Waiting for cluster resource to be created")
-	var cluster *capiv1.Cluster
 	err := wait.PollImmediate(5*time.Second, o.ClusterResourceTimeout, func() (bool, error) {
 		var err error
-		cluster, err = client.ClusterV1alpha1().Clusters(o.Namespace).Get(name, metav1.GetOptions{})
+		_, err = client.ClusterV1alpha1().Clusters(o.Namespace).Get(name, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			log.Debug("Cluster resource does not exist yet")
 			return false, nil

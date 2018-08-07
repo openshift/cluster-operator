@@ -26,7 +26,7 @@ USER root
 RUN yum -y install dmidecode
 # End WORKAROUND
 
-RUN rm -rf ${CLONE_LOCATION}
+RUN rm -rf ${CLONE_LOCATION} && mkdir -p ${CLONE_LOCATION}
 RUN git clone ${CO_ANSIBLE_URL} ${CLONE_LOCATION} && \
     cd ${CLONE_LOCATION} && \
     git checkout ${CO_ANSIBLE_BRANCH}
