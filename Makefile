@@ -217,7 +217,7 @@ verify: .init .generate_exes verify-generated verify-client-gen verify-mocks
 	   golint --set_exit_status $$i || exit 1; \
 	  done'
 	@#
-	$(DOCKER_CMD) go vet $(NON_VENDOR_DIRS)
+	$(DOCKER_CMD) go vet ./cmd/... ./test/... ./contrib/... $(go list ./pkg/... | grep -v _generated)
 	@echo Running repo-infra verify scripts
 	@$(DOCKER_CMD) vendor/github.com/kubernetes/repo-infra/verify/verify-boilerplate.sh --rootdir=. | grep -v generated | grep -v contrib/ansible/ > .out 2>&1 || true
 	@[ ! -s .out ] || (cat .out && rm .out && false)
