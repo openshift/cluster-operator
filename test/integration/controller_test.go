@@ -307,8 +307,9 @@ func startServerAndControllers(t *testing.T) (
 	*capifakeclientset.Clientset,
 	func()) {
 
-	// create a fake kube client
-	fakePtr := clientgotesting.Fake{}
+	// Create fake kube client
+	fakeKubeClient := &kubefake.Clientset{}
+	fakePtr := &fakeKubeClient.Fake
 	scheme := runtime.NewScheme()
 	codecs := serializer.NewCodecFactory(scheme)
 	metav1.AddToGroupVersion(scheme, schema.GroupVersion{Version: "v1"})
@@ -336,8 +337,6 @@ func startServerAndControllers(t *testing.T) (
 		return handled, obj, err
 	})
 	fakePtr.AddWatchReactor("*", clientgotesting.DefaultWatchReactor(kubeWatch, nil))
-	// Create actual fake kube client
-	fakeKubeClient := &kubefake.Clientset{Fake: fakePtr}
 
 	// start the cluster-operator api server
 	apiServerClientConfig, shutdownServer := servertesting.StartTestServerOrDie(t)
