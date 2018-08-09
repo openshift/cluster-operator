@@ -71,6 +71,7 @@ import (
 	"github.com/openshift/cluster-operator/pkg/controller/master"
 	"github.com/openshift/cluster-operator/pkg/controller/nodeconfig"
 	"github.com/openshift/cluster-operator/pkg/controller/nodelink"
+	"github.com/openshift/cluster-operator/pkg/controller/registryinfra"
 	"github.com/openshift/cluster-operator/pkg/controller/remotemachineset"
 	"github.com/openshift/cluster-operator/pkg/version"
 	cav1alpha1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
@@ -337,6 +338,7 @@ func NewControllerInitializers() map[string]InitFunc {
 	controllers["awselb"] = startAWSELBController
 	controllers["nodelink"] = startNodeLinkController
 	controllers["remotemachineset"] = startRemoteMachineSetController
+	controllers["registryinfra"] = startRegistryInfraController
 
 	return controllers
 }
@@ -596,6 +598,20 @@ func startRemoteMachineSetController(ctx ControllerContext) (bool, error) {
 		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-remotemachineset-controller"),
 		ctx.ClientBuilder.ClientOrDie("clusteroperator-remotemachineset-controller"),
 	).Run(int(ctx.Options.ConcurrentRemoteMachineSetSyncs), ctx.Stop)
+	return true, nil
+}
+
+func startRegistryInfraController(ctx ControllerContext) (bool, error) {
+	if !resourcesAvailable(ctx) {
+		return false, nil
+	}
+	go registryinfra.NewController(
+		ctx.ClusterAPIInformerFactory.Cluster().V1alpha1().Clusters(),
+		ctx.InformerFactory.Clusteroperator().V1alpha1().ClusterDeployments(),
+		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-registryinfra-controller"),
+		ctx.ClientBuilder.ClientOrDie("clusteroperator-registryinfra-controller"),
+		ctx.ClientBuilder.ClusterAPIClientOrDie("clusteroperator-registryinfra-controller"),
+	).Run(int(ctx.Options.ConcurrentRegistryInfraSyncs), ctx.Stop)
 	return true, nil
 }
 

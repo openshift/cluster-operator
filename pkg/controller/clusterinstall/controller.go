@@ -426,7 +426,10 @@ func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object, deleting bool) (con
 
 	jobGeneratorExecutor := ansible.NewJobGeneratorExecutorForMasterMachineSet(s.controller.ansibleGenerator, s.controller.playbooks, cluster, cluster.AWSClusterProviderConfig.OpenShiftConfig.Version)
 	if decorateStrategy, shouldDecorate := s.controller.installStrategy.(InstallJobDecorationStrategy); shouldDecorate {
-		decorateStrategy.DecorateJobGeneratorExecutor(jobGeneratorExecutor, cluster)
+		err = decorateStrategy.DecorateJobGeneratorExecutor(jobGeneratorExecutor, cluster)
+		if err != nil {
+			return nil, fmt.Errorf("error while decorating job: %v", err)
+		}
 	}
 
 	return jobFactory(func(name string) (*v1batch.Job, *kapi.ConfigMap, error) {

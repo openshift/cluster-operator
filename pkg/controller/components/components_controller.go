@@ -17,7 +17,11 @@ limitations under the License.
 package components
 
 import (
+	"fmt"
+
 	batchv1 "k8s.io/api/batch/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	batchinformers "k8s.io/client-go/informers/batch/v1"
 	kubeclientset "k8s.io/client-go/kubernetes"
 
@@ -57,9 +61,12 @@ func NewController(
 	clustopClient clustopclientset.Interface,
 	capiClient capiclientset.Interface,
 ) *clusterinstallcontroller.Controller {
+
 	return clusterinstallcontroller.NewController(
 		controllerName,
-		&installStrategy{},
+		&installStrategy{
+			kubeClient: kubeClient,
+		},
 		playbooks,
 		clusterInformer,
 		machineSetInformer,
@@ -70,7 +77,9 @@ func NewController(
 	)
 }
 
-type installStrategy struct{}
+type installStrategy struct {
+	kubeClient kubeclientset.Interface
+}
 
 var _ clusterinstallcontroller.InstallJobDecorationStrategy = (*installStrategy)(nil)
 
@@ -88,6 +97,31 @@ func (s *installStrategy) DecorateJobGeneratorExecutor(executor *ansible.JobGene
 		return err
 	}
 	executor.WithInfraSize(infraSize)
+
+	// wait for registryinfra status so we know whether to expect a Secret with
+	// S3 bucket creds
+	if !cluster.ClusterProviderStatus.RegistryInfraCompleted == true {
+		return fmt.Errorf("need to wait for registryinfra controller to be done processing")
+	}
+
+	registrySecretFound := true
+	registryCredsSecretName := controller.RegistryCredsSecretName(cluster.Name)
+	rSecret, err := s.kubeClient.CoreV1().Secrets(cluster.Namespace).Get(registryCredsSecretName, metav1.GetOptions{})
+	if errors.IsNotFound(err) {
+		registrySecretFound = false
+	} else if err != nil {
+		return fmt.Errorf("error while checking for existing registry creds: %v", err)
+	}
+
+	accessKey := ""
+	secretKey := ""
+	if registrySecretFound {
+		accessKey = string(rSecret.Data["awsAccessKeyId"])
+		secretKey = string(rSecret.Data["awsSecretAccessKey"])
+	}
+
+	executor.WithRegistryStorageCreds(accessKey, secretKey)
+
 	return nil
 }
 

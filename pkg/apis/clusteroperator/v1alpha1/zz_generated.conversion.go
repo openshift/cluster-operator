@@ -531,6 +531,8 @@ func autoConvert_v1alpha1_ClusterProviderStatus_To_clusteroperator_ClusterProvid
 	out.ControlPlaneInstalled = in.ControlPlaneInstalled
 	out.ControlPlaneInstalledJobClusterGeneration = in.ControlPlaneInstalledJobClusterGeneration
 	out.ControlPlaneInstalledJobMachineSetGeneration = in.ControlPlaneInstalledJobMachineSetGeneration
+	out.RegistryInfraCompleted = in.RegistryInfraCompleted
+	out.RegistryInfraInstalledGeneration = in.RegistryInfraInstalledGeneration
 	out.ComponentsInstalled = in.ComponentsInstalled
 	out.ComponentsInstalledJobClusterGeneration = in.ComponentsInstalledJobClusterGeneration
 	out.ComponentsInstalledJobMachineSetGeneration = in.ComponentsInstalledJobMachineSetGeneration
@@ -561,6 +563,8 @@ func autoConvert_clusteroperator_ClusterProviderStatus_To_v1alpha1_ClusterProvid
 	out.ControlPlaneInstalled = in.ControlPlaneInstalled
 	out.ControlPlaneInstalledJobClusterGeneration = in.ControlPlaneInstalledJobClusterGeneration
 	out.ControlPlaneInstalledJobMachineSetGeneration = in.ControlPlaneInstalledJobMachineSetGeneration
+	out.RegistryInfraCompleted = in.RegistryInfraCompleted
+	out.RegistryInfraInstalledGeneration = in.RegistryInfraInstalledGeneration
 	out.ComponentsInstalled = in.ComponentsInstalled
 	out.ComponentsInstalledJobClusterGeneration = in.ComponentsInstalledJobClusterGeneration
 	out.ComponentsInstalledJobMachineSetGeneration = in.ComponentsInstalledJobMachineSetGeneration

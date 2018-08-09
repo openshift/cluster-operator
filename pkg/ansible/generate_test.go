@@ -26,7 +26,9 @@ import (
 )
 
 const (
-	imageFormat = "openshift/origin-${component}:v3.10.0"
+	imageFormat                 = "openshift/origin-${component}:v3.10.0"
+	testRegistryAccessKey       = "TESTREGISTRYACCESSKEY"
+	testRegistrySecretAccessKey = "TESTREGISTRYSECRETACCESSKEY"
 )
 
 func testClusterSpec(sshKeyPairName string) *coapi.ClusterDeploymentSpec {
@@ -83,11 +85,14 @@ func TestGenerateClusterWideVars(t *testing.T) {
 				"openshift_aws_region: us-east-1",
 				"ansible_ssh_user: centos",
 				"openshift_deployment_type: origin",
-				"openshift_hosted_registry_replicas: 1",
+				"openshift_hosted_registry_replicas: 2",
 				"openshift_portal_net: 172.30.0.0/16",
 				"osm_cluster_network_cidr: 10.128.0.0/14",
 				"os_sdn_network_plugin_name: \"fakeplugin\"",
 				"openshift_aws_enable_uninstall_shared_objects: true",
+				"openshift_hosted_manage_registry: true",
+				"openshift_hosted_registry_storage_kind: object",
+				"openshift_hosted_registry_storage_provider: s3",
 			},
 			shouldNotInclude: []string{
 				"openshift_release",
@@ -119,7 +124,15 @@ func TestGenerateClusterWideVars(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result, err := GenerateClusterWideVars(tc.clusterID, *tc.clusterSpec.Hardware.AWS, *tc.clusterVersion, tc.infraSize, tc.sdnPluginName, tc.serviceCIDRs, tc.podCIDRs)
+			result, err := GenerateClusterWideVars(tc.clusterID,
+				*tc.clusterSpec.Hardware.AWS,
+				*tc.clusterVersion,
+				tc.infraSize,
+				tc.sdnPluginName,
+				tc.serviceCIDRs,
+				tc.podCIDRs,
+				testRegistryAccessKey,
+				testRegistrySecretAccessKey)
 			assert.Nil(t, err, "%s: unexpected: %v", tc.name, err)
 			for _, str := range tc.shouldInclude {
 				assert.Contains(t, result, str, "%s: result does not contain %q", tc.name, str)

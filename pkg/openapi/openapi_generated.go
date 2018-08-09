@@ -794,6 +794,20 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Format:      "int64",
 							},
 						},
+						"registryInfraCompleted": {
+							SchemaProps: spec.SchemaProps{
+								Description: "RegistryInfraCompleted is true once the registryinfra controller has finished processing (doesn't necessarily mean S3 bucket provisioned if annotations don't want S3 configured).",
+								Type:        []string{"boolean"},
+								Format:      "",
+							},
+						},
+						"registryInfraInstalledGeneration": {
+							SchemaProps: spec.SchemaProps{
+								Description: "RegistryInfraInstalledGeneration is the generation of the Cluster used to generate the latest completed registry infrastructure sync",
+								Type:        []string{"integer"},
+								Format:      "int64",
+							},
+						},
 						"componentsInstalled": {
 							SchemaProps: spec.SchemaProps{
 								Description: "ComponentsInstalled is true if the additional components needed for the cluster have been installed",
@@ -883,7 +897,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 							},
 						},
 					},
-					Required: []string{"conditions", "provisioned", "provisionedJobGeneration", "controlPlaneInstalled", "controlPlaneInstalledJobClusterGeneration", "controlPlaneInstalledJobMachineSetGeneration", "componentsInstalled", "componentsInstalledJobClusterGeneration", "componentsInstalledJobMachineSetGeneration", "nodeConfigInstalled", "nodeConfigInstalledJobClusterGeneration", "nodeConfigInstalledJobMachineSetGeneration", "nodeConfigLastInstalled", "clusterAPIInstalled", "clusterAPIInstalledJobClusterGeneration", "clusterAPIInstalledJobMachineSetGeneration", "clusterAPIInstalledTime", "ready"},
+					Required: []string{"conditions", "provisioned", "provisionedJobGeneration", "controlPlaneInstalled", "controlPlaneInstalledJobClusterGeneration", "controlPlaneInstalledJobMachineSetGeneration", "registryInfraCompleted", "registryInfraInstalledGeneration", "componentsInstalled", "componentsInstalledJobClusterGeneration", "componentsInstalledJobMachineSetGeneration", "nodeConfigInstalled", "nodeConfigInstalledJobClusterGeneration", "nodeConfigInstalledJobMachineSetGeneration", "nodeConfigLastInstalled", "clusterAPIInstalled", "clusterAPIInstalledJobClusterGeneration", "clusterAPIInstalledJobMachineSetGeneration", "clusterAPIInstalledTime", "ready"},
 				},
 			},
 			Dependencies: []string{
