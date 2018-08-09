@@ -235,6 +235,68 @@ func FindClusterDeploymentCondition(conditions []clusteroperator.ClusterDeployme
 	return nil
 }
 
+// SetAWSMachineCondition sets the condition for the machine and
+// returns the new slice of conditions.
+// If the machine does not already have a condition with the specified type,
+// a condition will be added to the slice if and only if the specified
+// status is True.
+// If the machine does already have a condition with the specified type,
+// the condition will be updated if either of the following are true.
+// 1) Requested status is different than existing status.
+// 2) The updateConditionCheck function returns true.
+func SetAWSMachineCondition(
+	conditions []clusteroperator.AWSMachineCondition,
+	conditionType clusteroperator.AWSMachineConditionType,
+	status corev1.ConditionStatus,
+	reason string,
+	message string,
+	updateConditionCheck UpdateConditionCheck,
+) []clusteroperator.AWSMachineCondition {
+	now := metav1.Now()
+	existingCondition := FindAWSMachineCondition(conditions, conditionType)
+	if existingCondition == nil {
+		if status == corev1.ConditionTrue {
+			conditions = append(
+				conditions,
+				clusteroperator.AWSMachineCondition{
+					Type:               conditionType,
+					Status:             status,
+					Reason:             reason,
+					Message:            message,
+					LastTransitionTime: now,
+					LastProbeTime:      now,
+				},
+			)
+		}
+	} else {
+		if shouldUpdateCondition(
+			existingCondition.Status, existingCondition.Reason, existingCondition.Message,
+			status, reason, message,
+			updateConditionCheck,
+		) {
+			if existingCondition.Status != status {
+				existingCondition.LastTransitionTime = now
+			}
+			existingCondition.Status = status
+			existingCondition.Reason = reason
+			existingCondition.Message = message
+			existingCondition.LastProbeTime = now
+		}
+	}
+	return conditions
+}
+
+// FindAWSMachineCondition finds in the machine the condition that has the
+// specified condition type. If none exists, then returns nil.
+func FindAWSMachineCondition(conditions []clusteroperator.AWSMachineCondition, conditionType clusteroperator.AWSMachineConditionType) *clusteroperator.AWSMachineCondition {
+	for i, condition := range conditions {
+		if condition.Type == conditionType {
+			return &conditions[i]
+		}
+	}
+	return nil
+}
+
 // GetObjectController get the controlling owner for the specified object.
 // If there is no controlling owner or the controller owner does not have
 // the specified kind, then returns nil for the controller.
