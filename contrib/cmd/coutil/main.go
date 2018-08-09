@@ -24,6 +24,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/openshift/cluster-operator/contrib/pkg/actuator"
+	"github.com/openshift/cluster-operator/contrib/pkg/amibuild"
+	"github.com/openshift/cluster-operator/contrib/pkg/amiid"
 	"github.com/openshift/cluster-operator/contrib/pkg/apiservice"
 	"github.com/openshift/cluster-operator/contrib/pkg/cluster"
 	"github.com/openshift/cluster-operator/contrib/pkg/jenkins"
@@ -57,6 +59,8 @@ func NewCOUtilityCommand() *cobra.Command {
 	cmd.AddCommand(cluster.NewWaitForClusterCommand())
 	cmd.AddCommand(jenkins.NewExtractLogsCommand())
 	cmd.AddCommand(playbookmock.NewPlaybookMockCommand())
+	cmd.AddCommand(amibuild.NewBuildAMICommand())
+	cmd.AddCommand(amiid.NewGetAMIIDCommand())
 
 	return cmd
 }
