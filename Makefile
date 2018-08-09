@@ -111,8 +111,7 @@ build: .init .generate_files \
 	$(BINDIR)/cluster-operator \
 	$(BINDIR)/fake-openshift-ansible \
 	$(BINDIR)/fake-machine-controller \
-	$(BINDIR)/coutil \
-	$(BINDIR)/wait-for-cluster-ready
+	$(BINDIR)/coutil 
 
 .PHONY: $(BINDIR)/cluster-operator
 cluster-operator: $(BINDIR)/cluster-operator
@@ -123,11 +122,6 @@ $(BINDIR)/cluster-operator: .init .generate_files
 fake-machine-controller: $(BINDIR)/fake-machine-controller
 $(BINDIR)/fake-machine-controller: .init
 	$(DOCKER_CMD) $(GO_BUILD) -o $@ $(CLUSTER_OPERATOR_PKG)/cmd/fake-machine-controller
-
-.PHONY: $(BINDIR)/wait-for-cluster-ready
-wait-for-cluster-ready: $(BINDIR)/wait-for-cluster-ready
-$(BINDIR)/wait-for-cluster-ready: .init
-	$(DOCKER_CMD) $(GO_BUILD) -o $@ $(CLUSTER_OPERATOR_PKG)/contrib/cmd/wait-for-cluster-ready
 
 .PHONY: $(BINDIR)/coutil
 coutil: $(BINDIR)/coutil
@@ -323,7 +317,6 @@ images: cluster-operator-image \
 	cluster-operator-ansible-images \
 	fake-openshift-ansible-image \
 	fake-machine-controller-image \
-	$(BINDIR)/wait-for-cluster-ready \
 	$(BINDIR)/coutil
 
 images-all: $(addprefix arch-image-,$(ALL_ARCH))
