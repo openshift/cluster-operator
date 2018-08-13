@@ -12,26 +12,40 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM openshift/origin-ansible:latest
+FROM openshift/origin-ansible:v3.9
 
 ARG CO_ANSIBLE_URL=https://github.com/openshift/openshift-ansible.git
-ARG CO_ANSIBLE_BRANCH=master
+ARG CO_ANSIBLE_BRANCH=release-3.9
 ARG CLONE_LOCATION=/usr/share/ansible/openshift-ansible
 
 USER root
 
-# Update the AWS client code so that operations like ec2_image work
-RUN pip install awscli botocore boto3 -U
+# WORKAROUND: Fix ansible 2.5.0 issue that causes playbooks to fail
+# https://github.com/ansible/ansible/issues/37850
+# Remove when ansible is updated to contain the fix
+RUN yum -y install dmidecode
+# End WORKAROUND
 
 RUN rm -rf ${CLONE_LOCATION} && mkdir -p ${CLONE_LOCATION}
 RUN git clone ${CO_ANSIBLE_URL} ${CLONE_LOCATION} && \
     cd ${CLONE_LOCATION} && \
     git checkout ${CO_ANSIBLE_BRANCH}
 
+# WORKAROUND: Fix aws playbook to use the correct filter when 
+# querying subnets from AWS.
+# Remove when fix merges in v3.9 branch of openshift-ansible
+RUN find /usr/share/ansible/openshift-ansible/roles/openshift_aws -type f -exec sed -e 's/availability_zone/availability-zone/g' -i {} \;
+# End WORKAROUND
+
 WORKDIR ${CLONE_LOCATION}
 
 RUN mkdir ${CLONE_LOCATION}/playbooks/cluster-api-prep && ln -s ../../roles ./playbooks/cluster-api-prep
 COPY playbooks/cluster-api-prep/ ${CLONE_LOCATION}/playbooks/cluster-api-prep
+
+# WORKAROUND: /usr/local/bin/run doesn't handle INVENTORY_DIR when the
+# files are symlinks (like when pointing to a configmap).
+# Remove when openshift-ansible image has fix https://github.com/openshift/openshift-ansible/pull/9309
+COPY run /usr/local/bin/run
 
 # Remove any remnants of our playbooks in the upstream openshift-ansible image:
 # TODO: This can be removed once we drop our directory from openshift-ansible.
