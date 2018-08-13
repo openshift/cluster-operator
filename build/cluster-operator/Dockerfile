@@ -15,5 +15,6 @@
 FROM BASEIMAGE
 
 COPY cluster-operator opt/services/
+COPY coutil /usr/bin
 
 ENTRYPOINT ["/opt/services/cluster-operator"]
