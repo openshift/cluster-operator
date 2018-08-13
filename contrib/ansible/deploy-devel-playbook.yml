@@ -25,7 +25,7 @@
       machine_controller_image_pull_policy: "{{ machine_controller_image_pull_policy | default('Always') }}"
 
       fake_deployment: "{{ fake_deployment | default(True) }}"
-      ansible_image: "{{ ansible_image | default('cluster-operator-ansible:dev') }}"
+      ansible_image: "{{ ansible_image | default('cluster-operator-ansible:v3.10-dev') }}"
       ansible_image_pull_policy: "{{ ansible_image_pull_policy | default('Never') }}"
 
       # Normally we assume to build and push images for devel deployments:

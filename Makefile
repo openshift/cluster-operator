@@ -347,27 +347,38 @@ ifeq ($(ARCH),amd64)
 endif
 
 OA_ANSIBLE_URL    ?= https://github.com/openshift/openshift-ansible.git
-OA_ANSIBLE_BRANCH ?= release-3.10
+OA_ANSIBLE_BRANCH ?= master
 
-define build-cluster-operator-ansible-image #(repo, branch, imagename, tag, clusterapi_playbook)
-        cp build/cluster-operator-ansible/playbooks/cluster-api-prep/$5 build/cluster-operator-ansible/playbooks/cluster-api-prep/deploy-cluster-api.yaml
-	cp bin/cluster-operator build/cluster-operator-ansible/playbooks/cluster-api-prep/files
-	docker build -t "$3:$4" --build-arg=CO_ANSIBLE_URL=$1 --build-arg=CO_ANSIBLE_BRANCH=$2 build/cluster-operator-ansible
+define build-cluster-operator-ansible-image #(dockerfile, repo, branch, imagename, tag, clusterapi_playbook)
+	$(eval build_path := "build/cluster-operator-ansible")
+	$(eval tmp_build_path := "$(build_path)/tmp")
+	mkdir -p $(tmp_build_path)
+	cp $(build_path)/$1 $(tmp_build_path)/Dockerfile
+	cp $(build_path)/run $(tmp_build_path)
+	cp -r $(build_path)/playbooks $(tmp_build_path)
+	cp -r $(build_path)/roles $(tmp_build_path)/roles
+	cp $(tmp_build_path)/playbooks/cluster-api-prep/$6 $(tmp_build_path)/playbooks/cluster-api-prep/deploy-cluster-api.yaml
+	cp bin/cluster-operator $(tmp_build_path)/playbooks/cluster-api-prep/files
+	docker build -t "$4:$5" --build-arg=CO_ANSIBLE_URL=$2 --build-arg=CO_ANSIBLE_BRANCH=$3 $(tmp_build_path)
+	rm -rf $(tmp_build_path)
 endef
 
 cluster-operator-ansible-images: build/cluster-operator-ansible/Dockerfile build/cluster-operator-ansible/playbooks/cluster-api-prep/deploy-cluster-api-production.yaml build/cluster-operator-ansible/playbooks/cluster-api-prep/deploy-cluster-api-development.yaml build/cluster-operator-ansible/playbooks/cluster-api-prep/files/cluster-api-template.yaml build/cluster-operator-ansible/playbooks/cluster-operator/node-config-daemonset.yml
 	# build v3.9 on openshift-ansible:release-3.9
-	$(call build-cluster-operator-ansible-image,$(OA_ANSIBLE_URL),"release-3.9",$(CLUSTER_OPERATOR_ANSIBLE_IMAGE_NAME),"v3.9",$(CLUSTER_API_DEPLOYMENT_PLAYBOOK))
+	$(call build-cluster-operator-ansible-image,"Dockerfile.v3.9",$(OA_ANSIBLE_URL),"release-3.9",$(CLUSTER_OPERATOR_ANSIBLE_IMAGE_NAME),"v3.9",$(CLUSTER_API_DEPLOYMENT_PLAYBOOK))
 
-	# build v3.10 on openshift-ansible:master
-	$(call build-cluster-operator-ansible-image,$(OA_ANSIBLE_URL),"openshift-ansible-3.10.0-0.32.0",$(CLUSTER_OPERATOR_ANSIBLE_IMAGE_NAME),"v3.10",$(CLUSTER_API_DEPLOYMENT_PLAYBOOK))
+	# build v3.10 on openshift-ansible:release-3.10
+	$(call build-cluster-operator-ansible-image,"Dockerfile.v3.10",$(OA_ANSIBLE_URL),"release-3.10",$(CLUSTER_OPERATOR_ANSIBLE_IMAGE_NAME),"v3.10",$(CLUSTER_API_DEPLOYMENT_PLAYBOOK))
+
+        # build v3.10 development version
+	$(call build-cluster-operator-ansible-image,"Dockerfile.v3.10",$(OA_ANSIBLE_URL),"release-3.10",$(CLUSTER_OPERATOR_ANSIBLE_IMAGE_NAME),"v3.10-dev",$(CLUSTER_API_DEPLOYMENT_PLAYBOOK_DEV))
 
 	# build master/canary
-	$(call build-cluster-operator-ansible-image,$(OA_ANSIBLE_URL),$(OA_ANSIBLE_BRANCH),$(CLUSTER_OPERATOR_ANSIBLE_IMAGE_NAME),$(VERSION),$(CLUSTER_API_DEPLOYMENT_PLAYBOOK))
+	$(call build-cluster-operator-ansible-image,"Dockerfile",$(OA_ANSIBLE_URL),$(OA_ANSIBLE_BRANCH),$(CLUSTER_OPERATOR_ANSIBLE_IMAGE_NAME),$(VERSION),$(CLUSTER_API_DEPLOYMENT_PLAYBOOK))
 	docker tag $(CLUSTER_OPERATOR_ANSIBLE_IMAGE_NAME):$(VERSION) $(CLUSTER_OPERATOR_ANSIBLE_IMAGE_NAME):$(MUTABLE_TAG)
 
         # build master/canary development version
-	$(call build-cluster-operator-ansible-image,$(OA_ANSIBLE_URL),$(OA_ANSIBLE_BRANCH),$(CLUSTER_OPERATOR_ANSIBLE_IMAGE_NAME),$(DEVELOPMENT_TAG),$(CLUSTER_API_DEPLOYMENT_PLAYBOOK_DEV))
+	$(call build-cluster-operator-ansible-image,"Dockerfile",$(OA_ANSIBLE_URL),$(OA_ANSIBLE_BRANCH),$(CLUSTER_OPERATOR_ANSIBLE_IMAGE_NAME),$(DEVELOPMENT_TAG),$(CLUSTER_API_DEPLOYMENT_PLAYBOOK_DEV))
 
 fake-openshift-ansible-image: cluster-operator-ansible-images build/fake-openshift-ansible/Dockerfile $(BINDIR)/fake-openshift-ansible
 	$(call build-and-tag,"fake-openshift-ansible",$(FAKE_OPENSHIFT_ANSIBLE_IMAGE),$(FAKE_OPENSHIFT_ANSIBLE_MUTABLE_IMAGE))
