@@ -20,6 +20,7 @@ ARG CLONE_LOCATION=/usr/share/ansible/openshift-ansible
 
 USER root
 
+RUN yum -y install git
 # Update the AWS client code so that operations like ec2_image work
 RUN pip install awscli botocore boto3 -U
 
