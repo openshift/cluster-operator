@@ -28,8 +28,10 @@ import (
 	"github.com/openshift/cluster-operator/contrib/pkg/amiid"
 	"github.com/openshift/cluster-operator/contrib/pkg/apiservice"
 	"github.com/openshift/cluster-operator/contrib/pkg/cluster"
+	"github.com/openshift/cluster-operator/contrib/pkg/deprovision_aws"
 	"github.com/openshift/cluster-operator/contrib/pkg/jenkins"
 	"github.com/openshift/cluster-operator/contrib/pkg/playbookmock"
+	"github.com/openshift/cluster-operator/contrib/pkg/provision_aws"
 )
 
 func main() {
@@ -61,6 +63,8 @@ func NewCOUtilityCommand() *cobra.Command {
 	cmd.AddCommand(playbookmock.NewPlaybookMockCommand())
 	cmd.AddCommand(amibuild.NewBuildAMICommand())
 	cmd.AddCommand(amiid.NewGetAMIIDCommand())
+	cmd.AddCommand(provision_aws.NewProvisionClusterCommand())
+	cmd.AddCommand(deprovision_aws.NewDeprovisionClusterCommand())
 
 	return cmd
 }

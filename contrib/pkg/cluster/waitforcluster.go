@@ -44,8 +44,6 @@ import (
 	capiclient "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 )
 
-var log *logger.Entry
-
 type WaitForClusterOptions struct {
 	Name                      string
 	Namespace                 string
@@ -57,6 +55,7 @@ type WaitForClusterOptions struct {
 	RemoteNodesTimeout        time.Duration
 	RegistryDeploymentTimeout time.Duration
 	RouterDeploymentTimeout   time.Duration
+	Logger                    logger.FieldLogger
 }
 
 func NewWaitForClusterCommand() *cobra.Command {
@@ -78,7 +77,7 @@ func NewWaitForClusterCommand() *cobra.Command {
 				os.Exit(1)
 			}
 
-			log = logger.NewEntry(&logger.Logger{
+			log := logger.NewEntry(&logger.Logger{
 				Out: os.Stdout,
 				Formatter: &logger.TextFormatter{
 					FullTimestamp: true,
@@ -86,12 +85,13 @@ func NewWaitForClusterCommand() *cobra.Command {
 				Hooks: make(logger.LevelHooks),
 				Level: level,
 			})
+			opt.Logger = log
 
 			// Run command
 			opt.Name = args[0]
 			err = opt.WaitForCluster()
 			if err != nil {
-				log.Errorf("Error: %v", err)
+				opt.Logger.Errorf("Error: %v", err)
 				os.Exit(1)
 			}
 		},
@@ -126,7 +126,7 @@ type remoteClientContext struct {
 func (o *WaitForClusterOptions) WaitForCluster() error {
 	ctx, err := o.getLocalClients()
 	if err != nil {
-		log.WithError(err).Error("Cannot obtain local cluster clients")
+		o.Logger.WithError(err).Error("Cannot obtain local cluster clients")
 		return err
 	}
 	if len(o.Namespace) == 0 {
@@ -138,7 +138,7 @@ func (o *WaitForClusterOptions) WaitForCluster() error {
 		return err
 	}
 
-	log = log.WithField("cluster", fmt.Sprintf("%s/%s", o.Namespace, clusterName))
+	o.Logger = o.Logger.WithField("cluster", fmt.Sprintf("%s/%s", o.Namespace, clusterName))
 
 	err = o.waitForClusterResource(ctx.ClusterAPIClient, clusterName)
 	if err != nil {
@@ -184,79 +184,79 @@ func (o *WaitForClusterOptions) WaitForCluster() error {
 
 // waitForClusterResource waits for a cluster resource with the given name to exist.
 func (o *WaitForClusterOptions) waitForClusterResource(client capiclient.Interface, name string) error {
-	log.Info("Waiting for cluster resource to be created")
+	o.Logger.Info("Waiting for cluster resource to be created")
 	err := wait.PollImmediate(5*time.Second, o.ClusterResourceTimeout, func() (bool, error) {
 		var err error
 		_, err = client.ClusterV1alpha1().Clusters(o.Namespace).Get(name, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
-			log.Debug("Cluster resource does not exist yet")
+			o.Logger.Debug("Cluster resource does not exist yet")
 			return false, nil
 		}
 		if err != nil {
-			log.WithError(err).Error("unexpected error retrieving cluster")
+			o.Logger.WithError(err).Error("unexpected error retrieving cluster")
 			return false, err
 		}
-		log.Debug("Cluster resource was found")
+		o.Logger.Debug("Cluster resource was found")
 		return true, nil
 	})
 	if err != nil {
 		if err == wait.ErrWaitTimeout {
-			log.WithField("timeout", o.ClusterResourceTimeout).Error("Timed out waiting for cluster to be created")
+			o.Logger.WithField("timeout", o.ClusterResourceTimeout).Error("Timed out waiting for cluster to be created")
 		} else {
-			log.WithError(err).Error("Failed to get a cluster resource")
+			o.Logger.WithError(err).Error("Failed to get a cluster resource")
 		}
 		return err
 	}
-	log.Info("Cluster has been created")
+	o.Logger.Info("Cluster has been created")
 	return nil
 }
 
 func (o *WaitForClusterOptions) waitForInfrastructure(client capiclient.Interface, name string) error {
-	log.Info("Waiting for infrastructure provisioning for cluster")
+	o.Logger.Info("Waiting for infrastructure provisioning for cluster")
 	startedProvision := false
 	return o.waitForClusterStatus(client, name, o.InfraProvisioningTimeout, func(status *coapiv1.ClusterProviderStatus) bool {
 		if status.Provisioned {
-			log.Info("Infrastructure provisioned for cluster")
+			o.Logger.Info("Infrastructure provisioned for cluster")
 			return true
 		}
 		provisioning := controller.FindClusterCondition(status.Conditions, coapiv1.ClusterInfraProvisioning)
 		if provisioning != nil && !startedProvision && provisioning.Status == corev1.ConditionTrue {
 			startedProvision = true
-			log.WithField("started", provisioning.LastTransitionTime).Info("Infrastructure started provisioning")
+			o.Logger.WithField("started", provisioning.LastTransitionTime).Info("Infrastructure started provisioning")
 		}
 		return false
 	})
 }
 
 func (o *WaitForClusterOptions) waitForMasterInstall(client capiclient.Interface, name string) error {
-	log.Info("Waiting for master install on cluster")
+	o.Logger.Info("Waiting for master install on cluster")
 	startedInstall := false
 	return o.waitForClusterStatus(client, name, o.MasterInstallTimeout, func(status *coapiv1.ClusterProviderStatus) bool {
 		if status.ControlPlaneInstalled {
-			log.Info("Master installed")
+			o.Logger.Info("Master installed")
 			return true
 		}
 		installing := controller.FindClusterCondition(status.Conditions, coapiv1.ControlPlaneInstalling)
 		if installing != nil && !startedInstall && installing.Status == corev1.ConditionTrue {
 			startedInstall = true
-			log.WithField("started", installing.LastTransitionTime).Info("Master started installing on cluster")
+			o.Logger.WithField("started", installing.LastTransitionTime).Info("Master started installing on cluster")
 		}
 		return false
 	})
 }
 
 func (o *WaitForClusterOptions) waitForClusterAPI(client capiclient.Interface, name string) error {
-	log.Info("Waiting for cluster API install")
+	o.Logger.Info("Waiting for cluster API install")
 	startedInstall := false
 	return o.waitForClusterStatus(client, name, o.ClusterAPIInstallTimeout, func(status *coapiv1.ClusterProviderStatus) bool {
 		if status.ClusterAPIInstalled {
-			log.Info("Cluster API installed")
+			o.Logger.Info("Cluster API installed")
 			return true
 		}
 		installing := controller.FindClusterCondition(status.Conditions, coapiv1.ClusterAPIInstalling)
 		if installing != nil && !startedInstall && installing.Status == corev1.ConditionTrue {
 			startedInstall = true
-			log.WithField("started", installing.LastTransitionTime).Info("Cluster API started installing")
+			o.Logger.WithField("started", installing.LastTransitionTime).Info("Cluster API started installing")
 		}
 		return false
 	})
@@ -267,7 +267,7 @@ func (o *WaitForClusterOptions) waitForClusterStatus(client capiclient.Interface
 	isReady := func(cluster *capiv1.Cluster) (bool, error) {
 		status, err := controller.ClusterProviderStatusFromCluster(cluster)
 		if err != nil {
-			log.WithError(err).Error("Cannot obtain status from cluster")
+			o.Logger.WithError(err).Error("Cannot obtain status from cluster")
 			return false, err
 		}
 		if checkStatus(status) {
@@ -275,10 +275,10 @@ func (o *WaitForClusterOptions) waitForClusterStatus(client capiclient.Interface
 		}
 		return false, nil
 	}
-	log.Debug("Retrieving cluster")
+	o.Logger.Debug("Retrieving cluster")
 	cluster, err := client.ClusterV1alpha1().Clusters(o.Namespace).Get(name, metav1.GetOptions{})
 	if err != nil {
-		log.WithError(err).Error("Cannot retrieve cluster")
+		o.Logger.WithError(err).Error("Cannot retrieve cluster")
 		return err
 	}
 	ready, err := isReady(cluster)
@@ -293,7 +293,7 @@ func (o *WaitForClusterOptions) waitForClusterStatus(client capiclient.Interface
 		w, err := client.ClusterV1alpha1().Clusters(o.Namespace).Watch(metav1.ListOptions{ResourceVersion: cluster.ResourceVersion})
 		defer w.Stop()
 		if err != nil {
-			log.WithError(err).Error("Unable to start watch on clusters")
+			o.Logger.WithError(err).Error("Unable to start watch on clusters")
 			return err
 		}
 		for {
@@ -304,7 +304,7 @@ func (o *WaitForClusterOptions) waitForClusterStatus(client capiclient.Interface
 					if cluster.Name != name {
 						continue
 					}
-					log.Debug("Received cluster modified event")
+					o.Logger.Debug("Received cluster modified event")
 					ready, err := isReady(cluster)
 					if err != nil {
 						return err
@@ -314,7 +314,7 @@ func (o *WaitForClusterOptions) waitForClusterStatus(client capiclient.Interface
 					}
 				}
 			case <-timer:
-				log.WithField("timeout", timeout).Error("Timed out waiting for cluster status")
+				o.Logger.WithField("timeout", timeout).Error("Timed out waiting for cluster status")
 				return wait.ErrWaitTimeout
 			}
 		}
@@ -324,36 +324,36 @@ func (o *WaitForClusterOptions) waitForClusterStatus(client capiclient.Interface
 func (o *WaitForClusterOptions) waitForRemoteMachineSets(kubeClient clientset.Interface, clustopClient clustopclient.Interface, name string) error {
 	ctx, err := o.getRemoteClients(kubeClient, name)
 	if err != nil {
-		log.WithError(err).Error("Cannot obtain remote client")
+		o.Logger.WithError(err).Error("Cannot obtain remote client")
 		return err
 	}
 	clusterDeployment, err := clustopClient.ClusteroperatorV1alpha1().ClusterDeployments(o.Namespace).Get(o.Name, metav1.GetOptions{})
 	if err != nil {
-		log.WithField("clusterdeployment", fmt.Sprintf("%s/%s", o.Namespace, o.Name)).WithError(err).
+		o.Logger.WithField("clusterdeployment", fmt.Sprintf("%s/%s", o.Namespace, o.Name)).WithError(err).
 			Error("Cannot retrieve cluster deployment")
 		return err
 	}
 	expectedRemoteMachineSetCount := len(clusterDeployment.Spec.MachineSets) - 1
 	err = wait.PollImmediate(10*time.Second, o.RemoteMachineSetsTimeout, func() (bool, error) {
-		log.Debug("Retrieving remote machinesets")
+		o.Logger.Debug("Retrieving remote machinesets")
 		list, err := ctx.ClusterAPIClient.ClusterV1alpha1().MachineSets("kube-cluster").List(metav1.ListOptions{})
 		if err != nil {
-			log.WithError(err).Error("Error retrieving remote machinesets")
+			o.Logger.WithError(err).Error("Error retrieving remote machinesets")
 			return false, nil
 		}
 		if len(list.Items) < expectedRemoteMachineSetCount {
-			log.WithField("actual", len(list.Items)).WithField("expected", expectedRemoteMachineSetCount).
+			o.Logger.WithField("actual", len(list.Items)).WithField("expected", expectedRemoteMachineSetCount).
 				Debug("Number of remote machinesets is less than expected")
 			return false, nil
 		}
-		log.Info("Expected number of remote machinesets observed")
+		o.Logger.Info("Expected number of remote machinesets observed")
 		return true, nil
 	})
 	if err != nil {
 		if err == wait.ErrWaitTimeout {
-			log.WithField("timeout", o.RemoteMachineSetsTimeout).Error("Timed out waiting for remote machinesets to be created")
+			o.Logger.WithField("timeout", o.RemoteMachineSetsTimeout).Error("Timed out waiting for remote machinesets to be created")
 		} else {
-			log.WithError(err).Error("Failed to get expected number of remote machinesets")
+			o.Logger.WithError(err).Error("Failed to get expected number of remote machinesets")
 		}
 		return err
 	}
@@ -361,23 +361,23 @@ func (o *WaitForClusterOptions) waitForRemoteMachineSets(kubeClient clientset.In
 }
 
 func (o *WaitForClusterOptions) waitForRemoteNodes(kubeClient clientset.Interface, name string) error {
-	log.Info("Waiting for remote nodes to appear in ready state")
+	o.Logger.Info("Waiting for remote nodes to appear in ready state")
 	ctx, err := o.getRemoteClients(kubeClient, name)
 	machineSets, err := ctx.ClusterAPIClient.ClusterV1alpha1().MachineSets("kube-cluster").List(metav1.ListOptions{})
 	if err != nil {
-		log.WithError(err).Error("Cannot retrieve remote machinesets")
+		o.Logger.WithError(err).Error("Cannot retrieve remote machinesets")
 		return err
 	}
 	expectedNodes := 0
 	for _, machineSet := range machineSets.Items {
 		expectedNodes += int(*machineSet.Spec.Replicas)
 	}
-	log.Infof("Expecting to see %d non-master nodes", expectedNodes)
+	o.Logger.Infof("Expecting to see %d non-master nodes", expectedNodes)
 	err = wait.PollImmediate(10*time.Second, o.RemoteNodesTimeout, func() (bool, error) {
-		log.Debug("Retrieving remote nodes")
+		o.Logger.Debug("Retrieving remote nodes")
 		nodes, err := ctx.KubeClient.CoreV1().Nodes().List(metav1.ListOptions{})
 		if err != nil {
-			log.WithError(err).Error("Cannot retrieve remote nodes")
+			o.Logger.WithError(err).Error("Cannot retrieve remote nodes")
 			return false, err
 		}
 		readyNodes, computeNodes := 0, 0
@@ -385,11 +385,11 @@ func (o *WaitForClusterOptions) waitForRemoteNodes(kubeClient clientset.Interfac
 			// Skip any master node
 			if node.Labels != nil {
 				if masterRole, isPresent := node.Labels["node-role.kubernetes.io/master"]; isPresent && masterRole == "true" {
-					log.WithField("node", node.Name).Debug("Skipping node because it has the master label")
+					o.Logger.WithField("node", node.Name).Debug("Skipping node because it has the master label")
 					continue
 				}
 			}
-			log.WithField("node", node.Name).Debug("Found compute node")
+			o.Logger.WithField("node", node.Name).Debug("Found compute node")
 			computeNodes++
 			// Check if the node is ready
 			isReady := false
@@ -402,13 +402,13 @@ func (o *WaitForClusterOptions) waitForRemoteNodes(kubeClient clientset.Interfac
 				}
 			}
 			if isReady {
-				log.WithField("node", node.Name).Debug("Node is ready")
+				o.Logger.WithField("node", node.Name).Debug("Node is ready")
 				readyNodes++
 			} else {
-				log.WithField("node", node.Name).Debug("Node is not ready")
+				o.Logger.WithField("node", node.Name).Debug("Node is not ready")
 			}
 		}
-		log.Debugf("Found %d compute nodes, %d are ready", computeNodes, readyNodes)
+		o.Logger.Debugf("Found %d compute nodes, %d are ready", computeNodes, readyNodes)
 		if readyNodes < expectedNodes {
 			return false, nil
 		}
@@ -416,38 +416,38 @@ func (o *WaitForClusterOptions) waitForRemoteNodes(kubeClient clientset.Interfac
 	})
 	if err != nil {
 		if err == wait.ErrWaitTimeout {
-			log.WithField("timeout", o.RemoteNodesTimeout).Error("Timed out waiting for nodes to become ready")
+			o.Logger.WithField("timeout", o.RemoteNodesTimeout).Error("Timed out waiting for nodes to become ready")
 		} else {
-			log.WithError(err).Error("Failed waiting for nodes to become ready")
+			o.Logger.WithError(err).Error("Failed waiting for nodes to become ready")
 		}
 		return err
 	}
-	log.Info("Remote compute nodes are ready")
+	o.Logger.Info("Remote compute nodes are ready")
 	return nil
 }
 
 func (o *WaitForClusterOptions) waitForRegistry(kubeClient clientset.Interface, name string) error {
-	log.Info("Waiting for registry deployment on remote cluster")
+	o.Logger.Info("Waiting for registry deployment on remote cluster")
 	ctx, err := o.getRemoteClients(kubeClient, name)
 	if err != nil {
-		log.WithError(err).Error("Could not obtain remote client")
+		o.Logger.WithError(err).Error("Could not obtain remote client")
 		return err
 	}
 	return o.waitForDeploymentConfigReady(ctx.AppsClient, o.RegistryDeploymentTimeout, "default", "docker-registry")
 }
 
 func (o *WaitForClusterOptions) waitForRouter(kubeClient clientset.Interface, name string) error {
-	log.Info("Waiting for router deployment on remote cluster")
+	o.Logger.Info("Waiting for router deployment on remote cluster")
 	ctx, err := o.getRemoteClients(kubeClient, name)
 	if err != nil {
-		log.WithError(err).Error("Could not obtain remote client")
+		o.Logger.WithError(err).Error("Could not obtain remote client")
 		return err
 	}
 	return o.waitForDeploymentConfigReady(ctx.AppsClient, o.RouterDeploymentTimeout, "default", "router")
 }
 
 func (o *WaitForClusterOptions) waitForDeploymentConfigReady(client appsclient.Interface, timeOut time.Duration, namespace, name string) error {
-	dcLog := log.WithField("deploymentconfig", fmt.Sprintf("%s/%s", namespace, name))
+	dcLog := o.Logger.WithField("deploymentconfig", fmt.Sprintf("%s/%s", namespace, name))
 	err := wait.PollImmediate(20*time.Second, timeOut, func() (bool, error) {
 		dcLog.Debug("Retrieving deployment config")
 		dc, err := client.AppsV1().DeploymentConfigs(namespace).Get(name, metav1.GetOptions{})
@@ -476,7 +476,7 @@ func (o *WaitForClusterOptions) waitForDeploymentConfigReady(client appsclient.I
 }
 
 func (o *WaitForClusterOptions) getClusterName(client clustopclient.Interface) (string, error) {
-	cdLog := log.WithField("clusterdeployment", fmt.Sprintf("%s/%s", o.Namespace, o.Name))
+	cdLog := o.Logger.WithField("clusterdeployment", fmt.Sprintf("%s/%s", o.Namespace, o.Name))
 	cdLog.Debug("Retrieving cluster deployment")
 	clusterDeployment, err := client.ClusteroperatorV1alpha1().ClusterDeployments(o.Namespace).Get(o.Name, metav1.GetOptions{})
 	if err != nil {
@@ -487,50 +487,50 @@ func (o *WaitForClusterOptions) getClusterName(client clustopclient.Interface) (
 		cdLog.Error("cluster ID not set")
 		return "", fmt.Errorf("cluster ID not set")
 	}
-	log.WithField("name", clusterDeployment.Spec.ClusterName).Debug("Obtained cluster name")
+	o.Logger.WithField("name", clusterDeployment.Spec.ClusterName).Debug("Obtained cluster name")
 	return clusterDeployment.Spec.ClusterName, nil
 }
 
 func (o *WaitForClusterOptions) getLocalClients() (*localClientContext, error) {
-	log.Debug("Obtaining clients for local cluster")
+	o.Logger.Debug("Obtaining clients for local cluster")
 	result := &localClientContext{}
 	rules := clientcmd.NewDefaultClientConfigLoadingRules()
 	kubeconfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(rules, &clientcmd.ConfigOverrides{})
 	cfg, err := kubeconfig.ClientConfig()
 	if err != nil {
-		log.WithError(err).Error("Cannot obtain client config")
+		o.Logger.WithError(err).Error("Cannot obtain client config")
 		return nil, err
 	}
 	result.Namespace, _, err = kubeconfig.Namespace()
 	if err != nil {
-		log.WithError(err).Error("Cannot obtain default namespace from client config")
+		o.Logger.WithError(err).Error("Cannot obtain default namespace from client config")
 		return nil, err
 	}
 	result.ClusterAPIClient, err = capiclient.NewForConfig(cfg)
 	if err != nil {
-		log.WithError(err).Error("Cannot create cluster API client from client config")
+		o.Logger.WithError(err).Error("Cannot create cluster API client from client config")
 		return nil, err
 	}
 	result.ClusterOpClient, err = clustopclient.NewForConfig(cfg)
 	if err != nil {
-		log.WithError(err).Error("Cannot create cluster operator client from client config")
+		o.Logger.WithError(err).Error("Cannot create cluster operator client from client config")
 		return nil, err
 	}
 	result.KubeClient, err = clientset.NewForConfig(cfg)
 	if err != nil {
-		log.WithError(err).Error("Cannot create kubernetes client from client config")
+		o.Logger.WithError(err).Error("Cannot create kubernetes client from client config")
 		return nil, err
 	}
-	log.Debug("Obtained clients for local cluster")
+	o.Logger.Debug("Obtained clients for local cluster")
 	return result, nil
 }
 
 func (o *WaitForClusterOptions) getRemoteClients(kubeClient clientset.Interface, name string) (*remoteClientContext, error) {
-	log.Info("Obtaining clients for remote cluster")
+	o.Logger.Info("Obtaining clients for remote cluster")
 
 	result := &remoteClientContext{}
 	secretName := name + "-kubeconfig"
-	secretLog := log.WithField("secret", fmt.Sprintf("%s/%s", o.Namespace, secretName))
+	secretLog := o.Logger.WithField("secret", fmt.Sprintf("%s/%s", o.Namespace, secretName))
 	secret, err := kubeClient.CoreV1().Secrets(o.Namespace).Get(secretName, metav1.GetOptions{})
 	if err != nil {
 		secretLog.WithError(err).Error("Cannot retrieve kubeconfig secret")
@@ -548,27 +548,27 @@ func (o *WaitForClusterOptions) getRemoteClients(kubeClient clientset.Interface,
 
 	restConfig, err := kubeConfig.ClientConfig()
 	if err != nil {
-		log.WithError(err).Error("Cannot obtain client config")
+		o.Logger.WithError(err).Error("Cannot obtain client config")
 		return nil, err
 	}
 
 	result.ClusterAPIClient, err = capiclient.NewForConfig(restConfig)
 	if err != nil {
-		log.WithError(err).Error("Cannot create cluster API client from client config")
+		o.Logger.WithError(err).Error("Cannot create cluster API client from client config")
 		return nil, err
 	}
 
 	result.KubeClient, err = clientset.NewForConfig(restConfig)
 	if err != nil {
-		log.WithError(err).Error("Cannot create kubernetes client from client config")
+		o.Logger.WithError(err).Error("Cannot create kubernetes client from client config")
 		return nil, err
 	}
 
 	result.AppsClient, err = appsclient.NewForConfig(restConfig)
 	if err != nil {
-		log.WithError(err).Error("Cannot create OpenShift apps client from client config")
+		o.Logger.WithError(err).Error("Cannot create OpenShift apps client from client config")
 		return nil, err
 	}
-	log.Debug("Obtained clients for remote cluster")
+	o.Logger.Debug("Obtained clients for remote cluster")
 	return result, nil
 }

@@ -49,10 +49,12 @@ ansible_become=true
 const varsTemplate = `---
 all:
   vars:
+    openshift_cloudprovider_kind: aws
     openshift_aws_base_ami: ami-b81dbfc5
     openshift_aws_base_ami_name: [[ .Name ]]
     openshift_aws_build_ami_group: default
     openshift_aws_clusterid: [[ .Name ]]
+    openshift_clusterid: [[ .Name ]]
     openshift_aws_region: us-east-1
     openshift_aws_create_vpc: false
     openshift_aws_vpc_name: [[ .VPCName ]]
