@@ -276,13 +276,13 @@ all:
     openshift_aws_elb_infra_name: [[ .ELBInfraName ]]
     
     [[if .ClusterAPIImage]]
-    cluster_api_image: [[ .ClusterAPIImage ]]
+    cluster_api_image: "[[ .ClusterAPIImage ]]"
     [[end]]
     [[if .ClusterAPIImagePullPolicy]]
     cluster_api_image_pull_policy: [[ .ClusterAPIImagePullPolicy ]]
     [[end]]
     [[if .MachineControllerImage]]
-    machine_controller_image: [[ .MachineControllerImage ]]
+    machine_controller_image: "[[ .MachineControllerImage ]]"
     [[end]]
     [[if .MachineControllerImagePullPolicy]]
     machine_controller_image_pull_policy: [[ .MachineControllerImagePullPolicy ]]
@@ -314,13 +314,12 @@ all:
         Name: "{{ openshift_aws_clusterid }}-compute"
 `
 	clusterVersionVarsTemplate = `
+    # ------- #
+    # Version #
+    # ------- #
 
-# ------- #
-# Version #
-# ------- #
-
-openshift_release: "[[ .Release ]]"
-oreg_url: [[ .ImageFormat ]]
+    openshift_release: "[[ .Release ]]"
+    oreg_url: "[[ .ImageFormat ]]"
 `
 	DefaultInventory = `
 [OSEv3:children]
