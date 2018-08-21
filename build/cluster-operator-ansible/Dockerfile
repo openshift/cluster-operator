@@ -41,8 +41,4 @@ RUN rm -rf /usr/share/ansible/openshift-ansible/playbooks/cluster-operator/
 # Copy in our playbooks and roles:
 COPY playbooks/cluster-operator ${CLONE_LOCATION}/playbooks/cluster-operator
 
-# Overwrite role files:
-# TODO: Remove this when we have no files to overwrite in roles
-COPY roles ${CLONE_LOCATION}/roles
-
 USER 1001:0

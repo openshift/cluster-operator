@@ -356,7 +356,7 @@ define build-cluster-operator-ansible-image #(dockerfile, repo, branch, imagenam
 	cp $(build_path)/$1 $(tmp_build_path)/Dockerfile
 	cp $(build_path)/run $(tmp_build_path)
 	cp -r $(build_path)/playbooks $(tmp_build_path)
-	cp -r $(build_path)/roles $(tmp_build_path)/roles
+	cp -r $(build_path)/roles.v3_9 $(tmp_build_path)
 	cp $(tmp_build_path)/playbooks/cluster-api-prep/$6 $(tmp_build_path)/playbooks/cluster-api-prep/deploy-cluster-api.yaml
 	cp bin/cluster-operator $(tmp_build_path)/playbooks/cluster-api-prep/files
 	docker build -t "$4:$5" --build-arg=CO_ANSIBLE_URL=$2 --build-arg=CO_ANSIBLE_BRANCH=$3 $(tmp_build_path)
