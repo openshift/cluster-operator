@@ -1,4 +1,24 @@
 ---
+- name: Setup the master node group
+  hosts: localhost
+  tasks:
+  - import_role:
+      name: openshift_aws
+      tasks_from: setup_master_group.yml
+
+- name: set the master facts for hostname to elb
+  hosts: masters
+  gather_facts: no
+  remote_user: root
+  tasks:
+  # Query elbs
+  - import_role:
+      name: openshift_aws
+      tasks_from: master_facts.yml
+  # Set internal cluster hostname = internal elb hostname
+  - set_fact:
+      openshift_master_cluster_hostname: "{{ elbs.elbs[0].dns_name }}"
+
 # call openshift-ansible's master provisioning
 - import_playbook: ../../aws/openshift-cluster/install.yml
 
