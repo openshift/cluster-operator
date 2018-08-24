@@ -20,6 +20,10 @@ ARG CLONE_LOCATION=/usr/share/ansible/openshift-ansible
 
 USER root
 
+# Git is no longer included in the origin-ansible base image. However,
+# it is needed to build this image.
+RUN yum -y install git
+
 # WORKAROUND: Fix ansible 2.5.0 issue that causes playbooks to fail
 # https://github.com/ansible/ansible/issues/37850
 # Remove when ansible is updated to contain the fix
