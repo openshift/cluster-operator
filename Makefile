@@ -339,7 +339,7 @@ define build-and-tag # (service, image, mutable_image, prefix)
 	rm -rf $(tmp_build_path)
 endef
 
-cluster-operator-image: build/cluster-operator/Dockerfile $(BINDIR)/cluster-operator
+cluster-operator-image: build/cluster-operator/Dockerfile $(BINDIR)/cluster-operator $(BINDIR)/coutil
 	$(call build-and-tag,"cluster-operator",$(CLUSTER_OPERATOR_IMAGE),$(CLUSTER_OPERATOR_MUTABLE_IMAGE))
 ifeq ($(ARCH),amd64)
 	docker tag $(CLUSTER_OPERATOR_IMAGE) $(REGISTRY)cluster-operator:$(VERSION)
