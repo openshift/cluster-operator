@@ -1,0 +1,51 @@
+---
+- name: Alert user to variables needed
+  hosts: localhost
+  tasks:
+  - name: Alert user to variables needed - clusterid
+    debug:
+      msg: "openshift_aws_clusterid={{ openshift_aws_clusterid | default('default') }}"
+
+  - name: Alert user to variables needed - region
+    debug:
+      msg: "openshift_aws_region={{ openshift_aws_region | default('us-east-1') }}"
+
+- import_playbook: ../../aws/openshift-cluster/provision_vpc.yml
+
+- import_playbook: ../../aws/openshift-cluster/provision_ssh_keypair.yml
+
+- import_playbook: ../../aws/openshift-cluster/provision_sec_group.yml
+
+- import_playbook: ../../aws/openshift-cluster/provision_s3.yml
+
+- import_playbook: ../../aws/openshift-cluster/provision_elb.yml
+
+
+- name: Create iam roles
+  hosts: localhost
+  roles:
+  - openshift_aws
+  post_tasks:
+  - include_role:
+      name: openshift_aws
+      tasks_from: iam_role
+    vars:
+      l_node_group_config: "{{ openshift_aws_node_group_config }}"
+      openshift_aws_iam_node_role_name: "openshift_node_describe_instances_{{ openshift_aws_clusterid }}"
+      openshift_aws_iam_node_role_policy_json: "{{ lookup('file', 'describeinstances.json') }}"
+      openshift_aws_iam_node_role_policy_name: "describe_instances"
+    loop_control:
+      loop_var: openshift_aws_node_group
+    with_items: "{{ openshift_aws_node_groups }}"
+  - include_role:
+      name: openshift_aws
+      tasks_from:  iam_role
+    vars:
+      l_node_group_config: 
+        master: "{{ openshift_aws_master_instance_config }}"
+      openshift_aws_iam_master_role_name: "openshift_master_launch_instances_{{ openshift_aws_clusterid }}"
+      openshift_aws_iam_master_role_policy_name: "launch_instances"
+      openshift_aws_iam_master_role_policy_json: "{{ lookup('template', 'launchinstances.json.j2') }}"
+    loop_control:
+      loop_var: openshift_aws_node_group
+    with_items: "{{ openshift_aws_master_group }}"

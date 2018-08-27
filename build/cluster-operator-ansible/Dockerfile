@@ -41,4 +41,7 @@ RUN rm -rf /usr/share/ansible/openshift-ansible/playbooks/cluster-operator/
 # Copy in our playbooks and roles:
 COPY playbooks/cluster-operator ${CLONE_LOCATION}/playbooks/cluster-operator
 
+# Copy overrides for playbooks needed in openshift-ansible v3.11 and above
+COPY playbooks.v3_11/cluster-operator ${CLONE_LOCATION}/playbooks/cluster-operator
+
 USER 1001:0
