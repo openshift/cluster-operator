@@ -620,6 +620,7 @@ func Convert_clusteroperator_ClusterVersion_To_v1alpha1_ClusterVersion(in *clust
 
 func autoConvert_v1alpha1_ClusterVersionImages_To_clusteroperator_ClusterVersionImages(in *ClusterVersionImages, out *clusteroperator.ClusterVersionImages, s conversion.Scope) error {
 	out.ImageFormat = in.ImageFormat
+	out.EtcdImage = in.EtcdImage
 	out.OpenshiftAnsibleImage = (*string)(unsafe.Pointer(in.OpenshiftAnsibleImage))
 	out.OpenshiftAnsibleImagePullPolicy = (*v1.PullPolicy)(unsafe.Pointer(in.OpenshiftAnsibleImagePullPolicy))
 	out.ClusterAPIImage = (*string)(unsafe.Pointer(in.ClusterAPIImage))
@@ -636,6 +637,7 @@ func Convert_v1alpha1_ClusterVersionImages_To_clusteroperator_ClusterVersionImag
 
 func autoConvert_clusteroperator_ClusterVersionImages_To_v1alpha1_ClusterVersionImages(in *clusteroperator.ClusterVersionImages, out *ClusterVersionImages, s conversion.Scope) error {
 	out.ImageFormat = in.ImageFormat
+	out.EtcdImage = in.EtcdImage
 	out.OpenshiftAnsibleImage = (*string)(unsafe.Pointer(in.OpenshiftAnsibleImage))
 	out.OpenshiftAnsibleImagePullPolicy = (*v1.PullPolicy)(unsafe.Pointer(in.OpenshiftAnsibleImagePullPolicy))
 	out.ClusterAPIImage = (*string)(unsafe.Pointer(in.ClusterAPIImage))

@@ -955,6 +955,13 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Format:      "",
 							},
 						},
+						"etcdImage": {
+							SchemaProps: spec.SchemaProps{
+								Description: "EtcdImage specifies the image that should be used for Etcd when installing OpenShift If left blank, the default image will be used.",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
 						"openshiftAnsibleImage": {
 							SchemaProps: spec.SchemaProps{
 								Description: "OpenshiftAnsibleImage is the name of the image to use to run openshift-ansible playbooks. Defaults to openshift/origin-ansbile:{TAG}, where {TAG} is the value from the Version field of this ClusterVersion.",

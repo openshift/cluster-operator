@@ -118,6 +118,11 @@ type ClusterVersionImages struct {
 	// (i.e. example.com/openshift3/ose-${component}:${version}")
 	ImageFormat string
 
+	// EtcdImage specifies the image that should be used for Etcd when installing OpenShift
+	// If left blank, the default image will be used.
+	// +optional
+	EtcdImage string
+
 	// OpenshiftAnsibleImage is the name of the image to use to run
 	// openshift-ansible playbooks.
 	// Defaults to openshift/origin-ansbile:{TAG}, where {TAG} is
