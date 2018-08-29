@@ -73,6 +73,7 @@ import (
 	"github.com/openshift/cluster-operator/pkg/controller/nodelink"
 	"github.com/openshift/cluster-operator/pkg/controller/registryinfra"
 	"github.com/openshift/cluster-operator/pkg/controller/remotemachineset"
+	"github.com/openshift/cluster-operator/pkg/controller/route53hostedzone"
 	"github.com/openshift/cluster-operator/pkg/version"
 	cav1alpha1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	capiinformers "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions"
@@ -339,6 +340,7 @@ func NewControllerInitializers() map[string]InitFunc {
 	controllers["nodelink"] = startNodeLinkController
 	controllers["remotemachineset"] = startRemoteMachineSetController
 	controllers["registryinfra"] = startRegistryInfraController
+	controllers["route53hostedzone"] = startRoute53HostedZoneController
 
 	return controllers
 }
@@ -669,6 +671,18 @@ func startNodeLinkController(ctx ControllerContext) (bool, error) {
 		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-nodelink-controller"),
 		ctx.ClientBuilder.ClusterAPIClientOrDie("clusteroperator-nodelink-controller"),
 	).Run(int(ctx.Options.ConcurrentNodeLinkSyncs), ctx.Stop)
+	return true, nil
+}
+
+func startRoute53HostedZoneController(ctx ControllerContext) (bool, error) {
+	if !resourcesAvailable(ctx) {
+		return false, nil
+	}
+	go route53hostedzone.NewController(
+		ctx.InformerFactory.Clusteroperator().V1alpha1().DNSZones(),
+		ctx.ClientBuilder.KubeClientOrDie("clusteroperator-route53hostedzone-controller"),
+		ctx.ClientBuilder.ClientOrDie("clusteroperator-route53hostedzone-controller"),
+	).Run(int(ctx.Options.ConcurrentRemoteMachineSetSyncs), ctx.Stop)
 	return true, nil
 }
 

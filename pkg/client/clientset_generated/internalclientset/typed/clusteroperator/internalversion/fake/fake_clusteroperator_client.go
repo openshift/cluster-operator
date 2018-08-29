@@ -34,6 +34,10 @@ func (c *FakeClusteroperator) ClusterVersions(namespace string) internalversion.
 	return &FakeClusterVersions{c, namespace}
 }
 
+func (c *FakeClusteroperator) DNSZones(namespace string) internalversion.DNSZoneInterface {
+	return &FakeDNSZones{c, namespace}
+}
+
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
 func (c *FakeClusteroperator) RESTClient() rest.Interface {

@@ -33,3 +33,11 @@ type ClusterVersionListerExpansion interface{}
 // ClusterVersionNamespaceListerExpansion allows custom methods to be added to
 // ClusterVersionNamespaceLister.
 type ClusterVersionNamespaceListerExpansion interface{}
+
+// DNSZoneListerExpansion allows custom methods to be added to
+// DNSZoneLister.
+type DNSZoneListerExpansion interface{}
+
+// DNSZoneNamespaceListerExpansion allows custom methods to be added to
+// DNSZoneNamespaceLister.
+type DNSZoneNamespaceListerExpansion interface{}

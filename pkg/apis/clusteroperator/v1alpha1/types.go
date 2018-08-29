@@ -66,6 +66,7 @@ const (
 	FinalizerClusterDeployment string = "clusteroperator.openshift.io/clusterdeployment"
 	FinalizerRemoteMachineSets string = "clusteroperator.openshift.io/remotemachinesets"
 	FinalizerRegistryInfra     string = "clusteroperator.openshift.io/registryinfra"
+	FinalizerRoute53HostedZone string = "clusteroperator.openshift.io/route53hostedzone"
 )
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -745,4 +746,63 @@ type CombinedCluster struct {
 	ClusterSpec           *capiv1.ClusterSpec
 	ClusterStatus         *capiv1.ClusterStatus
 	ClusterProviderStatus *ClusterProviderStatus
+}
+
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// DNSZone represents a Domain Name Service Zone to manage
+type DNSZone struct {
+	// +optional
+	metav1.TypeMeta `json:",inline"`
+	// +optional
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	// +optional
+	Spec DNSZoneSpec `json:"spec,omitempty"`
+	// +optional
+	Status DNSZoneStatus `json:"status,omitempty"`
+}
+
+// DNSZoneSpec is a specification of a Domain Name Service Zone. The specification will
+// be specific to each cloud provider.
+type DNSZoneSpec struct {
+	// Zone is the DNS zone to host
+	Zone string `json:"zone"`
+
+	// AWS specifies cluster hardware configuration on AWS
+	// +optional
+	AWS *AWSDNSZoneSpec `json:"aws,omitempty"`
+}
+
+// AWSDNSZoneSpec contains the AWS specific DNSZone specifications
+type AWSDNSZoneSpec struct {
+	// AccountSeceret refers to a secret that contains the AWS account access
+	// credentials
+	AccountSecret corev1.LocalObjectReference `json:"accountSecret"`
+
+	// Region specifies the AWS region where the cluster will be created
+	Region string `json:"region"`
+}
+
+// DNSZoneStatus is the status of a DNSZone. It may be used to indicate if the
+// DNS zone is ready to be used, or if any problems have been detected.
+type DNSZoneStatus struct {
+	// LastSyncTimestamp is the time that the zone was last sync'd.
+	// +optional
+	LastSyncTimestamp *metav1.Time `json:"lastSyncTimestamp,omitempty"`
+
+	// LastSyncGeneration is the generation of the zone resource that was last sync'd. This is used to know if the Object has changed and we should sync immediately.
+	LastSyncGeneration int64 `json:"lastSyncGeneration"`
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// DNSZoneList is a list of DNSZones.
+type DNSZoneList struct {
+	metav1.TypeMeta `json:",inline"`
+	// +optional
+	metav1.ListMeta `json:"metadata,omitempty"`
+
+	Items []DNSZone `json:"items"`
 }

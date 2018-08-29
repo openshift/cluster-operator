@@ -142,6 +142,31 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 			Dependencies: []string{
 				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetAWSHardwareSpec", "k8s.io/api/core/v1.LocalObjectReference"},
 		},
+		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.AWSDNSZoneSpec": {
+			Schema: spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Description: "AWSDNSZoneSpec contains the AWS specific DNSZone specifications",
+					Properties: map[string]spec.Schema{
+						"accountSecret": {
+							SchemaProps: spec.SchemaProps{
+								Description: "AccountSeceret refers to a secret that contains the AWS account access credentials",
+								Ref:         ref("k8s.io/api/core/v1.LocalObjectReference"),
+							},
+						},
+						"region": {
+							SchemaProps: spec.SchemaProps{
+								Description: "Region specifies the AWS region where the cluster will be created",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+					},
+					Required: []string{"accountSecret", "region"},
+				},
+			},
+			Dependencies: []string{
+				"k8s.io/api/core/v1.LocalObjectReference"},
+		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.AWSMachineCondition": {
 			Schema: spec.Schema{
 				SchemaProps: spec.SchemaProps{
@@ -1166,6 +1191,139 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 			},
 			Dependencies: []string{
 				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.AWSClusterProviderConfig", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.ClusterProviderStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta", "k8s.io/apimachinery/pkg/apis/meta/v1.TypeMeta", "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1.ClusterSpec", "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1.ClusterStatus"},
+		},
+		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.DNSZone": {
+			Schema: spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Description: "DNSZone represents a Domain Name Service Zone to manage",
+					Properties: map[string]spec.Schema{
+						"kind": {
+							SchemaProps: spec.SchemaProps{
+								Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"apiVersion": {
+							SchemaProps: spec.SchemaProps{
+								Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"metadata": {
+							SchemaProps: spec.SchemaProps{
+								Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+							},
+						},
+						"spec": {
+							SchemaProps: spec.SchemaProps{
+								Ref: ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.DNSZoneSpec"),
+							},
+						},
+						"status": {
+							SchemaProps: spec.SchemaProps{
+								Ref: ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.DNSZoneStatus"),
+							},
+						},
+					},
+				},
+			},
+			Dependencies: []string{
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.DNSZoneSpec", "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.DNSZoneStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+		},
+		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.DNSZoneList": {
+			Schema: spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Description: "DNSZoneList is a list of DNSZones.",
+					Properties: map[string]spec.Schema{
+						"kind": {
+							SchemaProps: spec.SchemaProps{
+								Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"apiVersion": {
+							SchemaProps: spec.SchemaProps{
+								Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"metadata": {
+							SchemaProps: spec.SchemaProps{
+								Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
+							},
+						},
+						"items": {
+							SchemaProps: spec.SchemaProps{
+								Type: []string{"array"},
+								Items: &spec.SchemaOrArray{
+									Schema: &spec.Schema{
+										SchemaProps: spec.SchemaProps{
+											Ref: ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.DNSZone"),
+										},
+									},
+								},
+							},
+						},
+					},
+					Required: []string{"items"},
+				},
+			},
+			Dependencies: []string{
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.DNSZone", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+		},
+		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.DNSZoneSpec": {
+			Schema: spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Description: "DNSZoneSpec is a specification of a Domain Name Service Zone. The specification will be specific to each cloud provider.",
+					Properties: map[string]spec.Schema{
+						"zone": {
+							SchemaProps: spec.SchemaProps{
+								Description: "Zone is the DNS zone to host",
+								Type:        []string{"string"},
+								Format:      "",
+							},
+						},
+						"aws": {
+							SchemaProps: spec.SchemaProps{
+								Description: "AWS specifies cluster hardware configuration on AWS",
+								Ref:         ref("github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.AWSDNSZoneSpec"),
+							},
+						},
+					},
+					Required: []string{"zone"},
+				},
+			},
+			Dependencies: []string{
+				"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.AWSDNSZoneSpec"},
+		},
+		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.DNSZoneStatus": {
+			Schema: spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Description: "DNSZoneStatus is the status of a DNSZone. It may be used to indicate if the DNS zone is ready to be used, or if any problems have been detected.",
+					Properties: map[string]spec.Schema{
+						"lastSyncTimestamp": {
+							SchemaProps: spec.SchemaProps{
+								Description: "LastSyncTimestamp is the time that the zone was last sync'd.",
+								Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+							},
+						},
+						"lastSyncGeneration": {
+							SchemaProps: spec.SchemaProps{
+								Description: "LastSyncGeneration is the generation of the zone resource that was last sync'd. This is used to know if the Object has changed and we should sync immediately.",
+								Type:        []string{"integer"},
+								Format:      "int64",
+							},
+						},
+					},
+					Required: []string{"lastSyncGeneration"},
+				},
+			},
+			Dependencies: []string{
+				"k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
 		},
 		"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1.MachineSetAWSHardwareSpec": {
 			Schema: spec.Schema{

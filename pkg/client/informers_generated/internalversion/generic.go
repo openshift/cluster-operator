@@ -56,6 +56,8 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Clusteroperator().InternalVersion().ClusterDeployments().Informer()}, nil
 	case clusteroperator.SchemeGroupVersion.WithResource("clusterversions"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Clusteroperator().InternalVersion().ClusterVersions().Informer()}, nil
+	case clusteroperator.SchemeGroupVersion.WithResource("dnszones"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Clusteroperator().InternalVersion().DNSZones().Informer()}, nil
 
 	}
 

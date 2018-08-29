@@ -22,6 +22,7 @@ import (
 	clusteroperatorv1alpha1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	"github.com/openshift/cluster-operator/pkg/registry/clusteroperator/clusterdeployment"
 	"github.com/openshift/cluster-operator/pkg/registry/clusteroperator/clusterversion"
+	"github.com/openshift/cluster-operator/pkg/registry/clusteroperator/dnszone"
 	"k8s.io/apiserver/pkg/registry/generic"
 	"k8s.io/apiserver/pkg/registry/rest"
 	genericapiserver "k8s.io/apiserver/pkg/server"
@@ -74,11 +75,19 @@ func (p StorageProvider) v1alpha1Storage(
 	}
 	clusterVersionStorage, clusterVersionStatusStorage := clusterversion.NewStorage(clusterVerRESTOptions)
 
+	dnsZoneRESTOptions, err := restOptionsGetter.GetRESTOptions(clusteroperator.Resource("dnszones"))
+	if err != nil {
+		return nil, err
+	}
+	dnsZoneStorage, dnsZoneStatusStorage := dnszone.NewStorage(dnsZoneRESTOptions)
+
 	return map[string]rest.Storage{
 		"clusterdeployments":        clusterDeploymentStorage,
 		"clusterdeployments/status": clusterDeploymentStatusStorage,
 		"clusterversions":           clusterVersionStorage,
 		"clusterversions/status":    clusterVersionStatusStorage,
+		"dnszones":                  dnsZoneStorage,
+		"dnszones/status":           dnsZoneStatusStorage,
 	}, nil
 }
 

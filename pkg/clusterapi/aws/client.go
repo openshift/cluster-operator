@@ -31,6 +31,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/elb/elbiface"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
+	"github.com/aws/aws-sdk-go/service/route53"
+	"github.com/aws/aws-sdk-go/service/route53/route53iface"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3iface"
 )
@@ -69,13 +71,19 @@ type Client interface {
 
 	//Custom
 	GetS3API() s3iface.S3API
+
+	//Route53
+	CreateHostedZone(input *route53.CreateHostedZoneInput) (*route53.CreateHostedZoneOutput, error)
+	DeleteHostedZone(input *route53.DeleteHostedZoneInput) (*route53.DeleteHostedZoneOutput, error)
+	ListHostedZones(input *route53.ListHostedZonesInput) (*route53.ListHostedZonesOutput, error)
 }
 
 type awsClient struct {
-	ec2Client ec2iface.EC2API
-	elbClient elbiface.ELBAPI
-	iamClient iamiface.IAMAPI
-	s3Client  s3iface.S3API
+	ec2Client     ec2iface.EC2API
+	elbClient     elbiface.ELBAPI
+	iamClient     iamiface.IAMAPI
+	route53Client route53iface.Route53API
+	s3Client      s3iface.S3API
 }
 
 func (c *awsClient) DescribeImages(input *ec2.DescribeImagesInput) (*ec2.DescribeImagesOutput, error) {
@@ -161,6 +169,18 @@ func (c *awsClient) GetS3API() s3iface.S3API {
 	return c.s3Client
 }
 
+func (c *awsClient) ListHostedZones(input *route53.ListHostedZonesInput) (*route53.ListHostedZonesOutput, error) {
+	return c.route53Client.ListHostedZones(input)
+}
+
+func (c *awsClient) CreateHostedZone(input *route53.CreateHostedZoneInput) (*route53.CreateHostedZoneOutput, error) {
+	return c.route53Client.CreateHostedZone(input)
+}
+
+func (c *awsClient) DeleteHostedZone(input *route53.DeleteHostedZoneInput) (*route53.DeleteHostedZoneOutput, error) {
+	return c.route53Client.DeleteHostedZone(input)
+}
+
 // NewClient creates our client wrapper object for the actual AWS clients we use.
 // For authentication the underlying clients will use either the cluster AWS credentials
 // secret if defined (i.e. in the root cluster),
@@ -196,9 +216,10 @@ func NewClient(kubeClient kubernetes.Interface, secretName, namespace, region st
 	}
 
 	return &awsClient{
-		ec2Client: ec2.New(s),
-		elbClient: elb.New(s),
-		iamClient: iam.New(s),
-		s3Client:  s3.New(s),
+		ec2Client:     ec2.New(s),
+		elbClient:     elb.New(s),
+		iamClient:     iam.New(s),
+		s3Client:      s3.New(s),
+		route53Client: route53.New(s),
 	}, nil
 }

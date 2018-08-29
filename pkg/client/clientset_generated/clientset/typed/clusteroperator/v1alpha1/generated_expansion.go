@@ -19,3 +19,5 @@ package v1alpha1
 type ClusterDeploymentExpansion interface{}
 
 type ClusterVersionExpansion interface{}
+
+type DNSZoneExpansion interface{}

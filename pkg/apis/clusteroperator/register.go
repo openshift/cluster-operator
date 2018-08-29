@@ -56,6 +56,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&ClusterProviderStatus{},
 		&MachineSetProviderConfigSpec{},
 		&AWSMachineProviderStatus{},
+		&DNSZone{},
+		&DNSZoneList{},
 	)
 	return nil
 }

@@ -126,6 +126,10 @@ type ControllerManagerConfiguration struct {
 	// Larger number = more responsive node linking, but more CPU (and network) load.
 	ConcurrentNodeLinkSyncs int32
 
+	// ConcurrentRoute53HostedZoneSyncs is the number of route53hostedzones we can be syncing concurrently.
+	// Larger number = more responsive processing but more AWS API, CPU (and network) load.
+	ConcurrentRoute53HostedZoneSyncs int32
+
 	// leaderElection defines the configuration of leader election client.
 	LeaderElection componentconfig.LeaderElectionConfiguration
 
