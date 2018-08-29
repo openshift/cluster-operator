@@ -320,6 +320,9 @@ all:
 
     openshift_release: "[[ .Release ]]"
     oreg_url: "[[ .ImageFormat ]]"
+    [[ if .EtcdImage ]]
+    etcd_image: "[[ .EtcdImage ]]"
+    [[ end ]]
 `
 	DefaultInventory = `
 [OSEv3:children]
@@ -367,6 +370,7 @@ type clusterParams struct {
 type clusterVersionParams struct {
 	Release     string
 	ImageFormat string
+	EtcdImage   string
 }
 
 // GenerateClusterWideVars generates the vars to pass to the ansible playbook
@@ -502,6 +506,7 @@ func GenerateClusterWideVarsForMachineSetWithInfraSize(
 	params := &clusterVersionParams{
 		Release:     release,
 		ImageFormat: clusterVersion.Images.ImageFormat,
+		EtcdImage:   clusterVersion.Images.EtcdImage,
 	}
 
 	err = t.Execute(&buf, params)
