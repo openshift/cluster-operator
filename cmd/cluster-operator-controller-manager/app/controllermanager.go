@@ -60,9 +60,9 @@ import (
 
 	"github.com/openshift/cluster-operator/cmd/cluster-operator-controller-manager/app/options"
 	"github.com/openshift/cluster-operator/pkg/api"
-	cov1alpha1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	clusteroperatorinformers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions"
-	"github.com/openshift/cluster-operator/pkg/controller"
+	cocontroller "github.com/openshift/cluster-operator/pkg/controller"
 	"github.com/openshift/cluster-operator/pkg/controller/awselb"
 	"github.com/openshift/cluster-operator/pkg/controller/clusterdeployment"
 	"github.com/openshift/cluster-operator/pkg/controller/components"
@@ -75,7 +75,7 @@ import (
 	"github.com/openshift/cluster-operator/pkg/controller/remotemachineset"
 	"github.com/openshift/cluster-operator/pkg/controller/route53hostedzone"
 	"github.com/openshift/cluster-operator/pkg/version"
-	cav1alpha1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	capiinformers "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions"
 )
 
@@ -145,7 +145,7 @@ func Run(s *options.CMServer) error {
 	recorder := createRecorder(kubeClient)
 
 	run := func(stop <-chan struct{}) {
-		clientBuilder := controller.SimpleClientBuilder{
+		clientBuilder := cocontroller.SimpleClientBuilder{
 			ClientConfig: kubeconfig,
 		}
 		ctx, err := CreateControllerContext(s, clientBuilder, stop)
@@ -253,7 +253,7 @@ func createClients(s *options.CMServer) (*clientset.Clientset, *clientset.Client
 // controllers.
 type ControllerContext struct {
 	// ClientBuilder will provide a client for this controller to use
-	ClientBuilder controller.ClientBuilder
+	ClientBuilder cocontroller.ClientBuilder
 
 	// InformerFactory gives access to informers for the controller.
 	InformerFactory clusteroperatorinformers.SharedInformerFactory
@@ -350,7 +350,7 @@ func NewControllerInitializers() map[string]InitFunc {
 // TODO: In general, any controller checking this needs to be dynamic so
 //  users don't have to restart their controller manager if they change the apiserver.
 // Until we get there, the structure here needs to be exposed for the construction of a proper ControllerContext.
-func GetAvailableResources(clientBuilder controller.ClientBuilder, resourceGroups []resourceGroup) (map[schema.GroupVersionResource]bool, error) {
+func GetAvailableResources(clientBuilder cocontroller.ClientBuilder, resourceGroups []resourceGroup) (map[schema.GroupVersionResource]bool, error) {
 	var allResources = make(map[schema.GroupVersionResource]bool)
 
 	errc := make(chan error, len(resourceGroups))
@@ -451,7 +451,7 @@ type resourceGroup struct {
 
 // CreateControllerContext creates a context struct containing references to resources needed by the
 // controllers such as the clientBuilder.
-func CreateControllerContext(s *options.CMServer, clientBuilder controller.ClientBuilder, stop <-chan struct{}) (ControllerContext, error) {
+func CreateControllerContext(s *options.CMServer, clientBuilder cocontroller.ClientBuilder, stop <-chan struct{}) (ControllerContext, error) {
 	versionedClient := clientBuilder.ClientOrDie("shared-informers")
 	kubeClient := clientBuilder.KubeClientOrDie("shared-informers")
 	capiClient := clientBuilder.ClusterAPIClientOrDie("shared-informers")
@@ -468,7 +468,7 @@ func CreateControllerContext(s *options.CMServer, clientBuilder controller.Clien
 				}
 				return capiClient.Discovery(), nil
 			},
-			groupVersion: cav1alpha1.SchemeGroupVersion.String(),
+			groupVersion: capiv1.SchemeGroupVersion.String(),
 		},
 	}
 
@@ -482,7 +482,7 @@ func CreateControllerContext(s *options.CMServer, clientBuilder controller.Clien
 					}
 					return coClient.Discovery(), nil
 				},
-				groupVersion: cov1alpha1.SchemeGroupVersion.String(),
+				groupVersion: cov1.SchemeGroupVersion.String(),
 			})
 	}
 

@@ -26,11 +26,11 @@ import (
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/client-go/util/retry"
 
-	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
-	clusteroperatorclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
-	"github.com/openshift/cluster-operator/pkg/logging"
+	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	coclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
+	cologging "github.com/openshift/cluster-operator/pkg/logging"
 
-	clusterv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	clusterclientset "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 )
 
@@ -38,14 +38,14 @@ import (
 // between original and clusterDeployment. If the patch request fails due to a
 // conflict, the request will be retried until it succeeds or fails for other
 // reasons.
-func PatchClusterDeploymentStatus(c clusteroperatorclientset.Interface, original, clusterDeployment *clusteroperator.ClusterDeployment) error {
+func PatchClusterDeploymentStatus(c coclientset.Interface, original, clusterDeployment *cov1.ClusterDeployment) error {
 	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		return patchClusterDeploymentStatus(c, original, clusterDeployment)
 	})
 }
 
-func patchClusterDeploymentStatus(c clusteroperatorclientset.Interface, oldClusterDeployment, newClusterDeployment *clusteroperator.ClusterDeployment) error {
-	logger := logging.WithClusterDeployment(log.StandardLogger(), oldClusterDeployment)
+func patchClusterDeploymentStatus(c coclientset.Interface, oldClusterDeployment, newClusterDeployment *cov1.ClusterDeployment) error {
+	logger := cologging.WithClusterDeployment(log.StandardLogger(), oldClusterDeployment)
 	patchBytes, err := preparePatchBytesforClusterDeploymentStatus(oldClusterDeployment, newClusterDeployment)
 	if err != nil {
 		return err
@@ -64,7 +64,7 @@ func patchClusterDeploymentStatus(c clusteroperatorclientset.Interface, oldClust
 	return err
 }
 
-func preparePatchBytesforClusterDeploymentStatus(oldClusterDeployment, newClusterDeployment *clusteroperator.ClusterDeployment) ([]byte, error) {
+func preparePatchBytesforClusterDeploymentStatus(oldClusterDeployment, newClusterDeployment *cov1.ClusterDeployment) ([]byte, error) {
 	oldData, err := json.Marshal(oldClusterDeployment)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal oldData for clusterdeployment %s/%s: %v", oldClusterDeployment.Namespace, oldClusterDeployment.Name, err)
@@ -77,7 +77,7 @@ func preparePatchBytesforClusterDeploymentStatus(oldClusterDeployment, newCluste
 		return nil, fmt.Errorf("failed to marshal newData for clusterdeployment %s/%s: %v", newClusterDeployment.Namespace, newClusterDeployment.Name, err)
 	}
 
-	patchBytes, err := strategicpatch.CreateTwoWayMergePatch(oldData, newData, clusteroperator.ClusterDeployment{})
+	patchBytes, err := strategicpatch.CreateTwoWayMergePatch(oldData, newData, cov1.ClusterDeployment{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create two way merge patch for clusterdeployment %s/%s: %v", newClusterDeployment.Namespace, newClusterDeployment.Name, err)
 	}
@@ -86,7 +86,7 @@ func preparePatchBytesforClusterDeploymentStatus(oldClusterDeployment, newCluste
 
 // UpdateClusterStatus will update the cluster status. If the update request
 // fails due to a conflict, the request will NOT be retried.
-func UpdateClusterStatus(c clusterclientset.Interface, cluster *clusterv1.Cluster) error {
+func UpdateClusterStatus(c clusterclientset.Interface, cluster *capiv1.Cluster) error {
 	_, err := c.ClusterV1alpha1().Clusters(cluster.Namespace).UpdateStatus(cluster)
 	return err
 }

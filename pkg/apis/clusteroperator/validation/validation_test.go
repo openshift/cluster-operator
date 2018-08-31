@@ -21,7 +21,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
-	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
+	coapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
 )
 
 // TestValidateNodeType validates the validateNodeType function.
@@ -49,7 +49,7 @@ func TestValidateNodeType(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		errs := validateNodeType(clusteroperator.NodeType(tc.nodeType), field.NewPath("nodeType"))
+		errs := validateNodeType(coapi.NodeType(tc.nodeType), field.NewPath("nodeType"))
 		if len(errs) != 0 && tc.valid {
 			t.Errorf("%v: unexpected error: %v", tc.nodeType, errs)
 			continue

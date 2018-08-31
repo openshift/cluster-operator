@@ -22,23 +22,23 @@ import (
 	kapi "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
+	coapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
 )
 
 // getValidClusterVersion gets a cluster version that passes all validity checks.
-func getValidClusterVersion() *clusteroperator.ClusterVersion {
+func getValidClusterVersion() *coapi.ClusterVersion {
 	masterAMIID := "masterAMI_ID"
-	return &clusteroperator.ClusterVersion{
+	return &coapi.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test-cluster-version",
 		},
-		Spec: clusteroperator.ClusterVersionSpec{
-			Images: clusteroperator.ClusterVersionImages{
+		Spec: coapi.ClusterVersionSpec{
+			Images: coapi.ClusterVersionImages{
 				ImageFormat: "openshift/origin-${component}:${version}",
 			},
-			VMImages: clusteroperator.VMImages{
-				AWSImages: &clusteroperator.AWSVMImages{
-					RegionAMIs: []clusteroperator.AWSRegionAMIs{
+			VMImages: coapi.VMImages{
+				AWSImages: &coapi.AWSVMImages{
+					RegionAMIs: []coapi.AWSRegionAMIs{
 						{
 							Region:    "us-east-1",
 							AMI:       "computeAMI_ID",
@@ -47,7 +47,7 @@ func getValidClusterVersion() *clusteroperator.ClusterVersion {
 					},
 				},
 			},
-			DeploymentType: clusteroperator.ClusterDeploymentTypeOrigin,
+			DeploymentType: coapi.ClusterDeploymentTypeOrigin,
 			Version:        "3.7.0",
 		},
 	}
@@ -57,7 +57,7 @@ func getValidClusterVersion() *clusteroperator.ClusterVersion {
 func TestValidateClusterVersion(t *testing.T) {
 	cases := []struct {
 		name           string
-		clusterVersion *clusteroperator.ClusterVersion
+		clusterVersion *coapi.ClusterVersion
 		valid          bool
 	}{
 		{
@@ -67,7 +67,7 @@ func TestValidateClusterVersion(t *testing.T) {
 		},
 		{
 			name: "missing image format",
-			clusterVersion: func() *clusteroperator.ClusterVersion {
+			clusterVersion: func() *coapi.ClusterVersion {
 				c := getValidClusterVersion()
 				c.Spec.Images.ImageFormat = ""
 				return c
@@ -76,9 +76,9 @@ func TestValidateClusterVersion(t *testing.T) {
 		},
 		{
 			name: "missing VM images",
-			clusterVersion: func() *clusteroperator.ClusterVersion {
+			clusterVersion: func() *coapi.ClusterVersion {
 				c := getValidClusterVersion()
-				c.Spec.VMImages = clusteroperator.VMImages{}
+				c.Spec.VMImages = coapi.VMImages{}
 				return c
 			}(),
 			valid: false,
@@ -87,7 +87,7 @@ func TestValidateClusterVersion(t *testing.T) {
 			// This test is only valid until we start supporting mutliple clusters, in which case
 			// it should instead verify at least one cloud provider has images defined:
 			name: "missing AWS VM images",
-			clusterVersion: func() *clusteroperator.ClusterVersion {
+			clusterVersion: func() *coapi.ClusterVersion {
 				c := getValidClusterVersion()
 				c.Spec.VMImages.AWSImages = nil
 				return c
@@ -96,16 +96,16 @@ func TestValidateClusterVersion(t *testing.T) {
 		},
 		{
 			name: "no region AMIs",
-			clusterVersion: func() *clusteroperator.ClusterVersion {
+			clusterVersion: func() *coapi.ClusterVersion {
 				c := getValidClusterVersion()
-				c.Spec.VMImages.AWSImages.RegionAMIs = []clusteroperator.AWSRegionAMIs{}
+				c.Spec.VMImages.AWSImages.RegionAMIs = []coapi.AWSRegionAMIs{}
 				return c
 			}(),
 			valid: false,
 		},
 		{
 			name: "missing AMI region",
-			clusterVersion: func() *clusteroperator.ClusterVersion {
+			clusterVersion: func() *coapi.ClusterVersion {
 				c := getValidClusterVersion()
 				c.Spec.VMImages.AWSImages.RegionAMIs[0].Region = ""
 				return c
@@ -114,7 +114,7 @@ func TestValidateClusterVersion(t *testing.T) {
 		},
 		{
 			name: "missing AMI ID",
-			clusterVersion: func() *clusteroperator.ClusterVersion {
+			clusterVersion: func() *coapi.ClusterVersion {
 				c := getValidClusterVersion()
 				c.Spec.VMImages.AWSImages.RegionAMIs[0].AMI = ""
 				return c
@@ -123,7 +123,7 @@ func TestValidateClusterVersion(t *testing.T) {
 		},
 		{
 			name: "empty master AMI ID",
-			clusterVersion: func() *clusteroperator.ClusterVersion {
+			clusterVersion: func() *coapi.ClusterVersion {
 				c := getValidClusterVersion()
 				var emptyStr string
 				c.Spec.VMImages.AWSImages.RegionAMIs[0].MasterAMI = &emptyStr
@@ -133,17 +133,17 @@ func TestValidateClusterVersion(t *testing.T) {
 		},
 		{
 			name: "duplicate region AMIs",
-			clusterVersion: func() *clusteroperator.ClusterVersion {
+			clusterVersion: func() *coapi.ClusterVersion {
 				c := getValidClusterVersion()
 				c.Spec.VMImages.AWSImages.RegionAMIs = append(c.Spec.VMImages.AWSImages.RegionAMIs,
-					clusteroperator.AWSRegionAMIs{Region: "us-east-1", AMI: "fakecompute"})
+					coapi.AWSRegionAMIs{Region: "us-east-1", AMI: "fakecompute"})
 				return c
 			}(),
 			valid: false,
 		},
 		{
 			name: "missing deployment type",
-			clusterVersion: func() *clusteroperator.ClusterVersion {
+			clusterVersion: func() *coapi.ClusterVersion {
 				c := getValidClusterVersion()
 				c.Spec.DeploymentType = ""
 				return c
@@ -152,7 +152,7 @@ func TestValidateClusterVersion(t *testing.T) {
 		},
 		{
 			name: "invalid deployment type",
-			clusterVersion: func() *clusteroperator.ClusterVersion {
+			clusterVersion: func() *coapi.ClusterVersion {
 				c := getValidClusterVersion()
 				c.Spec.DeploymentType = "badtype"
 				return c
@@ -161,7 +161,7 @@ func TestValidateClusterVersion(t *testing.T) {
 		},
 		{
 			name: "missing version",
-			clusterVersion: func() *clusteroperator.ClusterVersion {
+			clusterVersion: func() *coapi.ClusterVersion {
 				c := getValidClusterVersion()
 				c.Spec.Version = ""
 				return c
@@ -170,7 +170,7 @@ func TestValidateClusterVersion(t *testing.T) {
 		},
 		{
 			name: "valid version without leading v",
-			clusterVersion: func() *clusteroperator.ClusterVersion {
+			clusterVersion: func() *coapi.ClusterVersion {
 				c := getValidClusterVersion()
 				c.Spec.Version = "3.10.0.whatever"
 				return c
@@ -179,7 +179,7 @@ func TestValidateClusterVersion(t *testing.T) {
 		},
 		{
 			name: "valid version 2",
-			clusterVersion: func() *clusteroperator.ClusterVersion {
+			clusterVersion: func() *coapi.ClusterVersion {
 				c := getValidClusterVersion()
 				c.Spec.Version = "3.10"
 				return c
@@ -188,7 +188,7 @@ func TestValidateClusterVersion(t *testing.T) {
 		},
 		{
 			name: "valid version 3",
-			clusterVersion: func() *clusteroperator.ClusterVersion {
+			clusterVersion: func() *coapi.ClusterVersion {
 				c := getValidClusterVersion()
 				c.Spec.Version = "3.9"
 				return c
@@ -197,7 +197,7 @@ func TestValidateClusterVersion(t *testing.T) {
 		},
 		{
 			name: "invalid version 1",
-			clusterVersion: func() *clusteroperator.ClusterVersion {
+			clusterVersion: func() *coapi.ClusterVersion {
 				c := getValidClusterVersion()
 				c.Spec.Version = "x3.10.0.whatever"
 				return c
@@ -206,7 +206,7 @@ func TestValidateClusterVersion(t *testing.T) {
 		},
 		{
 			name: "invalid version 2",
-			clusterVersion: func() *clusteroperator.ClusterVersion {
+			clusterVersion: func() *coapi.ClusterVersion {
 				c := getValidClusterVersion()
 				c.Spec.Version = "v3"
 				return c
@@ -215,7 +215,7 @@ func TestValidateClusterVersion(t *testing.T) {
 		},
 		{
 			name: "invalid version 3",
-			clusterVersion: func() *clusteroperator.ClusterVersion {
+			clusterVersion: func() *coapi.ClusterVersion {
 				c := getValidClusterVersion()
 				c.Spec.Version = "va3.10.0"
 				return c
@@ -224,7 +224,7 @@ func TestValidateClusterVersion(t *testing.T) {
 		},
 		{
 			name: "invalid version 4",
-			clusterVersion: func() *clusteroperator.ClusterVersion {
+			clusterVersion: func() *coapi.ClusterVersion {
 				c := getValidClusterVersion()
 				c.Spec.Version = "verybadversion"
 				return c
@@ -233,7 +233,7 @@ func TestValidateClusterVersion(t *testing.T) {
 		},
 		{
 			name: "invalid version 5",
-			clusterVersion: func() *clusteroperator.ClusterVersion {
+			clusterVersion: func() *coapi.ClusterVersion {
 				c := getValidClusterVersion()
 				c.Spec.Version = "v30"
 				return c
@@ -242,7 +242,7 @@ func TestValidateClusterVersion(t *testing.T) {
 		},
 		{
 			name: "invalid version 6",
-			clusterVersion: func() *clusteroperator.ClusterVersion {
+			clusterVersion: func() *coapi.ClusterVersion {
 				c := getValidClusterVersion()
 				c.Spec.Version = "30"
 				return c
@@ -251,7 +251,7 @@ func TestValidateClusterVersion(t *testing.T) {
 		},
 		{
 			name: "ansible pull policy - nil",
-			clusterVersion: func() *clusteroperator.ClusterVersion {
+			clusterVersion: func() *coapi.ClusterVersion {
 				c := getValidClusterVersion()
 				c.Spec.Images.OpenshiftAnsibleImagePullPolicy = nil
 				return c
@@ -260,7 +260,7 @@ func TestValidateClusterVersion(t *testing.T) {
 		},
 		{
 			name: "ansible pull policy - always",
-			clusterVersion: func() *clusteroperator.ClusterVersion {
+			clusterVersion: func() *coapi.ClusterVersion {
 				c := getValidClusterVersion()
 				c.Spec.Images.OpenshiftAnsibleImagePullPolicy = func(s kapi.PullPolicy) *kapi.PullPolicy { return &s }(kapi.PullAlways)
 				return c
@@ -269,7 +269,7 @@ func TestValidateClusterVersion(t *testing.T) {
 		},
 		{
 			name: "ansible pull policy - if not present",
-			clusterVersion: func() *clusteroperator.ClusterVersion {
+			clusterVersion: func() *coapi.ClusterVersion {
 				c := getValidClusterVersion()
 				c.Spec.Images.OpenshiftAnsibleImagePullPolicy = func(s kapi.PullPolicy) *kapi.PullPolicy { return &s }(kapi.PullIfNotPresent)
 				return c
@@ -278,7 +278,7 @@ func TestValidateClusterVersion(t *testing.T) {
 		},
 		{
 			name: "ansible pull policy - never",
-			clusterVersion: func() *clusteroperator.ClusterVersion {
+			clusterVersion: func() *coapi.ClusterVersion {
 				c := getValidClusterVersion()
 				c.Spec.Images.OpenshiftAnsibleImagePullPolicy = func(s kapi.PullPolicy) *kapi.PullPolicy { return &s }(kapi.PullNever)
 				return c
@@ -287,7 +287,7 @@ func TestValidateClusterVersion(t *testing.T) {
 		},
 		{
 			name: "ansible pull policy - bad",
-			clusterVersion: func() *clusteroperator.ClusterVersion {
+			clusterVersion: func() *coapi.ClusterVersion {
 				c := getValidClusterVersion()
 				c.Spec.Images.OpenshiftAnsibleImagePullPolicy = func(s kapi.PullPolicy) *kapi.PullPolicy { return &s }(kapi.PullPolicy("bad"))
 				return c
@@ -296,7 +296,7 @@ func TestValidateClusterVersion(t *testing.T) {
 		},
 		{
 			name: "ansible pull policy - empty",
-			clusterVersion: func() *clusteroperator.ClusterVersion {
+			clusterVersion: func() *coapi.ClusterVersion {
 				c := getValidClusterVersion()
 				c.Spec.Images.OpenshiftAnsibleImagePullPolicy = func(s kapi.PullPolicy) *kapi.PullPolicy { return &s }(kapi.PullPolicy(""))
 				return c
@@ -321,8 +321,8 @@ func TestValidateClusterVersion(t *testing.T) {
 func TestValidateClusterVersionUpdate(t *testing.T) {
 	cases := []struct {
 		name  string
-		old   *clusteroperator.ClusterVersion
-		new   *clusteroperator.ClusterVersion
+		old   *coapi.ClusterVersion
+		new   *coapi.ClusterVersion
 		valid bool
 	}{
 		{
@@ -334,7 +334,7 @@ func TestValidateClusterVersionUpdate(t *testing.T) {
 		{
 			name: "modified image format",
 			old:  getValidClusterVersion(),
-			new: func() *clusteroperator.ClusterVersion {
+			new: func() *coapi.ClusterVersion {
 				c := getValidClusterVersion()
 				c.Spec.Images.ImageFormat = "abc"
 				return c

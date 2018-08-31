@@ -31,7 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/client-go/kubernetes"
 
-	clusterv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	clusterclient "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -39,8 +39,8 @@ import (
 
 	coapi "github.com/openshift/cluster-operator/pkg/api"
 	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
-	"github.com/openshift/cluster-operator/pkg/controller"
-	clustoplog "github.com/openshift/cluster-operator/pkg/logging"
+	cocontroller "github.com/openshift/cluster-operator/pkg/controller"
+	cologging "github.com/openshift/cluster-operator/pkg/logging"
 )
 
 const (
@@ -101,8 +101,8 @@ func NewActuator(kubeClient kubernetes.Interface, clusterClient clusterclient.In
 }
 
 // Create runs a new EC2 instance
-func (a *Actuator) Create(cluster *clusterv1.Cluster, machine *clusterv1.Machine) error {
-	mLog := clustoplog.WithMachine(a.logger, machine)
+func (a *Actuator) Create(cluster *capiv1.Cluster, machine *capiv1.Machine) error {
+	mLog := cologging.WithMachine(a.logger, machine)
 	mLog.Info("creating machine")
 	instance, err := a.CreateMachine(cluster, machine)
 	if err != nil {
@@ -114,7 +114,7 @@ func (a *Actuator) Create(cluster *clusterv1.Cluster, machine *clusterv1.Machine
 }
 
 // removeStoppedMachine removes all instances of a specific machine that are in a stopped state.
-func (a *Actuator) removeStoppedMachine(machine *clusterv1.Machine, client Client, mLog log.FieldLogger) error {
+func (a *Actuator) removeStoppedMachine(machine *capiv1.Machine, client Client, mLog log.FieldLogger) error {
 	instances, err := GetStoppedInstances(machine, client)
 	if err != nil {
 		return fmt.Errorf("Error getting stopped instances: %v", err)
@@ -129,16 +129,16 @@ func (a *Actuator) removeStoppedMachine(machine *clusterv1.Machine, client Clien
 }
 
 // CreateMachine starts a new AWS instance as described by the cluster and machine resources
-func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.Machine) (*ec2.Instance, error) {
-	mLog := clustoplog.WithMachine(a.logger, machine)
+func (a *Actuator) CreateMachine(cluster *capiv1.Cluster, machine *capiv1.Machine) (*ec2.Instance, error) {
+	mLog := cologging.WithMachine(a.logger, machine)
 
 	// Extract cluster operator cluster
-	clusterSpec, err := controller.AWSClusterProviderConfigFromCluster(cluster)
+	clusterSpec, err := cocontroller.AWSClusterProviderConfigFromCluster(cluster)
 	if err != nil {
 		return nil, err
 	}
 
-	coMachineSetSpec, err := controller.MachineSetSpecFromClusterAPIMachineSpec(&machine.Spec)
+	coMachineSetSpec, err := cocontroller.MachineSetSpecFromClusterAPIMachineSpec(&machine.Spec)
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +148,7 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 	region := clusterSpec.Hardware.Region
 	mLog.Debugf("Obtaining EC2 client for region %q", region)
 
-	secretName, err := controller.GetSecretNameFromMachineSetSpec(coMachineSetSpec)
+	secretName, err := cocontroller.GetSecretNameFromMachineSetSpec(coMachineSetSpec)
 	if err != nil {
 		return nil, err
 	}
@@ -339,8 +339,8 @@ func (a *Actuator) CreateMachine(cluster *clusterv1.Cluster, machine *clusterv1.
 }
 
 // Delete deletes a machine and updates its finalizer
-func (a *Actuator) Delete(cluster *clusterv1.Cluster, machine *clusterv1.Machine) error {
-	mLog := clustoplog.WithMachine(a.logger, machine)
+func (a *Actuator) Delete(cluster *capiv1.Cluster, machine *capiv1.Machine) error {
+	mLog := cologging.WithMachine(a.logger, machine)
 	mLog.Info("deleting machine")
 	if err := a.DeleteMachine(machine); err != nil {
 		mLog.Errorf("error deleting machine: %v", err)
@@ -350,15 +350,15 @@ func (a *Actuator) Delete(cluster *clusterv1.Cluster, machine *clusterv1.Machine
 }
 
 // DeleteMachine deletes an AWS instance
-func (a *Actuator) DeleteMachine(machine *clusterv1.Machine) error {
-	mLog := clustoplog.WithMachine(a.logger, machine)
+func (a *Actuator) DeleteMachine(machine *capiv1.Machine) error {
+	mLog := cologging.WithMachine(a.logger, machine)
 
-	coMachineSetSpec, err := controller.MachineSetSpecFromClusterAPIMachineSpec(&machine.Spec)
+	coMachineSetSpec, err := cocontroller.MachineSetSpecFromClusterAPIMachineSpec(&machine.Spec)
 	if err != nil {
 		return err
 	}
 
-	secretName, err := controller.GetSecretNameFromMachineSetSpec(coMachineSetSpec)
+	secretName, err := cocontroller.GetSecretNameFromMachineSetSpec(coMachineSetSpec)
 	if err != nil {
 		return err
 	}
@@ -384,21 +384,21 @@ func (a *Actuator) DeleteMachine(machine *clusterv1.Machine) error {
 // Update attempts to sync machine state with an existing instance. Today this just updates status
 // for details that may have changed. (IPs and hostnames) We do not currently support making any
 // changes to actual machines in AWS. Instead these will be replaced via MachineDeployments.
-func (a *Actuator) Update(cluster *clusterv1.Cluster, machine *clusterv1.Machine) error {
-	mLog := clustoplog.WithMachine(a.logger, machine)
+func (a *Actuator) Update(cluster *capiv1.Cluster, machine *capiv1.Machine) error {
+	mLog := cologging.WithMachine(a.logger, machine)
 	mLog.Debugf("updating machine")
 
-	clusterSpec, err := controller.AWSClusterProviderConfigFromCluster(cluster)
+	clusterSpec, err := cocontroller.AWSClusterProviderConfigFromCluster(cluster)
 	if err != nil {
 		return err
 	}
 
-	coMachineSetSpec, err := controller.MachineSetSpecFromClusterAPIMachineSpec(&machine.Spec)
+	coMachineSetSpec, err := cocontroller.MachineSetSpecFromClusterAPIMachineSpec(&machine.Spec)
 	if err != nil {
 		return err
 	}
 
-	secretName, err := controller.GetSecretNameFromMachineSetSpec(coMachineSetSpec)
+	secretName, err := cocontroller.GetSecretNameFromMachineSetSpec(coMachineSetSpec)
 	if err != nil {
 		return err
 	}
@@ -448,16 +448,16 @@ func (a *Actuator) Update(cluster *clusterv1.Cluster, machine *clusterv1.Machine
 
 // Exists determines if the given machine currently exists. For AWS we query for instances in
 // running state, with a matching name tag, to determine a match.
-func (a *Actuator) Exists(cluster *clusterv1.Cluster, machine *clusterv1.Machine) (bool, error) {
-	mLog := clustoplog.WithMachine(a.logger, machine)
+func (a *Actuator) Exists(cluster *capiv1.Cluster, machine *capiv1.Machine) (bool, error) {
+	mLog := cologging.WithMachine(a.logger, machine)
 	mLog.Debugf("checking if machine exists")
 
-	coMachineSetSpec, err := controller.MachineSetSpecFromClusterAPIMachineSpec(&machine.Spec)
+	coMachineSetSpec, err := cocontroller.MachineSetSpecFromClusterAPIMachineSpec(&machine.Spec)
 	if err != nil {
 		return false, err
 	}
 
-	secretName, err := controller.GetSecretNameFromMachineSetSpec(coMachineSetSpec)
+	secretName, err := cocontroller.GetSecretNameFromMachineSetSpec(coMachineSetSpec)
 	if err != nil {
 		return false, err
 	}
@@ -483,12 +483,12 @@ func (a *Actuator) Exists(cluster *clusterv1.Cluster, machine *clusterv1.Machine
 }
 
 // updateStatus calculates the new machine status, checks if anything has changed, and updates if so.
-func (a *Actuator) updateStatus(machine *clusterv1.Machine, instance *ec2.Instance, mLog log.FieldLogger) error {
+func (a *Actuator) updateStatus(machine *capiv1.Machine, instance *ec2.Instance, mLog log.FieldLogger) error {
 
 	mLog.Debug("updating status")
 
 	// Starting with a fresh status as we assume full control of it here.
-	awsStatus, err := controller.AWSMachineProviderStatusFromClusterAPIMachine(machine)
+	awsStatus, err := cocontroller.AWSMachineProviderStatusFromClusterAPIMachine(machine)
 	if err != nil {
 		return err
 	}
@@ -530,12 +530,12 @@ func (a *Actuator) updateStatus(machine *clusterv1.Machine, instance *ec2.Instan
 	}
 	mLog.Debug("finished calculating AWS status")
 
-	if !controller.StringPtrsEqual(origInstanceID, awsStatus.InstanceID) {
+	if !cocontroller.StringPtrsEqual(origInstanceID, awsStatus.InstanceID) {
 		mLog.Debug("AWS instance ID changed, clearing LastELBSync to trigger adding to ELBs")
 		awsStatus.LastELBSync = nil
 	}
 
-	awsStatusRaw, err := controller.EncodeAWSMachineProviderStatus(awsStatus)
+	awsStatusRaw, err := cocontroller.EncodeAWSMachineProviderStatus(awsStatus)
 	if err != nil {
 		mLog.Errorf("error encoding AWS provider status: %v", err)
 		return err
@@ -560,7 +560,7 @@ func (a *Actuator) updateStatus(machine *clusterv1.Machine, instance *ec2.Instan
 	return nil
 }
 
-func getClusterID(machine *clusterv1.Machine) (string, bool) {
+func getClusterID(machine *capiv1.Machine) (string, bool) {
 	clusterID, ok := machine.Labels[cov1.ClusterNameLabel]
 	return clusterID, ok
 }
@@ -650,8 +650,8 @@ func getBootstrapKubeconfig() (string, error) {
 	return base64.StdEncoding.EncodeToString(content), nil
 }
 
-func iamRole(machine *clusterv1.Machine, clusterID string) string {
-	if isMaster, err := controller.MachineIsMaster(machine); isMaster && err == nil {
+func iamRole(machine *capiv1.Machine, clusterID string) string {
+	if isMaster, err := cocontroller.MachineIsMaster(machine); isMaster && err == nil {
 		return masterIAMRole + "_" + clusterID
 	}
 	return defaultIAMRole + "_" + clusterID

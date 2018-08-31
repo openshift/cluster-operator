@@ -26,7 +26,7 @@ import (
 	genericregistrytest "k8s.io/apiserver/pkg/registry/generic/testing"
 	etcdtesting "k8s.io/apiserver/pkg/storage/etcd/testing"
 
-	clusteroperatorapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
+	coapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
 	"github.com/openshift/cluster-operator/pkg/registry/registrytest"
 
 	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
@@ -44,26 +44,26 @@ func newStorage(t *testing.T) (*genericregistry.Store, *etcdtesting.EtcdTestServ
 	return clusterStorage, server
 }
 
-func validNewClusterDeployment(name string) *clusteroperatorapi.ClusterDeployment {
-	return &clusteroperatorapi.ClusterDeployment{
+func validNewClusterDeployment(name string) *coapi.ClusterDeployment {
+	return &coapi.ClusterDeployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
-		Spec: clusteroperatorapi.ClusterDeploymentSpec{
-			MachineSets: []clusteroperatorapi.ClusterMachineSet{
+		Spec: coapi.ClusterDeploymentSpec{
+			MachineSets: []coapi.ClusterMachineSet{
 				{
-					MachineSetConfig: clusteroperatorapi.MachineSetConfig{
-						NodeType: clusteroperatorapi.NodeTypeMaster,
+					MachineSetConfig: coapi.MachineSetConfig{
+						NodeType: coapi.NodeTypeMaster,
 						Infra:    true,
 						Size:     1,
 					},
 				},
 			},
-			ClusterVersionRef: clusteroperatorapi.ClusterVersionReference{
+			ClusterVersionRef: coapi.ClusterVersionReference{
 				Namespace: "openshift-cluster-operator",
 				Name:      "v3-9",
 			},
-			Config: clusteroperatorapi.ClusterConfigSpec{
+			Config: coapi.ClusterConfigSpec{
 				SDNPluginName: "redhat/openshift-ovs-multitenant",
 			},
 			NetworkConfig: capiv1.ClusterNetworkingConfig{
@@ -71,14 +71,14 @@ func validNewClusterDeployment(name string) *clusteroperatorapi.ClusterDeploymen
 				Pods:          capiv1.NetworkRanges{CIDRBlocks: []string{"10.128.0.0/14"}},
 				ServiceDomain: "svc.cluster.local",
 			},
-			Hardware: clusteroperatorapi.ClusterHardwareSpec{
-				AWS: &clusteroperatorapi.AWSClusterSpec{},
+			Hardware: coapi.ClusterHardwareSpec{
+				AWS: &coapi.AWSClusterSpec{},
 			},
 		},
 	}
 }
 
-func validChangedClusterDeployment() *clusteroperatorapi.ClusterDeployment {
+func validChangedClusterDeployment() *coapi.ClusterDeployment {
 	return validNewClusterDeployment("foo")
 }
 
@@ -93,11 +93,11 @@ func TestCreate(t *testing.T) {
 		// valid
 		clusterDeployment,
 		// invalid
-		&clusteroperatorapi.ClusterDeployment{
+		&coapi.ClusterDeployment{
 			ObjectMeta: metav1.ObjectMeta{Name: "*BadName!"},
-			Spec: clusteroperatorapi.ClusterDeploymentSpec{
-				Hardware: clusteroperatorapi.ClusterHardwareSpec{
-					AWS: &clusteroperatorapi.AWSClusterSpec{},
+			Spec: coapi.ClusterDeploymentSpec{
+				Hardware: coapi.ClusterHardwareSpec{
+					AWS: &coapi.AWSClusterSpec{},
 				},
 			},
 		},
@@ -118,12 +118,12 @@ func TestUpdate(t *testing.T) {
 		}(),
 		// updateFunc
 		func(obj runtime.Object) runtime.Object {
-			object := obj.(*clusteroperatorapi.ClusterDeployment)
+			object := obj.(*coapi.ClusterDeployment)
 			return object
 		},
 		//invalid update
 		func(obj runtime.Object) runtime.Object {
-			object := obj.(*clusteroperatorapi.ClusterDeployment)
+			object := obj.(*coapi.ClusterDeployment)
 			return object
 		},
 	)

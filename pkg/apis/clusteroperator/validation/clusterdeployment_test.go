@@ -23,13 +23,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
-	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
+	coapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
 	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 )
 
 // getValidClusterDeployment gets a cluster deployment that passes all validity checks.
-func getValidClusterDeployment() *clusteroperator.ClusterDeployment {
-	return &clusteroperator.ClusterDeployment{
+func getValidClusterDeployment() *coapi.ClusterDeployment {
+	return &coapi.ClusterDeployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test-cluster",
 		},
@@ -37,19 +37,19 @@ func getValidClusterDeployment() *clusteroperator.ClusterDeployment {
 	}
 }
 
-func getValidClusterDeploymentSpec() clusteroperator.ClusterDeploymentSpec {
-	return clusteroperator.ClusterDeploymentSpec{
+func getValidClusterDeploymentSpec() coapi.ClusterDeploymentSpec {
+	return coapi.ClusterDeploymentSpec{
 		ClusterName: "cluster-name",
-		MachineSets: []clusteroperator.ClusterMachineSet{
+		MachineSets: []coapi.ClusterMachineSet{
 			{
-				MachineSetConfig: clusteroperator.MachineSetConfig{
-					NodeType: clusteroperator.NodeTypeMaster,
+				MachineSetConfig: coapi.MachineSetConfig{
+					NodeType: coapi.NodeTypeMaster,
 					Infra:    true,
 					Size:     1,
 				},
 			},
 		},
-		ClusterVersionRef: clusteroperator.ClusterVersionReference{
+		ClusterVersionRef: coapi.ClusterVersionReference{
 			Name: "v3-9",
 		},
 		NetworkConfig: capiv1.ClusterNetworkingConfig{
@@ -57,7 +57,7 @@ func getValidClusterDeploymentSpec() clusteroperator.ClusterDeploymentSpec {
 			Services:      capiv1.NetworkRanges{CIDRBlocks: []string{"172.50.1.1/16"}},
 			Pods:          capiv1.NetworkRanges{CIDRBlocks: []string{"10.140.5.5/14"}},
 		},
-		Config: clusteroperator.ClusterConfigSpec{
+		Config: coapi.ClusterConfigSpec{
 			SDNPluginName: "redhat/openshift-ovs-multitenant",
 		},
 	}
@@ -72,14 +72,14 @@ func getClusterVersionReference() corev1.ObjectReference {
 }
 
 // getTestMachineSet gets a ClusterMachineSet initialized with either compute or master node type
-func getTestMachineSet(size int, shortName string, master bool, infra bool) clusteroperator.ClusterMachineSet {
-	nodeType := clusteroperator.NodeTypeCompute
+func getTestMachineSet(size int, shortName string, master bool, infra bool) coapi.ClusterMachineSet {
+	nodeType := coapi.NodeTypeCompute
 	if master {
-		nodeType = clusteroperator.NodeTypeMaster
+		nodeType = coapi.NodeTypeMaster
 	}
-	return clusteroperator.ClusterMachineSet{
+	return coapi.ClusterMachineSet{
 		ShortName: shortName,
-		MachineSetConfig: clusteroperator.MachineSetConfig{
+		MachineSetConfig: coapi.MachineSetConfig{
 			NodeType: nodeType,
 			Size:     size,
 			Infra:    infra,
@@ -91,7 +91,7 @@ func getTestMachineSet(size int, shortName string, master bool, infra bool) clus
 func TestValidateClusterDeployment(t *testing.T) {
 	cases := []struct {
 		name              string
-		clusterDeployment *clusteroperator.ClusterDeployment
+		clusterDeployment *coapi.ClusterDeployment
 		valid             bool
 	}{
 		{
@@ -101,7 +101,7 @@ func TestValidateClusterDeployment(t *testing.T) {
 		},
 		{
 			name: "invalid name",
-			clusterDeployment: func() *clusteroperator.ClusterDeployment {
+			clusterDeployment: func() *coapi.ClusterDeployment {
 				c := getValidClusterDeployment()
 				c.Name = "###"
 				return c
@@ -110,7 +110,7 @@ func TestValidateClusterDeployment(t *testing.T) {
 		},
 		{
 			name: "invalid spec",
-			clusterDeployment: func() *clusteroperator.ClusterDeployment {
+			clusterDeployment: func() *coapi.ClusterDeployment {
 				c := getValidClusterDeployment()
 				c.Spec.MachineSets[0].Size = 0
 				return c
@@ -119,7 +119,7 @@ func TestValidateClusterDeployment(t *testing.T) {
 		},
 		{
 			name: "missing service network CIDRs",
-			clusterDeployment: func() *clusteroperator.ClusterDeployment {
+			clusterDeployment: func() *coapi.ClusterDeployment {
 				c := getValidClusterDeployment()
 				c.Spec.NetworkConfig.Services = capiv1.NetworkRanges{CIDRBlocks: []string{}}
 				return c
@@ -128,7 +128,7 @@ func TestValidateClusterDeployment(t *testing.T) {
 		},
 		{
 			name: "missing pod network CIDRs",
-			clusterDeployment: func() *clusteroperator.ClusterDeployment {
+			clusterDeployment: func() *coapi.ClusterDeployment {
 				c := getValidClusterDeployment()
 				c.Spec.NetworkConfig.Pods = capiv1.NetworkRanges{CIDRBlocks: []string{}}
 				return c
@@ -138,7 +138,7 @@ func TestValidateClusterDeployment(t *testing.T) {
 		{
 			// NOTE: this isn't supported yet
 			name: "multiple service network CIDRs",
-			clusterDeployment: func() *clusteroperator.ClusterDeployment {
+			clusterDeployment: func() *coapi.ClusterDeployment {
 				c := getValidClusterDeployment()
 				c.Spec.NetworkConfig.Services = capiv1.NetworkRanges{CIDRBlocks: []string{"192.168.1.1/10", "196.168.1.2/20"}}
 				return c
@@ -148,7 +148,7 @@ func TestValidateClusterDeployment(t *testing.T) {
 		{
 			// NOTE: this isn't supported yet
 			name: "multiple pod network CIDRs",
-			clusterDeployment: func() *clusteroperator.ClusterDeployment {
+			clusterDeployment: func() *coapi.ClusterDeployment {
 				c := getValidClusterDeployment()
 				c.Spec.NetworkConfig.Pods = capiv1.NetworkRanges{CIDRBlocks: []string{"192.168.1.1/10", "196.168.1.2/20"}}
 				return c
@@ -157,7 +157,7 @@ func TestValidateClusterDeployment(t *testing.T) {
 		},
 		{
 			name: "missing SDN plugin name",
-			clusterDeployment: func() *clusteroperator.ClusterDeployment {
+			clusterDeployment: func() *coapi.ClusterDeployment {
 				c := getValidClusterDeployment()
 				c.Spec.Config.SDNPluginName = ""
 				return c
@@ -181,8 +181,8 @@ func TestValidateClusterDeployment(t *testing.T) {
 func TestValidateClusterDeploymentUpdate(t *testing.T) {
 	cases := []struct {
 		name  string
-		old   *clusteroperator.ClusterDeployment
-		new   *clusteroperator.ClusterDeployment
+		old   *coapi.ClusterDeployment
+		new   *coapi.ClusterDeployment
 		valid bool
 	}{
 		{
@@ -194,7 +194,7 @@ func TestValidateClusterDeploymentUpdate(t *testing.T) {
 		{
 			name: "invalid spec",
 			old:  getValidClusterDeployment(),
-			new: func() *clusteroperator.ClusterDeployment {
+			new: func() *coapi.ClusterDeployment {
 				c := getValidClusterDeployment()
 				c.Spec.MachineSets[0].Size = 0
 				return c
@@ -204,7 +204,7 @@ func TestValidateClusterDeploymentUpdate(t *testing.T) {
 		{
 			name: "mutated ClusterName",
 			old:  getValidClusterDeployment(),
-			new: func() *clusteroperator.ClusterDeployment {
+			new: func() *coapi.ClusterDeployment {
 				c := getValidClusterDeployment()
 				c.Spec.ClusterName = "mutated-cluster-name"
 				return c
@@ -214,7 +214,7 @@ func TestValidateClusterDeploymentUpdate(t *testing.T) {
 		{
 			name: "mutated service network CIDR",
 			old:  getValidClusterDeployment(),
-			new: func() *clusteroperator.ClusterDeployment {
+			new: func() *coapi.ClusterDeployment {
 				c := getValidClusterDeployment()
 				c.Spec.NetworkConfig.Services = capiv1.NetworkRanges{CIDRBlocks: []string{"172.60.0.0/16"}}
 				return c
@@ -224,7 +224,7 @@ func TestValidateClusterDeploymentUpdate(t *testing.T) {
 		{
 			name: "mutated pod network CIDR",
 			old:  getValidClusterDeployment(),
-			new: func() *clusteroperator.ClusterDeployment {
+			new: func() *coapi.ClusterDeployment {
 				c := getValidClusterDeployment()
 				c.Spec.NetworkConfig.Pods = capiv1.NetworkRanges{CIDRBlocks: []string{"172.60.0.0/16"}}
 				return c
@@ -234,7 +234,7 @@ func TestValidateClusterDeploymentUpdate(t *testing.T) {
 		{
 			name: "mutated SDN plugin name",
 			old:  getValidClusterDeployment(),
-			new: func() *clusteroperator.ClusterDeployment {
+			new: func() *coapi.ClusterDeployment {
 				c := getValidClusterDeployment()
 				c.Spec.Config.SDNPluginName = "newplugin"
 				return c
@@ -258,12 +258,12 @@ func TestValidateClusterDeploymentUpdate(t *testing.T) {
 func TestValidateClusterDeploymentSpec(t *testing.T) {
 	cases := []struct {
 		name  string
-		spec  *clusteroperator.ClusterDeploymentSpec
+		spec  *coapi.ClusterDeploymentSpec
 		valid bool
 	}{
 		{
 			name: "missing clusterID",
-			spec: func() *clusteroperator.ClusterDeploymentSpec {
+			spec: func() *coapi.ClusterDeploymentSpec {
 				cs := getValidClusterDeploymentSpec()
 				cs.ClusterName = ""
 				return &cs
@@ -272,7 +272,7 @@ func TestValidateClusterDeploymentSpec(t *testing.T) {
 		},
 		{
 			name: "valid master only",
-			spec: func() *clusteroperator.ClusterDeploymentSpec {
+			spec: func() *coapi.ClusterDeploymentSpec {
 				cs := getValidClusterDeploymentSpec()
 				return &cs
 			}(),
@@ -280,9 +280,9 @@ func TestValidateClusterDeploymentSpec(t *testing.T) {
 		},
 		{
 			name: "invalid master size",
-			spec: func() *clusteroperator.ClusterDeploymentSpec {
+			spec: func() *coapi.ClusterDeploymentSpec {
 				cs := getValidClusterDeploymentSpec()
-				cs.MachineSets = []clusteroperator.ClusterMachineSet{
+				cs.MachineSets = []coapi.ClusterMachineSet{
 					getTestMachineSet(0, "", true, true),
 				}
 				return &cs
@@ -291,9 +291,9 @@ func TestValidateClusterDeploymentSpec(t *testing.T) {
 		},
 		{
 			name: "valid single compute",
-			spec: func() *clusteroperator.ClusterDeploymentSpec {
+			spec: func() *coapi.ClusterDeploymentSpec {
 				cs := getValidClusterDeploymentSpec()
-				cs.MachineSets = []clusteroperator.ClusterMachineSet{
+				cs.MachineSets = []coapi.ClusterMachineSet{
 					getTestMachineSet(1, "", true, false),
 					getTestMachineSet(1, "one", false, true),
 				}
@@ -303,9 +303,9 @@ func TestValidateClusterDeploymentSpec(t *testing.T) {
 		},
 		{
 			name: "valid multiple computes",
-			spec: func() *clusteroperator.ClusterDeploymentSpec {
+			spec: func() *coapi.ClusterDeploymentSpec {
 				cs := getValidClusterDeploymentSpec()
-				cs.MachineSets = []clusteroperator.ClusterMachineSet{
+				cs.MachineSets = []coapi.ClusterMachineSet{
 					getTestMachineSet(1, "", true, true),
 					getTestMachineSet(1, "one", false, false),
 					getTestMachineSet(5, "two", false, false),
@@ -317,9 +317,9 @@ func TestValidateClusterDeploymentSpec(t *testing.T) {
 		},
 		{
 			name: "invalid compute name",
-			spec: func() *clusteroperator.ClusterDeploymentSpec {
+			spec: func() *coapi.ClusterDeploymentSpec {
 				cs := getValidClusterDeploymentSpec()
-				cs.MachineSets = []clusteroperator.ClusterMachineSet{
+				cs.MachineSets = []coapi.ClusterMachineSet{
 					getTestMachineSet(1, "", true, true),
 					getTestMachineSet(1, "one", false, false),
 					getTestMachineSet(5, "", false, false),
@@ -331,9 +331,9 @@ func TestValidateClusterDeploymentSpec(t *testing.T) {
 		},
 		{
 			name: "invalid compute size",
-			spec: func() *clusteroperator.ClusterDeploymentSpec {
+			spec: func() *coapi.ClusterDeploymentSpec {
 				cs := getValidClusterDeploymentSpec()
-				cs.MachineSets = []clusteroperator.ClusterMachineSet{
+				cs.MachineSets = []coapi.ClusterMachineSet{
 					getTestMachineSet(1, "", true, true),
 					getTestMachineSet(1, "one", false, false),
 					getTestMachineSet(0, "two", false, false),
@@ -345,9 +345,9 @@ func TestValidateClusterDeploymentSpec(t *testing.T) {
 		},
 		{
 			name: "invalid duplicate compute name",
-			spec: func() *clusteroperator.ClusterDeploymentSpec {
+			spec: func() *coapi.ClusterDeploymentSpec {
 				cs := getValidClusterDeploymentSpec()
-				cs.MachineSets = []clusteroperator.ClusterMachineSet{
+				cs.MachineSets = []coapi.ClusterMachineSet{
 					getTestMachineSet(1, "", true, true),
 					getTestMachineSet(1, "one", false, false),
 					getTestMachineSet(5, "one", false, false),
@@ -359,9 +359,9 @@ func TestValidateClusterDeploymentSpec(t *testing.T) {
 		},
 		{
 			name: "no master machineset",
-			spec: func() *clusteroperator.ClusterDeploymentSpec {
+			spec: func() *coapi.ClusterDeploymentSpec {
 				cs := getValidClusterDeploymentSpec()
-				cs.MachineSets = []clusteroperator.ClusterMachineSet{
+				cs.MachineSets = []coapi.ClusterMachineSet{
 					getTestMachineSet(1, "one", false, true),
 					getTestMachineSet(5, "two", false, false),
 					getTestMachineSet(2, "three", false, false),
@@ -372,9 +372,9 @@ func TestValidateClusterDeploymentSpec(t *testing.T) {
 		},
 		{
 			name: "no infra machineset",
-			spec: func() *clusteroperator.ClusterDeploymentSpec {
+			spec: func() *coapi.ClusterDeploymentSpec {
 				cs := getValidClusterDeploymentSpec()
-				cs.MachineSets = []clusteroperator.ClusterMachineSet{
+				cs.MachineSets = []coapi.ClusterMachineSet{
 					getTestMachineSet(1, "", true, false),
 					getTestMachineSet(1, "one", false, false),
 					getTestMachineSet(5, "one", false, false),
@@ -386,9 +386,9 @@ func TestValidateClusterDeploymentSpec(t *testing.T) {
 		},
 		{
 			name: "more than one master",
-			spec: func() *clusteroperator.ClusterDeploymentSpec {
+			spec: func() *coapi.ClusterDeploymentSpec {
 				cs := getValidClusterDeploymentSpec()
-				cs.MachineSets = []clusteroperator.ClusterMachineSet{
+				cs.MachineSets = []coapi.ClusterMachineSet{
 					getTestMachineSet(1, "", true, true),
 					getTestMachineSet(1, "", true, false),
 					getTestMachineSet(5, "one", false, false),
@@ -400,9 +400,9 @@ func TestValidateClusterDeploymentSpec(t *testing.T) {
 		},
 		{
 			name: "more than one infra",
-			spec: func() *clusteroperator.ClusterDeploymentSpec {
+			spec: func() *coapi.ClusterDeploymentSpec {
 				cs := getValidClusterDeploymentSpec()
-				cs.MachineSets = []clusteroperator.ClusterMachineSet{
+				cs.MachineSets = []coapi.ClusterMachineSet{
 					getTestMachineSet(1, "", true, false),
 					getTestMachineSet(1, "one", false, true),
 					getTestMachineSet(5, "two", false, true),
@@ -414,7 +414,7 @@ func TestValidateClusterDeploymentSpec(t *testing.T) {
 		},
 		{
 			name: "missing cluster version name", // namespace is optional
-			spec: func() *clusteroperator.ClusterDeploymentSpec {
+			spec: func() *coapi.ClusterDeploymentSpec {
 				cs := getValidClusterDeploymentSpec()
 				cs.ClusterVersionRef.Name = ""
 				return &cs

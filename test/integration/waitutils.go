@@ -24,8 +24,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 
-	"github.com/openshift/cluster-operator/pkg/controller"
-	capiv1alpha1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	cocontroller "github.com/openshift/cluster-operator/pkg/controller"
+	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	capiclientset "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 )
 
@@ -76,25 +76,25 @@ func waitForObjectToNotExistOrNotHaveFinalizer(namespace, name string, finalizer
 	)
 }
 
-func waitForClusterStatus(capiClient capiclientset.Interface, namespace, name string, checkStatus func(*capiv1alpha1.Cluster) bool) error {
+func waitForClusterStatus(capiClient capiclientset.Interface, namespace, name string, checkStatus func(*capiv1.Cluster) bool) error {
 	return waitForObjectStatus(
 		namespace,
 		name,
 		func(namespace, name string) (metav1.Object, error) {
 			return getCluster(capiClient, namespace, name)
 		},
-		func(obj metav1.Object) bool { return checkStatus(obj.(*capiv1alpha1.Cluster)) },
+		func(obj metav1.Object) bool { return checkStatus(obj.(*capiv1.Cluster)) },
 	)
 }
 
-func waitForMachineSetStatus(capiClient capiclientset.Interface, namespace, name string, checkStatus func(*capiv1alpha1.MachineSet) bool) error {
+func waitForMachineSetStatus(capiClient capiclientset.Interface, namespace, name string, checkStatus func(*capiv1.MachineSet) bool) error {
 	return waitForObjectStatus(
 		namespace,
 		name,
 		func(namespace, name string) (metav1.Object, error) {
 			return getMachineSet(capiClient, namespace, name)
 		},
-		func(obj metav1.Object) bool { return checkStatus(obj.(*capiv1alpha1.MachineSet)) },
+		func(obj metav1.Object) bool { return checkStatus(obj.(*capiv1.MachineSet)) },
 	)
 }
 
@@ -104,7 +104,7 @@ func waitForClusterToExist(capiClient capiclientset.Interface, namespace, name s
 	return waitForClusterStatus(
 		capiClient,
 		namespace, name,
-		func(cluster *capiv1alpha1.Cluster) bool { return cluster != nil },
+		func(cluster *capiv1.Cluster) bool { return cluster != nil },
 	)
 }
 
@@ -125,7 +125,7 @@ func waitForMachineSetToExist(capiClient capiclientset.Interface, namespace, nam
 	return waitForMachineSetStatus(
 		capiClient,
 		namespace, name,
-		func(machineSet *capiv1alpha1.MachineSet) bool { return machineSet != nil },
+		func(machineSet *capiv1.MachineSet) bool { return machineSet != nil },
 	)
 }
 
@@ -145,8 +145,8 @@ func waitForClusterProvisioned(capiClient capiclientset.Interface, namespace, na
 	return waitForClusterStatus(
 		capiClient,
 		namespace, name,
-		func(cluster *capiv1alpha1.Cluster) bool {
-			status, err := controller.ClusterProviderStatusFromCluster(cluster)
+		func(cluster *capiv1.Cluster) bool {
+			status, err := cocontroller.ClusterProviderStatusFromCluster(cluster)
 			if err != nil {
 				return false
 			}
@@ -160,8 +160,8 @@ func waitForClusterReady(capiClient capiclientset.Interface, namespace, name str
 	return waitForClusterStatus(
 		capiClient,
 		namespace, name,
-		func(cluster *capiv1alpha1.Cluster) bool {
-			status, err := controller.ClusterProviderStatusFromCluster(cluster)
+		func(cluster *capiv1.Cluster) bool {
+			status, err := cocontroller.ClusterProviderStatusFromCluster(cluster)
 			if err != nil {
 				return false
 			}

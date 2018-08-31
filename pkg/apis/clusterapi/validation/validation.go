@@ -18,7 +18,7 @@ package validation
 
 import (
 	"github.com/kubernetes-incubator/apiserver-builder/pkg/builders"
-	cav1alpha1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 )
 
 // ReplaceStorageBuilder replaces the storage builder in the API group builder
@@ -29,7 +29,7 @@ func ReplaceStorageBuilder(
 	replaceBuilder func(builders.StorageBuilder) builders.StorageBuilder,
 ) {
 	for _, version := range apiGroupBuilder.Versions {
-		if version.GroupVersion != cav1alpha1.SchemeGroupVersion {
+		if version.GroupVersion != capiv1.SchemeGroupVersion {
 			continue
 		}
 		for _, kind := range version.Kinds {

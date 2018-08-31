@@ -44,12 +44,12 @@ import (
 	informers "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions/cluster/v1alpha1"
 	lister "sigs.k8s.io/cluster-api/pkg/client/listers_generated/cluster/v1alpha1"
 
-	clustopv1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
-	clustopclient "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
-	clustopaws "github.com/openshift/cluster-operator/pkg/clusterapi/aws"
-	"github.com/openshift/cluster-operator/pkg/controller"
-	"github.com/openshift/cluster-operator/pkg/kubernetes/pkg/util/metrics"
-	clustoplog "github.com/openshift/cluster-operator/pkg/logging"
+	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	coclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
+	coaws "github.com/openshift/cluster-operator/pkg/clusterapi/aws"
+	cocontroller "github.com/openshift/cluster-operator/pkg/controller"
+	cometrics "github.com/openshift/cluster-operator/pkg/kubernetes/pkg/util/metrics"
+	cologging "github.com/openshift/cluster-operator/pkg/logging"
 )
 
 const (
@@ -81,14 +81,14 @@ const (
 )
 
 // NewController returns a new *Controller.
-func NewController(machineInformer informers.MachineInformer, kubeClient kubeclientset.Interface, clustopClient clustopclient.Interface, capiClient capiclient.Interface) *Controller {
+func NewController(machineInformer informers.MachineInformer, kubeClient kubeclientset.Interface, clustopClient coclientset.Interface, capiClient capiclient.Interface) *Controller {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(glog.Infof)
 	// TODO: remove the wrapper when every clients have moved to use the clientset.
 	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: v1core.New(kubeClient.CoreV1().RESTClient()).Events("")})
 
 	if kubeClient != nil && kubeClient.CoreV1().RESTClient().GetRateLimiter() != nil {
-		metrics.RegisterMetricAndTrackRateLimiterUsage("clusteroperator_awselb_controller", kubeClient.CoreV1().RESTClient().GetRateLimiter())
+		cometrics.RegisterMetricAndTrackRateLimiterUsage("clusteroperator_awselb_controller", kubeClient.CoreV1().RESTClient().GetRateLimiter())
 	}
 
 	c := &Controller{
@@ -96,7 +96,7 @@ func NewController(machineInformer informers.MachineInformer, kubeClient kubecli
 		capiClient:    capiClient,
 		kubeClient:    kubeClient,
 		queue:         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "awselb"),
-		clientBuilder: clustopaws.NewClient,
+		clientBuilder: coaws.NewClient,
 	}
 
 	machineInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -116,7 +116,7 @@ func NewController(machineInformer informers.MachineInformer, kubeClient kubecli
 
 // Controller monitors master machines and adds to ELBs as appropriate.
 type Controller struct {
-	client     clustopclient.Interface
+	client     coclientset.Interface
 	capiClient capiclient.Interface
 	kubeClient kubeclientset.Interface
 
@@ -136,23 +136,23 @@ type Controller struct {
 	queue workqueue.RateLimitingInterface
 
 	logger        log.FieldLogger
-	clientBuilder func(kubeClient kubernetes.Interface, secretName, namespace, region string) (clustopaws.Client, error)
+	clientBuilder func(kubeClient kubernetes.Interface, secretName, namespace, region string) (coaws.Client, error)
 }
 
 func (c *Controller) addMachine(obj interface{}) {
 	machine := obj.(*capiv1.Machine)
 
-	isMaster, err := controller.MachineIsMaster(machine)
+	isMaster, err := cocontroller.MachineIsMaster(machine)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("Couldn't decode provider config from %#v: %v", machine, err))
 		return
 	}
 	if !isMaster {
-		clustoplog.WithMachine(c.logger, machine).Debug("skipping non-master machine")
+		cologging.WithMachine(c.logger, machine).Debug("skipping non-master machine")
 		return
 	}
 
-	clustoplog.WithMachine(c.logger, machine).Debug("adding machine")
+	cologging.WithMachine(c.logger, machine).Debug("adding machine")
 	c.enqueueMachine(machine)
 }
 
@@ -160,17 +160,17 @@ func (c *Controller) updateMachine(old, cur interface{}) {
 	oldMachine := old.(*capiv1.Machine)
 	curMachine := cur.(*capiv1.Machine)
 
-	isMaster, err := controller.MachineIsMaster(curMachine)
+	isMaster, err := cocontroller.MachineIsMaster(curMachine)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("Couldn't decode provider config from %#v: %v", curMachine, err))
 		return
 	}
 	if !isMaster {
-		clustoplog.WithMachine(c.logger, curMachine).Debug("skipping non-master machine")
+		cologging.WithMachine(c.logger, curMachine).Debug("skipping non-master machine")
 		return
 	}
 
-	clustoplog.WithMachine(c.logger, oldMachine).Infof("updating machine")
+	cologging.WithMachine(c.logger, oldMachine).Infof("updating machine")
 	c.enqueueMachine(curMachine)
 }
 
@@ -190,18 +190,18 @@ func (c *Controller) deleteMachine(obj interface{}) {
 		}
 	}
 
-	isMaster, err := controller.MachineIsMaster(machine)
+	isMaster, err := cocontroller.MachineIsMaster(machine)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("Couldn't decode provider config from %#v: %v", machine, err))
 		return
 	}
 
 	if !isMaster {
-		clustoplog.WithMachine(c.logger, machine).Debug("skipping non-master machine")
+		cologging.WithMachine(c.logger, machine).Debug("skipping non-master machine")
 		return
 	}
 
-	clustoplog.WithMachine(c.logger, machine).Infof("deleting machine")
+	cologging.WithMachine(c.logger, machine).Infof("deleting machine")
 	c.enqueueMachine(machine)
 }
 
@@ -214,7 +214,7 @@ func (c *Controller) Run(workers int, stopCh <-chan struct{}) {
 	log.Infof("Starting awselb controller")
 	defer log.Infof("Shutting down awselb controller")
 
-	if !controller.WaitForCacheSync("machine", stopCh, c.machinesSynced) {
+	if !cocontroller.WaitForCacheSync("machine", stopCh, c.machinesSynced) {
 		return
 	}
 
@@ -226,7 +226,7 @@ func (c *Controller) Run(workers int, stopCh <-chan struct{}) {
 }
 
 func (c *Controller) enqueue(machine *capiv1.Machine) {
-	key, err := controller.KeyFunc(machine)
+	key, err := cocontroller.KeyFunc(machine)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("Couldn't get key for object %#v: %v", machine, err))
 		return
@@ -302,14 +302,14 @@ func (c *Controller) syncMachine(key string) error {
 }
 
 func (c *Controller) processMachine(machine *capiv1.Machine) error {
-	mLog := clustoplog.WithMachine(c.logger, machine)
+	mLog := cologging.WithMachine(c.logger, machine)
 
-	clusterID, ok := machine.Labels[clustopv1.ClusterNameLabel]
+	clusterID, ok := machine.Labels[cov1.ClusterNameLabel]
 	if !ok {
 		return fmt.Errorf("unable to lookup cluster for machine: %s", machine.Name)
 	}
 
-	coMachineSetSpec, err := controller.MachineSetSpecFromClusterAPIMachineSpec(&machine.Spec)
+	coMachineSetSpec, err := cocontroller.MachineSetSpecFromClusterAPIMachineSpec(&machine.Spec)
 	if err != nil {
 		return err
 	}
@@ -317,7 +317,7 @@ func (c *Controller) processMachine(machine *capiv1.Machine) error {
 	region := coMachineSetSpec.ClusterHardware.AWS.Region
 	mLog.Debugf("Obtaining AWS clients for region %q", region)
 
-	status, err := controller.AWSMachineProviderStatusFromClusterAPIMachine(machine)
+	status, err := cocontroller.AWSMachineProviderStatusFromClusterAPIMachine(machine)
 	if err != nil {
 		return err
 	}
@@ -338,7 +338,7 @@ func (c *Controller) processMachine(machine *capiv1.Machine) error {
 		}
 	}
 
-	secretName, err := controller.GetSecretNameFromMachineSetSpec(coMachineSetSpec)
+	secretName, err := cocontroller.GetSecretNameFromMachineSetSpec(coMachineSetSpec)
 	if err != nil {
 		return err
 	}
@@ -348,23 +348,23 @@ func (c *Controller) processMachine(machine *capiv1.Machine) error {
 		return err
 	}
 
-	instance, err := clustopaws.GetInstance(machine, client)
+	instance, err := coaws.GetInstance(machine, client)
 	if err != nil {
 		return err
 	}
 	mLog = mLog.WithField("instanceID", *instance.InstanceId)
 
-	err = c.addInstanceToELB(instance, controller.ELBMasterExternalName(clusterID), client, mLog)
+	err = c.addInstanceToELB(instance, cocontroller.ELBMasterExternalName(clusterID), client, mLog)
 	if err != nil {
-		updateConditionError := c.updateMachineConditions(machine, mLog, clustopv1.ExtELBRegistration, ExtELBRegistrationFailed, err.Error())
+		updateConditionError := c.updateMachineConditions(machine, mLog, cov1.ExtELBRegistration, ExtELBRegistrationFailed, err.Error())
 		if updateConditionError != nil {
 			mLog.Errorf("error updating machine conditions: %v", updateConditionError)
 		}
 		return err
 	}
-	err = c.addInstanceToELB(instance, controller.ELBMasterInternalName(clusterID), client, mLog)
+	err = c.addInstanceToELB(instance, cocontroller.ELBMasterInternalName(clusterID), client, mLog)
 	if err != nil {
-		updateConditionError := c.updateMachineConditions(machine, mLog, clustopv1.IntELBRegistration, IntELBRegistrationFailed, err.Error())
+		updateConditionError := c.updateMachineConditions(machine, mLog, cov1.IntELBRegistration, IntELBRegistrationFailed, err.Error())
 		if updateConditionError != nil {
 			mLog.Errorf("error updating machine conditions: %v", updateConditionError)
 		}
@@ -374,28 +374,28 @@ func (c *Controller) processMachine(machine *capiv1.Machine) error {
 	return c.updateStatus(machine, mLog)
 }
 
-func (c *Controller) updateMachineConditions(machine *capiv1.Machine, mLog log.FieldLogger, conditionType clustopv1.AWSMachineConditionType, reason string, message string) error {
+func (c *Controller) updateMachineConditions(machine *capiv1.Machine, mLog log.FieldLogger, conditionType cov1.AWSMachineConditionType, reason string, message string) error {
 	var (
-		updateCheck controller.UpdateConditionCheck
+		updateCheck cocontroller.UpdateConditionCheck
 	)
 
 	mLog.Debug("updating machine conditions")
 
 	// Get current aws machine provider status
-	awsStatus, err := controller.AWSMachineProviderStatusFromClusterAPIMachine(machine)
+	awsStatus, err := cocontroller.AWSMachineProviderStatusFromClusterAPIMachine(machine)
 	if err != nil {
 		return err
 	}
 
-	updateCheck = controller.UpdateConditionIfReasonOrMessageChange
+	updateCheck = cocontroller.UpdateConditionIfReasonOrMessageChange
 
 	now := metav1.Now()
 	awsStatus.LastELBSync = &now
 	awsStatus.LastELBSyncGeneration = machine.Generation
-	awsStatus.Conditions = controller.SetAWSMachineCondition(awsStatus.Conditions, conditionType, corev1.ConditionTrue, reason, message, updateCheck)
+	awsStatus.Conditions = cocontroller.SetAWSMachineCondition(awsStatus.Conditions, conditionType, corev1.ConditionTrue, reason, message, updateCheck)
 
 	// Update machine with updated status
-	awsStatusRaw, err := controller.EncodeAWSMachineProviderStatus(awsStatus)
+	awsStatusRaw, err := cocontroller.EncodeAWSMachineProviderStatus(awsStatus)
 	if err != nil {
 		mLog.Errorf("error encoding AWS provider status: %v", err)
 		return err
@@ -416,25 +416,25 @@ func (c *Controller) updateMachineConditions(machine *capiv1.Machine, mLog log.F
 func (c *Controller) updateStatus(machine *capiv1.Machine, mLog log.FieldLogger) error {
 	var (
 		msg         string
-		updateCheck controller.UpdateConditionCheck
+		updateCheck cocontroller.UpdateConditionCheck
 	)
 
 	mLog.Debug("updating machine status")
 
-	awsStatus, err := controller.AWSMachineProviderStatusFromClusterAPIMachine(machine)
+	awsStatus, err := cocontroller.AWSMachineProviderStatusFromClusterAPIMachine(machine)
 	if err != nil {
 		return err
 	}
 
 	msg = "successfully registered"
-	updateCheck = controller.UpdateConditionIfReasonOrMessageChange
-	awsStatus.Conditions = controller.SetAWSMachineCondition(awsStatus.Conditions, clustopv1.ExtELBRegistration, corev1.ConditionTrue, ExtELBRegistrationSucceeded, msg, updateCheck)
-	awsStatus.Conditions = controller.SetAWSMachineCondition(awsStatus.Conditions, clustopv1.IntELBRegistration, corev1.ConditionTrue, IntELBRegistrationSucceeded, msg, updateCheck)
+	updateCheck = cocontroller.UpdateConditionIfReasonOrMessageChange
+	awsStatus.Conditions = cocontroller.SetAWSMachineCondition(awsStatus.Conditions, cov1.ExtELBRegistration, corev1.ConditionTrue, ExtELBRegistrationSucceeded, msg, updateCheck)
+	awsStatus.Conditions = cocontroller.SetAWSMachineCondition(awsStatus.Conditions, cov1.IntELBRegistration, corev1.ConditionTrue, IntELBRegistrationSucceeded, msg, updateCheck)
 
 	now := metav1.Now()
 	awsStatus.LastELBSync = &now
 	awsStatus.LastELBSyncGeneration = machine.Generation
-	awsStatusRaw, err := controller.EncodeAWSMachineProviderStatus(awsStatus)
+	awsStatusRaw, err := cocontroller.EncodeAWSMachineProviderStatus(awsStatus)
 	if err != nil {
 		mLog.Errorf("error encoding AWS provider status: %v", err)
 		return err
@@ -456,7 +456,7 @@ func (c *Controller) updateStatus(machine *capiv1.Machine, mLog log.FieldLogger)
 func (c *Controller) addInstanceToELB(
 	instance *ec2.Instance,
 	elbName string,
-	client clustopaws.Client,
+	client coaws.Client,
 	mLog log.FieldLogger) error {
 
 	registerInput := elb.RegisterInstancesWithLoadBalancerInput{

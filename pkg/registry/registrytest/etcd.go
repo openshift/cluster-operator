@@ -27,7 +27,7 @@ import (
 	"k8s.io/apiserver/pkg/storage/storagebackend"
 
 	"github.com/openshift/cluster-operator/pkg/api"
-	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
+	coapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
 )
 
 // NewEtcdStorage creates a new etcd storage for the clusteroperator schema.
@@ -43,6 +43,6 @@ func NewEtcdStorage(t *testing.T) (*storagebackend.Config, *etcdtesting.EtcdTest
 	}
 	s := storageSerializer.Serializer
 	ds := recognizer.NewDecoder(s, api.Codecs.UniversalDeserializer())
-	config.Codec = api.Codecs.CodecForVersions(s, ds, schema.GroupVersions{clusteroperator.SchemeGroupVersion}, nil)
+	config.Codec = api.Codecs.CodecForVersions(s, ds, schema.GroupVersions{coapi.SchemeGroupVersion}, nil)
 	return config, server
 }

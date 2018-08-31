@@ -33,7 +33,7 @@ import (
 	"sigs.k8s.io/cluster-api/pkg/controller/machine"
 	"sigs.k8s.io/cluster-api/pkg/controller/sharedinformers"
 
-	"github.com/openshift/cluster-operator/pkg/clusterapi/aws"
+	coaws "github.com/openshift/cluster-operator/pkg/clusterapi/aws"
 )
 
 const (
@@ -88,7 +88,7 @@ func (o *AWSMachineControllerOptions) Run(stopCh <-chan struct{}) error {
 	log.SetLevel(lvl)
 
 	logger := log.WithField("controller", controllerLogName)
-	actuator := aws.NewActuator(kubeClient, client, logger, o.DefaultAvailabilityZone)
+	actuator := coaws.NewActuator(kubeClient, client, logger, o.DefaultAvailabilityZone)
 	si := sharedinformers.NewSharedInformers(config, stopCh)
 	c := machine.NewMachineController(config, si, actuator)
 	c.Run(stopCh)

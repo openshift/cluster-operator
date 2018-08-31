@@ -20,7 +20,7 @@ import (
 	kubeclientset "k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 
-	"github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
+	coclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
 	clusterclientset "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 
 	"github.com/golang/glog"
@@ -33,15 +33,15 @@ type ClientBuilder interface {
 	// ConfigOrDie return a new restclient.Config with the given user agent
 	// name, or logs a fatal error.
 	ConfigOrDie(name string) *restclient.Config
-	// Client returns a new clientset.Interface with the given user agent
+	// Client returns a new coclientset.Interface with the given user agent
 	// name.
-	Client(name string) (clientset.Interface, error)
+	Client(name string) (coclientset.Interface, error)
 	// ClusterAPIClient returns a new cluster API clientset.Interface
 	// with the given user agent name.
 	ClusterAPIClient(name string) (clusterclientset.Interface, error)
-	// ClientOrDie returns a new clientset.Interface with the given user agent
+	// ClientOrDie returns a new coclientset.Interface with the given user agent
 	// name or logs a fatal error.
-	ClientOrDie(name string) clientset.Interface
+	ClientOrDie(name string) coclientset.Interface
 	// KubeClientOrDie returns a new kubeclientset.Interface with the given
 	// user agent name or logs a fatal error.
 	KubeClientOrDie(name string) kubeclientset.Interface
@@ -74,17 +74,17 @@ func (b SimpleClientBuilder) ConfigOrDie(name string) *restclient.Config {
 
 // Client returns a new clientset.Interface with the given user agent
 // name.
-func (b SimpleClientBuilder) Client(name string) (clientset.Interface, error) {
+func (b SimpleClientBuilder) Client(name string) (coclientset.Interface, error) {
 	clientConfig, err := b.Config(name)
 	if err != nil {
 		return nil, err
 	}
-	return clientset.NewForConfig(clientConfig)
+	return coclientset.NewForConfig(clientConfig)
 }
 
 // ClientOrDie returns a new clientset.Interface with the given user agent
 // name or logs a fatal error.
-func (b SimpleClientBuilder) ClientOrDie(name string) clientset.Interface {
+func (b SimpleClientBuilder) ClientOrDie(name string) coclientset.Interface {
 	client, err := b.Client(name)
 	if err != nil {
 		glog.Fatal(err)

@@ -23,15 +23,15 @@ import (
 
 	"github.com/aws/aws-sdk-go/service/route53"
 	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
-	clustopaws "github.com/openshift/cluster-operator/pkg/clusterapi/aws"
+	coaws "github.com/openshift/cluster-operator/pkg/clusterapi/aws"
 	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubeclientset "k8s.io/client-go/kubernetes"
 
 	"github.com/aws/aws-sdk-go/aws"
-	controller "github.com/openshift/cluster-operator/pkg/controller"
+	cocontroller "github.com/openshift/cluster-operator/pkg/controller"
 
-	coclient "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
+	coclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
 )
 
 // ZoneReconciler manages getting the desired state, getting the current state and reconciling the two.
@@ -45,19 +45,19 @@ type ZoneReconciler struct {
 	kubeClient kubeclientset.Interface
 
 	// clusteroperatorClient is a kubernetes client to access cluster operator related objects.
-	clusteroperatorClient coclient.Interface
+	clusteroperatorClient coclientset.Interface
 
 	// clusterOperatorAwsClient is a utility for making it easy for cluster operator controllers to interface with AWS
-	clusterOperatorAwsClient clustopaws.Client
+	clusterOperatorAwsClient coaws.Client
 }
 
 // NewZoneReconciler creates a new ZoneReconciler object. A new ZoneReconciler is expected to be created for each controller sync.
 func NewZoneReconciler(
 	desiredState *cov1.DNSZone,
 	kubeClient kubeclientset.Interface,
-	clusteroperatorClient coclient.Interface,
+	clusteroperatorClient coclientset.Interface,
 	logger log.FieldLogger,
-	clusterOperatorAwsClient clustopaws.Client,
+	clusterOperatorAwsClient coaws.Client,
 ) (*ZoneReconciler, error) {
 	if desiredState == nil {
 		return nil, fmt.Errorf("ZoneReconciler requires desiredState to be set")
@@ -140,7 +140,7 @@ func (zr *ZoneReconciler) createRoute53HostedZone() error {
 	}
 
 	// Only add a finalizer after a route53 hostedzone was successfully created (nothing to clean up otherwise).
-	controller.AddFinalizer(zr.desiredState, cov1.FinalizerRoute53HostedZone)
+	cocontroller.AddFinalizer(zr.desiredState, cov1.FinalizerRoute53HostedZone)
 
 	zr.addRateLimitingStatusEntries()
 
@@ -163,7 +163,7 @@ func (zr *ZoneReconciler) deleteRoute53HostedZone(currentState *route53.HostedZo
 	}
 
 	// Only reomve the finalizer after the route53 hostedzone was successfully deleted (still need to clean up otherwise).
-	controller.DeleteFinalizer(zr.desiredState, cov1.FinalizerRoute53HostedZone)
+	cocontroller.DeleteFinalizer(zr.desiredState, cov1.FinalizerRoute53HostedZone)
 
 	zr.addRateLimitingStatusEntries()
 

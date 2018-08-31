@@ -21,11 +21,11 @@ import (
 	dnsvalidation "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
-	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
+	coapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
 )
 
 // ValidateDNSZone validates a cluster version being created.
-func ValidateDNSZone(dnsZone *clusteroperator.DNSZone) field.ErrorList {
+func ValidateDNSZone(dnsZone *coapi.DNSZone) field.ErrorList {
 	allErrs := field.ErrorList{}
 
 	allErrs = append(allErrs, ValidateDNSZoneSpec(&dnsZone.Spec, field.NewPath("spec"))...)
@@ -34,7 +34,7 @@ func ValidateDNSZone(dnsZone *clusteroperator.DNSZone) field.ErrorList {
 }
 
 // ValidateDNSZoneUpdate validates that a spec update of a DNSZone.
-func ValidateDNSZoneUpdate(new *clusteroperator.DNSZone, old *clusteroperator.DNSZone) field.ErrorList {
+func ValidateDNSZoneUpdate(new *coapi.DNSZone, old *coapi.DNSZone) field.ErrorList {
 	allErrs := field.ErrorList{}
 	// For now updating cluster versions is not supported. In the future this may change if deemed useful.
 	// In the meantime it will be necessary to create a new cluster version and trigger an upgrade if modifications
@@ -45,14 +45,14 @@ func ValidateDNSZoneUpdate(new *clusteroperator.DNSZone, old *clusteroperator.DN
 }
 
 // ValidateDNSZoneStatusUpdate validates an update to the status of a DNSZone.
-func ValidateDNSZoneStatusUpdate(new *clusteroperator.DNSZone, old *clusteroperator.DNSZone) field.ErrorList {
+func ValidateDNSZoneStatusUpdate(new *coapi.DNSZone, old *coapi.DNSZone) field.ErrorList {
 	allErrs := field.ErrorList{}
 
 	return allErrs
 }
 
 // ValidateDNSZoneSpec validates the spec of a DNSZone.
-func ValidateDNSZoneSpec(spec *clusteroperator.DNSZoneSpec, fldPath *field.Path) field.ErrorList {
+func ValidateDNSZoneSpec(spec *coapi.DNSZoneSpec, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 
 	// Make sure the DNS zone is specified.

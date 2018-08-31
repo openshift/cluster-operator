@@ -19,12 +19,12 @@ package clusterversion
 import (
 	"testing"
 
-	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
+	coapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func clusterVersion() *clusteroperator.ClusterVersion {
-	return &clusteroperator.ClusterVersion{
+func clusterVersion() *coapi.ClusterVersion {
+	return &coapi.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{},
 	}
 }
@@ -45,7 +45,7 @@ func TestClusterVersionStrategyTrivial(t *testing.T) {
 
 func TestClusterVersionCreate(t *testing.T) {
 	// Create a cluster version
-	cv := &clusteroperator.ClusterVersion{}
+	cv := &coapi.ClusterVersion{}
 
 	// Canonicalize the cluster
 	clusterVersionRESTStrategies.PrepareForCreate(nil, cv)

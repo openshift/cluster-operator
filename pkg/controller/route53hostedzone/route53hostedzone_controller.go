@@ -30,13 +30,13 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
-	coclient "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
-	informers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions/clusteroperator/v1alpha1"
-	lister "github.com/openshift/cluster-operator/pkg/client/listers_generated/clusteroperator/v1alpha1"
-	"github.com/openshift/cluster-operator/pkg/kubernetes/pkg/util/metrics"
+	coclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
+	coinformers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions/clusteroperator/v1alpha1"
+	colisters "github.com/openshift/cluster-operator/pkg/client/listers_generated/clusteroperator/v1alpha1"
+	cometrics "github.com/openshift/cluster-operator/pkg/kubernetes/pkg/util/metrics"
 
 	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
-	clustopaws "github.com/openshift/cluster-operator/pkg/clusterapi/aws"
+	coaws "github.com/openshift/cluster-operator/pkg/clusterapi/aws"
 )
 
 const (
@@ -47,7 +47,7 @@ const (
 // Controller manages route53 hosted zone object creation and updating
 type Controller struct {
 	// dnsZoneLister gives cached access to dnsZones objects in kube.
-	dnsZoneLister  lister.DNSZoneLister
+	dnsZoneLister  colisters.DNSZoneLister
 	dnsZonesSynced cache.InformerSynced
 
 	// queue is where incoming work is placed to de-dup and to allow "easy"
@@ -55,7 +55,7 @@ type Controller struct {
 	queue workqueue.RateLimitingInterface
 
 	// clusteroperatorClient is a kubernetes client to access cluster operator related objects.
-	clusteroperatorClient coclient.Interface
+	clusteroperatorClient coclientset.Interface
 
 	// kubeClient is a kubernetes client to access general cluster / project related objects.
 	kubeClient kubeclientset.Interface
@@ -63,14 +63,14 @@ type Controller struct {
 	logger log.FieldLogger
 
 	// awsClientBuilder is a function pointer to the function that builds the cluster operator aws client.
-	awsClientBuilder func(kubeClient kubeclientset.Interface, secretName, namespace, region string) (clustopaws.Client, error)
+	awsClientBuilder func(kubeClient kubeclientset.Interface, secretName, namespace, region string) (coaws.Client, error)
 }
 
 // NewController returns a new *Controller that is ready to reconcile dnszone objects.
 func NewController(
-	dnsZoneInformer informers.DNSZoneInformer,
+	dnsZoneInformer coinformers.DNSZoneInformer,
 	kubeClient kubeclientset.Interface,
-	clusteroperatorClient coclient.Interface,
+	clusteroperatorClient coclientset.Interface,
 ) *Controller {
 
 	c := &Controller{
@@ -80,11 +80,11 @@ func NewController(
 		logger:                log.WithField("controller", controllerName),
 		clusteroperatorClient: clusteroperatorClient,
 		kubeClient:            kubeClient,
-		awsClientBuilder:      clustopaws.NewClient,
+		awsClientBuilder:      coaws.NewClient,
 	}
 
 	if kubeClient != nil && kubeClient.CoreV1().RESTClient().GetRateLimiter() != nil {
-		metrics.RegisterMetricAndTrackRateLimiterUsage("clusteroperator_route53hostedzone_controller", kubeClient.CoreV1().RESTClient().GetRateLimiter())
+		cometrics.RegisterMetricAndTrackRateLimiterUsage("clusteroperator_route53hostedzone_controller", kubeClient.CoreV1().RESTClient().GetRateLimiter())
 	}
 
 	// register event handlers to fill the queue with DNSZone creations, updates and deletions
@@ -290,7 +290,7 @@ func (c *Controller) getDesiredState(key string) (*cov1.DNSZone, error) {
 }
 
 // getCOAWSClient generates a cluster operator aws client.
-func (c *Controller) getCOAWSClient(dnsZone *cov1.DNSZone) (clustopaws.Client, error) {
+func (c *Controller) getCOAWSClient(dnsZone *cov1.DNSZone) (coaws.Client, error) {
 	// This allows for using host profiles for AWS auth.
 	var secretName, regionName string
 

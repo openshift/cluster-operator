@@ -30,11 +30,11 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/elb"
 
-	clustopv1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	clustopclientfake "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset/fake"
-	clustopaws "github.com/openshift/cluster-operator/pkg/clusterapi/aws"
+	coaws "github.com/openshift/cluster-operator/pkg/clusterapi/aws"
 	mockaws "github.com/openshift/cluster-operator/pkg/clusterapi/aws/mock"
-	"github.com/openshift/cluster-operator/pkg/controller"
+	cocontroller "github.com/openshift/cluster-operator/pkg/controller"
 
 	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	capiclientfake "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset/fake"
@@ -123,28 +123,28 @@ func TestSyncMachine(t *testing.T) {
 			capiClient := &capiclientfake.Clientset{}
 			capiInformers := capiinformers.NewSharedInformerFactory(capiClient, 0)
 
-			status := clustopv1.AWSMachineProviderStatus{}
+			status := cov1.AWSMachineProviderStatus{}
 			status.InstanceID = aws.String("preserveme")
 			if !tc.lastSuccessfulSync.IsZero() {
 				status.LastELBSync = &metav1.Time{Time: tc.lastSuccessfulSync}
 			}
 			status.LastELBSyncGeneration = tc.lastSuccessfulSyncGeneration
 			cluster := testCluster(t)
-			machine := testMachine(tc.generation, testMachineName, cluster.Name, clustopv1.NodeTypeMaster, true, &status)
+			machine := testMachine(tc.generation, testMachineName, cluster.Name, cov1.NodeTypeMaster, true, &status)
 
 			mockAWSClient := mockaws.NewMockClient(mockCtrl)
 			if tc.resyncExpected {
 				mockTestInstance(mockAWSClient, "i1", machine.Name, testClusterName)
-				mockRegisterInstancesWithELB(mockAWSClient, "i1", controller.ELBMasterExternalName(testClusterName), tc.regErrorExpected)
+				mockRegisterInstancesWithELB(mockAWSClient, "i1", cocontroller.ELBMasterExternalName(testClusterName), tc.regErrorExpected)
 				// Internal ELB registration will not be attempted when a registration error is expected
 				if !tc.regErrorExpected {
-					mockRegisterInstancesWithELB(mockAWSClient, "i1", controller.ELBMasterInternalName(testClusterName), tc.regErrorExpected)
+					mockRegisterInstancesWithELB(mockAWSClient, "i1", cocontroller.ELBMasterInternalName(testClusterName), tc.regErrorExpected)
 				}
 			}
 
 			ctrlr := NewController(capiInformers.Cluster().V1alpha1().Machines(),
 				kubeClient, clustopClient, capiClient)
-			ctrlr.clientBuilder = func(kubeClient kubernetes.Interface, secretName, namespace, region string) (clustopaws.Client, error) {
+			ctrlr.clientBuilder = func(kubeClient kubernetes.Interface, secretName, namespace, region string) (coaws.Client, error) {
 				return mockAWSClient, nil
 			}
 
@@ -168,7 +168,7 @@ func TestSyncMachine(t *testing.T) {
 
 				updatedObject := updateAction.GetObject()
 				machine, ok := updatedObject.(*capiv1.Machine)
-				clustopStatus, err := controller.AWSMachineProviderStatusFromClusterAPIMachine(machine)
+				clustopStatus, err := cocontroller.AWSMachineProviderStatusFromClusterAPIMachine(machine)
 
 				assert.NoError(t, err)
 				assert.NotNil(t, clustopStatus.LastELBSync)
@@ -238,41 +238,41 @@ func mockTestInstance(mockAWSClient *mockaws.MockClient, instanceID, machineName
 }
 
 // testClusterDeployment creates a new test ClusterDeployment
-func testClusterDeployment() *clustopv1.ClusterDeployment {
-	clusterDeployment := &clustopv1.ClusterDeployment{
+func testClusterDeployment() *cov1.ClusterDeployment {
+	clusterDeployment := &cov1.ClusterDeployment{
 		ObjectMeta: metav1.ObjectMeta{
 			UID:       testClusterDeploymentUUID,
 			Name:      testClusterDeploymentName,
 			Namespace: testNamespace,
 		},
-		Spec: clustopv1.ClusterDeploymentSpec{
+		Spec: cov1.ClusterDeploymentSpec{
 			ClusterName: testClusterName,
-			MachineSets: []clustopv1.ClusterMachineSet{
+			MachineSets: []cov1.ClusterMachineSet{
 				{
 					ShortName: "",
-					MachineSetConfig: clustopv1.MachineSetConfig{
+					MachineSetConfig: cov1.MachineSetConfig{
 						Infra:    true,
 						Size:     1,
-						NodeType: clustopv1.NodeTypeMaster,
+						NodeType: cov1.NodeTypeMaster,
 					},
 				},
 				{
 					ShortName: "compute",
-					MachineSetConfig: clustopv1.MachineSetConfig{
+					MachineSetConfig: cov1.MachineSetConfig{
 						Infra:    false,
 						Size:     1,
-						NodeType: clustopv1.NodeTypeCompute,
+						NodeType: cov1.NodeTypeCompute,
 					},
 				},
 			},
-			Hardware: clustopv1.ClusterHardwareSpec{
-				AWS: &clustopv1.AWSClusterSpec{
+			Hardware: cov1.ClusterHardwareSpec{
+				AWS: &cov1.AWSClusterSpec{
 					SSHUser:     "clusteroperator",
 					Region:      testRegion,
 					KeyPairName: "libra",
 				},
 			},
-			ClusterVersionRef: clustopv1.ClusterVersionReference{
+			ClusterVersionRef: cov1.ClusterVersionReference{
 				Name:      testClusterVerName,
 				Namespace: testClusterVerNS,
 			},
@@ -283,26 +283,26 @@ func testClusterDeployment() *clustopv1.ClusterDeployment {
 
 func testCluster(t *testing.T) *capiv1.Cluster {
 	clusterDeployment := testClusterDeployment()
-	cluster, err := controller.BuildCluster(clusterDeployment, testClusterVersion().Spec)
+	cluster, err := cocontroller.BuildCluster(clusterDeployment, testClusterVersion().Spec)
 	assert.NoError(t, err)
 	return cluster
 }
 
 // testClusterVersion will create a ClusterVersion resource.
-func testClusterVersion() *clustopv1.ClusterVersion {
-	cv := &clustopv1.ClusterVersion{
+func testClusterVersion() *cov1.ClusterVersion {
+	cv := &cov1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			UID:       testClusterVerUID,
 			Name:      testClusterVerName,
 			Namespace: testClusterVerNS,
 		},
-		Spec: clustopv1.ClusterVersionSpec{
-			Images: clustopv1.ClusterVersionImages{
+		Spec: cov1.ClusterVersionSpec{
+			Images: cov1.ClusterVersionImages{
 				ImageFormat: "openshift/origin-${component}:${version}",
 			},
-			VMImages: clustopv1.VMImages{
-				AWSImages: &clustopv1.AWSVMImages{
-					RegionAMIs: []clustopv1.AWSRegionAMIs{
+			VMImages: cov1.VMImages{
+				AWSImages: &cov1.AWSVMImages{
+					RegionAMIs: []cov1.AWSRegionAMIs{
 						{
 							Region: testRegion,
 							AMI:    "computeAMI_ID",
@@ -315,36 +315,36 @@ func testClusterVersion() *clustopv1.ClusterVersion {
 	return cv
 }
 
-func testMachine(generation int64, name, clusterName string, nodeType clustopv1.NodeType, isInfra bool, currentStatus *clustopv1.AWSMachineProviderStatus) *capiv1.Machine {
+func testMachine(generation int64, name, clusterName string, nodeType cov1.NodeType, isInfra bool, currentStatus *cov1.AWSMachineProviderStatus) *capiv1.Machine {
 	testAMI := testImage
-	msSpec := clustopv1.MachineSetSpec{
-		MachineSetConfig: clustopv1.MachineSetConfig{
+	msSpec := cov1.MachineSetSpec{
+		MachineSetConfig: cov1.MachineSetConfig{
 			Infra:    isInfra,
 			Size:     3,
 			NodeType: nodeType,
-			Hardware: &clustopv1.MachineSetHardwareSpec{
-				AWS: &clustopv1.MachineSetAWSHardwareSpec{
+			Hardware: &cov1.MachineSetHardwareSpec{
+				AWS: &cov1.MachineSetAWSHardwareSpec{
 					InstanceType: "t2.micro",
 				},
 			},
 		},
-		ClusterHardware: clustopv1.ClusterHardwareSpec{
-			AWS: &clustopv1.AWSClusterSpec{
+		ClusterHardware: cov1.ClusterHardwareSpec{
+			AWS: &cov1.AWSClusterSpec{
 				Region: testRegion,
 			},
 		},
-		VMImage: clustopv1.VMImage{
+		VMImage: cov1.VMImage{
 			AWSImage: &testAMI,
 		},
 	}
-	rawProviderConfig, _ := controller.MachineProviderConfigFromMachineSetSpec(&msSpec)
+	rawProviderConfig, _ := cocontroller.MachineProviderConfigFromMachineSetSpec(&msSpec)
 	machine := &capiv1.Machine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       name,
 			Namespace:  testNamespace,
 			Generation: generation,
 			Labels: map[string]string{
-				clustopv1.ClusterNameLabel: clusterName,
+				cov1.ClusterNameLabel: clusterName,
 			},
 		},
 		Spec: capiv1.MachineSpec{
@@ -354,7 +354,7 @@ func testMachine(generation int64, name, clusterName string, nodeType clustopv1.
 		},
 	}
 	if currentStatus != nil {
-		rawStatus, _ := controller.EncodeAWSMachineProviderStatus(currentStatus)
+		rawStatus, _ := cocontroller.EncodeAWSMachineProviderStatus(currentStatus)
 		machine.Status.ProviderStatus = rawStatus
 	}
 	return machine

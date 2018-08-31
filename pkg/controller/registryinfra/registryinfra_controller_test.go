@@ -43,11 +43,11 @@ import (
 	clusterapiclientfake "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset/fake"
 	clusterapiinformers "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions"
 
-	clusterapiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 
-	clusteroperatorv1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 
-	"github.com/openshift/cluster-operator/pkg/controller"
+	cocontroller "github.com/openshift/cluster-operator/pkg/controller"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -55,7 +55,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 
 	"github.com/golang/mock/gomock"
-	clustopaws "github.com/openshift/cluster-operator/pkg/clusterapi/aws"
+	coaws "github.com/openshift/cluster-operator/pkg/clusterapi/aws"
 	mockaws "github.com/openshift/cluster-operator/pkg/clusterapi/aws/mock"
 )
 
@@ -110,20 +110,20 @@ func setupTest() *testContext {
 	return ctx
 }
 
-func newClusterVer(namespace, name string, uid types.UID) *clusteroperatorv1.ClusterVersion {
-	cv := &clusteroperatorv1.ClusterVersion{
+func newClusterVer(namespace, name string, uid types.UID) *cov1.ClusterVersion {
+	cv := &cov1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			UID:       uid,
 			Name:      name,
 			Namespace: namespace,
 		},
-		Spec: clusteroperatorv1.ClusterVersionSpec{
-			Images: clusteroperatorv1.ClusterVersionImages{
+		Spec: cov1.ClusterVersionSpec{
+			Images: cov1.ClusterVersionImages{
 				ImageFormat: "openshift/origin-${component}:${version}",
 			},
-			VMImages: clusteroperatorv1.VMImages{
-				AWSImages: &clusteroperatorv1.AWSVMImages{
-					RegionAMIs: []clusteroperatorv1.AWSRegionAMIs{
+			VMImages: cov1.VMImages{
+				AWSImages: &cov1.AWSVMImages{
+					RegionAMIs: []cov1.AWSRegionAMIs{
 						{
 							Region: testRegion,
 							AMI:    "computeAMI_ID",
@@ -135,40 +135,40 @@ func newClusterVer(namespace, name string, uid types.UID) *clusteroperatorv1.Clu
 	}
 	return cv
 }
-func newClusterFromClusterDeployment(t *testing.T, clusterDeployment *clusteroperatorv1.ClusterDeployment) *clusterapiv1.Cluster {
-	cluster := &clusterapiv1.Cluster{
+func newClusterFromClusterDeployment(t *testing.T, clusterDeployment *cov1.ClusterDeployment) *capiv1.Cluster {
+	cluster := &capiv1.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       clusterDeployment.Spec.ClusterName,
 			Namespace:  clusterDeployment.Namespace,
 			Generation: clusterDeployment.Generation,
 		},
-		Spec: clusterapiv1.ClusterSpec{},
+		Spec: capiv1.ClusterSpec{},
 	}
 
 	cv := newClusterVer(testClusterVerNS, testClusterVerName, testClusterVerUID)
-	providerConfig, err := controller.BuildAWSClusterProviderConfig(&clusterDeployment.Spec, cv.Spec)
+	providerConfig, err := cocontroller.BuildAWSClusterProviderConfig(&clusterDeployment.Spec, cv.Spec)
 	if err != nil {
 		t.Fatalf("error getting provider config from clusterdeployment: %v", err)
 	}
 	cluster.Spec.ProviderConfig.Value = providerConfig
 
-	controller.AddFinalizer(cluster, clusteroperatorv1.FinalizerRegistryInfra)
+	cocontroller.AddFinalizer(cluster, cov1.FinalizerRegistryInfra)
 
 	return cluster
 }
 
-func newClusterDeployment() *clusteroperatorv1.ClusterDeployment {
-	clusterDeployment := &clusteroperatorv1.ClusterDeployment{
+func newClusterDeployment() *cov1.ClusterDeployment {
+	clusterDeployment := &cov1.ClusterDeployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       testClusterDeploymentName,
 			Namespace:  testClusterNamespace,
 			UID:        testClusterUUID,
 			Generation: testClusterDeploymentGeneration,
 		},
-		Spec: clusteroperatorv1.ClusterDeploymentSpec{
+		Spec: cov1.ClusterDeploymentSpec{
 			ClusterName: testClusterName,
-			Hardware: clusteroperatorv1.ClusterHardwareSpec{
-				AWS: &clusteroperatorv1.AWSClusterSpec{
+			Hardware: cov1.ClusterHardwareSpec{
+				AWS: &cov1.AWSClusterSpec{
 					Region: testRegion,
 				},
 			},
@@ -181,11 +181,11 @@ func newClusterDeployment() *clusteroperatorv1.ClusterDeployment {
 func TestCreateInfra(t *testing.T) {
 	cases := []struct {
 		name              string
-		clusterDeployment *clusteroperatorv1.ClusterDeployment
+		clusterDeployment *cov1.ClusterDeployment
 		existingBucket    bool
 		existingIAMUser   bool
-		setupS3           func(*mockaws.MockClient, *clusterapiv1.Cluster)
-		setupIamUser      func(*mockaws.MockClient, *clusterapiv1.Cluster, *testContext, *testing.T)
+		setupS3           func(*mockaws.MockClient, *capiv1.Cluster)
+		setupIamUser      func(*mockaws.MockClient, *capiv1.Cluster, *testContext, *testing.T)
 
 		expectedActions   []expectedAction
 		unexpectedActions []expectedAction
@@ -258,7 +258,7 @@ func TestCreateInfra(t *testing.T) {
 			tc.setupS3(mockAWSClient, cluster)
 			tc.setupIamUser(mockAWSClient, cluster, ctx, t)
 
-			ctx.controller.awsClientBuilder = func(kubeClient kubernetes.Interface, secretName, namespace, region string) (clustopaws.Client, error) {
+			ctx.controller.awsClientBuilder = func(kubeClient kubernetes.Interface, secretName, namespace, region string) (coaws.Client, error) {
 				return mockAWSClient, nil
 			}
 			// Act
@@ -276,9 +276,9 @@ func TestCreateInfra(t *testing.T) {
 func TestDeleteInfra(t *testing.T) {
 	cases := []struct {
 		name              string
-		clusterDeployment *clusteroperatorv1.ClusterDeployment
-		setupS3           func(*mockaws.MockClient, *clusterapiv1.Cluster, *testContext)
-		setupIAMUser      func(*mockaws.MockClient, *clusterapiv1.Cluster, *testContext, *testing.T)
+		clusterDeployment *cov1.ClusterDeployment
+		setupS3           func(*mockaws.MockClient, *capiv1.Cluster, *testContext)
+		setupIAMUser      func(*mockaws.MockClient, *capiv1.Cluster, *testContext, *testing.T)
 		expectedActions   []expectedAction
 		unexpectedActions []expectedAction
 	}{
@@ -353,7 +353,7 @@ func TestDeleteInfra(t *testing.T) {
 			tc.setupS3(mockAWSClient, cluster, ctx)
 			tc.setupIAMUser(mockAWSClient, cluster, ctx, t)
 
-			ctx.controller.awsClientBuilder = func(kubeClient kubernetes.Interface, secretName, namespace, region string) (clustopaws.Client, error) {
+			ctx.controller.awsClientBuilder = func(kubeClient kubernetes.Interface, secretName, namespace, region string) (coaws.Client, error) {
 				return mockAWSClient, nil
 			}
 
@@ -370,7 +370,7 @@ func TestDeleteInfra(t *testing.T) {
 }
 
 // set up S3 deprovision expectations when the S3 bucket already exists
-func mockS3DeprovisionExisitingBucket(mockAwsClient *mockaws.MockClient, cluster *clusterapiv1.Cluster, ctx *testContext) {
+func mockS3DeprovisionExisitingBucket(mockAwsClient *mockaws.MockClient, cluster *capiv1.Cluster, ctx *testContext) {
 	bucketName := cluster.Name + "-registry"
 	listBucketOutput := &s3.ListBucketsOutput{}
 
@@ -383,7 +383,7 @@ func mockS3DeprovisionExisitingBucket(mockAwsClient *mockaws.MockClient, cluster
 
 	mockAwsClient.EXPECT().ListBuckets(nil).Return(listBucketOutput, nil)
 
-	ctx.controller.awsEmptyBucket = func(string, clustopaws.Client) error { return nil }
+	ctx.controller.awsEmptyBucket = func(string, coaws.Client) error { return nil }
 
 	deleteBucketInput := &s3.DeleteBucketInput{
 		Bucket: aws.String(bucketName),
@@ -392,14 +392,14 @@ func mockS3DeprovisionExisitingBucket(mockAwsClient *mockaws.MockClient, cluster
 }
 
 // set up S3 deprovision expectations when the S3 bucket has already been deleted
-func mockS3DeprovisionNoExistingBucket(mockAwsClient *mockaws.MockClient, cluster *clusterapiv1.Cluster, ctx *testContext) {
+func mockS3DeprovisionNoExistingBucket(mockAwsClient *mockaws.MockClient, cluster *capiv1.Cluster, ctx *testContext) {
 	listBucketOutput := &s3.ListBucketsOutput{}
 
 	mockAwsClient.EXPECT().ListBuckets(nil).Return(listBucketOutput, nil)
 }
 
 // set up S3 provision expectations when the S3 bucket hasn't already been provisioned
-func mockS3ProvisionNoExistingBucket(mockAwsClient *mockaws.MockClient, cluster *clusterapiv1.Cluster) {
+func mockS3ProvisionNoExistingBucket(mockAwsClient *mockaws.MockClient, cluster *capiv1.Cluster) {
 	bucketName := cluster.Name + "-registry"
 	listOutput := &s3.ListBucketsOutput{}
 
@@ -415,7 +415,7 @@ func mockS3ProvisionNoExistingBucket(mockAwsClient *mockaws.MockClient, cluster 
 }
 
 // set up S3 provision expectations when the S3 bucket has already been provisioned
-func mockS3ProvisionExistingBucket(mockAwsClient *mockaws.MockClient, cluster *clusterapiv1.Cluster) {
+func mockS3ProvisionExistingBucket(mockAwsClient *mockaws.MockClient, cluster *capiv1.Cluster) {
 	bucketName := cluster.Name + "-registry"
 	listOutput := &s3.ListBucketsOutput{}
 
@@ -431,7 +431,7 @@ func mockS3ProvisionExistingBucket(mockAwsClient *mockaws.MockClient, cluster *c
 }
 
 // set up IAM deprovision expectations when the IAM user has previously been provisioned
-func mockIAMDeprovisionExistingUser(mockAwsClient *mockaws.MockClient, cluster *clusterapiv1.Cluster, ctx *testContext, t *testing.T) {
+func mockIAMDeprovisionExistingUser(mockAwsClient *mockaws.MockClient, cluster *capiv1.Cluster, ctx *testContext, t *testing.T) {
 	userName := cluster.Name + "-registry"
 	policyName := cluster.Name + "S3Access"
 
@@ -498,7 +498,7 @@ func mockIAMDeprovisionExistingUser(mockAwsClient *mockaws.MockClient, cluster *
 }
 
 // set up IAM deprovision expectations when the IAM user has been previously deprovisioned
-func mockIAMDeprovisionNoExistingUser(mockAwsClient *mockaws.MockClient, cluster *clusterapiv1.Cluster, ctx *testContext, t *testing.T) {
+func mockIAMDeprovisionNoExistingUser(mockAwsClient *mockaws.MockClient, cluster *capiv1.Cluster, ctx *testContext, t *testing.T) {
 	userName := cluster.Name + "-registry"
 
 	// indicate that there is no secret holding the IAM creds
@@ -517,8 +517,8 @@ func mockIAMDeprovisionNoExistingUser(mockAwsClient *mockaws.MockClient, cluster
 }
 
 // set up IAM provision expectations when the user has already been provisioned
-func mockIAMProvisionExistingUser(mockAwsClient *mockaws.MockClient, cluster *clusterapiv1.Cluster, ctx *testContext, t *testing.T) {
-	bucketName := controller.RegistryObjectStoreName(cluster.Name)
+func mockIAMProvisionExistingUser(mockAwsClient *mockaws.MockClient, cluster *capiv1.Cluster, ctx *testContext, t *testing.T) {
+	bucketName := cocontroller.RegistryObjectStoreName(cluster.Name)
 	userName := cluster.Name + "-registry"
 	policyName := cluster.Name + "S3Access"
 	policyDocument, err := createS3IamPolicy(bucketName)
@@ -549,8 +549,8 @@ func mockIAMProvisionExistingUser(mockAwsClient *mockaws.MockClient, cluster *cl
 }
 
 // set up IAM provision expectations when the user hasn't yet been provisioned
-func mockIAMProvisionNoExistingUser(mockAwsClient *mockaws.MockClient, cluster *clusterapiv1.Cluster, ctx *testContext, t *testing.T) {
-	bucketName := controller.RegistryObjectStoreName(cluster.Name)
+func mockIAMProvisionNoExistingUser(mockAwsClient *mockaws.MockClient, cluster *capiv1.Cluster, ctx *testContext, t *testing.T) {
+	bucketName := cocontroller.RegistryObjectStoreName(cluster.Name)
 	userName := cluster.Name + "-registry"
 	policyName := cluster.Name + "S3Access"
 	policyDocument, err := createS3IamPolicy(bucketName)
@@ -661,8 +661,8 @@ func TestRegistryUserName(t *testing.T) {
 	}
 }
 
-func getKey(cluster *clusterapiv1.Cluster, t *testing.T) string {
-	key, err := controller.KeyFunc(cluster)
+func getKey(cluster *capiv1.Cluster, t *testing.T) string {
+	key, err := cocontroller.KeyFunc(cluster)
 	if err != nil {
 		t.Errorf("Unexpected error getting key for cluster %v: %v", cluster.Name, err)
 		return ""

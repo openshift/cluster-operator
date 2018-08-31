@@ -21,7 +21,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	coapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 )
 
@@ -31,10 +31,10 @@ const (
 	testRegistrySecretAccessKey = "TESTREGISTRYSECRETACCESSKEY"
 )
 
-func testClusterSpec(sshKeyPairName string) *coapi.ClusterDeploymentSpec {
-	return &coapi.ClusterDeploymentSpec{
-		Hardware: coapi.ClusterHardwareSpec{
-			AWS: &coapi.AWSClusterSpec{
+func testClusterSpec(sshKeyPairName string) *cov1.ClusterDeploymentSpec {
+	return &cov1.ClusterDeploymentSpec{
+		Hardware: cov1.ClusterHardwareSpec{
+			AWS: &cov1.AWSClusterSpec{
 				Region:      "us-east-1",
 				KeyPairName: sshKeyPairName,
 				SSHUser:     "centos",
@@ -43,12 +43,12 @@ func testClusterSpec(sshKeyPairName string) *coapi.ClusterDeploymentSpec {
 	}
 }
 
-func testClusterVersion() *coapi.OpenShiftConfigVersion {
-	return &coapi.OpenShiftConfigVersion{
-		Images: coapi.ClusterVersionImages{
+func testClusterVersion() *cov1.OpenShiftConfigVersion {
+	return &cov1.OpenShiftConfigVersion{
+		Images: cov1.ClusterVersionImages{
 			ImageFormat: imageFormat,
 		},
-		DeploymentType: coapi.ClusterDeploymentTypeOrigin,
+		DeploymentType: cov1.ClusterDeploymentTypeOrigin,
 		Version:        "v3.10.0",
 	}
 }
@@ -57,9 +57,9 @@ func TestGenerateClusterWideVars(t *testing.T) {
 	tests := []struct {
 		name             string
 		clusterID        string
-		clusterSpec      *coapi.ClusterDeploymentSpec
+		clusterSpec      *cov1.ClusterDeploymentSpec
 		infraSize        int
-		clusterVersion   *coapi.OpenShiftConfigVersion
+		clusterVersion   *cov1.OpenShiftConfigVersion
 		sdnPluginName    string
 		serviceCIDRs     capiv1.NetworkRanges
 		podCIDRs         capiv1.NetworkRanges

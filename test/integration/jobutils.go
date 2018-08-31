@@ -28,8 +28,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubefake "k8s.io/client-go/kubernetes/fake"
 
-	"github.com/openshift/cluster-operator/pkg/controller"
-	capiv1alpha1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	cocontroller "github.com/openshift/cluster-operator/pkg/controller"
+	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	capiclientset "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 )
 
@@ -111,7 +111,7 @@ func completeClusterProcessingJob(
 	kubeClient *kubefake.Clientset,
 	capiClient capiclientset.Interface,
 	namespace, name string,
-	getJobRef func(*capiv1alpha1.Cluster) *corev1.LocalObjectReference,
+	getJobRef func(*capiv1.Cluster) *corev1.LocalObjectReference,
 	verifyJobCompleted func(capiclientset.Interface /*namespace*/, string /*name*/, string) error,
 ) bool {
 	return completeProcessingJob(
@@ -123,7 +123,7 @@ func completeClusterProcessingJob(
 			return getCluster(capiClient, namespace, name)
 		},
 		func(obj metav1.Object) *corev1.LocalObjectReference {
-			return getJobRef(obj.(*capiv1alpha1.Cluster))
+			return getJobRef(obj.(*capiv1.Cluster))
 		},
 		func(namespace, name string) error {
 			return verifyJobCompleted(capiClient, namespace, name)
@@ -133,7 +133,7 @@ func completeClusterProcessingJob(
 
 // completeInfraProvision waits for the cluster to be provisioning,
 // completes the provision job, and waits for the cluster to be provisioned.
-func completeInfraProvision(t *testing.T, kubeClient *kubefake.Clientset, capiClient capiclientset.Interface, cluster *capiv1alpha1.Cluster) bool {
+func completeInfraProvision(t *testing.T, kubeClient *kubefake.Clientset, capiClient capiclientset.Interface, cluster *capiv1.Cluster) bool {
 	if !completeClusterProcessingJob(
 		t,
 		"provision",
@@ -157,8 +157,8 @@ func completeInfraProvision(t *testing.T, kubeClient *kubefake.Clientset, capiCl
 	return true
 }
 
-func clusterJobRef(t *testing.T, kubeClient *kubefake.Clientset, jobPrefix string) func(*capiv1alpha1.Cluster) *corev1.LocalObjectReference {
-	return func(cluster *capiv1alpha1.Cluster) *corev1.LocalObjectReference {
+func clusterJobRef(t *testing.T, kubeClient *kubefake.Clientset, jobPrefix string) func(*capiv1.Cluster) *corev1.LocalObjectReference {
+	return func(cluster *capiv1.Cluster) *corev1.LocalObjectReference {
 		list, err := kubeClient.BatchV1().Jobs(cluster.Namespace).List(metav1.ListOptions{})
 		if err != nil {
 			t.Errorf("error retrieving jobs")
@@ -181,7 +181,7 @@ func clusterJobRef(t *testing.T, kubeClient *kubefake.Clientset, jobPrefix strin
 // completeInfraDeprovision waits for the cluster to be deprovisioning,
 // completes the deprovision job, and waits for the cluster to have its
 // provision finalizer removed.
-func completeInfraDeprovision(t *testing.T, kubeClient *kubefake.Clientset, capiClient capiclientset.Interface, cluster *capiv1alpha1.Cluster) bool {
+func completeInfraDeprovision(t *testing.T, kubeClient *kubefake.Clientset, capiClient capiclientset.Interface, cluster *capiv1.Cluster) bool {
 	return completeClusterProcessingJob(
 		t,
 		"deprovision",
@@ -204,7 +204,7 @@ func completeInfraDeprovision(t *testing.T, kubeClient *kubefake.Clientset, capi
 // completeControlPlaneInstall waits for the control plane to be
 // installing, completes the install job, and waits for the control plane
 // to be installed.
-func completeControlPlaneInstall(t *testing.T, kubeClient *kubefake.Clientset, capiClient capiclientset.Interface, cluster *capiv1alpha1.Cluster) bool {
+func completeControlPlaneInstall(t *testing.T, kubeClient *kubefake.Clientset, capiClient capiclientset.Interface, cluster *capiv1.Cluster) bool {
 	return completeClusterProcessingJob(
 		t,
 		"control plane install",
@@ -216,8 +216,8 @@ func completeControlPlaneInstall(t *testing.T, kubeClient *kubefake.Clientset, c
 			return waitForClusterStatus(
 				client,
 				namespace, name,
-				func(cluster *capiv1alpha1.Cluster) bool {
-					status, err := controller.ClusterProviderStatusFromCluster(cluster)
+				func(cluster *capiv1.Cluster) bool {
+					status, err := cocontroller.ClusterProviderStatusFromCluster(cluster)
 					if err != nil {
 						return false
 					}
@@ -231,7 +231,7 @@ func completeControlPlaneInstall(t *testing.T, kubeClient *kubefake.Clientset, c
 // completeComponentsInstall waits for the OpenShift components to be
 // installing, completes the install job, and waits for the components
 // to be installed.
-func completeComponentsInstall(t *testing.T, kubeClient *kubefake.Clientset, capiClient capiclientset.Interface, cluster *capiv1alpha1.Cluster) bool {
+func completeComponentsInstall(t *testing.T, kubeClient *kubefake.Clientset, capiClient capiclientset.Interface, cluster *capiv1.Cluster) bool {
 	return completeClusterProcessingJob(
 		t,
 		"components install",
@@ -243,8 +243,8 @@ func completeComponentsInstall(t *testing.T, kubeClient *kubefake.Clientset, cap
 			return waitForClusterStatus(
 				client,
 				namespace, name,
-				func(cluster *capiv1alpha1.Cluster) bool {
-					status, err := controller.ClusterProviderStatusFromCluster(cluster)
+				func(cluster *capiv1.Cluster) bool {
+					status, err := cocontroller.ClusterProviderStatusFromCluster(cluster)
 					if err != nil {
 						return false
 					}
@@ -258,7 +258,7 @@ func completeComponentsInstall(t *testing.T, kubeClient *kubefake.Clientset, cap
 // completeNodeConfigInstall waits for the node config to be
 // installing, completes the install job, and waits for the node config
 // to be installed.
-func completeNodeConfigInstall(t *testing.T, kubeClient *kubefake.Clientset, capiClient capiclientset.Interface, cluster *capiv1alpha1.Cluster) bool {
+func completeNodeConfigInstall(t *testing.T, kubeClient *kubefake.Clientset, capiClient capiclientset.Interface, cluster *capiv1.Cluster) bool {
 	return completeClusterProcessingJob(
 		t,
 		"node config install",
@@ -270,8 +270,8 @@ func completeNodeConfigInstall(t *testing.T, kubeClient *kubefake.Clientset, cap
 			return waitForClusterStatus(
 				client,
 				namespace, name,
-				func(cluster *capiv1alpha1.Cluster) bool {
-					status, err := controller.ClusterProviderStatusFromCluster(cluster)
+				func(cluster *capiv1.Cluster) bool {
+					status, err := cocontroller.ClusterProviderStatusFromCluster(cluster)
 					if err != nil {
 						return false
 					}
@@ -285,7 +285,7 @@ func completeNodeConfigInstall(t *testing.T, kubeClient *kubefake.Clientset, cap
 // completeDeployClusterAPIInstall waits for the cluster-api-deploy to be
 // installing, completes the install job, and waits for the cluster-api-deploy
 // to be installed.
-func completeDeployClusterAPIInstall(t *testing.T, kubeClient *kubefake.Clientset, capiClient capiclientset.Interface, cluster *capiv1alpha1.Cluster) bool {
+func completeDeployClusterAPIInstall(t *testing.T, kubeClient *kubefake.Clientset, capiClient capiclientset.Interface, cluster *capiv1.Cluster) bool {
 	return completeClusterProcessingJob(
 		t,
 		"deploy cluster api install",
@@ -297,8 +297,8 @@ func completeDeployClusterAPIInstall(t *testing.T, kubeClient *kubefake.Clientse
 			return waitForClusterStatus(
 				client,
 				namespace, name,
-				func(cluster *capiv1alpha1.Cluster) bool {
-					status, err := controller.ClusterProviderStatusFromCluster(cluster)
+				func(cluster *capiv1.Cluster) bool {
+					status, err := cocontroller.ClusterProviderStatusFromCluster(cluster)
 					if err != nil {
 						return false
 					}
@@ -333,11 +333,11 @@ func isJobComplete(job *kbatch.Job) bool {
 	return false
 }
 
-func getCluster(capiClient capiclientset.Interface, namespace, name string) (*capiv1alpha1.Cluster, error) {
+func getCluster(capiClient capiclientset.Interface, namespace, name string) (*capiv1.Cluster, error) {
 	return capiClient.ClusterV1alpha1().Clusters(namespace).Get(name, metav1.GetOptions{})
 }
 
-func getMachineSet(capiClient capiclientset.Interface, namespace, name string) (*capiv1alpha1.MachineSet, error) {
+func getMachineSet(capiClient capiclientset.Interface, namespace, name string) (*capiv1.MachineSet, error) {
 	return capiClient.ClusterV1alpha1().MachineSets(namespace).Get(name, metav1.GetOptions{})
 }
 

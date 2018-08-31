@@ -28,9 +28,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
 
-	clustopv1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	mockaws "github.com/openshift/cluster-operator/pkg/clusterapi/aws/mock"
-	"github.com/openshift/cluster-operator/pkg/controller"
+	cocontroller "github.com/openshift/cluster-operator/pkg/controller"
 
 	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	capiclientfake "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset/fake"
@@ -220,19 +220,19 @@ func findFilter(filters []*ec2.Filter, name string) (*ec2.Filter, error) {
 func TestCreateMachine(t *testing.T) {
 	cases := []struct {
 		name      string
-		nodeType  clustopv1.NodeType
+		nodeType  cov1.NodeType
 		isInfra   bool
 		instances []*ec2.Instance
 	}{
 		{
 			name:      "master",
-			nodeType:  clustopv1.NodeTypeMaster,
+			nodeType:  cov1.NodeTypeMaster,
 			isInfra:   false,
 			instances: []*ec2.Instance{},
 		},
 		{
 			name:     "master w/ stopped instance",
-			nodeType: clustopv1.NodeTypeMaster,
+			nodeType: cov1.NodeTypeMaster,
 			isInfra:  false,
 			instances: []*ec2.Instance{
 				testInstance("i1", testMachineName, "master", "stopped", "", testClusterName, 30*time.Minute),
@@ -240,7 +240,7 @@ func TestCreateMachine(t *testing.T) {
 		},
 		{
 			name:     "master w/ multiple stopped instances",
-			nodeType: clustopv1.NodeTypeMaster,
+			nodeType: cov1.NodeTypeMaster,
 			isInfra:  false,
 			instances: []*ec2.Instance{
 				testInstance("i1", testMachineName, "master", "stopped", "", testClusterName, 30*time.Minute),
@@ -249,19 +249,19 @@ func TestCreateMachine(t *testing.T) {
 		},
 		{
 			name:      "master and infra",
-			nodeType:  clustopv1.NodeTypeMaster,
+			nodeType:  cov1.NodeTypeMaster,
 			isInfra:   true,
 			instances: []*ec2.Instance{},
 		},
 		{
 			name:      "infra node",
-			nodeType:  clustopv1.NodeTypeCompute,
+			nodeType:  cov1.NodeTypeCompute,
 			isInfra:   true,
 			instances: []*ec2.Instance{},
 		},
 		{
 			name:     "infra node w/ stopped instance",
-			nodeType: clustopv1.NodeTypeCompute,
+			nodeType: cov1.NodeTypeCompute,
 			isInfra:  true,
 			instances: []*ec2.Instance{
 				testInstance("i1", testMachineName, "node", "stopped", "", testClusterName, 30*time.Minute),
@@ -269,7 +269,7 @@ func TestCreateMachine(t *testing.T) {
 		},
 		{
 			name:     "infra node w/ multiple stopped instances",
-			nodeType: clustopv1.NodeTypeCompute,
+			nodeType: cov1.NodeTypeCompute,
 			isInfra:  true,
 			instances: []*ec2.Instance{
 				testInstance("i1", testMachineName, "node", "stopped", "", testClusterName, 30*time.Minute),
@@ -278,7 +278,7 @@ func TestCreateMachine(t *testing.T) {
 		},
 		{
 			name:      "compute node",
-			nodeType:  clustopv1.NodeTypeCompute,
+			nodeType:  cov1.NodeTypeCompute,
 			isInfra:   false,
 			instances: []*ec2.Instance{},
 		},
@@ -291,7 +291,7 @@ func TestCreateMachine(t *testing.T) {
 			kubeClient := &clientgofake.Clientset{}
 			capiClient := &capiclientfake.Clientset{}
 
-			isMaster := tc.nodeType == clustopv1.NodeTypeMaster
+			isMaster := tc.nodeType == cov1.NodeTypeMaster
 
 			cluster, err := testCluster(t)
 			if !assert.NoError(t, err) {
@@ -435,7 +435,7 @@ func TestUpdate(t *testing.T) {
 			if !assert.NoError(t, err) {
 				return
 			}
-			machine := testMachine(testMachineName, cluster.Name, clustopv1.NodeTypeMaster, true, tc.currentStatus)
+			machine := testMachine(testMachineName, cluster.Name, cov1.NodeTypeMaster, true, tc.currentStatus)
 
 			mockAWSClient := mockaws.NewMockClient(mockCtrl)
 			addDescribeInstancesMock(mockAWSClient, tc.instances)
@@ -475,7 +475,7 @@ func TestUpdate(t *testing.T) {
 
 				updatedObject := updateAction.GetObject()
 				machine, ok := updatedObject.(*capiv1.Machine)
-				clustopStatus, err := controller.AWSMachineProviderStatusFromClusterAPIMachine(machine)
+				clustopStatus, err := cocontroller.AWSMachineProviderStatusFromClusterAPIMachine(machine)
 				if !assert.NoError(t, err) {
 					return
 				}
@@ -486,7 +486,7 @@ func TestUpdate(t *testing.T) {
 					assert.Equal(t, tc.expectedInstanceID, *clustopStatus.InstanceID)
 				}
 				// LastELBSync should be cleared if our instance ID changed to trigger the ELB controller:
-				currentClustopStatus, err := controller.AWSMachineProviderStatusFromMachineStatus(tc.currentStatus)
+				currentClustopStatus, err := cocontroller.AWSMachineProviderStatusFromMachineStatus(tc.currentStatus)
 				t.Logf("%s", *currentClustopStatus.InstanceID)
 				t.Logf("%s", tc.expectedInstanceID)
 				if *currentClustopStatus.InstanceID != tc.expectedInstanceID {
@@ -538,7 +538,7 @@ func TestDeleteMachine(t *testing.T) {
 			if !assert.NoError(t, err) {
 				return
 			}
-			machine := testMachine(testMachineName, cluster.Name, clustopv1.NodeTypeMaster, true, nil)
+			machine := testMachine(testMachineName, cluster.Name, cov1.NodeTypeMaster, true, nil)
 
 			mockAWSClient := mockaws.NewMockClient(mockCtrl)
 			addDescribeInstancesMock(mockAWSClient, tc.instances)
@@ -612,12 +612,12 @@ func testInstance(instanceID, machineName, hostType, instanceState, publicIP, cl
 }
 
 func testStatus(instanceID, publicIP string) *capiv1.MachineStatus {
-	awsStatus := &clustopv1.AWSMachineProviderStatus{
+	awsStatus := &cov1.AWSMachineProviderStatus{
 		InstanceID:    aws.String(instanceID),
 		InstanceState: aws.String("running"),
 		LastELBSync:   &metav1.Time{Time: time.Now().Add(-30 * time.Minute)},
 	}
-	rawStatus, _ := controller.EncodeAWSMachineProviderStatus(awsStatus)
+	rawStatus, _ := cocontroller.EncodeAWSMachineProviderStatus(awsStatus)
 	machineStatus := capiv1.MachineStatus{
 		ProviderStatus: rawStatus,
 		Addresses: []corev1.NodeAddress{
@@ -691,41 +691,41 @@ func addDescribeSecurityGroupsMock(t *testing.T, mockAWSClient *mockaws.MockClie
 }
 
 // testClusterDeployment creates a new test ClusterDeployment
-func testClusterDeployment() *clustopv1.ClusterDeployment {
-	clusterDeployment := &clustopv1.ClusterDeployment{
+func testClusterDeployment() *cov1.ClusterDeployment {
+	clusterDeployment := &cov1.ClusterDeployment{
 		ObjectMeta: metav1.ObjectMeta{
 			UID:       testClusterDeploymentUUID,
 			Name:      testClusterDeploymentName,
 			Namespace: testNamespace,
 		},
-		Spec: clustopv1.ClusterDeploymentSpec{
+		Spec: cov1.ClusterDeploymentSpec{
 			ClusterName: testClusterName,
-			MachineSets: []clustopv1.ClusterMachineSet{
+			MachineSets: []cov1.ClusterMachineSet{
 				{
 					ShortName: "",
-					MachineSetConfig: clustopv1.MachineSetConfig{
+					MachineSetConfig: cov1.MachineSetConfig{
 						Infra:    true,
 						Size:     1,
-						NodeType: clustopv1.NodeTypeMaster,
+						NodeType: cov1.NodeTypeMaster,
 					},
 				},
 				{
 					ShortName: "compute",
-					MachineSetConfig: clustopv1.MachineSetConfig{
+					MachineSetConfig: cov1.MachineSetConfig{
 						Infra:    false,
 						Size:     1,
-						NodeType: clustopv1.NodeTypeCompute,
+						NodeType: cov1.NodeTypeCompute,
 					},
 				},
 			},
-			Hardware: clustopv1.ClusterHardwareSpec{
-				AWS: &clustopv1.AWSClusterSpec{
+			Hardware: cov1.ClusterHardwareSpec{
+				AWS: &cov1.AWSClusterSpec{
 					SSHUser:     "clusteroperator",
 					Region:      testRegion,
 					KeyPairName: "libra",
 				},
 			},
-			ClusterVersionRef: clustopv1.ClusterVersionReference{
+			ClusterVersionRef: cov1.ClusterVersionReference{
 				Name:      testClusterVerName,
 				Namespace: testClusterVerNS,
 			},
@@ -736,38 +736,38 @@ func testClusterDeployment() *clustopv1.ClusterDeployment {
 
 func testCluster(t *testing.T) (*capiv1.Cluster, error) {
 	clusterDeployment := testClusterDeployment()
-	return controller.BuildCluster(clusterDeployment, testClusterVersion())
+	return cocontroller.BuildCluster(clusterDeployment, testClusterVersion())
 }
 
-func testMachine(name, clusterName string, nodeType clustopv1.NodeType, isInfra bool, currentStatus *capiv1.MachineStatus) *capiv1.Machine {
+func testMachine(name, clusterName string, nodeType cov1.NodeType, isInfra bool, currentStatus *capiv1.MachineStatus) *capiv1.Machine {
 	testAMI := testImage
-	msSpec := clustopv1.MachineSetSpec{
-		MachineSetConfig: clustopv1.MachineSetConfig{
+	msSpec := cov1.MachineSetSpec{
+		MachineSetConfig: cov1.MachineSetConfig{
 			Infra:    isInfra,
 			Size:     3,
 			NodeType: nodeType,
-			Hardware: &clustopv1.MachineSetHardwareSpec{
-				AWS: &clustopv1.MachineSetAWSHardwareSpec{
+			Hardware: &cov1.MachineSetHardwareSpec{
+				AWS: &cov1.MachineSetAWSHardwareSpec{
 					InstanceType: "t2.micro",
 				},
 			},
 		},
-		ClusterHardware: clustopv1.ClusterHardwareSpec{
-			AWS: &clustopv1.AWSClusterSpec{
+		ClusterHardware: cov1.ClusterHardwareSpec{
+			AWS: &cov1.AWSClusterSpec{
 				Region: testRegion,
 			},
 		},
-		VMImage: clustopv1.VMImage{
+		VMImage: cov1.VMImage{
 			AWSImage: &testAMI,
 		},
 	}
-	rawProviderConfig, _ := controller.MachineProviderConfigFromMachineSetSpec(&msSpec)
+	rawProviderConfig, _ := cocontroller.MachineProviderConfigFromMachineSetSpec(&msSpec)
 	machine := &capiv1.Machine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: testNamespace,
 			Labels: map[string]string{
-				clustopv1.ClusterNameLabel: clusterName,
+				cov1.ClusterNameLabel: clusterName,
 			},
 		},
 		Spec: capiv1.MachineSpec{
@@ -786,15 +786,15 @@ func testMachine(name, clusterName string, nodeType clustopv1.NodeType, isInfra 
 	return machine
 }
 
-func testClusterVersion() clustopv1.ClusterVersionSpec {
+func testClusterVersion() cov1.ClusterVersionSpec {
 	masterAMI := "master-AMI-west"
-	return clustopv1.ClusterVersionSpec{
-		Images: clustopv1.ClusterVersionImages{
+	return cov1.ClusterVersionSpec{
+		Images: cov1.ClusterVersionImages{
 			ImageFormat: "openshift/origin-${component}:v3.10.0",
 		},
-		VMImages: clustopv1.VMImages{
-			AWSImages: &clustopv1.AWSVMImages{
-				RegionAMIs: []clustopv1.AWSRegionAMIs{
+		VMImages: cov1.VMImages{
+			AWSImages: &cov1.AWSVMImages{
+				RegionAMIs: []cov1.AWSRegionAMIs{
 					{
 						Region: "us-east-1",
 						AMI:    "compute-AMI-east",
@@ -807,7 +807,7 @@ func testClusterVersion() clustopv1.ClusterVersionSpec {
 				},
 			},
 		},
-		DeploymentType: clustopv1.ClusterDeploymentTypeOrigin,
+		DeploymentType: cov1.ClusterDeploymentTypeOrigin,
 		Version:        "v3.10.0",
 	}
 }

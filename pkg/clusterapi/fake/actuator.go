@@ -22,9 +22,9 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	clusterv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 
-	clustoplog "github.com/openshift/cluster-operator/pkg/logging"
+	cologging "github.com/openshift/cluster-operator/pkg/logging"
 )
 
 // Actuator is a fake actuator
@@ -42,22 +42,22 @@ func NewActuator(logger *log.Entry) *Actuator {
 }
 
 // Create logs a create call
-func (a *Actuator) Create(cluster *clusterv1.Cluster, machine *clusterv1.Machine) error {
-	clustoplog.WithMachine(clustoplog.WithCluster(a.logger, cluster), machine).Infof("creating machine %#v", machine)
+func (a *Actuator) Create(cluster *capiv1.Cluster, machine *capiv1.Machine) error {
+	cologging.WithMachine(cologging.WithCluster(a.logger, cluster), machine).Infof("creating machine %#v", machine)
 	a.machines.LoadOrStore(machineKey(machine), true)
 	return nil
 }
 
 // Delete logs a delete call
-func (a *Actuator) Delete(cluster *clusterv1.Cluster, machine *clusterv1.Machine) error {
-	clustoplog.WithMachine(clustoplog.WithCluster(a.logger, cluster), machine).Infof("deleting machine %#v", machine)
+func (a *Actuator) Delete(cluster *capiv1.Cluster, machine *capiv1.Machine) error {
+	cologging.WithMachine(cologging.WithCluster(a.logger, cluster), machine).Infof("deleting machine %#v", machine)
 	a.machines.Delete(machineKey(machine))
 	return nil
 }
 
 // Update logs an update call
-func (a *Actuator) Update(cluster *clusterv1.Cluster, machine *clusterv1.Machine) error {
-	clustoplog.WithMachine(clustoplog.WithCluster(a.logger, cluster), machine).Infof("updating machine %#v", machine)
+func (a *Actuator) Update(cluster *capiv1.Cluster, machine *capiv1.Machine) error {
+	cologging.WithMachine(cologging.WithCluster(a.logger, cluster), machine).Infof("updating machine %#v", machine)
 	if _, ok := a.machines.Load(machineKey(machine)); !ok {
 		return fmt.Errorf("machine not found")
 	}
@@ -65,12 +65,12 @@ func (a *Actuator) Update(cluster *clusterv1.Cluster, machine *clusterv1.Machine
 }
 
 // Exists logs the exists call and returns true
-func (a *Actuator) Exists(cluster *clusterv1.Cluster, machine *clusterv1.Machine) (bool, error) {
-	clustoplog.WithMachine(clustoplog.WithCluster(a.logger, cluster), machine).Infof("checking if machine exists")
+func (a *Actuator) Exists(cluster *capiv1.Cluster, machine *capiv1.Machine) (bool, error) {
+	cologging.WithMachine(cologging.WithCluster(a.logger, cluster), machine).Infof("checking if machine exists")
 	_, ok := a.machines.Load(machineKey(machine))
 	return ok, nil
 }
 
-func machineKey(machine *clusterv1.Machine) string {
+func machineKey(machine *capiv1.Machine) string {
 	return fmt.Sprintf("%s/%s", machine.Namespace, machine.Name)
 }

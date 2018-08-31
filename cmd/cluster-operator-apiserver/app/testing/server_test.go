@@ -21,7 +21,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	clientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset/typed/clusteroperator/v1alpha1"
 )
 
@@ -36,26 +36,26 @@ func TestRun(t *testing.T) {
 
 	// test whether the server is really healthy after /healthz told us so
 	t.Logf("Creating ClusterDeployment directly after being healthy")
-	_, err = client.ClusterDeployments("default").Create(&clusteroperator.ClusterDeployment{
+	_, err = client.ClusterDeployments("default").Create(&cov1.ClusterDeployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "cluster1",
 		},
-		Spec: clusteroperator.ClusterDeploymentSpec{
-			ClusterVersionRef: clusteroperator.ClusterVersionReference{
+		Spec: cov1.ClusterDeploymentSpec{
+			ClusterVersionRef: cov1.ClusterVersionReference{
 				Namespace: "openshift-cluster-operator",
 				Name:      "v3-9",
 			},
-			MachineSets: []clusteroperator.ClusterMachineSet{
+			MachineSets: []cov1.ClusterMachineSet{
 				{
-					MachineSetConfig: clusteroperator.MachineSetConfig{
-						NodeType: clusteroperator.NodeTypeMaster,
+					MachineSetConfig: cov1.MachineSetConfig{
+						NodeType: cov1.NodeTypeMaster,
 						Infra:    true,
 						Size:     1,
 					},
 				},
 			},
-			Hardware: clusteroperator.ClusterHardwareSpec{
-				AWS: &clusteroperator.AWSClusterSpec{},
+			Hardware: cov1.ClusterHardwareSpec{
+				AWS: &cov1.AWSClusterSpec{},
 			},
 		},
 	})

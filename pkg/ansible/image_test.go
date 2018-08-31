@@ -21,7 +21,7 @@ import (
 
 	kapi "k8s.io/api/core/v1"
 
-	coapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 )
 
 func TestGetAnsibleImageForClusterVersion(t *testing.T) {
@@ -51,9 +51,9 @@ func TestGetAnsibleImageForClusterVersion(t *testing.T) {
 		},
 	}
 	for _, tc := range cases {
-		cv := coapi.OpenShiftConfigVersion{
+		cv := cov1.OpenShiftConfigVersion{
 			Version: "latest",
-			Images: coapi.ClusterVersionImages{
+			Images: cov1.ClusterVersionImages{
 				OpenshiftAnsibleImage:           tc.image,
 				OpenshiftAnsibleImagePullPolicy: tc.pullPolicy,
 			},

@@ -36,18 +36,18 @@ import (
 	"github.com/golang/glog"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/openshift/cluster-operator/pkg/ansible"
-	"github.com/openshift/cluster-operator/pkg/kubernetes/pkg/util/metrics"
-	"github.com/openshift/cluster-operator/pkg/logging"
+	coansible "github.com/openshift/cluster-operator/pkg/ansible"
+	cometrics "github.com/openshift/cluster-operator/pkg/kubernetes/pkg/util/metrics"
+	cologging "github.com/openshift/cluster-operator/pkg/logging"
 
-	"github.com/openshift/cluster-operator/pkg/controller"
+	cocontroller "github.com/openshift/cluster-operator/pkg/controller"
 
-	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
-	clusteroperatorclient "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
-	clusterdeploymentinformers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions/clusteroperator/v1alpha1"
-	clusterdeploymentlister "github.com/openshift/cluster-operator/pkg/client/listers_generated/clusteroperator/v1alpha1"
+	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	coclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
+	coinformers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions/clusteroperator/v1alpha1"
+	colisters "github.com/openshift/cluster-operator/pkg/client/listers_generated/clusteroperator/v1alpha1"
 
-	clusterapi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	clusterapiclientset "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 	clusterapiinformers "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions/cluster/v1alpha1"
 	capilister "sigs.k8s.io/cluster-api/pkg/client/listers_generated/cluster/v1alpha1"
@@ -57,7 +57,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
-	clustopaws "github.com/openshift/cluster-operator/pkg/clusterapi/aws"
+	coaws "github.com/openshift/cluster-operator/pkg/clusterapi/aws"
 )
 
 const (
@@ -116,9 +116,9 @@ type s3PolicyTemplateParams struct {
 // cluster-api resources.
 func NewController(
 	clusterInformer clusterapiinformers.ClusterInformer,
-	clusterDeploymentInformer clusterdeploymentinformers.ClusterDeploymentInformer,
+	clusterDeploymentInformer coinformers.ClusterDeploymentInformer,
 	kubeClient kubeclientset.Interface,
-	clusteroperatorClient clusteroperatorclient.Interface,
+	clusteroperatorClient coclientset.Interface,
 	clusterapiClient clusterapiclientset.Interface,
 ) *Controller {
 	eventBroadcaster := record.NewBroadcaster()
@@ -127,7 +127,7 @@ func NewController(
 	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: v1core.New(kubeClient.CoreV1().RESTClient()).Events("")})
 
 	if kubeClient != nil && kubeClient.CoreV1().RESTClient().GetRateLimiter() != nil {
-		metrics.RegisterMetricAndTrackRateLimiterUsage(
+		cometrics.RegisterMetricAndTrackRateLimiterUsage(
 			fmt.Sprintf("clusteroperator_%s_controller", controllerName),
 			kubeClient.CoreV1().RESTClient().GetRateLimiter(),
 		)
@@ -143,7 +143,7 @@ func NewController(
 		clusterLister:           clusterInformer.Lister(),
 		clusterDeploymentLister: clusterDeploymentInformer.Lister(),
 		clustersSynced:          clusterInformer.Informer().HasSynced,
-		awsClientBuilder:        clustopaws.NewClient,
+		awsClientBuilder:        coaws.NewClient,
 	}
 
 	clusterInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -163,20 +163,20 @@ func NewController(
 // Controller manages clusters.
 type Controller struct {
 	kubeClient kubeclientset.Interface
-	coClient   clusteroperatorclient.Interface
+	coClient   coclientset.Interface
 	capiClient clusterapiclientset.Interface
 
 	// To allow injection of syncCluster for testing.
 	syncHandler func(hKey string) error
 
 	// To allow injection of mock ansible generator for testing
-	ansibleGenerator ansible.JobGenerator
+	ansibleGenerator coansible.JobGenerator
 
 	// used for unit testing
 	enqueueCluster func(cluster metav1.Object)
 
 	clusterLister           capilister.ClusterLister
-	clusterDeploymentLister clusterdeploymentlister.ClusterDeploymentLister
+	clusterDeploymentLister colisters.ClusterDeploymentLister
 
 	// clustersSynced returns true if the cluster shared informer has been synced at least once.
 	// Added as a member to the struct to allow injection for testing.
@@ -188,39 +188,39 @@ type Controller struct {
 	logger *log.Entry
 
 	// AWS client builder
-	awsClientBuilder func(kubeClient kubeclientset.Interface, secretName, namespace, region string) (clustopaws.Client, error)
+	awsClientBuilder func(kubeClient kubeclientset.Interface, secretName, namespace, region string) (coaws.Client, error)
 
 	// AWS bucket emptier
-	awsEmptyBucket func(bucketName string, awsClient clustopaws.Client) error
+	awsEmptyBucket func(bucketName string, awsClient coaws.Client) error
 }
 
 func (c *Controller) addCluster(obj interface{}) {
-	cluster := obj.(*clusterapi.Cluster)
-	logging.WithCluster(c.logger, cluster).Debugf("Adding cluster")
+	cluster := obj.(*capiv1.Cluster)
+	cologging.WithCluster(c.logger, cluster).Debugf("Adding cluster")
 	c.enqueueCluster(cluster)
 }
 
 func (c *Controller) updateCluster(old, obj interface{}) {
-	cluster := obj.(*clusterapi.Cluster)
-	logging.WithCluster(c.logger, cluster).Debugf("Updating cluster")
+	cluster := obj.(*capiv1.Cluster)
+	cologging.WithCluster(c.logger, cluster).Debugf("Updating cluster")
 	c.enqueueCluster(cluster)
 }
 
 func (c *Controller) deleteCluster(obj interface{}) {
-	cluster, ok := obj.(*clusterapi.Cluster)
+	cluster, ok := obj.(*capiv1.Cluster)
 	if !ok {
 		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("couldn't get object from tombstone %#v", obj))
 			return
 		}
-		cluster, ok = tombstone.Obj.(*clusterapi.Cluster)
+		cluster, ok = tombstone.Obj.(*capiv1.Cluster)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("tombstone contained object that is not an Object %#v", obj))
 			return
 		}
 	}
-	logging.WithCluster(c.logger, cluster).Debugf("Deleting cluster")
+	cologging.WithCluster(c.logger, cluster).Debugf("Deleting cluster")
 	c.enqueueCluster(cluster)
 }
 
@@ -233,7 +233,7 @@ func (c *Controller) Run(workers int, stopCh <-chan struct{}) {
 	c.logger.Infof("starting %s controller", controllerName)
 	defer c.logger.Infof("shutting down %s controller", controllerName)
 
-	if !controller.WaitForCacheSync("registryinfra", stopCh, c.clustersSynced) {
+	if !cocontroller.WaitForCacheSync("registryinfra", stopCh, c.clustersSynced) {
 		c.logger.Errorf("Could not sync caches for %s controller", controllerName)
 		return
 	}
@@ -246,7 +246,7 @@ func (c *Controller) Run(workers int, stopCh <-chan struct{}) {
 }
 
 func (c *Controller) enqueue(cluster metav1.Object) {
-	key, err := controller.KeyFunc(cluster)
+	key, err := cocontroller.KeyFunc(cluster)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("couldn't get key for object %#v: %v", cluster, err))
 		return
@@ -331,12 +331,12 @@ func (c *Controller) syncCluster(key string) error {
 		return nil
 	}
 
-	cluster, err := controller.ConvertToCombinedCluster(capiCluster)
+	cluster, err := cocontroller.ConvertToCombinedCluster(capiCluster)
 	if err != nil {
 		return fmt.Errorf("failure converting to combined cluster: %v", err)
 	}
 
-	clusterProviderStatus, err := controller.ClusterProviderStatusFromCluster(capiCluster)
+	clusterProviderStatus, err := cocontroller.ClusterProviderStatusFromCluster(capiCluster)
 	if err != nil {
 		return fmt.Errorf("error retrieving clusterproviderstatus: %v", err)
 	}
@@ -381,7 +381,7 @@ func (c *Controller) syncCluster(key string) error {
 }
 
 // configureAWS will return a client for interacting with AWS for the provided cluster
-func (c *Controller) configureAWS(cluster *clusteroperator.CombinedCluster) (clustopaws.Client, error) {
+func (c *Controller) configureAWS(cluster *cov1.CombinedCluster) (coaws.Client, error) {
 	adminCredsSecretName := cluster.AWSClusterProviderConfig.Hardware.AccountSecret.Name
 	region := cluster.AWSClusterProviderConfig.Hardware.Region
 
@@ -393,7 +393,7 @@ func (c *Controller) configureAWS(cluster *clusteroperator.CombinedCluster) (clu
 
 }
 
-func (c *Controller) emptyS3Bucket(bucketName string, awsClient clustopaws.Client) error {
+func (c *Controller) emptyS3Bucket(bucketName string, awsClient coaws.Client) error {
 	s3API := awsClient.GetS3API()
 	iter := s3manager.NewDeleteListIterator(s3API, &s3.ListObjectsInput{
 		Bucket: aws.String(bucketName),
@@ -406,7 +406,7 @@ func (c *Controller) emptyS3Bucket(bucketName string, awsClient clustopaws.Clien
 	return nil
 }
 
-func (c *Controller) deprovisionS3Bucket(bucketName string, awsClient clustopaws.Client) error {
+func (c *Controller) deprovisionS3Bucket(bucketName string, awsClient coaws.Client) error {
 
 	s3Bucket, err := getBucketByName(bucketName, awsClient)
 	if err != nil {
@@ -435,7 +435,7 @@ func (c *Controller) deprovisionS3Bucket(bucketName string, awsClient clustopaws
 }
 
 // create S3 bucket (if necessary) for cluster's registry
-func (c *Controller) setupS3Bucket(bucketName string, awsClient clustopaws.Client) error {
+func (c *Controller) setupS3Bucket(bucketName string, awsClient coaws.Client) error {
 
 	s3Bucket, err := getBucketByName(bucketName, awsClient)
 	if err != nil {
@@ -460,7 +460,7 @@ func (c *Controller) setupS3Bucket(bucketName string, awsClient clustopaws.Clien
 	return nil
 }
 
-func deprovisionIamUserCreds(userName string, awsClient clustopaws.Client) error {
+func deprovisionIamUserCreds(userName string, awsClient coaws.Client) error {
 	// need to delete all access keys associated with the IAM user
 	// to be able to eventually delete the user
 	accessKeys, err := awsClient.ListAccessKeys(&iam.ListAccessKeysInput{
@@ -483,7 +483,7 @@ func deprovisionIamUserCreds(userName string, awsClient clustopaws.Client) error
 }
 
 // setupIamUserCreds unconditionally creates and returns access/secret key for iam userName
-func (c *Controller) setupIamUserCreds(userName string, awsClient clustopaws.Client) (*iam.AccessKey, error) {
+func (c *Controller) setupIamUserCreds(userName string, awsClient coaws.Client) (*iam.AccessKey, error) {
 	result, err := awsClient.CreateAccessKey(&iam.CreateAccessKeyInput{
 		UserName: &userName,
 	})
@@ -494,7 +494,7 @@ func (c *Controller) setupIamUserCreds(userName string, awsClient clustopaws.Cli
 	return result.AccessKey, nil
 }
 
-func deprovisionS3IamUser(clusterID, bucketName string, awsClient clustopaws.Client) error {
+func deprovisionS3IamUser(clusterID, bucketName string, awsClient coaws.Client) error {
 	existingUser, err := findExistingRegistryUser(clusterID, awsClient)
 	if err != nil {
 		return err
@@ -527,7 +527,7 @@ func deprovisionS3IamUser(clusterID, bucketName string, awsClient clustopaws.Cli
 
 // setupS3IamUser creates an IAM user with an inline policy granting r/w permission on bucketName
 // return iam creds if we are told that there are no exising credentials
-func (c *Controller) setupS3IamUser(clusterID, bucketName string, awsClient clustopaws.Client) (*iam.AccessKey, error) {
+func (c *Controller) setupS3IamUser(clusterID, bucketName string, awsClient coaws.Client) (*iam.AccessKey, error) {
 
 	existingUser, err := findExistingRegistryUser(clusterID, awsClient)
 	if err != nil {
@@ -566,7 +566,7 @@ func (c *Controller) setupS3IamUser(clusterID, bucketName string, awsClient clus
 	return accessKey, nil
 }
 
-func deprovisionS3IamUserPolicy(userName string, awsClient clustopaws.Client) error {
+func deprovisionS3IamUserPolicy(userName string, awsClient coaws.Client) error {
 	// need to remove all inline policies to be able to remove user
 	userPolicies, err := awsClient.ListUserPolicies(&iam.ListUserPoliciesInput{
 		UserName: aws.String(userName),
@@ -588,7 +588,7 @@ func deprovisionS3IamUserPolicy(userName string, awsClient clustopaws.Client) er
 }
 
 // s3IamUserPolicy will attach iam policy to user granting r/w access to S3 bucketName
-func (c *Controller) s3IamUserPolicy(clusterID, userName, bucketName string, awsClient clustopaws.Client) error {
+func (c *Controller) s3IamUserPolicy(clusterID, userName, bucketName string, awsClient coaws.Client) error {
 	policyName := clusterID + "S3Access"
 	policyDocument, err := createS3IamPolicy(bucketName)
 	if err != nil {
@@ -627,10 +627,10 @@ func createS3IamPolicy(bucketName string) (string, error) {
 	return policyDocument, nil
 }
 
-func (c *Controller) syncRegistryInfra(cluster *clusteroperator.CombinedCluster, createInfra bool) error {
+func (c *Controller) syncRegistryInfra(cluster *cov1.CombinedCluster, createInfra bool) error {
 	clusterID := cluster.Name
 
-	bucketName := controller.RegistryObjectStoreName(clusterID)
+	bucketName := cocontroller.RegistryObjectStoreName(clusterID)
 
 	awsClient, err := c.configureAWS(cluster)
 	if err != nil {
@@ -671,7 +671,7 @@ func (c *Controller) syncRegistryInfra(cluster *clusteroperator.CombinedCluster,
 		return fmt.Errorf("error deleting registry IAM user: %v", err)
 	}
 
-	secretName := controller.RegistryCredsSecretName(clusterID)
+	secretName := cocontroller.RegistryCredsSecretName(clusterID)
 	err = c.deleteRegistyUserSecret(secretName, cluster.Namespace)
 	if err != nil {
 		return err
@@ -706,7 +706,7 @@ func (c *Controller) setupRegistrySecret(clusterID, secretNamespace string, acce
 	registrySecretAlreadyExists := false
 
 	// name for secret where we will store the registry object store credentials
-	objectStoreSecretName := controller.RegistryCredsSecretName(clusterID)
+	objectStoreSecretName := cocontroller.RegistryCredsSecretName(clusterID)
 
 	_, err := c.kubeClient.CoreV1().Secrets(secretNamespace).Get(objectStoreSecretName, metav1.GetOptions{})
 	secretFound := (err == nil)
@@ -741,8 +741,8 @@ func (c *Controller) setupRegistrySecret(clusterID, secretNamespace string, acce
 	return nil
 }
 
-func (c *Controller) updateClusterStatus(cluster *clusterapi.Cluster, success bool, syncError error) error {
-	clusterProviderStatus, err := controller.ClusterProviderStatusFromCluster(cluster)
+func (c *Controller) updateClusterStatus(cluster *capiv1.Cluster, success bool, syncError error) error {
+	clusterProviderStatus, err := cocontroller.ClusterProviderStatusFromCluster(cluster)
 	if err != nil {
 		return fmt.Errorf("error retrieving cluster status: %v", err)
 	}
@@ -756,7 +756,7 @@ func (c *Controller) updateClusterStatus(cluster *clusterapi.Cluster, success bo
 		clusterProviderStatus.RegistryInfraInstalledGeneration = cluster.Generation
 	}
 
-	raw, err := controller.EncodeClusterProviderStatus(clusterProviderStatus)
+	raw, err := cocontroller.EncodeClusterProviderStatus(clusterProviderStatus)
 	if err != nil {
 		return fmt.Errorf("error converting clusterproviderstatus: %v", err)
 	}
@@ -764,7 +764,7 @@ func (c *Controller) updateClusterStatus(cluster *clusterapi.Cluster, success bo
 	clusterCopy := cluster.DeepCopy()
 	clusterCopy.Status.ProviderStatus = raw
 
-	err = controller.UpdateClusterStatus(c.capiClient, clusterCopy)
+	err = cocontroller.UpdateClusterStatus(c.capiClient, clusterCopy)
 	if err != nil {
 		return fmt.Errorf("error updating cluster status: %v", err)
 	}
@@ -772,53 +772,53 @@ func (c *Controller) updateClusterStatus(cluster *clusterapi.Cluster, success bo
 	return nil
 }
 
-func (c *Controller) updateClusterCondition(clusterProviderStatus *clusteroperator.ClusterProviderStatus, suceeded bool, syncError error) []clusteroperator.ClusterCondition {
+func (c *Controller) updateClusterCondition(clusterProviderStatus *cov1.ClusterProviderStatus, suceeded bool, syncError error) []cov1.ClusterCondition {
 	type ConditionFields struct {
-		condition   clusteroperator.ClusterConditionType
+		condition   cov1.ClusterConditionType
 		status      kapi.ConditionStatus
 		msg         string
 		reason      string
-		updateCheck controller.UpdateConditionCheck
+		updateCheck cocontroller.UpdateConditionCheck
 	}
 	conditions := []ConditionFields{}
 
 	if suceeded {
 		// set conditions indicating RegistryInfraProvisioned=true and RegistryInfraProvisioningFailed=false
 		conditions = append(conditions, ConditionFields{
-			condition:   clusteroperator.RegistryInfraProvisioned,
+			condition:   cov1.RegistryInfraProvisioned,
 			status:      kapi.ConditionTrue,
 			msg:         fmt.Sprintf("registry infrastructure deployed/configured"),
 			reason:      infraDeployed,
-			updateCheck: controller.UpdateConditionIfReasonOrMessageChange,
+			updateCheck: cocontroller.UpdateConditionIfReasonOrMessageChange,
 		})
 		conditions = append(conditions, ConditionFields{
-			condition:   clusteroperator.RegistryInfraProvisioningFailed,
+			condition:   cov1.RegistryInfraProvisioningFailed,
 			status:      kapi.ConditionFalse,
 			msg:         fmt.Sprintf("registry infra provisioning has not failed"),
 			reason:      infraDeployed,
-			updateCheck: controller.UpdateConditionIfReasonOrMessageChange,
+			updateCheck: cocontroller.UpdateConditionIfReasonOrMessageChange,
 		})
 	} else {
 		// set conditions indicating RegistryInfraProvisioned=false and RegistryInfraProvisioningFailed=true
 		conditions = append(conditions, ConditionFields{
-			condition:   clusteroperator.RegistryInfraProvisioningFailed,
+			condition:   cov1.RegistryInfraProvisioningFailed,
 			status:      kapi.ConditionTrue,
 			msg:         fmt.Sprintf("registry infrastructure deployment failed: %v", syncError),
 			reason:      infraDeploymentFailure,
-			updateCheck: controller.UpdateConditionIfReasonOrMessageChange,
+			updateCheck: cocontroller.UpdateConditionIfReasonOrMessageChange,
 		})
 		conditions = append(conditions, ConditionFields{
-			condition:   clusteroperator.RegistryInfraProvisioned,
+			condition:   cov1.RegistryInfraProvisioned,
 			status:      kapi.ConditionFalse,
 			msg:         fmt.Sprintf("registy infrastructure failed to provision"),
 			reason:      fmt.Sprintf("error provisioning registry infra: %v", syncError),
-			updateCheck: controller.UpdateConditionIfReasonOrMessageChange,
+			updateCheck: cocontroller.UpdateConditionIfReasonOrMessageChange,
 		})
 	}
 
 	conditionsToReturn := clusterProviderStatus.Conditions
 	for _, condition := range conditions {
-		conditionsToReturn = controller.SetClusterCondition(conditionsToReturn,
+		conditionsToReturn = cocontroller.SetClusterCondition(conditionsToReturn,
 			condition.condition,
 			condition.status,
 			condition.reason,
@@ -829,25 +829,25 @@ func (c *Controller) updateClusterCondition(clusterProviderStatus *clusteroperat
 	return conditionsToReturn
 }
 
-func hasRegistryInfraFinalizer(cluster *clusterapi.Cluster) bool {
-	return controller.HasFinalizer(cluster, clusteroperator.FinalizerRegistryInfra)
+func hasRegistryInfraFinalizer(cluster *capiv1.Cluster) bool {
+	return cocontroller.HasFinalizer(cluster, cov1.FinalizerRegistryInfra)
 }
 
-func (c *Controller) deleteFinalizer(cluster *clusterapi.Cluster) error {
+func (c *Controller) deleteFinalizer(cluster *capiv1.Cluster) error {
 	cluster = cluster.DeepCopy()
-	controller.DeleteFinalizer(cluster, clusteroperator.FinalizerRegistryInfra)
+	cocontroller.DeleteFinalizer(cluster, cov1.FinalizerRegistryInfra)
 	_, err := c.capiClient.ClusterV1alpha1().Clusters(cluster.Namespace).UpdateStatus(cluster)
 	return err
 }
 
-func (c *Controller) addFinalizer(cluster *clusterapi.Cluster) error {
+func (c *Controller) addFinalizer(cluster *capiv1.Cluster) error {
 	cluster = cluster.DeepCopy()
-	controller.AddFinalizer(cluster, clusteroperator.FinalizerRegistryInfra)
+	cocontroller.AddFinalizer(cluster, cov1.FinalizerRegistryInfra)
 	_, err := c.capiClient.ClusterV1alpha1().Clusters(cluster.Namespace).UpdateStatus(cluster)
 	return err
 }
 
-func getBucketByName(bucketName string, awsClient clustopaws.Client) (*s3.Bucket, error) {
+func getBucketByName(bucketName string, awsClient coaws.Client) (*s3.Bucket, error) {
 	bucketList, err := awsClient.ListBuckets(nil)
 	if err != nil {
 		return nil, fmt.Errorf("error listing buckets: %v", err)
@@ -867,7 +867,7 @@ func getRegistryUserName(clusterID string) string {
 	return clusterID + "-registry"
 }
 
-func findExistingRegistryUser(clusterID string, awsClient clustopaws.Client) (*iam.User, error) {
+func findExistingRegistryUser(clusterID string, awsClient coaws.Client) (*iam.User, error) {
 	userName := getRegistryUserName(clusterID)
 	userAlreadyExists := true
 
@@ -895,7 +895,7 @@ func findExistingRegistryUser(clusterID string, awsClient clustopaws.Client) (*i
 	return nil, nil
 }
 
-func clusterGenerationAlreadyProcessed(cluster *clusterapi.Cluster, providerStatus *clusteroperator.ClusterProviderStatus) bool {
+func clusterGenerationAlreadyProcessed(cluster *capiv1.Cluster, providerStatus *cov1.ClusterProviderStatus) bool {
 	currentGeneration := cluster.Generation
 
 	if currentGeneration == providerStatus.RegistryInfraInstalledGeneration {

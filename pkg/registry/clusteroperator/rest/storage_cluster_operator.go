@@ -18,8 +18,8 @@ package rest
 
 import (
 	"github.com/openshift/cluster-operator/pkg/api"
-	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
-	clusteroperatorv1alpha1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	coapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
+	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	"github.com/openshift/cluster-operator/pkg/registry/clusteroperator/clusterdeployment"
 	"github.com/openshift/cluster-operator/pkg/registry/clusteroperator/clusterversion"
 	"github.com/openshift/cluster-operator/pkg/registry/clusteroperator/dnszone"
@@ -49,11 +49,11 @@ func (p StorageProvider) NewRESTStorage(
 		return nil, err
 	}
 
-	apiGroupInfo := genericapiserver.NewDefaultAPIGroupInfo(clusteroperator.GroupName, api.Registry, api.Scheme, api.ParameterCodec, api.Codecs)
-	apiGroupInfo.GroupMeta.GroupVersion = clusteroperatorv1alpha1.SchemeGroupVersion
+	apiGroupInfo := genericapiserver.NewDefaultAPIGroupInfo(coapi.GroupName, api.Registry, api.Scheme, api.ParameterCodec, api.Codecs)
+	apiGroupInfo.GroupMeta.GroupVersion = cov1.SchemeGroupVersion
 
 	apiGroupInfo.VersionedResourcesStorageMap = map[string]map[string]rest.Storage{
-		clusteroperatorv1alpha1.SchemeGroupVersion.Version: storage,
+		cov1.SchemeGroupVersion.Version: storage,
 	}
 
 	return &apiGroupInfo, nil
@@ -63,19 +63,19 @@ func (p StorageProvider) v1alpha1Storage(
 	apiResourceConfigSource serverstorage.APIResourceConfigSource,
 	restOptionsGetter generic.RESTOptionsGetter,
 ) (map[string]rest.Storage, error) {
-	clusterDeploymentRESTOptions, err := restOptionsGetter.GetRESTOptions(clusteroperator.Resource("clusterdeployments"))
+	clusterDeploymentRESTOptions, err := restOptionsGetter.GetRESTOptions(coapi.Resource("clusterdeployments"))
 	if err != nil {
 		return nil, err
 	}
 	clusterDeploymentStorage, clusterDeploymentStatusStorage := clusterdeployment.NewStorage(clusterDeploymentRESTOptions)
 
-	clusterVerRESTOptions, err := restOptionsGetter.GetRESTOptions(clusteroperator.Resource("clusterversions"))
+	clusterVerRESTOptions, err := restOptionsGetter.GetRESTOptions(coapi.Resource("clusterversions"))
 	if err != nil {
 		return nil, err
 	}
 	clusterVersionStorage, clusterVersionStatusStorage := clusterversion.NewStorage(clusterVerRESTOptions)
 
-	dnsZoneRESTOptions, err := restOptionsGetter.GetRESTOptions(clusteroperator.Resource("dnszones"))
+	dnsZoneRESTOptions, err := restOptionsGetter.GetRESTOptions(coapi.Resource("dnszones"))
 	if err != nil {
 		return nil, err
 	}
@@ -93,5 +93,5 @@ func (p StorageProvider) v1alpha1Storage(
 
 // GroupName returns the API group name.
 func (p StorageProvider) GroupName() string {
-	return clusteroperator.GroupName
+	return coapi.GroupName
 }

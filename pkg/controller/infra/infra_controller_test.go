@@ -28,8 +28,8 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	clusteroperatorclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset/fake"
-	"github.com/openshift/cluster-operator/pkg/controller"
-	clusterapi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	cocontroller "github.com/openshift/cluster-operator/pkg/controller"
+	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	clusterapiclientset "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset/fake"
 	clusterapiinformers "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions"
 
@@ -100,7 +100,7 @@ func (r *fakeAnsibleRunner) RunPlaybook(namespace, clusterName, jobPrefix, playb
 // getKey gets the key for the cluster to use when checking expectations
 // set on a cluster.
 func getKey(cluster metav1.Object, t *testing.T) string {
-	key, err := controller.KeyFunc(cluster)
+	key, err := cocontroller.KeyFunc(cluster)
 	if err != nil {
 		t.Errorf("Unexpected error getting key for Cluster %v: %v", cluster.GetName(), err)
 		return ""
@@ -108,7 +108,7 @@ func getKey(cluster metav1.Object, t *testing.T) string {
 	return key
 }
 
-func newCluster() *clusterapi.Cluster {
+func newCluster() *capiv1.Cluster {
 	encodedClusterProviderConfigSpec := `
 apiVersion: "clusteroperator.openshift.io/v1alpha1"
 kind: "AWSClusterProviderConfig"
@@ -117,14 +117,14 @@ machineSets:
   infra: true
   size: 3
 `
-	cluster := &clusterapi.Cluster{
+	cluster := &capiv1.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
 			UID:       testClusterUUID,
 			Name:      testClusterName,
 			Namespace: testNamespace,
 		},
-		Spec: clusterapi.ClusterSpec{
-			ProviderConfig: clusterapi.ProviderConfig{
+		Spec: capiv1.ClusterSpec{
+			ProviderConfig: capiv1.ProviderConfig{
 				Value: &runtime.RawExtension{
 					Raw: []byte(encodedClusterProviderConfigSpec),
 				},

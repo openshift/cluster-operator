@@ -30,9 +30,9 @@ import (
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 
-	clusterapi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 )
 
 const (
@@ -158,14 +158,14 @@ func TestUpdateConditionIfReasonOrMessageChange(t *testing.T) {
 }
 
 func newClusterCondition(
-	conditionType clusteroperator.ClusterConditionType,
+	conditionType cov1.ClusterConditionType,
 	status corev1.ConditionStatus,
 	reason string,
 	message string,
 	lastTransitionTime metav1.Time,
 	lastProbeTime metav1.Time,
-) clusteroperator.ClusterCondition {
-	return clusteroperator.ClusterCondition{
+) cov1.ClusterCondition {
+	return cov1.ClusterCondition{
 		Type:               conditionType,
 		Status:             status,
 		Reason:             reason,
@@ -179,89 +179,89 @@ func newClusterCondition(
 func TestSetClusterCondition(t *testing.T) {
 	cases := []struct {
 		name               string
-		existingConditions []clusteroperator.ClusterCondition
-		conditionType      clusteroperator.ClusterConditionType
+		existingConditions []cov1.ClusterCondition
+		conditionType      cov1.ClusterConditionType
 		status             corev1.ConditionStatus
 		reason             string
 		message            string
 		updateCondition    bool
-		expectedConditions []clusteroperator.ClusterCondition
+		expectedConditions []cov1.ClusterCondition
 		expectedOldReason  string
 		expectedOldMessage string
 	}{
 		{
 			name:          "new condition",
-			conditionType: clusteroperator.ClusterReady,
+			conditionType: cov1.ClusterReady,
 			status:        corev1.ConditionTrue,
 			reason:        "reason",
 			message:       "message",
-			expectedConditions: []clusteroperator.ClusterCondition{
-				newClusterCondition(clusteroperator.ClusterReady, corev1.ConditionTrue, "reason", "message", metav1.Now(), metav1.Now()),
+			expectedConditions: []cov1.ClusterCondition{
+				newClusterCondition(cov1.ClusterReady, corev1.ConditionTrue, "reason", "message", metav1.Now(), metav1.Now()),
 			},
 		},
 		{
 			name: "new condition with existing conditions",
-			existingConditions: []clusteroperator.ClusterCondition{
-				newClusterCondition(clusteroperator.ClusterInfraProvisioning, corev1.ConditionTrue, "other reason", "other message", metav1.Time{}, metav1.Time{}),
+			existingConditions: []cov1.ClusterCondition{
+				newClusterCondition(cov1.ClusterInfraProvisioning, corev1.ConditionTrue, "other reason", "other message", metav1.Time{}, metav1.Time{}),
 			},
-			conditionType: clusteroperator.ClusterReady,
+			conditionType: cov1.ClusterReady,
 			status:        corev1.ConditionTrue,
 			reason:        "reason",
 			message:       "message",
-			expectedConditions: []clusteroperator.ClusterCondition{
-				newClusterCondition(clusteroperator.ClusterInfraProvisioning, corev1.ConditionTrue, "other reason", "other message", metav1.Time{}, metav1.Time{}),
-				newClusterCondition(clusteroperator.ClusterReady, corev1.ConditionTrue, "reason", "message", metav1.Now(), metav1.Now()),
+			expectedConditions: []cov1.ClusterCondition{
+				newClusterCondition(cov1.ClusterInfraProvisioning, corev1.ConditionTrue, "other reason", "other message", metav1.Time{}, metav1.Time{}),
+				newClusterCondition(cov1.ClusterReady, corev1.ConditionTrue, "reason", "message", metav1.Now(), metav1.Now()),
 			},
 		},
 		{
 			name:          "false condition not created",
-			conditionType: clusteroperator.ClusterReady,
+			conditionType: cov1.ClusterReady,
 			status:        corev1.ConditionFalse,
 			reason:        "reason",
 			message:       "message",
 		},
 		{
 			name: "condition not updated",
-			existingConditions: []clusteroperator.ClusterCondition{
-				newClusterCondition(clusteroperator.ClusterReady, corev1.ConditionTrue, "old reason", "old message", metav1.Time{}, metav1.Time{}),
+			existingConditions: []cov1.ClusterCondition{
+				newClusterCondition(cov1.ClusterReady, corev1.ConditionTrue, "old reason", "old message", metav1.Time{}, metav1.Time{}),
 			},
-			conditionType: clusteroperator.ClusterReady,
+			conditionType: cov1.ClusterReady,
 			status:        corev1.ConditionTrue,
 			reason:        "reason",
 			message:       "message",
-			expectedConditions: []clusteroperator.ClusterCondition{
-				newClusterCondition(clusteroperator.ClusterReady, corev1.ConditionTrue, "old reason", "old message", metav1.Time{}, metav1.Time{}),
+			expectedConditions: []cov1.ClusterCondition{
+				newClusterCondition(cov1.ClusterReady, corev1.ConditionTrue, "old reason", "old message", metav1.Time{}, metav1.Time{}),
 			},
 			expectedOldReason:  "old reason",
 			expectedOldMessage: "old message",
 		},
 		{
 			name: "condition status changed",
-			existingConditions: []clusteroperator.ClusterCondition{
-				newClusterCondition(clusteroperator.ClusterReady, corev1.ConditionTrue, "old reason", "old message", metav1.Time{}, metav1.Time{}),
+			existingConditions: []cov1.ClusterCondition{
+				newClusterCondition(cov1.ClusterReady, corev1.ConditionTrue, "old reason", "old message", metav1.Time{}, metav1.Time{}),
 			},
-			conditionType: clusteroperator.ClusterReady,
+			conditionType: cov1.ClusterReady,
 			status:        corev1.ConditionFalse,
 			reason:        "reason",
 			message:       "message",
-			expectedConditions: []clusteroperator.ClusterCondition{
-				newClusterCondition(clusteroperator.ClusterReady, corev1.ConditionFalse, "reason", "message", metav1.Now(), metav1.Now()),
+			expectedConditions: []cov1.ClusterCondition{
+				newClusterCondition(cov1.ClusterReady, corev1.ConditionFalse, "reason", "message", metav1.Now(), metav1.Now()),
 			},
 			expectedOldReason:  "old reason",
 			expectedOldMessage: "old message",
 		},
 		{
 			name: "condition changed due to update check",
-			existingConditions: []clusteroperator.ClusterCondition{
-				newClusterCondition(clusteroperator.ClusterReady, corev1.ConditionTrue, "old reason", "old message", metav1.Time{}, metav1.Time{}),
+			existingConditions: []cov1.ClusterCondition{
+				newClusterCondition(cov1.ClusterReady, corev1.ConditionTrue, "old reason", "old message", metav1.Time{}, metav1.Time{}),
 			},
-			conditionType:   clusteroperator.ClusterReady,
+			conditionType:   cov1.ClusterReady,
 			status:          corev1.ConditionTrue,
 			reason:          "reason",
 			message:         "message",
 			updateCondition: true,
-			expectedConditions: []clusteroperator.ClusterCondition{
-				newClusterCondition(clusteroperator.ClusterReady, corev1.ConditionTrue, "reason", "message", metav1.Time{}, metav1.Now()),
+			expectedConditions: []cov1.ClusterCondition{
+				newClusterCondition(cov1.ClusterReady, corev1.ConditionTrue, "reason", "message", metav1.Time{}, metav1.Now()),
 			},
 			expectedOldReason:  "old reason",
 			expectedOldMessage: "old message",
@@ -318,67 +318,67 @@ func TestSetClusterCondition(t *testing.T) {
 func TestFindClusterCondition(t *testing.T) {
 	cases := []struct {
 		name                   string
-		conditions             []clusteroperator.ClusterCondition
-		conditionType          clusteroperator.ClusterConditionType
+		conditions             []cov1.ClusterCondition
+		conditionType          cov1.ClusterConditionType
 		expectedConditionIndex int
 	}{
 		{
 			name:                   "no conditions",
-			conditionType:          clusteroperator.ClusterReady,
+			conditionType:          cov1.ClusterReady,
 			expectedConditionIndex: -1,
 		},
 		{
 			name: "only condition",
-			conditions: []clusteroperator.ClusterCondition{
-				{Type: clusteroperator.ClusterReady},
+			conditions: []cov1.ClusterCondition{
+				{Type: cov1.ClusterReady},
 			},
-			conditionType:          clusteroperator.ClusterReady,
+			conditionType:          cov1.ClusterReady,
 			expectedConditionIndex: 0,
 		},
 		{
 			name: "first condition",
-			conditions: []clusteroperator.ClusterCondition{
-				{Type: clusteroperator.ClusterReady},
-				{Type: clusteroperator.ClusterInfraProvisioning},
+			conditions: []cov1.ClusterCondition{
+				{Type: cov1.ClusterReady},
+				{Type: cov1.ClusterInfraProvisioning},
 			},
-			conditionType:          clusteroperator.ClusterReady,
+			conditionType:          cov1.ClusterReady,
 			expectedConditionIndex: 0,
 		},
 		{
 			name: "last condition",
-			conditions: []clusteroperator.ClusterCondition{
-				{Type: clusteroperator.ClusterInfraProvisioning},
-				{Type: clusteroperator.ClusterReady},
+			conditions: []cov1.ClusterCondition{
+				{Type: cov1.ClusterInfraProvisioning},
+				{Type: cov1.ClusterReady},
 			},
-			conditionType:          clusteroperator.ClusterReady,
+			conditionType:          cov1.ClusterReady,
 			expectedConditionIndex: 1,
 		},
 		{
 			name: "middle condition",
-			conditions: []clusteroperator.ClusterCondition{
-				{Type: clusteroperator.ClusterInfraProvisioning},
-				{Type: clusteroperator.ClusterReady},
-				{Type: clusteroperator.ClusterInfraProvisioned},
+			conditions: []cov1.ClusterCondition{
+				{Type: cov1.ClusterInfraProvisioning},
+				{Type: cov1.ClusterReady},
+				{Type: cov1.ClusterInfraProvisioned},
 			},
-			conditionType:          clusteroperator.ClusterReady,
+			conditionType:          cov1.ClusterReady,
 			expectedConditionIndex: 1,
 		},
 		{
 			name: "single non-matching condition",
-			conditions: []clusteroperator.ClusterCondition{
-				{Type: clusteroperator.ClusterInfraProvisioning},
+			conditions: []cov1.ClusterCondition{
+				{Type: cov1.ClusterInfraProvisioning},
 			},
-			conditionType:          clusteroperator.ClusterReady,
+			conditionType:          cov1.ClusterReady,
 			expectedConditionIndex: -1,
 		},
 		{
 			name: "multiple non-matching conditions",
-			conditions: []clusteroperator.ClusterCondition{
-				{Type: clusteroperator.ClusterInfraProvisioning},
-				{Type: clusteroperator.ClusterInfraProvisioned},
-				{Type: clusteroperator.ClusterInfraProvisioningFailed},
+			conditions: []cov1.ClusterCondition{
+				{Type: cov1.ClusterInfraProvisioning},
+				{Type: cov1.ClusterInfraProvisioned},
+				{Type: cov1.ClusterInfraProvisioningFailed},
 			},
-			conditionType:          clusteroperator.ClusterReady,
+			conditionType:          cov1.ClusterReady,
 			expectedConditionIndex: -1,
 		},
 	}
@@ -638,7 +638,7 @@ kind: Machine
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			cluster := &clusterapi.Cluster{}
+			cluster := &capiv1.Cluster{}
 			if tc.providerConfig != "" {
 				cluster.Spec.ProviderConfig.Value = &runtime.RawExtension{
 					Raw: []byte(tc.providerConfig),
@@ -690,7 +690,7 @@ kind: Machine
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			cluster := &clusterapi.Cluster{}
+			cluster := &capiv1.Cluster{}
 			if tc.providerStatus != "" {
 				cluster.Status.ProviderStatus = &runtime.RawExtension{
 					Raw: []byte(tc.providerStatus),
@@ -714,7 +714,7 @@ kind: Machine
 }
 
 func TestClusterAPIProviderStatusFromClusterStatus(t *testing.T) {
-	clusterStatus := &clusteroperator.ClusterProviderStatus{
+	clusterStatus := &cov1.ClusterProviderStatus{
 		ControlPlaneInstalled:    true,
 		ProvisionedJobGeneration: 5,
 	}
@@ -737,8 +737,8 @@ func TestClusterAPIProviderStatusFromClusterStatus(t *testing.T) {
 func TestGetImage(t *testing.T) {
 	cases := []struct {
 		name             string
-		clusterVersion   *clusteroperator.ClusterVersion
-		clusterSpec      *clusteroperator.ClusterDeploymentSpec
+		clusterVersion   *cov1.ClusterVersion
+		clusterSpec      *cov1.ClusterDeploymentSpec
 		expectedErrorMsg string
 	}{
 		{
@@ -749,7 +749,7 @@ func TestGetImage(t *testing.T) {
 		{
 			name:           "cluster has no AWS hardware",
 			clusterVersion: newClusterVersion("origin-v3-10"),
-			clusterSpec: func() *clusteroperator.ClusterDeploymentSpec {
+			clusterSpec: func() *cov1.ClusterDeploymentSpec {
 				cs := newClusterSpec(testRegion, defaultInstanceType)
 				cs.Hardware.AWS = nil
 				return cs
@@ -758,7 +758,7 @@ func TestGetImage(t *testing.T) {
 		},
 		{
 			name: "cluster version has no AWS images",
-			clusterVersion: func() *clusteroperator.ClusterVersion {
+			clusterVersion: func() *cov1.ClusterVersion {
 				cv := newClusterVersion("origin-v3-10")
 				cv.Spec.VMImages.AWSImages = nil
 				return cv
@@ -769,7 +769,7 @@ func TestGetImage(t *testing.T) {
 		{
 			name:           "no matching region",
 			clusterVersion: newClusterVersion("origin-v3-10"),
-			clusterSpec: func() *clusteroperator.ClusterDeploymentSpec {
+			clusterSpec: func() *cov1.ClusterDeploymentSpec {
 				cs := newClusterSpec(testRegion, defaultInstanceType)
 				cs.Hardware.AWS.Region = "us-west-notreal"
 				return cs
@@ -791,35 +791,35 @@ func TestGetImage(t *testing.T) {
 	}
 }
 
-func newClusterSpec(region, instanceType string) *clusteroperator.ClusterDeploymentSpec {
-	return &clusteroperator.ClusterDeploymentSpec{
-		Hardware: clusteroperator.ClusterHardwareSpec{
-			AWS: &clusteroperator.AWSClusterSpec{
+func newClusterSpec(region, instanceType string) *cov1.ClusterDeploymentSpec {
+	return &cov1.ClusterDeploymentSpec{
+		Hardware: cov1.ClusterHardwareSpec{
+			AWS: &cov1.AWSClusterSpec{
 				Region: testRegion,
 			},
 		},
-		DefaultHardwareSpec: &clusteroperator.MachineSetHardwareSpec{
-			AWS: &clusteroperator.MachineSetAWSHardwareSpec{
+		DefaultHardwareSpec: &cov1.MachineSetHardwareSpec{
+			AWS: &cov1.MachineSetAWSHardwareSpec{
 				InstanceType: instanceType,
 			},
 		},
 	}
 }
 
-func newClusterVersion(name string) *clusteroperator.ClusterVersion {
-	cv := &clusteroperator.ClusterVersion{
+func newClusterVersion(name string) *cov1.ClusterVersion {
+	cv := &cov1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			UID:       "testuid",
 			Name:      name,
 			Namespace: "testns",
 		},
-		Spec: clusteroperator.ClusterVersionSpec{
-			Images: clusteroperator.ClusterVersionImages{
+		Spec: cov1.ClusterVersionSpec{
+			Images: cov1.ClusterVersionImages{
 				ImageFormat: "openshift/origin-${component}:${version}",
 			},
-			VMImages: clusteroperator.VMImages{
-				AWSImages: &clusteroperator.AWSVMImages{
-					RegionAMIs: []clusteroperator.AWSRegionAMIs{
+			VMImages: cov1.VMImages{
+				AWSImages: &cov1.AWSVMImages{
+					RegionAMIs: []cov1.AWSRegionAMIs{
 						{
 							Region: testRegion,
 							AMI:    testAMI,
@@ -832,21 +832,21 @@ func newClusterVersion(name string) *clusteroperator.ClusterVersion {
 	return cv
 }
 
-func newMachineSpec(msSpec *clusteroperator.MachineSetSpec) clusterapi.MachineSpec {
-	ms := clusterapi.MachineSpec{}
+func newMachineSpec(msSpec *cov1.MachineSetSpec) capiv1.MachineSpec {
+	ms := capiv1.MachineSpec{}
 	providerConfig, _ := MachineProviderConfigFromMachineSetSpec(msSpec)
 	ms.ProviderConfig.Value = providerConfig
 	return ms
 }
 
-func newMachineSetSpec(instanceType, vmImage string) *clusteroperator.MachineSetSpec {
-	msSpec := &clusteroperator.MachineSetSpec{
-		VMImage: clusteroperator.VMImage{
+func newMachineSetSpec(instanceType, vmImage string) *cov1.MachineSetSpec {
+	msSpec := &cov1.MachineSetSpec{
+		VMImage: cov1.VMImage{
 			AWSImage: &vmImage,
 		},
 	}
-	msSpec.Hardware = &clusteroperator.MachineSetHardwareSpec{
-		AWS: &clusteroperator.MachineSetAWSHardwareSpec{
+	msSpec.Hardware = &cov1.MachineSetHardwareSpec{
+		AWS: &cov1.MachineSetAWSHardwareSpec{
 			InstanceType: instanceType,
 		},
 	}
@@ -857,18 +857,18 @@ func newMachineSetSpec(instanceType, vmImage string) *clusteroperator.MachineSet
 // machine set
 func TestApplyDefaultMachineSetHardwareSpec(t *testing.T) {
 
-	awsSpec := func(amiName, instanceType string) *clusteroperator.MachineSetHardwareSpec {
-		return &clusteroperator.MachineSetHardwareSpec{
-			AWS: &clusteroperator.MachineSetAWSHardwareSpec{
+	awsSpec := func(amiName, instanceType string) *cov1.MachineSetHardwareSpec {
+		return &cov1.MachineSetHardwareSpec{
+			AWS: &cov1.MachineSetAWSHardwareSpec{
 				InstanceType: instanceType,
 			},
 		}
 	}
 	cases := []struct {
 		name        string
-		defaultSpec *clusteroperator.MachineSetHardwareSpec
-		specific    *clusteroperator.MachineSetHardwareSpec
-		expected    *clusteroperator.MachineSetHardwareSpec
+		defaultSpec *cov1.MachineSetHardwareSpec
+		specific    *cov1.MachineSetHardwareSpec
+		expected    *cov1.MachineSetHardwareSpec
 	}{
 		{
 			name:        "no default",
@@ -879,7 +879,7 @@ func TestApplyDefaultMachineSetHardwareSpec(t *testing.T) {
 		{
 			name:        "only default",
 			defaultSpec: awsSpec("base-ami", "small-instance"),
-			specific:    &clusteroperator.MachineSetHardwareSpec{},
+			specific:    &cov1.MachineSetHardwareSpec{},
 			expected:    awsSpec("base-ami", "small-instance"),
 		},
 		{

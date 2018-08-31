@@ -26,7 +26,7 @@ import (
 	genericregistrytest "k8s.io/apiserver/pkg/registry/generic/testing"
 	etcdtesting "k8s.io/apiserver/pkg/storage/etcd/testing"
 
-	clusteroperatorapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
+	coapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
 	"github.com/openshift/cluster-operator/pkg/registry/registrytest"
 )
 
@@ -42,12 +42,12 @@ func newStorage(t *testing.T) (*genericregistry.Store, *etcdtesting.EtcdTestServ
 	return dnsZoneStorage, server
 }
 
-func validDNSZone(name string) *clusteroperatorapi.DNSZone {
-	return &clusteroperatorapi.DNSZone{
+func validDNSZone(name string) *coapi.DNSZone {
+	return &coapi.DNSZone{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
-		Spec: clusteroperatorapi.DNSZoneSpec{
+		Spec: coapi.DNSZoneSpec{
 			Zone: "aws.example.com",
 		},
 	}
@@ -64,7 +64,7 @@ func TestCreate(t *testing.T) {
 		// valid
 		hz,
 		// invalid
-		&clusteroperatorapi.DNSZone{
+		&coapi.DNSZone{
 			ObjectMeta: metav1.ObjectMeta{Name: "*BadName!"},
 		},
 	)
@@ -80,12 +80,12 @@ func TestUpdate(t *testing.T) {
 		validDNSZone("hz1"),
 		// updateFunc
 		func(obj runtime.Object) runtime.Object {
-			object := obj.(*clusteroperatorapi.DNSZone)
+			object := obj.(*coapi.DNSZone)
 			return object
 		},
 		//invalid update
 		func(obj runtime.Object) runtime.Object {
-			object := obj.(*clusteroperatorapi.DNSZone)
+			object := obj.(*coapi.DNSZone)
 			return object
 		},
 	)

@@ -26,8 +26,8 @@ import (
 
 	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 
-	coapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
-	"github.com/openshift/cluster-operator/pkg/controller"
+	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	cocontroller "github.com/openshift/cluster-operator/pkg/controller"
 )
 
 // varsTemplate contains some hardcoded variables that are constant for all clusters,
@@ -351,7 +351,7 @@ type clusterParams struct {
 	ELBMasterExternalName            string
 	ELBMasterInternalName            string
 	ELBInfraName                     string
-	DeploymentType                   coapi.ClusterDeploymentType
+	DeploymentType                   cov1.ClusterDeploymentType
 	InfraSize                        int
 	ClusterAPIImage                  string
 	ClusterAPIImagePullPolicy        corev1.PullPolicy
@@ -377,8 +377,8 @@ type clusterVersionParams struct {
 // that are set at the cluster level.
 func GenerateClusterWideVars(
 	clusterID string,
-	hardwareSpec coapi.AWSClusterSpec,
-	version coapi.OpenShiftConfigVersion,
+	hardwareSpec cov1.AWSClusterSpec,
+	version cov1.OpenShiftConfigVersion,
 	infraSize int,
 	sdnPluginName string,
 	serviceCIDRs capiv1.NetworkRanges,
@@ -399,9 +399,9 @@ func GenerateClusterWideVars(
 		SSHKeyName:            hardwareSpec.KeyPairName,
 		SSHUser:               hardwareSpec.SSHUser,
 		UninstallSSHKeyPair:   hardwareSpec.KeyPairName == clusterID, // only uninstall the cloud ssh keypair when it's unique to the cluster
-		ELBMasterExternalName: controller.ELBMasterExternalName(clusterID),
-		ELBMasterInternalName: controller.ELBMasterInternalName(clusterID),
-		ELBInfraName:          controller.ELBInfraName(clusterID),
+		ELBMasterExternalName: cocontroller.ELBMasterExternalName(clusterID),
+		ELBMasterInternalName: cocontroller.ELBMasterInternalName(clusterID),
+		ELBInfraName:          cocontroller.ELBInfraName(clusterID),
 		VPCDefaults:           vpcDefaults,
 		DeploymentType:        version.DeploymentType,
 		InfraSize:             infraSize,
@@ -432,7 +432,7 @@ func GenerateClusterWideVars(
 	if registryAccessKey != "" && registrySecretKey != "" {
 		params.RegistryAccessKey = registryAccessKey
 		params.RegistrySecretKey = registrySecretKey
-		params.RegistryObjectStoreName = controller.RegistryObjectStoreName(clusterID)
+		params.RegistryObjectStoreName = cocontroller.RegistryObjectStoreName(clusterID)
 	}
 
 	var buf bytes.Buffer
@@ -462,8 +462,8 @@ func convertVersionToRelease(version string) (string, error) {
 func GenerateClusterWideVarsForMachineSet(
 	isMaster bool,
 	clusterID string,
-	clusterHardware coapi.AWSClusterSpec,
-	clusterVersion coapi.OpenShiftConfigVersion,
+	clusterHardware cov1.AWSClusterSpec,
+	clusterVersion cov1.OpenShiftConfigVersion,
 	sdnPluginName string,
 	serviceCIDRs capiv1.NetworkRanges,
 	podCIDRs capiv1.NetworkRanges,
@@ -478,8 +478,8 @@ func GenerateClusterWideVarsForMachineSet(
 func GenerateClusterWideVarsForMachineSetWithInfraSize(
 	isMaster bool,
 	clusterID string,
-	clusterHardware coapi.AWSClusterSpec,
-	clusterVersion coapi.OpenShiftConfigVersion,
+	clusterHardware cov1.AWSClusterSpec,
+	clusterVersion cov1.OpenShiftConfigVersion,
 	infraSize int,
 	sdnPluginName string,
 	serviceCIDRs capiv1.NetworkRanges,

@@ -22,42 +22,42 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
+	coapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
 )
 
 var (
-	validZone = &clusteroperator.DNSZone{
+	validZone = &coapi.DNSZone{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "valid-dns-zone",
 		},
-		Spec: clusteroperator.DNSZoneSpec{
+		Spec: coapi.DNSZoneSpec{
 			Zone: "valid.aws.example.com",
 		},
 	}
 
-	invalidZoneEmptyString = &clusteroperator.DNSZone{
+	invalidZoneEmptyString = &coapi.DNSZone{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "invalid-dns-zone-empty-string",
 		},
-		Spec: clusteroperator.DNSZoneSpec{
+		Spec: coapi.DNSZoneSpec{
 			Zone: "",
 		},
 	}
 
-	invalidZoneChars = &clusteroperator.DNSZone{
+	invalidZoneChars = &coapi.DNSZone{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "invalid-dns-zone-chars",
 		},
-		Spec: clusteroperator.DNSZoneSpec{
+		Spec: coapi.DNSZoneSpec{
 			Zone: "%.example.com",
 		},
 	}
 
-	invalidZoneLength = &clusteroperator.DNSZone{
+	invalidZoneLength = &coapi.DNSZone{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "invalid-dns-zone-length",
 		},
-		Spec: clusteroperator.DNSZoneSpec{
+		Spec: coapi.DNSZoneSpec{
 			Zone: "this.is.a.very.long.dns.name.that.makes.it.invalid.zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz.example.com",
 		},
 	}
@@ -67,7 +67,7 @@ var (
 func TestValidateDNSZone(t *testing.T) {
 	cases := []struct {
 		name           string
-		dnszone        *clusteroperator.DNSZone
+		dnszone        *coapi.DNSZone
 		errorAssertion func(assert.TestingT, interface{}, ...interface{}) bool
 	}{
 		{
@@ -108,8 +108,8 @@ func TestValidateDNSZone(t *testing.T) {
 func TestValidateDNSZoneUpdate(t *testing.T) {
 	cases := []struct {
 		name           string
-		old            *clusteroperator.DNSZone
-		new            *clusteroperator.DNSZone
+		old            *coapi.DNSZone
+		new            *coapi.DNSZone
 		errorAssertion func(assert.TestingT, interface{}, ...interface{}) bool
 	}{
 		{
@@ -121,7 +121,7 @@ func TestValidateDNSZoneUpdate(t *testing.T) {
 		{
 			name: "modified zone name",
 			old:  validZone.DeepCopy(),
-			new: func() *clusteroperator.DNSZone {
+			new: func() *coapi.DNSZone {
 				c := validZone.DeepCopy()
 				c.Spec.Zone = "some.different.dns.zone.com"
 				return c

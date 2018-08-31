@@ -21,35 +21,35 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
-	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
+	coapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
 )
 
 // TestValidateMachineSetConfig tests the validateMachineSetConfig function.
 func TestValidateMachineSetConfig(t *testing.T) {
 	cases := []struct {
 		name   string
-		config *clusteroperator.MachineSetConfig
+		config *coapi.MachineSetConfig
 		valid  bool
 	}{
 		{
 			name: "valid",
-			config: &clusteroperator.MachineSetConfig{
-				NodeType: clusteroperator.NodeTypeMaster,
+			config: &coapi.MachineSetConfig{
+				NodeType: coapi.NodeTypeMaster,
 				Size:     1,
 			},
 			valid: true,
 		},
 		{
 			name: "invalid node type",
-			config: &clusteroperator.MachineSetConfig{
-				NodeType: clusteroperator.NodeType(""),
+			config: &coapi.MachineSetConfig{
+				NodeType: coapi.NodeType(""),
 				Size:     1,
 			},
 		},
 		{
 			name: "invalid size",
-			config: &clusteroperator.MachineSetConfig{
-				NodeType: clusteroperator.NodeTypeMaster,
+			config: &coapi.MachineSetConfig{
+				NodeType: coapi.NodeTypeMaster,
 				Size:     0,
 			},
 		},

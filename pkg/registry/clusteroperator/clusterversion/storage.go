@@ -17,7 +17,7 @@ limitations under the License.
 package clusterversion
 
 import (
-	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
+	coapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -31,9 +31,9 @@ import (
 // ClusterVersion resources
 func NewStorage(opts generic.RESTOptions) (clusterVersions *registry.Store, clusterStorageVersion *StatusREST) {
 	store := registry.Store{
-		NewFunc:                  func() runtime.Object { return &clusteroperator.ClusterVersion{} },
-		NewListFunc:              func() runtime.Object { return &clusteroperator.ClusterVersionList{} },
-		DefaultQualifiedResource: clusteroperator.Resource("clusterversions"),
+		NewFunc:                  func() runtime.Object { return &coapi.ClusterVersion{} },
+		NewListFunc:              func() runtime.Object { return &coapi.ClusterVersionList{} },
+		DefaultQualifiedResource: coapi.Resource("clusterversions"),
 
 		CreateStrategy:          clusterVersionRESTStrategies,
 		UpdateStrategy:          clusterVersionRESTStrategies,
@@ -61,7 +61,7 @@ type StatusREST struct {
 
 // New returns a new ClusterVersion.
 func (r *StatusREST) New() runtime.Object {
-	return &clusteroperator.ClusterVersion{}
+	return &coapi.ClusterVersion{}
 }
 
 // Get retrieves the object from the storage. It is required to support Patch

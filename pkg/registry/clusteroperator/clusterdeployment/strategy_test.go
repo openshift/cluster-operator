@@ -21,19 +21,19 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
+	coapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func clusterDeploymentWithOldSpec() *clusteroperator.ClusterDeployment {
-	return &clusteroperator.ClusterDeployment{
+func clusterDeploymentWithOldSpec() *coapi.ClusterDeployment {
+	return &coapi.ClusterDeployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Generation: 1,
 		},
 	}
 }
 
-func clusterDeploymentWithNewSpec() *clusteroperator.ClusterDeployment {
+func clusterDeploymentWithNewSpec() *coapi.ClusterDeployment {
 	b := clusterDeploymentWithOldSpec()
 	return b
 }
@@ -77,13 +77,13 @@ func TestClusterDeploymentCreateWithSshKeyName(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Arrange
 			// Create a clusterdeployment or clusterdeployments
-			clusterDeployment := &clusteroperator.ClusterDeployment{
+			clusterDeployment := &coapi.ClusterDeployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: tc.clusterDeploymentName,
 				},
-				Spec: clusteroperator.ClusterDeploymentSpec{
-					Hardware: clusteroperator.ClusterHardwareSpec{
-						AWS: &clusteroperator.AWSClusterSpec{
+				Spec: coapi.ClusterDeploymentSpec{
+					Hardware: coapi.ClusterHardwareSpec{
+						AWS: &coapi.AWSClusterSpec{
 							KeyPairName: tc.keyPairName,
 						},
 					},

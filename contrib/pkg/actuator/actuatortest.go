@@ -35,10 +35,10 @@ import (
 	coapi "github.com/openshift/cluster-operator/pkg/api"
 	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 
-	clusterv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 
 	awsutil "github.com/aws/aws-sdk-go/aws"
-	"github.com/openshift/cluster-operator/pkg/clusterapi/aws"
+	coaws "github.com/openshift/cluster-operator/pkg/clusterapi/aws"
 )
 
 const instanceIDAnnotation = "cluster-operator.openshift.io/aws-instance-id"
@@ -49,7 +49,7 @@ func strptr(str string) *string {
 
 func createClusterMachine(name string) error {
 	cluster, machine := testClusterAPIResources(name)
-	actuator := aws.NewActuator(nil, nil, log.WithField("example", "create-machine"), "us-east-1c")
+	actuator := coaws.NewActuator(nil, nil, log.WithField("example", "create-machine"), "us-east-1c")
 	result, err := actuator.CreateMachine(cluster, machine)
 	if err != nil {
 		return err
@@ -63,7 +63,7 @@ func deleteClusterMachine(instanceID string) error {
 	machine.Annotations = map[string]string{
 		instanceIDAnnotation: instanceID,
 	}
-	actuator := aws.NewActuator(nil, nil, log.WithField("example", "delete-machine"), "us-east-1c")
+	actuator := coaws.NewActuator(nil, nil, log.WithField("example", "delete-machine"), "us-east-1c")
 	err := actuator.DeleteMachine(machine)
 	if err != nil {
 		return err
@@ -77,7 +77,7 @@ func clusterMachineExists(instanceID string) error {
 	machine.Annotations = map[string]string{
 		instanceIDAnnotation: instanceID,
 	}
-	actuator := aws.NewActuator(nil, nil, log.WithField("example", "delete-machine"), "us-east-1c")
+	actuator := coaws.NewActuator(nil, nil, log.WithField("example", "delete-machine"), "us-east-1c")
 	exists, err := actuator.Exists(cluster, machine)
 	if err != nil {
 		return err
@@ -127,7 +127,7 @@ func NewAWSActuatorTestCommand() *cobra.Command {
 	return cmd
 }
 
-func testClusterAPIResources(name string) (*clusterv1.Cluster, *clusterv1.Machine) {
+func testClusterAPIResources(name string) (*capiv1.Cluster, *capiv1.Machine) {
 	clusterProviderConfigSpec := &cov1.AWSClusterProviderConfig{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "clusteroperator.openshift.io/v1alpha1",
@@ -179,13 +179,13 @@ func testClusterAPIResources(name string) (*clusterv1.Cluster, *clusterv1.Machin
 	//	}
 
 	// Now define cluster-api resources
-	cluster := clusterv1.Cluster{}
+	cluster := capiv1.Cluster{}
 	cluster.Name = name
 	cluster.Spec.ProviderConfig.Value = &runtime.RawExtension{
 		Raw: []byte(serializeCOResource(clusterProviderConfigSpec)),
 	}
 
-	machine := clusterv1.Machine{}
+	machine := capiv1.Machine{}
 	machine.Name = name + "-compute-machine-1"
 	machine.Spec.ProviderConfig.Value = &runtime.RawExtension{
 		Raw: []byte(serializeCOResource(machineSetProviderConfigSpec)),

@@ -19,13 +19,13 @@ package meta
 import (
 	"testing"
 
-	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
+	coapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestGetNamespace(t *testing.T) {
 	const namespace = "testns"
-	obj := &clusteroperator.ClusterDeployment{
+	obj := &coapi.ClusterDeployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
 		},

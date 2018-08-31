@@ -24,7 +24,7 @@ import (
 
 	"github.com/kubernetes-incubator/apiserver-builder/pkg/builders"
 	"k8s.io/apimachinery/pkg/util/validation/field"
-	"sigs.k8s.io/cluster-api/pkg/apis/cluster"
+	capicluster "sigs.k8s.io/cluster-api/pkg/apis/cluster"
 )
 
 // MachineStrategy is the strategy that the API server will use for Machine
@@ -37,7 +37,7 @@ type MachineStrategy struct {
 func (m MachineStrategy) Validate(ctx request.Context, obj runtime.Object) field.ErrorList {
 	errors := field.ErrorList{}
 	errors = append(errors, m.StorageBuilder.Validate(ctx, obj)...)
-	machine := obj.(*cluster.Machine)
+	machine := obj.(*capicluster.Machine)
 	glog.Infof("Custom validation of Machine %s", machine.Name)
 	return errors
 }
