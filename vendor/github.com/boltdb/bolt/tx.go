@@ -291,7 +291,9 @@ func (tx *Tx) close() {
 }
 
 // Copy writes the entire database to a writer.
-// This function exists for backwards compatibility. Use WriteTo() instead.
+// This function exists for backwards compatibility.
+//
+// Deprecated; Use WriteTo() instead.
 func (tx *Tx) Copy(w io.Writer) error {
 	_, err := tx.WriteTo(w)
 	return err
@@ -381,7 +383,9 @@ func (tx *Tx) Check() <-chan error {
 func (tx *Tx) check(ch chan error) {
 	// Check if any pages are double freed.
 	freed := make(map[pgid]bool)
-	for _, id := range tx.db.freelist.all() {
+	all := make([]pgid, tx.db.freelist.count())
+	tx.db.freelist.copyall(all)
+	for _, id := range all {
 		if freed[id] {
 			ch <- fmt.Errorf("page %d: already freed", id)
 		}

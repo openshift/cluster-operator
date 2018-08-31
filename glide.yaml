@@ -29,3 +29,12 @@ import:
 - package: github.com/openshift/client-go
 - package: github.com/go-openapi/analysis
   version: 8ed83f2ea9f00f945516462951a288eaa68bf0d6
+- package: github.com/grpc-ecosystem/go-grpc-prometheus
+  version: 2500245aa6110c562d17020fb31a2c133d737799
+- package: github.com/grpc-ecosystem/grpc-gateway
+  version: 84398b94e188ee336f307779b57b3aa91af7063c
+- package: google.golang.org/grpc
+  version: d2e1b51f33ff8c5e4a15560ff049d200e83726c5
+- package: github.com/ugorji/go
+  version: ded73eae5db7e7a0ef6f55aace87a2873c5d2b74
+- package: github.com/openshift/library-go

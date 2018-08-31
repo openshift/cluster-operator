@@ -16,18 +16,21 @@ package prometheus
 import "github.com/prometheus/procfs"
 
 type processCollector struct {
-	pid             int
 	collectFn       func(chan<- Metric)
 	pidFn           func() (int, error)
 	cpuTotal        *Desc
 	openFDs, maxFDs *Desc
-	vsize, rss      *Desc
+	vsize, maxVsize *Desc
+	rss             *Desc
 	startTime       *Desc
 }
 
 // NewProcessCollector returns a collector which exports the current state of
-// process metrics including cpu, memory and file descriptor usage as well as
-// the process start time for the given process id under the given namespace.
+// process metrics including CPU, memory and file descriptor usage as well as
+// the process start time for the given process ID under the given namespace.
+//
+// Currently, the collector depends on a Linux-style proc filesystem and
+// therefore only exports metrics for Linux.
 func NewProcessCollector(pid int, namespace string) Collector {
 	return NewProcessCollectorPIDFn(
 		func() (int, error) { return pid, nil },
@@ -35,11 +38,8 @@ func NewProcessCollector(pid int, namespace string) Collector {
 	)
 }
 
-// NewProcessCollectorPIDFn returns a collector which exports the current state
-// of process metrics including cpu, memory and file descriptor usage as well
-// as the process start time under the given namespace. The given pidFn is
-// called on each collect and is used to determine the process to export
-// metrics for.
+// NewProcessCollectorPIDFn works like NewProcessCollector but the process ID is
+// determined on each collect anew by calling the given pidFn function.
 func NewProcessCollectorPIDFn(
 	pidFn func() (int, error),
 	namespace string,
@@ -73,6 +73,11 @@ func NewProcessCollectorPIDFn(
 			"Virtual memory size in bytes.",
 			nil, nil,
 		),
+		maxVsize: NewDesc(
+			ns+"process_virtual_memory_max_bytes",
+			"Maximum amount of virtual memory available in bytes.",
+			nil, nil,
+		),
 		rss: NewDesc(
 			ns+"process_resident_memory_bytes",
 			"Resident memory size in bytes.",
@@ -99,6 +104,7 @@ func (c *processCollector) Describe(ch chan<- *Desc) {
 	ch <- c.openFDs
 	ch <- c.maxFDs
 	ch <- c.vsize
+	ch <- c.maxVsize
 	ch <- c.rss
 	ch <- c.startTime
 }
@@ -136,5 +142,6 @@ func (c *processCollector) processCollect(ch chan<- Metric) {
 
 	if limits, err := p.NewLimits(); err == nil {
 		ch <- MustNewConstMetric(c.maxFDs, GaugeValue, float64(limits.OpenFiles))
+		ch <- MustNewConstMetric(c.maxVsize, GaugeValue, float64(limits.AddressSpace))
 	}
 }
