@@ -35,13 +35,13 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 
-	"github.com/openshift/cluster-operator/pkg/ansible"
-	clustop "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
-	clustopclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
-	"github.com/openshift/cluster-operator/pkg/controller"
-	"github.com/openshift/cluster-operator/pkg/kubernetes/pkg/util/metrics"
-	"github.com/openshift/cluster-operator/pkg/logging"
-	capi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	coansible "github.com/openshift/cluster-operator/pkg/ansible"
+	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	coclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
+	cocontroller "github.com/openshift/cluster-operator/pkg/controller"
+	cometrics "github.com/openshift/cluster-operator/pkg/kubernetes/pkg/util/metrics"
+	cologging "github.com/openshift/cluster-operator/pkg/logging"
+	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	capiclientset "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 	capiinformers "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions/cluster/v1alpha1"
 	capilister "sigs.k8s.io/cluster-api/pkg/client/listers_generated/cluster/v1alpha1"
@@ -57,7 +57,7 @@ const (
 )
 
 var (
-	clusterKind = capi.SchemeGroupVersion.WithKind("Cluster")
+	clusterKind = capiv1.SchemeGroupVersion.WithKind("Cluster")
 )
 
 // NewController returns a new *Controller for cluster-api resources.
@@ -69,7 +69,7 @@ func NewController(
 	machineSetInformer capiinformers.MachineSetInformer,
 	jobInformer batchinformers.JobInformer,
 	kubeClient kubeclientset.Interface,
-	clustopClient clustopclientset.Interface,
+	clustopClient coclientset.Interface,
 	capiClient capiclientset.Interface,
 ) *Controller {
 	eventBroadcaster := record.NewBroadcaster()
@@ -78,7 +78,7 @@ func NewController(
 	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: v1core.New(kubeClient.CoreV1().RESTClient()).Events("")})
 
 	if kubeClient != nil && kubeClient.CoreV1().RESTClient().GetRateLimiter() != nil {
-		metrics.RegisterMetricAndTrackRateLimiterUsage(
+		cometrics.RegisterMetricAndTrackRateLimiterUsage(
 			fmt.Sprintf("clusteroperator_%s_controller", controllerName),
 			kubeClient.CoreV1().RESTClient().GetRateLimiter(),
 		)
@@ -113,19 +113,19 @@ func NewController(
 	})
 
 	jobOwnerControl := &jobOwnerControl{controller: c}
-	c.jobControl = controller.NewJobControl(controllerName, clusterKind, kubeClient, jobInformer.Lister(), jobOwnerControl, logger)
+	c.jobControl = cocontroller.NewJobControl(controllerName, clusterKind, kubeClient, jobInformer.Lister(), jobOwnerControl, logger)
 	jobInformer.Informer().AddEventHandler(c.jobControl)
 	c.jobsSynced = jobInformer.Informer().HasSynced
 
-	syncStrategy := (controller.JobSyncStrategy)(&jobSyncStrategy{controller: c})
-	if _, shouldReprocessJobs := installStrategy.(controller.JobSyncReprocessStrategy); shouldReprocessJobs {
+	syncStrategy := (cocontroller.JobSyncStrategy)(&jobSyncStrategy{controller: c})
+	if _, shouldReprocessJobs := installStrategy.(cocontroller.JobSyncReprocessStrategy); shouldReprocessJobs {
 		syncStrategy = &jobSyncWithReprocessStrategy{&jobSyncStrategy{controller: c}}
 	}
-	c.jobSync = controller.NewJobSync(c.jobControl, syncStrategy, false, logger)
+	c.jobSync = cocontroller.NewJobSync(c.jobControl, syncStrategy, false, logger)
 
 	c.syncHandler = c.jobSync.Sync
 	c.enqueueCluster = c.enqueue
-	c.ansibleGenerator = ansible.NewJobGenerator()
+	c.ansibleGenerator = coansible.NewJobGenerator()
 
 	return c
 }
@@ -137,7 +137,7 @@ type Controller struct {
 	installStrategy InstallStrategy
 	playbooks       []string
 
-	clustopClient clustopclientset.Interface
+	clustopClient coclientset.Interface
 	capiClient    capiclientset.Interface
 	kubeClient    kubeclientset.Interface
 
@@ -145,11 +145,11 @@ type Controller struct {
 	syncHandler func(hKey string) error
 
 	// To allow injection of mock ansible generator for testing
-	ansibleGenerator ansible.JobGenerator
+	ansibleGenerator coansible.JobGenerator
 
-	jobControl controller.JobControl
+	jobControl cocontroller.JobControl
 
-	jobSync controller.JobSync
+	jobSync cocontroller.JobSync
 
 	// used for unit testing
 	enqueueCluster func(cluster metav1.Object)
@@ -174,67 +174,67 @@ type Controller struct {
 }
 
 func (c *Controller) addCluster(obj interface{}) {
-	cluster := obj.(*capi.Cluster)
-	logging.WithCluster(c.Logger, cluster).
+	cluster := obj.(*capiv1.Cluster)
+	cologging.WithCluster(c.Logger, cluster).
 		Debugf("Adding cluster")
 	c.enqueueCluster(cluster)
 }
 
 func (c *Controller) updateCluster(old, cur interface{}) {
-	cluster := cur.(*capi.Cluster)
-	logging.WithCluster(c.Logger, cluster).
+	cluster := cur.(*capiv1.Cluster)
+	cologging.WithCluster(c.Logger, cluster).
 		Debugf("Updating cluster")
 	c.enqueueCluster(cluster)
 }
 
 func (c *Controller) deleteCluster(obj interface{}) {
-	cluster, ok := obj.(*capi.Cluster)
+	cluster, ok := obj.(*capiv1.Cluster)
 	if !ok {
 		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("Couldn't get object from tombstone %#v", obj))
 			return
 		}
-		cluster, ok = tombstone.Obj.(*capi.Cluster)
+		cluster, ok = tombstone.Obj.(*capiv1.Cluster)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("Tombstone contained object that is not a Cluster %#v", obj))
 			return
 		}
 	}
-	logging.WithCluster(c.Logger, cluster).
+	cologging.WithCluster(c.Logger, cluster).
 		Debugf("Deleting cluster")
 	c.enqueueCluster(cluster)
 }
 
 func (c *Controller) addMachineSet(obj interface{}) {
-	machineSet := obj.(*capi.MachineSet)
+	machineSet := obj.(*capiv1.MachineSet)
 	if !isMasterMachineSet(machineSet) {
 		return
 	}
-	logging.WithMachineSet(c.Logger, machineSet).
+	cologging.WithMachineSet(c.Logger, machineSet).
 		Debugf("Adding master machine set")
 	c.enqueueClusterForMachineSet(machineSet)
 }
 
 func (c *Controller) updateMachineSet(old, cur interface{}) {
-	machineSet := cur.(*capi.MachineSet)
+	machineSet := cur.(*capiv1.MachineSet)
 	if !isMasterMachineSet(machineSet) {
 		return
 	}
-	logging.WithMachineSet(c.Logger, machineSet).
+	cologging.WithMachineSet(c.Logger, machineSet).
 		Debugf("Updating master machine set")
 	c.enqueueClusterForMachineSet(machineSet)
 }
 
 func (c *Controller) deleteMachineSet(obj interface{}) {
-	machineSet, ok := obj.(*capi.MachineSet)
+	machineSet, ok := obj.(*capiv1.MachineSet)
 	if !ok {
 		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("Couldn't get object from tombstone %#v", obj))
 			return
 		}
-		machineSet, ok = tombstone.Obj.(*capi.MachineSet)
+		machineSet, ok = tombstone.Obj.(*capiv1.MachineSet)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("Tombstone contained object that is not a MachineSet %#v", obj))
 			return
@@ -243,7 +243,7 @@ func (c *Controller) deleteMachineSet(obj interface{}) {
 	if !isMasterMachineSet(machineSet) {
 		return
 	}
-	logging.WithMachineSet(c.Logger, machineSet).
+	cologging.WithMachineSet(c.Logger, machineSet).
 		Debugf("Deleting master machine set")
 	c.enqueueClusterForMachineSet(machineSet)
 }
@@ -257,7 +257,7 @@ func (c *Controller) Run(workers int, stopCh <-chan struct{}) {
 	c.Logger.Infof("Starting controller")
 	defer c.Logger.Infof("Shutting down controller")
 
-	if !controller.WaitForCacheSync(c.controllerName, stopCh, c.clustersSynced, c.machineSetsSynced, c.jobsSynced) {
+	if !cocontroller.WaitForCacheSync(c.controllerName, stopCh, c.clustersSynced, c.machineSetsSynced, c.jobsSynced) {
 		c.Logger.Errorf("Could not sync caches for controller")
 		return
 	}
@@ -270,7 +270,7 @@ func (c *Controller) Run(workers int, stopCh <-chan struct{}) {
 }
 
 func (c *Controller) enqueue(cluster metav1.Object) {
-	key, err := controller.KeyFunc(cluster)
+	key, err := cocontroller.KeyFunc(cluster)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("Couldn't get key for object %#v: %v", cluster, err))
 		return
@@ -281,7 +281,7 @@ func (c *Controller) enqueue(cluster metav1.Object) {
 
 // enqueueAfter will enqueue a cluster after the provided amount of time.
 func (c *Controller) enqueueAfter(cluster metav1.Object, after time.Duration) {
-	key, err := controller.KeyFunc(cluster)
+	key, err := cocontroller.KeyFunc(cluster)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("Couldn't get key for object %#v: %v", cluster, err))
 		return
@@ -290,15 +290,15 @@ func (c *Controller) enqueueAfter(cluster metav1.Object, after time.Duration) {
 	c.queue.AddAfter(key, after)
 }
 
-func (c *Controller) enqueueClusterForMachineSet(machineSet *capi.MachineSet) {
-	cluster, err := controller.ClusterForMachineSet(machineSet, c.clusterLister)
+func (c *Controller) enqueueClusterForMachineSet(machineSet *capiv1.MachineSet) {
+	cluster, err := cocontroller.ClusterForMachineSet(machineSet, c.clusterLister)
 	if err != nil {
-		logging.WithMachineSet(c.Logger, machineSet).
+		cologging.WithMachineSet(c.Logger, machineSet).
 			Warnf("Error getting cluster for master machine set: %v")
 		return
 	}
 	if cluster == nil {
-		logging.WithMachineSet(c.Logger, machineSet).
+		cologging.WithMachineSet(c.Logger, machineSet).
 			Infof("No cluster for master machine set")
 	}
 	c.enqueueCluster(cluster)
@@ -343,13 +343,13 @@ func (c *Controller) handleErr(err error, key interface{}) {
 	c.queue.Forget(key)
 }
 
-func isMasterMachineSet(machineSet *capi.MachineSet) bool {
-	coMachineSetSpec, err := controller.MachineSetSpecFromClusterAPIMachineSpec(&machineSet.Spec.Template.Spec)
+func isMasterMachineSet(machineSet *capiv1.MachineSet) bool {
+	coMachineSetSpec, err := cocontroller.MachineSetSpecFromClusterAPIMachineSpec(&machineSet.Spec.Template.Spec)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("Couldn't decode provider config from %#v: %v", machineSet, err))
 		return false
 	}
-	return coMachineSetSpec.NodeType == clustop.NodeTypeMaster
+	return coMachineSetSpec.NodeType == cov1.NodeTypeMaster
 }
 
 type jobFactory func(string) (*v1batch.Job, *kapi.ConfigMap, error)
@@ -363,7 +363,7 @@ type jobOwnerControl struct {
 }
 
 func (c *jobOwnerControl) GetOwnerKey(owner metav1.Object) (string, error) {
-	return controller.KeyFunc(owner)
+	return cocontroller.KeyFunc(owner)
 }
 
 func (c *jobOwnerControl) GetOwner(namespace string, name string) (metav1.Object, error) {
@@ -371,7 +371,7 @@ func (c *jobOwnerControl) GetOwner(namespace string, name string) (metav1.Object
 	if err != nil {
 		return nil, err
 	}
-	return controller.ConvertToCombinedCluster(cluster)
+	return cocontroller.ConvertToCombinedCluster(cluster)
 }
 
 func (c *jobOwnerControl) OnOwnedJobEvent(owner metav1.Object) {
@@ -394,19 +394,19 @@ func (s *jobSyncStrategy) GetOwner(key string) (metav1.Object, error) {
 	if err != nil {
 		return nil, err
 	}
-	return controller.ConvertToCombinedCluster(cluster)
+	return cocontroller.ConvertToCombinedCluster(cluster)
 }
 
 func (s *jobSyncStrategy) DoesOwnerNeedProcessing(owner metav1.Object) bool {
-	cluster, err := controller.ConvertToCombinedCluster(owner)
+	cluster, err := cocontroller.ConvertToCombinedCluster(owner)
 	if err != nil {
 		s.controller.Logger.Warnf("could not convert owner from JobSync into a cluster: %v: %#v", err, owner)
 		return false
 	}
 
-	machineSet, err := controller.GetMasterMachineSet(cluster, s.controller.machineSetLister)
+	machineSet, err := cocontroller.GetMasterMachineSet(cluster, s.controller.machineSetLister)
 	if err != nil {
-		logging.WithCombinedCluster(s.controller.Logger, cluster).
+		cologging.WithCombinedCluster(s.controller.Logger, cluster).
 			Debugf("could not get master machine set: %v", err)
 		return false
 	}
@@ -414,17 +414,17 @@ func (s *jobSyncStrategy) DoesOwnerNeedProcessing(owner metav1.Object) bool {
 	return s.controller.installStrategy.ReadyToInstall(cluster, machineSet)
 }
 
-func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object, deleting bool) (controller.JobFactory, error) {
+func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object, deleting bool) (cocontroller.JobFactory, error) {
 	if deleting {
 		return nil, fmt.Errorf("should not be undoing on deletes")
 	}
 
-	cluster, err := controller.ConvertToCombinedCluster(owner)
+	cluster, err := cocontroller.ConvertToCombinedCluster(owner)
 	if err != nil {
 		return nil, fmt.Errorf("could not convert owner from JobSync into a cluster: %v: %#v", err, owner)
 	}
 
-	jobGeneratorExecutor := ansible.NewJobGeneratorExecutorForMasterMachineSet(s.controller.ansibleGenerator, s.controller.playbooks, cluster, cluster.AWSClusterProviderConfig.OpenShiftConfig.Version)
+	jobGeneratorExecutor := coansible.NewJobGeneratorExecutorForMasterMachineSet(s.controller.ansibleGenerator, s.controller.playbooks, cluster, cluster.AWSClusterProviderConfig.OpenShiftConfig.Version)
 	if decorateStrategy, shouldDecorate := s.controller.installStrategy.(InstallJobDecorationStrategy); shouldDecorate {
 		err = decorateStrategy.DecorateJobGeneratorExecutor(jobGeneratorExecutor, cluster)
 		if err != nil {
@@ -437,15 +437,15 @@ func (s *jobSyncStrategy) GetJobFactory(owner metav1.Object, deleting bool) (con
 		if err != nil {
 			return nil, nil, err
 		}
-		labels := controller.JobLabelsForClusterController(cluster, s.controller.controllerName)
-		controller.AddLabels(job, labels)
-		controller.AddLabels(configMap, labels)
+		labels := cocontroller.JobLabelsForClusterController(cluster, s.controller.controllerName)
+		cocontroller.AddLabels(job, labels)
+		cocontroller.AddLabels(configMap, labels)
 		return job, configMap, nil
 	}), nil
 }
 
 func (s *jobSyncStrategy) DeepCopyOwner(owner metav1.Object) metav1.Object {
-	cluster, err := controller.ConvertToCombinedCluster(owner)
+	cluster, err := cocontroller.ConvertToCombinedCluster(owner)
 	if err != nil {
 		s.controller.Logger.Warnf("could not convert owner from JobSync into a cluster: %v: %#v", err, owner)
 		return cluster
@@ -455,18 +455,18 @@ func (s *jobSyncStrategy) DeepCopyOwner(owner metav1.Object) metav1.Object {
 
 func (s *jobSyncStrategy) SetOwnerJobSyncCondition(
 	owner metav1.Object,
-	conditionType controller.JobSyncConditionType,
+	conditionType cocontroller.JobSyncConditionType,
 	status kapi.ConditionStatus,
 	reason string,
 	message string,
-	updateConditionCheck controller.UpdateConditionCheck,
+	updateConditionCheck cocontroller.UpdateConditionCheck,
 ) {
-	cluster, err := controller.ConvertToCombinedCluster(owner)
+	cluster, err := cocontroller.ConvertToCombinedCluster(owner)
 	if err != nil {
 		s.controller.Logger.Warnf("could not convert owner from JobSync into a cluster: %v: %#v", err, owner)
 		return
 	}
-	cluster.ClusterProviderStatus.Conditions = controller.SetClusterCondition(
+	cluster.ClusterProviderStatus.Conditions = cocontroller.SetClusterCondition(
 		cluster.ClusterProviderStatus.Conditions,
 		s.controller.installStrategy.ConvertJobSyncConditionType(conditionType),
 		status,
@@ -477,19 +477,19 @@ func (s *jobSyncStrategy) SetOwnerJobSyncCondition(
 }
 
 func (s *jobSyncStrategy) OnJobCompletion(owner metav1.Object, job *v1batch.Job, succeeded bool) {
-	cluster, err := controller.ConvertToCombinedCluster(owner)
+	cluster, err := cocontroller.ConvertToCombinedCluster(owner)
 	if err != nil {
 		s.controller.Logger.Warnf("could not convert owner from JobSync into a cluster: %v: %#v", err, owner)
 		return
 	}
-	machineSet, err := controller.GetMasterMachineSet(cluster, s.controller.machineSetLister)
+	machineSet, err := cocontroller.GetMasterMachineSet(cluster, s.controller.machineSetLister)
 	if err != nil {
 		s.controller.Logger.Warnf("could not get the master machine set: %v", err)
 		return
 	}
 	s.controller.installStrategy.OnInstall(succeeded, cluster, machineSet, job)
 
-	if reprocessStrategy, shouldReprocess := s.controller.installStrategy.(controller.JobSyncReprocessStrategy); shouldReprocess {
+	if reprocessStrategy, shouldReprocess := s.controller.installStrategy.(cocontroller.JobSyncReprocessStrategy); shouldReprocess {
 		// We often sync before we hit this reprocess interval, if the threshold for
 		// reprocessing happens to be exceeded on one of those syncs we may actually launch a
 		// new job earlier here.
@@ -499,32 +499,32 @@ func (s *jobSyncStrategy) OnJobCompletion(owner metav1.Object, job *v1batch.Job,
 }
 
 func (s *jobSyncStrategy) UpdateOwnerStatus(original, owner metav1.Object) error {
-	combinedCluster, err := controller.ConvertToCombinedCluster(owner)
+	combinedCluster, err := cocontroller.ConvertToCombinedCluster(owner)
 	if err != nil {
 		return fmt.Errorf("could not convert owner from JobSync into a cluster: %v: %#v", err, owner)
 	}
-	cluster, err := controller.ClusterAPIClusterForCombinedCluster(combinedCluster, false /*ignoreChanges*/)
+	cluster, err := cocontroller.ClusterAPIClusterForCombinedCluster(combinedCluster, false /*ignoreChanges*/)
 	if err != nil {
 		return err
 	}
-	return controller.UpdateClusterStatus(s.controller.capiClient, cluster)
+	return cocontroller.UpdateClusterStatus(s.controller.capiClient, cluster)
 }
 
 type jobSyncWithReprocessStrategy struct {
 	*jobSyncStrategy
 }
 
-var _ controller.JobSyncReprocessStrategy = (*jobSyncWithReprocessStrategy)(nil)
+var _ cocontroller.JobSyncReprocessStrategy = (*jobSyncWithReprocessStrategy)(nil)
 
 func (s *jobSyncWithReprocessStrategy) GetReprocessInterval() time.Duration {
-	return s.controller.installStrategy.(controller.JobSyncReprocessStrategy).GetReprocessInterval()
+	return s.controller.installStrategy.(cocontroller.JobSyncReprocessStrategy).GetReprocessInterval()
 }
 
 func (s *jobSyncWithReprocessStrategy) GetLastJobSuccess(owner metav1.Object) *time.Time {
-	cluster, ok := owner.(*clustop.CombinedCluster)
+	cluster, ok := owner.(*cov1.CombinedCluster)
 	if !ok {
 		s.controller.Logger.Warn("could not convert owner from JobSync into a cluster: %#v", owner)
 		return nil
 	}
-	return s.controller.installStrategy.(controller.JobSyncReprocessStrategy).GetLastJobSuccess(cluster)
+	return s.controller.installStrategy.(cocontroller.JobSyncReprocessStrategy).GetLastJobSuccess(cluster)
 }

@@ -19,13 +19,13 @@ package validation
 import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
-	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
+	coapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
 )
 
 // validNodeTypes is a map containing an entry for every valid NodeType value.
-var validNodeTypes = map[clusteroperator.NodeType]bool{
-	clusteroperator.NodeTypeMaster:  true,
-	clusteroperator.NodeTypeCompute: true,
+var validNodeTypes = map[coapi.NodeType]bool{
+	coapi.NodeTypeMaster:  true,
+	coapi.NodeTypeCompute: true,
 }
 
 // validNodeTypeValues is an array of every valid NodeType value.
@@ -41,7 +41,7 @@ var validNodeTypeValues = func() []string {
 
 // validateNodeType validates that the specified node type has a valid
 // NodeType value.
-func validateNodeType(nodeType clusteroperator.NodeType, fldPath *field.Path) field.ErrorList {
+func validateNodeType(nodeType coapi.NodeType, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 
 	if !validNodeTypes[nodeType] {

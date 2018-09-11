@@ -17,7 +17,7 @@ limitations under the License.
 package apiserver
 
 import (
-	cov1alpha1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	serverstorage "k8s.io/apiserver/pkg/server/storage"
 )
@@ -37,7 +37,7 @@ func (s ClusterOperatorAPIServer) PrepareRun() RunnableServer {
 func DefaultAPIResourceConfigSource() *serverstorage.ResourceConfig {
 	ret := serverstorage.NewResourceConfig()
 	ret.EnableVersions(
-		cov1alpha1.SchemeGroupVersion,
+		cov1.SchemeGroupVersion,
 	)
 
 	return ret

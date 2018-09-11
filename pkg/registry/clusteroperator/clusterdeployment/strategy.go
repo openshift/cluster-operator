@@ -27,8 +27,8 @@ import (
 	"k8s.io/apiserver/pkg/storage/names"
 
 	"github.com/golang/glog"
-	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
-	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/validation"
+	coapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
+	covalidation "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/validation"
 )
 
 // NewScopeStrategy returns a new NamespaceScopedStrategy for clusterdeployments
@@ -70,7 +70,7 @@ var (
 
 // Canonicalize does not transform a clusterdeployment.
 func (clusterDeploymentRESTStrategy) Canonicalize(obj runtime.Object) {
-	_, ok := obj.(*clusteroperator.ClusterDeployment)
+	_, ok := obj.(*coapi.ClusterDeployment)
 	if !ok {
 		glog.Fatal("received a non-clusterdeployment object to create")
 	}
@@ -84,7 +84,7 @@ func (clusterDeploymentRESTStrategy) NamespaceScoped() bool {
 // PrepareForCreate receives a the incoming ClusterDeployment and clears it's
 // Status. Status is not a user settable field.
 func (clusterDeploymentRESTStrategy) PrepareForCreate(ctx genericapirequest.Context, obj runtime.Object) {
-	clusterDeployment, ok := obj.(*clusteroperator.ClusterDeployment)
+	clusterDeployment, ok := obj.(*coapi.ClusterDeployment)
 	if !ok {
 		glog.Fatal("received a non-cluster object to create")
 	}
@@ -99,13 +99,13 @@ func (clusterDeploymentRESTStrategy) PrepareForCreate(ctx genericapirequest.Cont
 	// Creating a brand new object, thus it must have no
 	// status. We can't fail here if they passed a status in, so
 	// we just wipe it clean.
-	clusterDeployment.Status = clusteroperator.ClusterDeploymentStatus{}
+	clusterDeployment.Status = coapi.ClusterDeploymentStatus{}
 
 	clusterDeployment.Generation = 1
 }
 
 func (clusterDeploymentRESTStrategy) Validate(ctx genericapirequest.Context, obj runtime.Object) field.ErrorList {
-	return validation.ValidateClusterDeployment(obj.(*clusteroperator.ClusterDeployment))
+	return covalidation.ValidateClusterDeployment(obj.(*coapi.ClusterDeployment))
 }
 
 func (clusterDeploymentRESTStrategy) AllowCreateOnUpdate() bool {
@@ -117,11 +117,11 @@ func (clusterDeploymentRESTStrategy) AllowUnconditionalUpdate() bool {
 }
 
 func (clusterDeploymentRESTStrategy) PrepareForUpdate(ctx genericapirequest.Context, new, old runtime.Object) {
-	newClusterDeployment, ok := new.(*clusteroperator.ClusterDeployment)
+	newClusterDeployment, ok := new.(*coapi.ClusterDeployment)
 	if !ok {
 		glog.Fatal("received a non-clusterdeployment object to update to")
 	}
-	oldClusterDeployment, ok := old.(*clusteroperator.ClusterDeployment)
+	oldClusterDeployment, ok := old.(*coapi.ClusterDeployment)
 	if !ok {
 		glog.Fatal("received a non-clusterdeployment object to update from")
 	}
@@ -137,24 +137,24 @@ func (clusterDeploymentRESTStrategy) PrepareForUpdate(ctx genericapirequest.Cont
 }
 
 func (clusterDeploymentRESTStrategy) ValidateUpdate(ctx genericapirequest.Context, new, old runtime.Object) field.ErrorList {
-	newClusterDeployment, ok := new.(*clusteroperator.ClusterDeployment)
+	newClusterDeployment, ok := new.(*coapi.ClusterDeployment)
 	if !ok {
 		glog.Fatal("received a non-clusterdeployment object to validate to")
 	}
-	oldCluster, ok := old.(*clusteroperator.ClusterDeployment)
+	oldCluster, ok := old.(*coapi.ClusterDeployment)
 	if !ok {
 		glog.Fatal("received a non-clusterdeployment object to validate from")
 	}
 
-	return validation.ValidateClusterDeploymentUpdate(newClusterDeployment, oldCluster)
+	return covalidation.ValidateClusterDeploymentUpdate(newClusterDeployment, oldCluster)
 }
 
 func (clusterDeploymentStatusRESTStrategy) PrepareForUpdate(ctx genericapirequest.Context, new, old runtime.Object) {
-	newClusterDeployment, ok := new.(*clusteroperator.ClusterDeployment)
+	newClusterDeployment, ok := new.(*coapi.ClusterDeployment)
 	if !ok {
 		glog.Fatal("received a non-clusterdeployment object to update to")
 	}
-	oldClusterDeployment, ok := old.(*clusteroperator.ClusterDeployment)
+	oldClusterDeployment, ok := old.(*coapi.ClusterDeployment)
 	if !ok {
 		glog.Fatal("received a non-clusterdeployment object to update from")
 	}
@@ -163,14 +163,14 @@ func (clusterDeploymentStatusRESTStrategy) PrepareForUpdate(ctx genericapireques
 }
 
 func (clusterDeploymentStatusRESTStrategy) ValidateUpdate(ctx genericapirequest.Context, new, old runtime.Object) field.ErrorList {
-	newClusterDeployment, ok := new.(*clusteroperator.ClusterDeployment)
+	newClusterDeployment, ok := new.(*coapi.ClusterDeployment)
 	if !ok {
 		glog.Fatal("received a non-clusterdeployment object to validate to")
 	}
-	oldClusterDeployment, ok := old.(*clusteroperator.ClusterDeployment)
+	oldClusterDeployment, ok := old.(*coapi.ClusterDeployment)
 	if !ok {
 		glog.Fatal("received a non-clusterdeployment object to validate from")
 	}
 
-	return validation.ValidateClusterDeploymentStatusUpdate(newClusterDeployment, oldClusterDeployment)
+	return covalidation.ValidateClusterDeploymentStatusUpdate(newClusterDeployment, oldClusterDeployment)
 }

@@ -25,8 +25,8 @@ import (
 	"k8s.io/apiserver/pkg/storage/names"
 
 	"github.com/golang/glog"
-	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
-	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/validation"
+	coapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
+	covalidation "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/validation"
 )
 
 // NewScopeStrategy returns a new NamespaceScopedStrategy for dnszones
@@ -68,7 +68,7 @@ var (
 
 // Canonicalize does not transform a dnszone.
 func (dnsZoneRESTStrategy) Canonicalize(obj runtime.Object) {
-	_, ok := obj.(*clusteroperator.DNSZone)
+	_, ok := obj.(*coapi.DNSZone)
 	if !ok {
 		glog.Fatal("received a non-dnszone object to create")
 	}
@@ -80,7 +80,7 @@ func (dnsZoneRESTStrategy) NamespaceScoped() bool {
 }
 
 func (dnsZoneRESTStrategy) PrepareForCreate(ctx genericapirequest.Context, obj runtime.Object) {
-	cv, ok := obj.(*clusteroperator.DNSZone)
+	cv, ok := obj.(*coapi.DNSZone)
 	if !ok {
 		glog.Fatal("received a non-dnszone version object to create")
 	}
@@ -88,11 +88,11 @@ func (dnsZoneRESTStrategy) PrepareForCreate(ctx genericapirequest.Context, obj r
 	// Creating a brand new object, thus it must have no
 	// status. We can't fail here if they passed a status in, so
 	// we just wipe it clean.
-	cv.Status = clusteroperator.DNSZoneStatus{}
+	cv.Status = coapi.DNSZoneStatus{}
 }
 
 func (dnsZoneRESTStrategy) Validate(ctx genericapirequest.Context, obj runtime.Object) field.ErrorList {
-	return validation.ValidateDNSZone(obj.(*clusteroperator.DNSZone))
+	return covalidation.ValidateDNSZone(obj.(*coapi.DNSZone))
 }
 
 func (dnsZoneRESTStrategy) AllowCreateOnUpdate() bool {
@@ -104,11 +104,11 @@ func (dnsZoneRESTStrategy) AllowUnconditionalUpdate() bool {
 }
 
 func (dnsZoneRESTStrategy) PrepareForUpdate(ctx genericapirequest.Context, new, old runtime.Object) {
-	newCV, ok := new.(*clusteroperator.DNSZone)
+	newCV, ok := new.(*coapi.DNSZone)
 	if !ok {
 		glog.Fatal("received a non-dnszone object to update to")
 	}
-	oldCV, ok := old.(*clusteroperator.DNSZone)
+	oldCV, ok := old.(*coapi.DNSZone)
 	if !ok {
 		glog.Fatal("received a non-dnszone object to update from")
 	}
@@ -116,26 +116,26 @@ func (dnsZoneRESTStrategy) PrepareForUpdate(ctx genericapirequest.Context, new, 
 }
 
 func (dnsZoneRESTStrategy) ValidateUpdate(ctx genericapirequest.Context, new, old runtime.Object) field.ErrorList {
-	newCV, ok := new.(*clusteroperator.DNSZone)
+	newCV, ok := new.(*coapi.DNSZone)
 	if !ok {
 		glog.Fatal("received a non-dnszone object to validate to")
 	}
-	oldCV, ok := old.(*clusteroperator.DNSZone)
+	oldCV, ok := old.(*coapi.DNSZone)
 	if !ok {
 		glog.Fatal("received a non-dnszone object to validate from")
 	}
 
 	// DNSZones are not actually mutable today, this will always return an error
 	// if the spec changed.
-	return validation.ValidateDNSZoneUpdate(newCV, oldCV)
+	return covalidation.ValidateDNSZoneUpdate(newCV, oldCV)
 }
 
 func (dnsZoneStatusRESTStrategy) PrepareForUpdate(ctx genericapirequest.Context, new, old runtime.Object) {
-	newCV, ok := new.(*clusteroperator.DNSZone)
+	newCV, ok := new.(*coapi.DNSZone)
 	if !ok {
 		glog.Fatal("received a non-dnszone object to update to")
 	}
-	oldCV, ok := old.(*clusteroperator.DNSZone)
+	oldCV, ok := old.(*coapi.DNSZone)
 	if !ok {
 		glog.Fatal("received a non-dnszone object to update from")
 	}
@@ -144,14 +144,14 @@ func (dnsZoneStatusRESTStrategy) PrepareForUpdate(ctx genericapirequest.Context,
 }
 
 func (dnsZoneStatusRESTStrategy) ValidateUpdate(ctx genericapirequest.Context, new, old runtime.Object) field.ErrorList {
-	newCV, ok := new.(*clusteroperator.DNSZone)
+	newCV, ok := new.(*coapi.DNSZone)
 	if !ok {
 		glog.Fatal("received a non-dnszone object to validate to")
 	}
-	oldCV, ok := old.(*clusteroperator.DNSZone)
+	oldCV, ok := old.(*coapi.DNSZone)
 	if !ok {
 		glog.Fatal("received a non-dnszone object to validate from")
 	}
 
-	return validation.ValidateDNSZoneStatusUpdate(newCV, oldCV)
+	return covalidation.ValidateDNSZoneStatusUpdate(newCV, oldCV)
 }

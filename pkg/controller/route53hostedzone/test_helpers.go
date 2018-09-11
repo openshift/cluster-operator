@@ -24,11 +24,11 @@ import (
 	"github.com/aws/aws-sdk-go/service/route53"
 	"github.com/golang/mock/gomock"
 	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
-	clusteroperatorclient "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
+	coclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
 	clusteropclientfake "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset/fake"
 	clusteroperatorinformerfactories "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions"
 	clusteropinformers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions"
-	v1alpha1clusteroperatorinformers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions/clusteroperator/v1alpha1"
+	coinformers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions/clusteroperator/v1alpha1"
 	mockaws "github.com/openshift/cluster-operator/pkg/clusterapi/aws/mock"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
@@ -111,9 +111,9 @@ var (
 
 type mocks struct {
 	fakeKubeClient         kubeclientset.Interface
-	fakeClusteropClient    clusteroperatorclient.Interface
+	fakeClusteropClient    coclientset.Interface
 	fakeClusteropInformers clusteroperatorinformerfactories.SharedInformerFactory
-	fakeDNSZonesInformer   v1alpha1clusteroperatorinformers.DNSZoneInformer
+	fakeDNSZonesInformer   coinformers.DNSZoneInformer
 	mockCtrl               *gomock.Controller
 	mockAWSClient          *mockaws.MockClient
 }

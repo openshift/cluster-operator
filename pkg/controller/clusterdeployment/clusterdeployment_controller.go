@@ -35,20 +35,20 @@ import (
 	"github.com/golang/glog"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/openshift/cluster-operator/pkg/kubernetes/pkg/util/metrics"
+	cometrics "github.com/openshift/cluster-operator/pkg/kubernetes/pkg/util/metrics"
 
-	capi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	capiclientset "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 	capiinformers "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions/cluster/v1alpha1"
 	capilisters "sigs.k8s.io/cluster-api/pkg/client/listers_generated/cluster/v1alpha1"
 
-	clustop "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
-	clustopclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
-	clustopinformers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions/clusteroperator/v1alpha1"
-	clustoplisters "github.com/openshift/cluster-operator/pkg/client/listers_generated/clusteroperator/v1alpha1"
+	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	coclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
+	coinformers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions/clusteroperator/v1alpha1"
+	colisters "github.com/openshift/cluster-operator/pkg/client/listers_generated/clusteroperator/v1alpha1"
 
-	"github.com/openshift/cluster-operator/pkg/controller"
-	clustoplog "github.com/openshift/cluster-operator/pkg/logging"
+	cocontroller "github.com/openshift/cluster-operator/pkg/controller"
+	cologging "github.com/openshift/cluster-operator/pkg/logging"
 )
 
 const (
@@ -72,12 +72,12 @@ const (
 
 // NewController returns a new cluster deployment controller.
 func NewController(
-	clusterDeploymentInformer clustopinformers.ClusterDeploymentInformer,
+	clusterDeploymentInformer coinformers.ClusterDeploymentInformer,
 	clusterInformer capiinformers.ClusterInformer,
 	machineSetInformer capiinformers.MachineSetInformer,
-	clusterVersionInformer clustopinformers.ClusterVersionInformer,
+	clusterVersionInformer coinformers.ClusterVersionInformer,
 	kubeClient kubeclientset.Interface,
-	clustopClient clustopclientset.Interface,
+	clustopClient coclientset.Interface,
 	capiClient capiclientset.Interface) *Controller {
 
 	eventBroadcaster := record.NewBroadcaster()
@@ -86,7 +86,7 @@ func NewController(
 	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: v1core.New(kubeClient.CoreV1().RESTClient()).Events("")})
 
 	if kubeClient != nil && kubeClient.CoreV1().RESTClient().GetRateLimiter() != nil {
-		metrics.RegisterMetricAndTrackRateLimiterUsage("clusteroperator_clusterdeployment_controller", kubeClient.CoreV1().RESTClient().GetRateLimiter())
+		cometrics.RegisterMetricAndTrackRateLimiterUsage("clusteroperator_clusterdeployment_controller", kubeClient.CoreV1().RESTClient().GetRateLimiter())
 	}
 
 	logger := log.WithField("controller", controllerLogName)
@@ -133,17 +133,17 @@ func NewController(
 
 // Controller manages clusters.
 type Controller struct {
-	clustopClient clustopclientset.Interface
+	clustopClient coclientset.Interface
 	capiClient    capiclientset.Interface
 	kubeClient    kubeclientset.Interface
 
 	// To allow injection of syncClusterDeployment for testing.
 	syncHandler func(hKey string) error
 	// used for unit testing
-	enqueueClusterDeployment func(clusterDeployment *clustop.ClusterDeployment)
+	enqueueClusterDeployment func(clusterDeployment *cov1.ClusterDeployment)
 
 	// clusterDeploymentsLister is able to list/get cluster operator cluster deployments.
-	clusterDeploymentsLister clustoplisters.ClusterDeploymentLister
+	clusterDeploymentsLister colisters.ClusterDeploymentLister
 
 	// clusterDeploymentsSynced returns true if the cluster shared informer has been synced at least once.
 	clusterDeploymentsSynced cache.InformerSynced
@@ -164,7 +164,7 @@ type Controller struct {
 
 	// clusterVersionsLister is able to list/get clusterversions and is populated by the shared
 	// informer passed to NewClusterController.
-	clusterVersionsLister clustoplisters.ClusterVersionLister
+	clusterVersionsLister colisters.ClusterVersionLister
 
 	// Clusters that need to be synced
 	queue workqueue.RateLimitingInterface
@@ -174,39 +174,39 @@ type Controller struct {
 }
 
 func (c *Controller) addClusterDeployment(obj interface{}) {
-	clusterDeployment := obj.(*clustop.ClusterDeployment)
-	clustoplog.WithClusterDeployment(c.logger, clusterDeployment).Debugf("adding cluster deployment")
+	clusterDeployment := obj.(*cov1.ClusterDeployment)
+	cologging.WithClusterDeployment(c.logger, clusterDeployment).Debugf("adding cluster deployment")
 	c.enqueueClusterDeployment(clusterDeployment)
 }
 
 func (c *Controller) updateClusterDeployment(old, cur interface{}) {
-	oldClusterDeployment := old.(*clustop.ClusterDeployment)
-	curClusterDeployment := cur.(*clustop.ClusterDeployment)
-	clustoplog.WithClusterDeployment(c.logger, oldClusterDeployment).Debugf("updating cluster deployment")
+	oldClusterDeployment := old.(*cov1.ClusterDeployment)
+	curClusterDeployment := cur.(*cov1.ClusterDeployment)
+	cologging.WithClusterDeployment(c.logger, oldClusterDeployment).Debugf("updating cluster deployment")
 	c.enqueueClusterDeployment(curClusterDeployment)
 }
 
 func (c *Controller) deleteClusterDeployment(obj interface{}) {
-	clusterDeployment, ok := obj.(*clustop.ClusterDeployment)
+	clusterDeployment, ok := obj.(*cov1.ClusterDeployment)
 	if !ok {
 		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("Couldn't get object from tombstone %#v", obj))
 			return
 		}
-		clusterDeployment, ok = tombstone.Obj.(*clustop.ClusterDeployment)
+		clusterDeployment, ok = tombstone.Obj.(*cov1.ClusterDeployment)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("Tombstone contained object that is not a Cluster Deployment %#v", obj))
 			return
 		}
 	}
-	clustoplog.WithClusterDeployment(c.logger, clusterDeployment).Debugf("deleting cluster deployment")
+	cologging.WithClusterDeployment(c.logger, clusterDeployment).Debugf("deleting cluster deployment")
 	c.enqueueClusterDeployment(clusterDeployment)
 }
 
 // When a cluster-api cluster is created, enqueue the cluster deployment that owns it and update its expectations.
 func (c *Controller) addCluster(obj interface{}) {
-	cluster := obj.(*capi.Cluster)
+	cluster := obj.(*capiv1.Cluster)
 
 	if cluster.DeletionTimestamp != nil {
 		// on a restart of the controller manager, it's possible a cluster shows up in a state that
@@ -215,23 +215,23 @@ func (c *Controller) addCluster(obj interface{}) {
 		return
 	}
 
-	clusterDeployment, err := controller.ClusterDeploymentForCluster(cluster, c.clusterDeploymentsLister)
+	clusterDeployment, err := cocontroller.ClusterDeploymentForCluster(cluster, c.clusterDeploymentsLister)
 	if err != nil {
-		clustoplog.WithCluster(c.logger, cluster).Errorf("error retrieving cluster deployment for cluster: %v", err)
+		cologging.WithCluster(c.logger, cluster).Errorf("error retrieving cluster deployment for cluster: %v", err)
 		return
 	}
 	if clusterDeployment == nil {
-		clustoplog.WithCluster(c.logger, cluster).Debugf("cluster is not controlled by a cluster deployment")
+		cologging.WithCluster(c.logger, cluster).Debugf("cluster is not controlled by a cluster deployment")
 		return
 	}
-	clustoplog.WithCluster(clustoplog.WithClusterDeployment(c.logger, clusterDeployment), cluster).Debugln("cluster created")
+	cologging.WithCluster(cologging.WithClusterDeployment(c.logger, clusterDeployment), cluster).Debugln("cluster created")
 	c.enqueueClusterDeployment(clusterDeployment)
 }
 
 // When a cluster is updated, figure out what cluster deployment manages it and wake it up.
 func (c *Controller) updateCluster(old, cur interface{}) {
-	oldCluster := old.(*capi.Cluster)
-	curCluster := cur.(*capi.Cluster)
+	oldCluster := old.(*capiv1.Cluster)
+	curCluster := cur.(*capiv1.Cluster)
 	if curCluster.ResourceVersion == oldCluster.ResourceVersion {
 		// Periodic resync will send update events for all known clusters.
 		// Two different versions of the same cluster will always have different RVs.
@@ -243,51 +243,51 @@ func (c *Controller) updateCluster(old, cur interface{}) {
 		return
 	}
 
-	clusterDeployment, err := controller.ClusterDeploymentForCluster(curCluster, c.clusterDeploymentsLister)
+	clusterDeployment, err := cocontroller.ClusterDeploymentForCluster(curCluster, c.clusterDeploymentsLister)
 	if err != nil {
-		clustoplog.WithCluster(c.logger, curCluster).Errorf("error retrieving cluster deployment for cluster: %v", err)
+		cologging.WithCluster(c.logger, curCluster).Errorf("error retrieving cluster deployment for cluster: %v", err)
 		return
 	}
 	if clusterDeployment == nil {
-		clustoplog.WithCluster(c.logger, curCluster).Debugf("cluster is not controlled by a cluster deployment")
+		cologging.WithCluster(c.logger, curCluster).Debugf("cluster is not controlled by a cluster deployment")
 		return
 	}
-	clustoplog.WithCluster(clustoplog.WithClusterDeployment(c.logger, clusterDeployment), curCluster).Debugln("cluster updated")
+	cologging.WithCluster(cologging.WithClusterDeployment(c.logger, clusterDeployment), curCluster).Debugln("cluster updated")
 	c.enqueueClusterDeployment(clusterDeployment)
 }
 
 // When a cluster is deleted, enqueue the cluster deployment that manages it and update its expectations.
 func (c *Controller) deleteCluster(obj interface{}) {
-	cluster, ok := obj.(*capi.Cluster)
+	cluster, ok := obj.(*capiv1.Cluster)
 	if !ok {
 		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("Couldn't get object from tombstone %#v", obj))
 			return
 		}
-		cluster, ok = tombstone.Obj.(*capi.Cluster)
+		cluster, ok = tombstone.Obj.(*capiv1.Cluster)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("Tombstone contained object that is not a Cluster %#v", obj))
 			return
 		}
 	}
 
-	clusterDeployment, err := controller.ClusterDeploymentForCluster(cluster, c.clusterDeploymentsLister)
+	clusterDeployment, err := cocontroller.ClusterDeploymentForCluster(cluster, c.clusterDeploymentsLister)
 	if err != nil {
-		clustoplog.WithCluster(c.logger, cluster).Errorf("error retrieving cluster deployment for cluster: %v", err)
+		cologging.WithCluster(c.logger, cluster).Errorf("error retrieving cluster deployment for cluster: %v", err)
 		return
 	}
 	if clusterDeployment == nil {
-		clustoplog.WithCluster(c.logger, cluster).Debugf("cluster is not controlled by a cluster deployment")
+		cologging.WithCluster(c.logger, cluster).Debugf("cluster is not controlled by a cluster deployment")
 		return
 	}
-	clustoplog.WithCluster(clustoplog.WithClusterDeployment(c.logger, clusterDeployment), cluster).Debugln("cluster deleted")
+	cologging.WithCluster(cologging.WithClusterDeployment(c.logger, clusterDeployment), cluster).Debugln("cluster deleted")
 	c.enqueueClusterDeployment(clusterDeployment)
 }
 
 // When a machine set is created, enqueue the cluster deployment that manages it and update its expectations.
 func (c *Controller) addMachineSet(obj interface{}) {
-	machineSet := obj.(*capi.MachineSet)
+	machineSet := obj.(*capiv1.MachineSet)
 
 	if machineSet.DeletionTimestamp != nil {
 		// on a restart of the controller manager, it's possible a new machine set shows up in a state that
@@ -296,24 +296,24 @@ func (c *Controller) addMachineSet(obj interface{}) {
 		return
 	}
 
-	clusterDeployment, err := controller.ClusterDeploymentForMachineSet(machineSet, c.clusterDeploymentsLister)
+	clusterDeployment, err := cocontroller.ClusterDeploymentForMachineSet(machineSet, c.clusterDeploymentsLister)
 	if err != nil {
-		clustoplog.WithMachineSet(c.logger, machineSet).Errorf("error retrieving cluster deployment for machine set: %v", err)
+		cologging.WithMachineSet(c.logger, machineSet).Errorf("error retrieving cluster deployment for machine set: %v", err)
 		return
 	}
 	if clusterDeployment == nil {
-		clustoplog.WithMachineSet(c.logger, machineSet).Debugf("machine set is not controlled by a cluster deployment")
+		cologging.WithMachineSet(c.logger, machineSet).Debugf("machine set is not controlled by a cluster deployment")
 		return
 	}
 
-	clustoplog.WithMachineSet(clustoplog.WithClusterDeployment(c.logger, clusterDeployment), machineSet).Debugln("machineset created")
+	cologging.WithMachineSet(cologging.WithClusterDeployment(c.logger, clusterDeployment), machineSet).Debugln("machineset created")
 	c.enqueueClusterDeployment(clusterDeployment)
 }
 
 // When a machine set is updated, figure out what cluster deployment manages it and wake it up.
 func (c *Controller) updateMachineSet(old, cur interface{}) {
-	oldMachineSet := old.(*capi.MachineSet)
-	curMachineSet := cur.(*capi.MachineSet)
+	oldMachineSet := old.(*capiv1.MachineSet)
+	curMachineSet := cur.(*capiv1.MachineSet)
 	if curMachineSet.ResourceVersion == oldMachineSet.ResourceVersion {
 		// Periodic resync will send update events for all known machine sets.
 		// Two different versions of the same machine set will always have different RVs.
@@ -325,47 +325,47 @@ func (c *Controller) updateMachineSet(old, cur interface{}) {
 		return
 	}
 
-	clusterDeployment, err := controller.ClusterDeploymentForMachineSet(curMachineSet, c.clusterDeploymentsLister)
+	clusterDeployment, err := cocontroller.ClusterDeploymentForMachineSet(curMachineSet, c.clusterDeploymentsLister)
 	if err != nil {
-		clustoplog.WithMachineSet(c.logger, curMachineSet).Errorf("error retrieving cluster deployment for machine set: %v", err)
+		cologging.WithMachineSet(c.logger, curMachineSet).Errorf("error retrieving cluster deployment for machine set: %v", err)
 		return
 	}
 	if clusterDeployment == nil {
-		clustoplog.WithMachineSet(c.logger, curMachineSet).Debugf("machine set is not controlled by a cluster deployment")
+		cologging.WithMachineSet(c.logger, curMachineSet).Debugf("machine set is not controlled by a cluster deployment")
 		return
 	}
 
-	clustoplog.WithMachineSet(clustoplog.WithClusterDeployment(c.logger, clusterDeployment), curMachineSet).Debugln("machineset updated")
+	cologging.WithMachineSet(cologging.WithClusterDeployment(c.logger, clusterDeployment), curMachineSet).Debugln("machineset updated")
 	c.enqueueClusterDeployment(clusterDeployment)
 }
 
 // When a machine set is deleted, enqueue the cluster that manages the machine set and update its expectations.
 func (c *Controller) deleteMachineSet(obj interface{}) {
-	machineSet, ok := obj.(*capi.MachineSet)
+	machineSet, ok := obj.(*capiv1.MachineSet)
 	if !ok {
 		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("Couldn't get object from tombstone %#v", obj))
 			return
 		}
-		machineSet, ok = tombstone.Obj.(*capi.MachineSet)
+		machineSet, ok = tombstone.Obj.(*capiv1.MachineSet)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("Tombstone contained object that is not a MachineSet %#v", obj))
 			return
 		}
 	}
 
-	clusterDeployment, err := controller.ClusterDeploymentForMachineSet(machineSet, c.clusterDeploymentsLister)
+	clusterDeployment, err := cocontroller.ClusterDeploymentForMachineSet(machineSet, c.clusterDeploymentsLister)
 	if err != nil {
-		clustoplog.WithMachineSet(c.logger, machineSet).Errorf("error retrieving cluster deployment for machine set: %v", err)
+		cologging.WithMachineSet(c.logger, machineSet).Errorf("error retrieving cluster deployment for machine set: %v", err)
 		return
 	}
 	if clusterDeployment == nil {
-		clustoplog.WithMachineSet(c.logger, machineSet).Debugf("machine set is not controlled by a cluster deployment")
+		cologging.WithMachineSet(c.logger, machineSet).Debugf("machine set is not controlled by a cluster deployment")
 		return
 	}
 
-	clustoplog.WithMachineSet(clustoplog.WithClusterDeployment(c.logger, clusterDeployment), machineSet).Debugln("machineset deleted")
+	cologging.WithMachineSet(cologging.WithClusterDeployment(c.logger, clusterDeployment), machineSet).Debugln("machineset deleted")
 	c.enqueueClusterDeployment(clusterDeployment)
 }
 
@@ -378,7 +378,7 @@ func (c *Controller) Run(workers int, stopCh <-chan struct{}) {
 	c.logger.Info("starting clusterdeployment controller")
 	defer c.logger.Info("shutting down clusterdeployment controller")
 
-	if !controller.WaitForCacheSync("clusterdeployment", stopCh, c.clusterDeploymentsSynced, c.clustersSynced, c.machineSetsSynced) {
+	if !cocontroller.WaitForCacheSync("clusterdeployment", stopCh, c.clusterDeploymentsSynced, c.clustersSynced, c.machineSetsSynced) {
 		return
 	}
 
@@ -389,8 +389,8 @@ func (c *Controller) Run(workers int, stopCh <-chan struct{}) {
 	<-stopCh
 }
 
-func (c *Controller) enqueue(clusterDeployment *clustop.ClusterDeployment) {
-	key, err := controller.KeyFunc(clusterDeployment)
+func (c *Controller) enqueue(clusterDeployment *cov1.ClusterDeployment) {
+	key, err := cocontroller.KeyFunc(clusterDeployment)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("Couldn't get key for object %#v: %v", clusterDeployment, err))
 		return
@@ -400,8 +400,8 @@ func (c *Controller) enqueue(clusterDeployment *clustop.ClusterDeployment) {
 }
 
 // enqueueAfter will enqueue a cluster deployment after the provided amount of time.
-func (c *Controller) enqueueAfter(clusterDeployment *clustop.ClusterDeployment, after time.Duration) {
-	key, err := controller.KeyFunc(clusterDeployment)
+func (c *Controller) enqueueAfter(clusterDeployment *cov1.ClusterDeployment, after time.Duration) {
+	key, err := cocontroller.KeyFunc(clusterDeployment)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("Couldn't get key for object %#v: %v", clusterDeployment, err))
 		return
@@ -461,7 +461,7 @@ func (c *Controller) syncClusterDeployment(key string) error {
 		return err
 	}
 
-	clusterDeploymentLog := clustoplog.WithClusterDeployment(c.logger, clusterDeployment)
+	clusterDeploymentLog := cologging.WithClusterDeployment(c.logger, clusterDeployment)
 
 	if clusterDeployment.DeletionTimestamp != nil {
 		if !hasClusterDeploymentFinalizer(clusterDeployment) {
@@ -542,11 +542,11 @@ func (c *Controller) syncClusterDeployment(key string) error {
 }
 
 // updateClusterDeploymentStatus updates the status of the cluster deployment
-func (c *Controller) updateClusterDeploymentStatus(original, clusterDeployment *clustop.ClusterDeployment) error {
-	return controller.PatchClusterDeploymentStatus(c.clustopClient, original, clusterDeployment)
+func (c *Controller) updateClusterDeploymentStatus(original, clusterDeployment *cov1.ClusterDeployment) error {
+	return cocontroller.PatchClusterDeploymentStatus(c.clustopClient, original, clusterDeployment)
 }
 
-func (c *Controller) syncDeletedClusterDeployment(clusterDeployment *clustop.ClusterDeployment, clusterDeploymentLog log.FieldLogger) error {
+func (c *Controller) syncDeletedClusterDeployment(clusterDeployment *cov1.ClusterDeployment, clusterDeploymentLog log.FieldLogger) error {
 	// If remote machinesets have not been removed, wait until they are
 	// When the cluster deployment is updated to remove them, it will be queued again.
 	if hasRemoteMachineSetsFinalizer(clusterDeployment) {
@@ -564,12 +564,12 @@ func (c *Controller) syncDeletedClusterDeployment(clusterDeployment *clustop.Clu
 	// If the machineSet was found, but its DeletionTimestamp is already set, return and wait
 	// for it to actually go away.
 	if err == nil && machineSet.DeletionTimestamp != nil {
-		clustoplog.WithMachineSet(clusterDeploymentLog, machineSet).Debugf("master machineset has been deleted, waiting until it goes away")
+		cologging.WithMachineSet(clusterDeploymentLog, machineSet).Debugf("master machineset has been deleted, waiting until it goes away")
 		return nil
 	}
 	// If the DeletionTimestamp is not set, then delete the machineset
 	if err == nil {
-		clustoplog.WithMachineSet(clusterDeploymentLog, machineSet).Infof("deleting master machineset")
+		cologging.WithMachineSet(clusterDeploymentLog, machineSet).Infof("deleting master machineset")
 		return c.capiClient.ClusterV1alpha1().MachineSets(clusterDeployment.Namespace).Delete(machineSetName, &metav1.DeleteOptions{})
 	}
 
@@ -594,12 +594,12 @@ func (c *Controller) syncDeletedClusterDeployment(clusterDeployment *clustop.Clu
 	// If the cluster was found, but its DeletionTimestamp is already set, return and wait
 	// for it to actually go away.
 	if err == nil && cluster.DeletionTimestamp != nil {
-		clustoplog.WithCluster(clusterDeploymentLog, cluster).Debugf("cluster has been deleted, waiting until it goes away")
+		cologging.WithCluster(clusterDeploymentLog, cluster).Debugf("cluster has been deleted, waiting until it goes away")
 		return nil
 	}
 	// If the DeletionTimestamp is not set, then delete the cluster
 	if err == nil {
-		clustoplog.WithCluster(clusterDeploymentLog, cluster).Debugf("deleting cluster")
+		cologging.WithCluster(clusterDeploymentLog, cluster).Debugf("deleting cluster")
 		return c.capiClient.ClusterV1alpha1().Clusters(clusterDeployment.Namespace).Delete(clusterDeployment.Spec.ClusterName, &metav1.DeleteOptions{})
 	}
 
@@ -610,14 +610,14 @@ func (c *Controller) syncDeletedClusterDeployment(clusterDeployment *clustop.Clu
 
 // syncCluster takes a cluster deployment and ensures that a corresponding cluster exists and that
 // it reflects the spec of the cluster deployment
-func (c *Controller) syncCluster(clusterDeployment *clustop.ClusterDeployment, cv *clustop.ClusterVersion, logger log.FieldLogger) (*capi.Cluster, error) {
+func (c *Controller) syncCluster(clusterDeployment *cov1.ClusterDeployment, cv *cov1.ClusterVersion, logger log.FieldLogger) (*capiv1.Cluster, error) {
 	cluster, err := c.clustersLister.Clusters(clusterDeployment.Namespace).Get(clusterDeployment.Spec.ClusterName)
 	if err != nil && !errors.IsNotFound(err) {
 		return nil, fmt.Errorf("cannot retrieve cluster for cluster deployment %s/%s: %v", clusterDeployment.Namespace, clusterDeployment.Name, err)
 	}
 
 	if cluster == nil {
-		cluster, err = controller.BuildCluster(clusterDeployment, cv.Spec)
+		cluster, err = cocontroller.BuildCluster(clusterDeployment, cv.Spec)
 		if err != nil {
 			return nil, fmt.Errorf("cannot build cluster for cluster deployment %s/%s: %v", clusterDeployment.Namespace, clusterDeployment.Name, err)
 		}
@@ -629,7 +629,7 @@ func (c *Controller) syncCluster(clusterDeployment *clustop.ClusterDeployment, c
 	}
 
 	// cluster exists, make sure it reflects the current cluster deployment spec
-	providerConfig, err := controller.BuildAWSClusterProviderConfig(&clusterDeployment.Spec, cv.Spec)
+	providerConfig, err := cocontroller.BuildAWSClusterProviderConfig(&clusterDeployment.Spec, cv.Spec)
 	if err != nil {
 		return nil, fmt.Errorf("cannot serialize provider config from existing cluster %s/%s: %v", cluster.Namespace, cluster.Name, err)
 	}
@@ -649,7 +649,7 @@ func (c *Controller) syncCluster(clusterDeployment *clustop.ClusterDeployment, c
 
 // syncControlPlane takes a cluster deployment and ensures that a corresponding master machine set
 // exists and that its spec reflects the spec of the master machineset in the cluster deployment spec.
-func (c *Controller) syncControlPlane(clusterDeployment *clustop.ClusterDeployment, cluster *capi.Cluster, clusterVersion *clustop.ClusterVersion, logger log.FieldLogger) error {
+func (c *Controller) syncControlPlane(clusterDeployment *cov1.ClusterDeployment, cluster *capiv1.Cluster, clusterVersion *cov1.ClusterVersion, logger log.FieldLogger) error {
 	machineSetName := masterMachineSetName(cluster.Name)
 	machineSet, err := c.machineSetsLister.MachineSets(clusterDeployment.Namespace).Get(machineSetName)
 	if err != nil && !errors.IsNotFound(err) {
@@ -657,7 +657,7 @@ func (c *Controller) syncControlPlane(clusterDeployment *clustop.ClusterDeployme
 	}
 
 	if machineSet == nil {
-		clusterStatus, err := controller.ClusterProviderStatusFromCluster(cluster)
+		clusterStatus, err := cocontroller.ClusterProviderStatusFromCluster(cluster)
 		if err != nil {
 			return fmt.Errorf("cannot obtain cluster deployment status from cluster resource %s/%s: %v", cluster.Namespace, cluster.Name, err)
 		}
@@ -670,7 +670,7 @@ func (c *Controller) syncControlPlane(clusterDeployment *clustop.ClusterDeployme
 
 		// machine set does not exist, it needs to be created
 		machineSet, err = buildMasterMachineSet(clusterDeployment, cluster, clusterVersion)
-		clustoplog.WithMachineSet(logger, machineSet).Debugf("About to create machineset")
+		cologging.WithMachineSet(logger, machineSet).Debugf("About to create machineset")
 		if err != nil {
 			return fmt.Errorf("error building machineSet from clusterDeployment %s/%s: %v", clusterDeployment.Namespace, clusterDeployment.Name, err)
 		}
@@ -698,9 +698,9 @@ func (c *Controller) syncControlPlane(clusterDeployment *clustop.ClusterDeployme
 
 	// Build a new set of expected labels so we clear out any previous:
 	newLabels := map[string]string{
-		clustop.ClusterDeploymentLabel: clusterDeployment.Name,
-		clustop.ClusterNameLabel:       cluster.Name,
-		clustop.MachineSetNameLabel:    machineSet.Name,
+		cov1.ClusterDeploymentLabel: clusterDeployment.Name,
+		cov1.ClusterNameLabel:       cluster.Name,
+		cov1.MachineSetNameLabel:    machineSet.Name,
 	}
 	for k, v := range machineSetConfig.NodeLabels {
 		newLabels[k] = v
@@ -709,7 +709,7 @@ func (c *Controller) syncControlPlane(clusterDeployment *clustop.ClusterDeployme
 
 	updatedMachineSet.Spec.Template.Spec.Taints = machineSetConfig.NodeTaints
 
-	specProviderConfig, err := controller.MachineProviderConfigFromMachineSetConfig(machineSetConfig, &clusterDeployment.Spec, clusterVersion)
+	specProviderConfig, err := cocontroller.MachineProviderConfigFromMachineSetConfig(machineSetConfig, &clusterDeployment.Spec, clusterVersion)
 	if err != nil {
 		return fmt.Errorf("cannot create a machine providerconfig from machineset config for cluster deployment %s/%s: %v", clusterDeployment.Namespace, clusterDeployment.Name, err)
 	}
@@ -727,32 +727,32 @@ func (c *Controller) syncControlPlane(clusterDeployment *clustop.ClusterDeployme
 	return nil
 }
 
-func buildMasterMachineSet(clusterDeployment *clustop.ClusterDeployment, cluster *capi.Cluster, clusterVersion *clustop.ClusterVersion) (*capi.MachineSet, error) {
+func buildMasterMachineSet(clusterDeployment *cov1.ClusterDeployment, cluster *capiv1.Cluster, clusterVersion *cov1.ClusterVersion) (*capiv1.MachineSet, error) {
 	machineSetConfig, ok := masterMachineSetConfig(clusterDeployment)
 	if !ok {
 		return nil, fmt.Errorf("cluster deployment %s/%s does not have a master machine set config", clusterDeployment.Namespace, clusterDeployment.Name)
 	}
 
-	machineSet := &capi.MachineSet{}
+	machineSet := &capiv1.MachineSet{}
 	machineSet.Name = masterMachineSetName(cluster.Name)
 	machineSet.Namespace = clusterDeployment.Namespace
 	machineSet.Labels = clusterDeployment.Labels
 	if machineSet.Labels == nil {
 		machineSet.Labels = make(map[string]string)
 	}
-	machineSet.Labels[clustop.ClusterDeploymentLabel] = clusterDeployment.Name
-	machineSet.Labels[clustop.ClusterNameLabel] = cluster.Name
+	machineSet.Labels[cov1.ClusterDeploymentLabel] = clusterDeployment.Name
+	machineSet.Labels[cov1.ClusterNameLabel] = cluster.Name
 	for k, v := range machineSetConfig.NodeLabels {
 		machineSet.Labels[k] = v
 	}
 	blockOwnerDeletion := false
-	ownerRef := metav1.NewControllerRef(clusterDeployment, controller.ClusterDeploymentKind)
+	ownerRef := metav1.NewControllerRef(clusterDeployment, cocontroller.ClusterDeploymentKind)
 	ownerRef.BlockOwnerDeletion = &blockOwnerDeletion
 	machineSet.OwnerReferences = []metav1.OwnerReference{*ownerRef}
 	machineSetLabels := map[string]string{
-		clustop.MachineSetNameLabel:    machineSet.Name,
-		clustop.ClusterDeploymentLabel: clusterDeployment.Name,
-		clustop.ClusterNameLabel:       cluster.Name,
+		cov1.MachineSetNameLabel:    machineSet.Name,
+		cov1.ClusterDeploymentLabel: clusterDeployment.Name,
+		cov1.ClusterNameLabel:       cluster.Name,
 	}
 	machineSet.Spec.Selector.MatchLabels = machineSetLabels
 	replicas := int32(machineSetConfig.Size)
@@ -769,7 +769,7 @@ func buildMasterMachineSet(clusterDeployment *clustop.ClusterDeployment, cluster
 	}
 	machineSet.Spec.Template.Spec.Taints = machineSetConfig.NodeTaints
 
-	providerConfig, err := controller.MachineProviderConfigFromMachineSetConfig(machineSetConfig, &clusterDeployment.Spec, clusterVersion)
+	providerConfig, err := cocontroller.MachineProviderConfigFromMachineSetConfig(machineSetConfig, &clusterDeployment.Spec, clusterVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -778,7 +778,7 @@ func buildMasterMachineSet(clusterDeployment *clustop.ClusterDeployment, cluster
 }
 
 // validateAWSRegion will check that the cluster's version has an AMI defined for its region. If not, an error will be returned.
-func (c *Controller) validateAWSRegion(clusterDeployment *clustop.ClusterDeployment, clusterVersion *clustop.ClusterVersion, clusterDeploymentLog log.FieldLogger) bool {
+func (c *Controller) validateAWSRegion(clusterDeployment *cov1.ClusterDeployment, clusterVersion *cov1.ClusterVersion, clusterDeploymentLog log.FieldLogger) bool {
 	// Make sure the cluster version supports the region for the clusterDeployment, if not return an error
 	foundRegion := false
 	for _, regionAMI := range clusterVersion.Spec.VMImages.AWSImages.RegionAMIs {
@@ -795,52 +795,52 @@ func (c *Controller) validateAWSRegion(clusterDeployment *clustop.ClusterDeploym
 
 // setMissingClusterVersionStatus updates the cluster deployment status to indicate that the clusterVersion is
 // present or missing
-func (c *Controller) setMissingClusterVersionStatus(clusterDeployment *clustop.ClusterDeployment, missing bool) {
+func (c *Controller) setMissingClusterVersionStatus(clusterDeployment *cov1.ClusterDeployment, missing bool) {
 	clusterVersionRef := clusterDeployment.Spec.ClusterVersionRef
 	var (
 		msg, reason string
 		status      corev1.ConditionStatus
-		updateCheck controller.UpdateConditionCheck
+		updateCheck cocontroller.UpdateConditionCheck
 	)
 	if missing {
 		msg = fmt.Sprintf("cluster version %s/%s was not found", clusterVersionRef.Namespace, clusterVersionRef.Name)
 		status = corev1.ConditionTrue
-		updateCheck = controller.UpdateConditionIfReasonOrMessageChange
+		updateCheck = cocontroller.UpdateConditionIfReasonOrMessageChange
 		reason = versionMissing
 	} else {
 		msg = fmt.Sprintf("cluster version %s/%s was found", clusterVersionRef.Namespace, clusterVersionRef.Name)
 		status = corev1.ConditionFalse
-		updateCheck = controller.UpdateConditionNever
+		updateCheck = cocontroller.UpdateConditionNever
 		reason = versionExists
 	}
-	clusterDeployment.Status.Conditions = controller.SetClusterDeploymentCondition(clusterDeployment.Status.Conditions, clustop.ClusterVersionMissing, status, reason, msg, updateCheck)
+	clusterDeployment.Status.Conditions = cocontroller.SetClusterDeploymentCondition(clusterDeployment.Status.Conditions, cov1.ClusterVersionMissing, status, reason, msg, updateCheck)
 }
 
 // setMissingRegionStatus updates the cluster deployment status to indicate that the clusterVersion does not include an AMI for the region of
 // the cluster deployment
-func (c *Controller) setMissingRegionStatus(clusterDeployment *clustop.ClusterDeployment, clusterVersion *clustop.ClusterVersion, missing bool) {
+func (c *Controller) setMissingRegionStatus(clusterDeployment *cov1.ClusterDeployment, clusterVersion *cov1.ClusterVersion, missing bool) {
 	var (
 		msg, reason string
 		status      corev1.ConditionStatus
-		updateCheck controller.UpdateConditionCheck
+		updateCheck cocontroller.UpdateConditionCheck
 	)
 	if missing {
 		msg = fmt.Sprintf("no AMI defined for cluster version %s/%s in region %v", clusterVersion.Namespace, clusterVersion.Name, clusterDeployment.Spec.Hardware.AWS.Region)
 		status = corev1.ConditionTrue
-		updateCheck = controller.UpdateConditionIfReasonOrMessageChange
+		updateCheck = cocontroller.UpdateConditionIfReasonOrMessageChange
 		reason = versionMissingRegion
 	} else {
 		msg = fmt.Sprintf("AMI defined for cluster version %s/%s in region %v", clusterVersion.Namespace, clusterVersion.Name, clusterDeployment.Spec.Hardware.AWS.Region)
 		status = corev1.ConditionFalse
-		updateCheck = controller.UpdateConditionNever
+		updateCheck = cocontroller.UpdateConditionNever
 		reason = versionHasRegion
 	}
 
-	clusterDeployment.Status.Conditions = controller.SetClusterDeploymentCondition(clusterDeployment.Status.Conditions, clustop.ClusterVersionIncompatible, status, reason, msg, updateCheck)
+	clusterDeployment.Status.Conditions = cocontroller.SetClusterDeploymentCondition(clusterDeployment.Status.Conditions, cov1.ClusterVersionIncompatible, status, reason, msg, updateCheck)
 }
 
 // getClusterVersion retrieves the cluster version referenced by the cluster deployment.
-func (c *Controller) getClusterVersion(clusterDeployment *clustop.ClusterDeployment) (*clustop.ClusterVersion, error) {
+func (c *Controller) getClusterVersion(clusterDeployment *cov1.ClusterDeployment) (*cov1.ClusterVersion, error) {
 	// Namespace may have been left empty signalling to use the clusterDeployment's namespace to locate the version:
 	clusterVersionRef := clusterDeployment.Spec.ClusterVersionRef
 	versionNS := clusterVersionRef.Namespace
@@ -851,45 +851,45 @@ func (c *Controller) getClusterVersion(clusterDeployment *clustop.ClusterDeploym
 }
 
 func masterMachineSetName(clusterName string) string {
-	return fmt.Sprintf("%s-%s", clusterName, clustop.MasterMachineSetName)
+	return fmt.Sprintf("%s-%s", clusterName, cov1.MasterMachineSetName)
 }
 
 // masterMachineSetConfig finds the MachineSetConfig in a cluster deployment spec with node type Master.
 // Returns the MachineSetConfig and a boolean indicating whether it was found.
-func masterMachineSetConfig(clusterDeployment *clustop.ClusterDeployment) (*clustop.MachineSetConfig, bool) {
+func masterMachineSetConfig(clusterDeployment *cov1.ClusterDeployment) (*cov1.MachineSetConfig, bool) {
 	for _, ms := range clusterDeployment.Spec.MachineSets {
-		if ms.NodeType == clustop.NodeTypeMaster {
+		if ms.NodeType == cov1.NodeTypeMaster {
 			return &ms.MachineSetConfig, true
 		}
 	}
 	return nil, false
 }
 
-func hasClusterDeploymentFinalizer(clusterDeployment *clustop.ClusterDeployment) bool {
-	return controller.HasFinalizer(clusterDeployment, clustop.FinalizerClusterDeployment)
+func hasClusterDeploymentFinalizer(clusterDeployment *cov1.ClusterDeployment) bool {
+	return cocontroller.HasFinalizer(clusterDeployment, cov1.FinalizerClusterDeployment)
 }
 
-func hasRemoteMachineSetsFinalizer(clusterDeployment *clustop.ClusterDeployment) bool {
-	return controller.HasFinalizer(clusterDeployment, clustop.FinalizerRemoteMachineSets)
+func hasRemoteMachineSetsFinalizer(clusterDeployment *cov1.ClusterDeployment) bool {
+	return cocontroller.HasFinalizer(clusterDeployment, cov1.FinalizerRemoteMachineSets)
 }
 
-func (c *Controller) deleteFinalizer(clusterDeployment *clustop.ClusterDeployment) error {
+func (c *Controller) deleteFinalizer(clusterDeployment *cov1.ClusterDeployment) error {
 	clusterDeployment = clusterDeployment.DeepCopy()
-	controller.DeleteFinalizer(clusterDeployment, clustop.FinalizerClusterDeployment)
+	cocontroller.DeleteFinalizer(clusterDeployment, cov1.FinalizerClusterDeployment)
 	_, err := c.clustopClient.ClusteroperatorV1alpha1().ClusterDeployments(clusterDeployment.Namespace).UpdateStatus(clusterDeployment)
 	return err
 }
 
-func (c *Controller) deleteClusterFinalizer(cluster *capi.Cluster) error {
+func (c *Controller) deleteClusterFinalizer(cluster *capiv1.Cluster) error {
 	cluster = cluster.DeepCopy()
-	controller.DeleteFinalizer(cluster, capi.ClusterFinalizer)
+	cocontroller.DeleteFinalizer(cluster, capiv1.ClusterFinalizer)
 	_, err := c.capiClient.ClusterV1alpha1().Clusters(cluster.Namespace).UpdateStatus(cluster)
 	return err
 }
 
-func (c *Controller) addFinalizer(clusterDeployment *clustop.ClusterDeployment) error {
+func (c *Controller) addFinalizer(clusterDeployment *cov1.ClusterDeployment) error {
 	clusterDeployment = clusterDeployment.DeepCopy()
-	controller.AddFinalizer(clusterDeployment, clustop.FinalizerClusterDeployment)
+	cocontroller.AddFinalizer(clusterDeployment, cov1.FinalizerClusterDeployment)
 	_, err := c.clustopClient.ClusteroperatorV1alpha1().ClusterDeployments(clusterDeployment.Namespace).UpdateStatus(clusterDeployment)
 	return err
 }

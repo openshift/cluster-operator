@@ -27,7 +27,7 @@ import (
 	kapi "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 )
 
 const (
@@ -54,7 +54,7 @@ type JobGenerator interface {
 	//   openshift-ansible image
 	GeneratePlaybookJob(
 		name string,
-		hardware clusteroperator.AWSClusterSpec,
+		hardware cov1.AWSClusterSpec,
 		playbook string,
 		inventory string,
 		vars string,
@@ -67,7 +67,7 @@ type JobGenerator interface {
 	// serviceAccount - ServiceAccount object to apply to job/pod
 	GeneratePlaybookJobWithServiceAccount(
 		name string,
-		hardware clusteroperator.AWSClusterSpec,
+		hardware cov1.AWSClusterSpec,
 		playbook string,
 		inventory string,
 		vars string,
@@ -92,7 +92,7 @@ type JobGenerator interface {
 	//   openshift-ansible image
 	GeneratePlaybooksJob(
 		name string,
-		hardware clusteroperator.AWSClusterSpec,
+		hardware cov1.AWSClusterSpec,
 		playbooks []string,
 		inventory,
 		vars,
@@ -116,7 +116,7 @@ type JobGenerator interface {
 	// serviceAccount - (optional) serviceaccount object to attach to the job/pod
 	GeneratePlaybooksJobWithServiceAccount(
 		name string,
-		hardware clusteroperator.AWSClusterSpec,
+		hardware cov1.AWSClusterSpec,
 		playbooks []string,
 		inventory string,
 		vars string,
@@ -152,14 +152,14 @@ func (r *jobGenerator) generateInventoryConfigMap(name, inventory, vars string, 
 	return cfgMap
 }
 
-func (r *jobGenerator) GeneratePlaybookJob(name string, hardware clusteroperator.AWSClusterSpec, playbook, inventory, vars, openshiftAnsibleImage string, openshiftAnsibleImagePullPolicy kapi.PullPolicy) (*kbatch.Job, *kapi.ConfigMap) {
+func (r *jobGenerator) GeneratePlaybookJob(name string, hardware cov1.AWSClusterSpec, playbook, inventory, vars, openshiftAnsibleImage string, openshiftAnsibleImagePullPolicy kapi.PullPolicy) (*kbatch.Job, *kapi.ConfigMap) {
 	return r.GeneratePlaybooksJobWithServiceAccount(name, hardware, []string{playbook},
 		inventory, vars, openshiftAnsibleImage, openshiftAnsibleImagePullPolicy, nil)
 }
 
 func (r *jobGenerator) GeneratePlaybookJobWithServiceAccount(
 	name string,
-	hardware clusteroperator.AWSClusterSpec,
+	hardware cov1.AWSClusterSpec,
 	playbook string,
 	inventory,
 	vars,
@@ -172,7 +172,7 @@ func (r *jobGenerator) GeneratePlaybookJobWithServiceAccount(
 
 func (r *jobGenerator) GeneratePlaybooksJob(
 	name string,
-	hardware clusteroperator.AWSClusterSpec,
+	hardware cov1.AWSClusterSpec,
 	playbooks []string,
 	inventory,
 	vars,
@@ -184,7 +184,7 @@ func (r *jobGenerator) GeneratePlaybooksJob(
 
 func (r *jobGenerator) GeneratePlaybooksJobWithServiceAccount(
 	name string,
-	hardware clusteroperator.AWSClusterSpec,
+	hardware cov1.AWSClusterSpec,
 	playbooks []string,
 	inventory,
 	vars,

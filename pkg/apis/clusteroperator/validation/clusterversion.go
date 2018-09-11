@@ -24,13 +24,13 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
-	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
+	coapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
 )
 
 // validDeploymentTypes is a map containing an entry for every valid DeploymentType value.
-var validDeploymentTypes = map[clusteroperator.ClusterDeploymentType]bool{
-	clusteroperator.ClusterDeploymentTypeOrigin:     true,
-	clusteroperator.ClusterDeploymentTypeEnterprise: true,
+var validDeploymentTypes = map[coapi.ClusterDeploymentType]bool{
+	coapi.ClusterDeploymentTypeOrigin:     true,
+	coapi.ClusterDeploymentTypeEnterprise: true,
 }
 
 // validDeploymentTypeValues is an array of every valid DeploymentType value.
@@ -66,7 +66,7 @@ var validPullPolicyValues = func() []string {
 }()
 
 // ValidateClusterVersion validates a cluster version being created.
-func ValidateClusterVersion(cv *clusteroperator.ClusterVersion) field.ErrorList {
+func ValidateClusterVersion(cv *coapi.ClusterVersion) field.ErrorList {
 	allErrs := field.ErrorList{}
 
 	allErrs = append(allErrs, ValidateClusterVersionSpec(&cv.Spec, field.NewPath("spec"))...)
@@ -75,7 +75,7 @@ func ValidateClusterVersion(cv *clusteroperator.ClusterVersion) field.ErrorList 
 }
 
 // ValidateClusterVersionUpdate validates that a spec update of a clusterversion.
-func ValidateClusterVersionUpdate(newCV *clusteroperator.ClusterVersion, oldCV *clusteroperator.ClusterVersion) field.ErrorList {
+func ValidateClusterVersionUpdate(newCV *coapi.ClusterVersion, oldCV *coapi.ClusterVersion) field.ErrorList {
 	allErrs := field.ErrorList{}
 	// For now updating cluster versions is not supported. In the future this may change if deemed useful.
 	// In the meantime it will be necessary to create a new cluster version and trigger an upgrade if modifications
@@ -86,7 +86,7 @@ func ValidateClusterVersionUpdate(newCV *clusteroperator.ClusterVersion, oldCV *
 }
 
 // ValidateClusterVersionStatusUpdate validates an update to the status of a clusterversion.
-func ValidateClusterVersionStatusUpdate(new *clusteroperator.ClusterVersion, old *clusteroperator.ClusterVersion) field.ErrorList {
+func ValidateClusterVersionStatusUpdate(new *coapi.ClusterVersion, old *coapi.ClusterVersion) field.ErrorList {
 	allErrs := field.ErrorList{}
 
 	// No validation required yet as the status struct is currently just a placeholder.
@@ -95,7 +95,7 @@ func ValidateClusterVersionStatusUpdate(new *clusteroperator.ClusterVersion, old
 }
 
 // ValidateClusterVersionSpec validates the spec of a ClusterVersion.
-func ValidateClusterVersionSpec(spec *clusteroperator.ClusterVersionSpec, fldPath *field.Path) field.ErrorList {
+func ValidateClusterVersionSpec(spec *coapi.ClusterVersionSpec, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 	if spec.Images.ImageFormat == "" {
 		allErrs = append(allErrs, field.Required(field.NewPath("imageFormat"), "must define image format"))
@@ -131,7 +131,7 @@ func ValidateClusterVersionSpec(spec *clusteroperator.ClusterVersionSpec, fldPat
 }
 
 // ValidateVMImages validates the provided image data for each cloud provider.
-func ValidateVMImages(vmImages clusteroperator.VMImages, fldPath *field.Path) field.ErrorList {
+func ValidateVMImages(vmImages coapi.VMImages, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 	// This can be dropped when additional providers are supported, but we should then verify
 	// at least one cloud provider has images specified.
@@ -160,7 +160,7 @@ func ValidateVMImages(vmImages clusteroperator.VMImages, fldPath *field.Path) fi
 }
 
 // ValidateRegionAMIs validates that an AMI is properly defined.
-func ValidateRegionAMIs(regionAMIs *clusteroperator.AWSRegionAMIs, fldPath *field.Path) field.ErrorList {
+func ValidateRegionAMIs(regionAMIs *coapi.AWSRegionAMIs, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 
 	if regionAMIs.Region == "" {

@@ -19,12 +19,12 @@ package dnszone
 import (
 	"testing"
 
-	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
+	coapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func dnsZone() *clusteroperator.DNSZone {
-	return &clusteroperator.DNSZone{
+func dnsZone() *coapi.DNSZone {
+	return &coapi.DNSZone{
 		ObjectMeta: metav1.ObjectMeta{},
 	}
 }
@@ -45,7 +45,7 @@ func TestDNSZoneStrategyTrivial(t *testing.T) {
 
 func TestDNSZoneCreate(t *testing.T) {
 	// Create a cluster version
-	hz := &clusteroperator.DNSZone{}
+	hz := &coapi.DNSZone{}
 
 	// Canonicalize the cluster
 	dnsZoneRESTStrategies.PrepareForCreate(nil, hz)

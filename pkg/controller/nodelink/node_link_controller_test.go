@@ -23,8 +23,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 
-	clustopv1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
-	"github.com/openshift/cluster-operator/pkg/controller"
+	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	cocontroller "github.com/openshift/cluster-operator/pkg/controller"
 
 	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	capiclientfake "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset/fake"
@@ -259,35 +259,35 @@ func TestNodeLinker(t *testing.T) {
 
 func testMachine(generation int64, name, internalIP string, labels map[string]string, taints []corev1.Taint) *capiv1.Machine {
 	testAMI := testImage
-	msSpec := clustopv1.MachineSetSpec{
-		MachineSetConfig: clustopv1.MachineSetConfig{
+	msSpec := cov1.MachineSetSpec{
+		MachineSetConfig: cov1.MachineSetConfig{
 			Infra:    false,
 			Size:     3,
-			NodeType: clustopv1.NodeTypeCompute,
-			Hardware: &clustopv1.MachineSetHardwareSpec{
-				AWS: &clustopv1.MachineSetAWSHardwareSpec{
+			NodeType: cov1.NodeTypeCompute,
+			Hardware: &cov1.MachineSetHardwareSpec{
+				AWS: &cov1.MachineSetAWSHardwareSpec{
 					InstanceType: "t2.micro",
 				},
 			},
 		},
-		ClusterHardware: clustopv1.ClusterHardwareSpec{
-			AWS: &clustopv1.AWSClusterSpec{
+		ClusterHardware: cov1.ClusterHardwareSpec{
+			AWS: &cov1.AWSClusterSpec{
 				Region: testRegion,
 			},
 		},
-		VMImage: clustopv1.VMImage{
+		VMImage: cov1.VMImage{
 			AWSImage: &testAMI,
 		},
 	}
-	rawProviderConfig, _ := controller.MachineProviderConfigFromMachineSetSpec(&msSpec)
+	rawProviderConfig, _ := cocontroller.MachineProviderConfigFromMachineSetSpec(&msSpec)
 	machine := &capiv1.Machine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       name,
 			Namespace:  kubeClusterNamespace,
 			Generation: generation,
 			Labels: map[string]string{
-				clustopv1.ClusterNameLabel:       testClusterID,
-				clustopv1.ClusterDeploymentLabel: testClusterDeploymentName,
+				cov1.ClusterNameLabel:       testClusterID,
+				cov1.ClusterDeploymentLabel: testClusterDeploymentName,
 			},
 		},
 		Spec: capiv1.MachineSpec{
@@ -337,41 +337,41 @@ func testNode(internalIP, machineAnnotation string, labels map[string]string, ta
 }
 
 // testClusterDeployment creates a new test ClusterDeployment
-func testClusterDeployment() *clustopv1.ClusterDeployment {
-	clusterDeployment := &clustopv1.ClusterDeployment{
+func testClusterDeployment() *cov1.ClusterDeployment {
+	clusterDeployment := &cov1.ClusterDeployment{
 		ObjectMeta: metav1.ObjectMeta{
 			UID:       testClusterDeploymentUUID,
 			Name:      testClusterDeploymentName,
 			Namespace: testNamespace,
 		},
-		Spec: clustopv1.ClusterDeploymentSpec{
+		Spec: cov1.ClusterDeploymentSpec{
 			ClusterName: testClusterID,
-			MachineSets: []clustopv1.ClusterMachineSet{
+			MachineSets: []cov1.ClusterMachineSet{
 				{
 					ShortName: "",
-					MachineSetConfig: clustopv1.MachineSetConfig{
+					MachineSetConfig: cov1.MachineSetConfig{
 						Infra:    true,
 						Size:     1,
-						NodeType: clustopv1.NodeTypeMaster,
+						NodeType: cov1.NodeTypeMaster,
 					},
 				},
 				{
 					ShortName: "compute",
-					MachineSetConfig: clustopv1.MachineSetConfig{
+					MachineSetConfig: cov1.MachineSetConfig{
 						Infra:    false,
 						Size:     1,
-						NodeType: clustopv1.NodeTypeCompute,
+						NodeType: cov1.NodeTypeCompute,
 					},
 				},
 			},
-			Hardware: clustopv1.ClusterHardwareSpec{
-				AWS: &clustopv1.AWSClusterSpec{
+			Hardware: cov1.ClusterHardwareSpec{
+				AWS: &cov1.AWSClusterSpec{
 					SSHUser:     "clusteroperator",
 					Region:      testRegion,
 					KeyPairName: "libra",
 				},
 			},
-			ClusterVersionRef: clustopv1.ClusterVersionReference{
+			ClusterVersionRef: cov1.ClusterVersionReference{
 				Name:      testClusterVerName,
 				Namespace: testClusterVerNS,
 			},
@@ -382,26 +382,26 @@ func testClusterDeployment() *clustopv1.ClusterDeployment {
 
 func testCluster(t *testing.T) *capiv1.Cluster {
 	clusterDeployment := testClusterDeployment()
-	cluster, err := controller.BuildCluster(clusterDeployment, testClusterVersion().Spec)
+	cluster, err := cocontroller.BuildCluster(clusterDeployment, testClusterVersion().Spec)
 	assert.NoError(t, err)
 	return cluster
 }
 
 // testClusterVersion will create a ClusterVersion resource.
-func testClusterVersion() *clustopv1.ClusterVersion {
-	cv := &clustopv1.ClusterVersion{
+func testClusterVersion() *cov1.ClusterVersion {
+	cv := &cov1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			UID:       testClusterVerUID,
 			Name:      testClusterVerName,
 			Namespace: testClusterVerNS,
 		},
-		Spec: clustopv1.ClusterVersionSpec{
-			Images: clustopv1.ClusterVersionImages{
+		Spec: cov1.ClusterVersionSpec{
+			Images: cov1.ClusterVersionImages{
 				ImageFormat: "openshift/origin-${component}:${version}",
 			},
-			VMImages: clustopv1.VMImages{
-				AWSImages: &clustopv1.AWSVMImages{
-					RegionAMIs: []clustopv1.AWSRegionAMIs{
+			VMImages: cov1.VMImages{
+				AWSImages: &cov1.AWSVMImages{
+					RegionAMIs: []cov1.AWSRegionAMIs{
 						{
 							Region: testRegion,
 							AMI:    "computeAMI_ID",

@@ -36,7 +36,7 @@ import (
 	batchlisters "k8s.io/client-go/listers/batch/v1"
 	"k8s.io/client-go/tools/cache"
 
-	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 )
 
 //go:generate mockgen -source=./jobcontrol.go -destination=./mockjobcontrol_generated_test.go -package=controller
@@ -436,7 +436,7 @@ func (c *jobControl) createJob(ownerKey string, owner metav1.Object, extraJobIde
 	if job.Annotations == nil {
 		job.Annotations = map[string]string{}
 	}
-	job.Annotations[clusteroperator.OwnerGenerationAnnotation] = fmt.Sprintf("%d", owner.GetGeneration())
+	job.Annotations[cov1.OwnerGenerationAnnotation] = fmt.Sprintf("%d", owner.GetGeneration())
 
 	cleanUpConfigMap := true
 	if configMap != nil {
@@ -541,7 +541,7 @@ func jobOwnerGeneration(job *kbatch.Job) int64 {
 	if job.Annotations == nil {
 		return 0
 	}
-	generationStr, ok := job.Annotations[clusteroperator.OwnerGenerationAnnotation]
+	generationStr, ok := job.Annotations[cov1.OwnerGenerationAnnotation]
 	if !ok {
 		return 0
 	}

@@ -20,7 +20,7 @@ import (
 	"testing"
 
 	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
-	"github.com/openshift/cluster-operator/pkg/controller"
+	cocontroller "github.com/openshift/cluster-operator/pkg/controller"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kruntime "k8s.io/apimachinery/pkg/runtime"
@@ -33,7 +33,7 @@ import (
 	clusteropclientfake "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset/fake"
 	clusteropinformers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions"
 
-	clusterapiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	clusterapiclient "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 	clusterapiclientfake "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset/fake"
 	clusterapiinformers "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions"
@@ -109,7 +109,7 @@ func TestClusterSyncing(t *testing.T) {
 		unexpectedActions      []expectedAction
 		expectedClustopActions []expectedAction
 		clusterDeployment      *cov1.ClusterDeployment
-		remoteClusters         func(*testing.T, *cov1.ClusterDeployment) []clusterapiv1.Cluster
+		remoteClusters         func(*testing.T, *cov1.ClusterDeployment) []capiv1.Cluster
 	}{
 		{
 			name: "no-op cluster already exists",
@@ -117,18 +117,18 @@ func TestClusterSyncing(t *testing.T) {
 				{
 					namespace: remoteClusterAPINamespace,
 					verb:      "create",
-					gvr:       clusterapiv1.SchemeGroupVersion.WithResource("clusters"),
+					gvr:       capiv1.SchemeGroupVersion.WithResource("clusters"),
 				},
 				{
 					namespace: remoteClusterAPINamespace,
 					verb:      "update",
-					gvr:       clusterapiv1.SchemeGroupVersion.WithResource("clusters"),
+					gvr:       capiv1.SchemeGroupVersion.WithResource("clusters"),
 				},
 			},
 			clusterDeployment: newTestClusterDeployment(),
 			controlPlaneReady: true,
-			remoteClusters: func(t *testing.T, clusterDeployment *cov1.ClusterDeployment) []clusterapiv1.Cluster {
-				clusters := []clusterapiv1.Cluster{}
+			remoteClusters: func(t *testing.T, clusterDeployment *cov1.ClusterDeployment) []capiv1.Cluster {
+				clusters := []capiv1.Cluster{}
 				cluster := newCapiCluster(t, clusterDeployment, true)
 				cluster.Namespace = remoteClusterAPINamespace
 
@@ -142,7 +142,7 @@ func TestClusterSyncing(t *testing.T) {
 				{
 					namespace: remoteClusterAPINamespace,
 					verb:      "create",
-					gvr:       clusterapiv1.SchemeGroupVersion.WithResource("clusters"),
+					gvr:       capiv1.SchemeGroupVersion.WithResource("clusters"),
 				},
 			},
 			clusterDeployment: newTestClusterDeployment(),
@@ -154,14 +154,14 @@ func TestClusterSyncing(t *testing.T) {
 				{
 					namespace: remoteClusterAPINamespace,
 					verb:      "update",
-					gvr:       clusterapiv1.SchemeGroupVersion.WithResource("clusters"),
+					gvr:       capiv1.SchemeGroupVersion.WithResource("clusters"),
 				},
 			},
 			clusterDeployment: newTestClusterDeployment(),
 			controlPlaneReady: true,
-			remoteClusters: func(t *testing.T, clusterDeployment *cov1.ClusterDeployment) []clusterapiv1.Cluster {
+			remoteClusters: func(t *testing.T, clusterDeployment *cov1.ClusterDeployment) []capiv1.Cluster {
 
-				clusterList := []clusterapiv1.Cluster{}
+				clusterList := []capiv1.Cluster{}
 				cluster := newCapiCluster(t, clusterDeployment, true)
 				cluster.Namespace = remoteClusterAPINamespace
 
@@ -250,8 +250,8 @@ func TestMachineSetSyncing(t *testing.T) {
 		expectedActions   []expectedAction
 		unexpectedActions []expectedAction
 		clusterDeployment *cov1.ClusterDeployment
-		remoteMachineSets []clusterapiv1.MachineSet
-		remoteClusters    []clusterapiv1.Cluster
+		remoteMachineSets []capiv1.MachineSet
+		remoteClusters    []capiv1.Cluster
 	}{
 		{
 			name: "no-op when control plane not yet ready",
@@ -259,7 +259,7 @@ func TestMachineSetSyncing(t *testing.T) {
 				{
 					namespace: remoteClusterAPINamespace,
 					verb:      "create",
-					gvr:       clusterapiv1.SchemeGroupVersion.WithResource("machinesets"),
+					gvr:       capiv1.SchemeGroupVersion.WithResource("machinesets"),
 				},
 			},
 			clusterDeployment: newTestClusterDeployment(),
@@ -271,7 +271,7 @@ func TestMachineSetSyncing(t *testing.T) {
 				{
 					namespace: remoteClusterAPINamespace,
 					verb:      "create",
-					gvr:       clusterapiv1.SchemeGroupVersion.WithResource("machinesets"),
+					gvr:       capiv1.SchemeGroupVersion.WithResource("machinesets"),
 				},
 			},
 			clusterDeployment: newTestClusterWithCompute(),
@@ -283,18 +283,18 @@ func TestMachineSetSyncing(t *testing.T) {
 				{
 					namespace: remoteClusterAPINamespace,
 					verb:      "create",
-					gvr:       clusterapiv1.SchemeGroupVersion.WithResource("machinesets"),
+					gvr:       capiv1.SchemeGroupVersion.WithResource("machinesets"),
 				},
 			},
 			clusterDeployment: newTestClusterWithCompute(),
 			controlPlaneReady: true,
-			remoteMachineSets: []clusterapiv1.MachineSet{
+			remoteMachineSets: []capiv1.MachineSet{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      testClusterName + "-compute",
 						Namespace: remoteClusterAPINamespace,
 					},
-					Spec: clusterapiv1.MachineSetSpec{
+					Spec: capiv1.MachineSetSpec{
 						Replicas: func() *int32 { x := int32(1); return &x }(),
 					},
 				},
@@ -306,18 +306,18 @@ func TestMachineSetSyncing(t *testing.T) {
 				{
 					namespace: remoteClusterAPINamespace,
 					verb:      "update",
-					gvr:       clusterapiv1.SchemeGroupVersion.WithResource("machinesets"),
+					gvr:       capiv1.SchemeGroupVersion.WithResource("machinesets"),
 				},
 			},
 			clusterDeployment: newTestClusterWithCompute(),
 			controlPlaneReady: true,
-			remoteMachineSets: []clusterapiv1.MachineSet{
+			remoteMachineSets: []capiv1.MachineSet{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      testClusterName + "-compute",
 						Namespace: remoteClusterAPINamespace,
 					},
-					Spec: clusterapiv1.MachineSetSpec{
+					Spec: capiv1.MachineSetSpec{
 						Replicas: func() *int32 { x := int32(2); return &x }(),
 					},
 				},
@@ -329,7 +329,7 @@ func TestMachineSetSyncing(t *testing.T) {
 				{
 					namespace: remoteClusterAPINamespace,
 					verb:      "create",
-					gvr:       clusterapiv1.SchemeGroupVersion.WithResource("machinesets"),
+					gvr:       capiv1.SchemeGroupVersion.WithResource("machinesets"),
 				},
 			},
 			clusterDeployment: func() *cov1.ClusterDeployment {
@@ -338,13 +338,13 @@ func TestMachineSetSyncing(t *testing.T) {
 				return cluster
 			}(),
 			controlPlaneReady: true,
-			remoteMachineSets: []clusterapiv1.MachineSet{
+			remoteMachineSets: []capiv1.MachineSet{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "compute",
 						Namespace: remoteClusterAPINamespace,
 					},
-					Spec: clusterapiv1.MachineSetSpec{
+					Spec: capiv1.MachineSetSpec{
 						Replicas: func() *int32 { x := int32(2); return &x }(),
 					},
 				},
@@ -356,12 +356,12 @@ func TestMachineSetSyncing(t *testing.T) {
 				{
 					namespace: remoteClusterAPINamespace,
 					verb:      "delete",
-					gvr:       clusterapiv1.SchemeGroupVersion.WithResource("machinesets"),
+					gvr:       capiv1.SchemeGroupVersion.WithResource("machinesets"),
 				},
 			},
 			clusterDeployment: newTestClusterWithCompute(),
 			controlPlaneReady: true,
-			remoteMachineSets: []clusterapiv1.MachineSet{
+			remoteMachineSets: []capiv1.MachineSet{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      testClusterName + "-compute",
@@ -371,7 +371,7 @@ func TestMachineSetSyncing(t *testing.T) {
 							"clusteroperator.openshift.io/machineset": testClusterName + "-compute",
 						},
 					},
-					Spec: clusterapiv1.MachineSetSpec{
+					Spec: capiv1.MachineSetSpec{
 						Replicas: func() *int32 { x := int32(1); return &x }(),
 					},
 				},
@@ -384,7 +384,7 @@ func TestMachineSetSyncing(t *testing.T) {
 							"clusteroperator.openshift.io/machineset": testClusterName + "-compute2",
 						},
 					},
-					Spec: clusterapiv1.MachineSetSpec{
+					Spec: capiv1.MachineSetSpec{
 						Replicas: func() *int32 { x := int32(1); return &x }(),
 					},
 				},
@@ -394,7 +394,7 @@ func TestMachineSetSyncing(t *testing.T) {
 			name:              "delete remote machinesets",
 			clusterDeployment: newDeletedTestClusterWithFinalizer(),
 			controlPlaneReady: true,
-			remoteMachineSets: []clusterapiv1.MachineSet{
+			remoteMachineSets: []capiv1.MachineSet{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      testClusterName + "-compute",
@@ -404,7 +404,7 @@ func TestMachineSetSyncing(t *testing.T) {
 							"clusteroperator.openshift.io/machineset": testClusterName + "-compute",
 						},
 					},
-					Spec: clusterapiv1.MachineSetSpec{
+					Spec: capiv1.MachineSetSpec{
 						Replicas: func() *int32 { x := int32(1); return &x }(),
 					},
 				},
@@ -413,7 +413,7 @@ func TestMachineSetSyncing(t *testing.T) {
 				{
 					namespace: remoteClusterAPINamespace,
 					verb:      "delete-collection",
-					gvr:       clusterapiv1.SchemeGroupVersion.WithResource("machinesets"),
+					gvr:       capiv1.SchemeGroupVersion.WithResource("machinesets"),
 				},
 			},
 		},
@@ -527,7 +527,7 @@ type expectedAction struct {
 }
 
 func getKey(clusterDeployment *cov1.ClusterDeployment, t *testing.T) string {
-	key, err := controller.KeyFunc(clusterDeployment)
+	key, err := cocontroller.KeyFunc(clusterDeployment)
 	if err != nil {
 		t.Errorf("Unexpected error getting key for clusterdeployment %v: %v", clusterDeployment.Name, err)
 		return ""
@@ -535,19 +535,19 @@ func getKey(clusterDeployment *cov1.ClusterDeployment, t *testing.T) string {
 	return key
 }
 
-func newCapiCluster(t *testing.T, clusterDeployment *cov1.ClusterDeployment, controlPlaneReady bool) clusterapiv1.Cluster {
-	cluster := clusterapiv1.Cluster{
+func newCapiCluster(t *testing.T, clusterDeployment *cov1.ClusterDeployment, controlPlaneReady bool) capiv1.Cluster {
+	cluster := capiv1.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      clusterDeployment.Spec.ClusterName,
 			Namespace: clusterDeployment.Namespace,
 		},
-		Spec: clusterapiv1.ClusterSpec{
-			ClusterNetwork: clusterapiv1.ClusterNetworkingConfig{
-				Services: clusterapiv1.NetworkRanges{
+		Spec: capiv1.ClusterSpec{
+			ClusterNetwork: capiv1.ClusterNetworkingConfig{
+				Services: capiv1.NetworkRanges{
 					CIDRBlocks: []string{"172.30.0.0/16"},
 				},
 				ServiceDomain: "svc.clsuter.local",
-				Pods: clusterapiv1.NetworkRanges{
+				Pods: capiv1.NetworkRanges{
 					CIDRBlocks: []string{"10.128.0.0/14"},
 				},
 			},
@@ -558,14 +558,14 @@ func newCapiCluster(t *testing.T, clusterDeployment *cov1.ClusterDeployment, con
 		ClusterAPIInstalled:   controlPlaneReady,
 		ControlPlaneInstalled: controlPlaneReady,
 	}
-	providerStatus, err := controller.EncodeClusterProviderStatus(status)
+	providerStatus, err := cocontroller.EncodeClusterProviderStatus(status)
 	if err != nil {
 		t.Fatalf("error getting provider status from clusterdeployment: %v", err)
 	}
 	cluster.Status.ProviderStatus = providerStatus
 
 	cv := newClusterVer(testClusterVerNS, testClusterVerName, testClusterVerUID)
-	providerConfig, err := controller.BuildAWSClusterProviderConfig(&clusterDeployment.Spec, cv.Spec)
+	providerConfig, err := cocontroller.BuildAWSClusterProviderConfig(&clusterDeployment.Spec, cv.Spec)
 	if err != nil {
 		t.Fatalf("error getting provider config from clusterdeployment: %v", err)
 	}
@@ -574,14 +574,14 @@ func newCapiCluster(t *testing.T, clusterDeployment *cov1.ClusterDeployment, con
 	return cluster
 }
 
-func testClusterAPISpec() clusterapiv1.ClusterSpec {
-	clusterSpec := clusterapiv1.ClusterSpec{
-		ClusterNetwork: clusterapiv1.ClusterNetworkingConfig{
-			Services: clusterapiv1.NetworkRanges{
+func testClusterAPISpec() capiv1.ClusterSpec {
+	clusterSpec := capiv1.ClusterSpec{
+		ClusterNetwork: capiv1.ClusterNetworkingConfig{
+			Services: capiv1.NetworkRanges{
 				CIDRBlocks: []string{"172.30.0.0/16"},
 			},
 			ServiceDomain: "svc.clsuter.local",
-			Pods: clusterapiv1.NetworkRanges{
+			Pods: capiv1.NetworkRanges{
 				CIDRBlocks: []string{"10.128.0.0/14"},
 			},
 		},

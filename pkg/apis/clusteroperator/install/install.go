@@ -23,21 +23,21 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
-	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	coapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
+	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 )
 
 // Install registers the API group and adds types to a scheme
 func Install(groupFactoryRegistry announced.APIGroupFactoryRegistry, registry *registered.APIRegistrationManager, scheme *runtime.Scheme) {
 	if err := announced.NewGroupMetaFactory(
 		&announced.GroupMetaFactoryArgs{
-			GroupName:                  clusteroperator.GroupName,
-			VersionPreferenceOrder:     []string{v1alpha1.SchemeGroupVersion.Version},
+			GroupName:                  coapi.GroupName,
+			VersionPreferenceOrder:     []string{cov1.SchemeGroupVersion.Version},
 			RootScopedKinds:            sets.NewString(),
-			AddInternalObjectsToScheme: clusteroperator.AddToScheme,
+			AddInternalObjectsToScheme: coapi.AddToScheme,
 		},
 		announced.VersionToSchemeFunc{
-			v1alpha1.SchemeGroupVersion.Version: v1alpha1.AddToScheme,
+			cov1.SchemeGroupVersion.Version: cov1.AddToScheme,
 		},
 	).Announce(groupFactoryRegistry).RegisterAndEnable(registry, scheme); err != nil {
 		panic(err)

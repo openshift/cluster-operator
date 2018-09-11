@@ -17,7 +17,7 @@ limitations under the License.
 package dnszone
 
 import (
-	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
+	coapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -31,9 +31,9 @@ import (
 // DNSZone resources
 func NewStorage(opts generic.RESTOptions) (dnsZones *registry.Store, clusterStorageVersion *StatusREST) {
 	store := registry.Store{
-		NewFunc:                  func() runtime.Object { return &clusteroperator.DNSZone{} },
-		NewListFunc:              func() runtime.Object { return &clusteroperator.DNSZoneList{} },
-		DefaultQualifiedResource: clusteroperator.Resource("dnszone"),
+		NewFunc:                  func() runtime.Object { return &coapi.DNSZone{} },
+		NewListFunc:              func() runtime.Object { return &coapi.DNSZoneList{} },
+		DefaultQualifiedResource: coapi.Resource("dnszone"),
 
 		CreateStrategy:          dnsZoneRESTStrategies,
 		UpdateStrategy:          dnsZoneRESTStrategies,
@@ -61,7 +61,7 @@ type StatusREST struct {
 
 // New returns a new DNSZone.
 func (r *StatusREST) New() runtime.Object {
-	return &clusteroperator.DNSZone{}
+	return &coapi.DNSZone{}
 }
 
 // Get retrieves the object from the storage. It is required to support Patch

@@ -21,7 +21,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	clusterv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
@@ -73,7 +73,7 @@ func chooseNewest(instance1, instance2 *ec2.Instance) *ec2.Instance {
 
 // GetInstance returns the AWS instance for a given machine. If multiple instances match our machine,
 // the most recently launched will be returned. If no instance exists, an error will be returned.
-func GetInstance(machine *clusterv1.Machine, client Client) (*ec2.Instance, error) {
+func GetInstance(machine *capiv1.Machine, client Client) (*ec2.Instance, error) {
 	instances, err := GetRunningInstances(machine, client)
 	if err != nil {
 		return nil, err
@@ -88,21 +88,21 @@ func GetInstance(machine *clusterv1.Machine, client Client) (*ec2.Instance, erro
 
 // GetRunningInstances returns all running instances that have a tag matching our machine name,
 // and cluster ID.
-func GetRunningInstances(machine *clusterv1.Machine, client Client) ([]*ec2.Instance, error) {
+func GetRunningInstances(machine *capiv1.Machine, client Client) ([]*ec2.Instance, error) {
 	runningInstanceStateFilter := []*string{aws.String(ec2.InstanceStateNameRunning), aws.String(ec2.InstanceStateNamePending)}
 	return GetInstances(machine, client, runningInstanceStateFilter)
 }
 
 // GetStoppedInstances returns all stopped instances that have a tag matching our machine name,
 // and cluster ID.
-func GetStoppedInstances(machine *clusterv1.Machine, client Client) ([]*ec2.Instance, error) {
+func GetStoppedInstances(machine *capiv1.Machine, client Client) ([]*ec2.Instance, error) {
 	stoppedInstanceStateFilter := []*string{aws.String(ec2.InstanceStateNameStopped), aws.String(ec2.InstanceStateNameStopping)}
 	return GetInstances(machine, client, stoppedInstanceStateFilter)
 }
 
 // GetInstances returns all instances that have a tag matching our machine name,
 // and cluster ID.
-func GetInstances(machine *clusterv1.Machine, client Client, instanceStateFilter []*string) ([]*ec2.Instance, error) {
+func GetInstances(machine *capiv1.Machine, client Client, instanceStateFilter []*string) ([]*ec2.Instance, error) {
 
 	machineName := machine.Name
 

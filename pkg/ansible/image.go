@@ -21,7 +21,7 @@ import (
 
 	kapi "k8s.io/api/core/v1"
 
-	coapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 )
 
 const (
@@ -30,7 +30,7 @@ const (
 
 // GetAnsibleImageForClusterVersion gets the openshift-ansible image and pull
 // policy to use for clusters that use the specified ClusterVersion.
-func GetAnsibleImageForClusterVersion(cv coapi.OpenShiftConfigVersion) (string, kapi.PullPolicy) {
+func GetAnsibleImageForClusterVersion(cv cov1.OpenShiftConfigVersion) (string, kapi.PullPolicy) {
 	image := fmt.Sprintf("%s:%s", defaultImageName, cv.Version)
 	if cv.Images.OpenshiftAnsibleImage != nil {
 		image = *cv.Images.OpenshiftAnsibleImage

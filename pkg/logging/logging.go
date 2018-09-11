@@ -21,31 +21,29 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
-	clusterapi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
-
-	clusterv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 
 	log "github.com/sirupsen/logrus"
 )
 
 // WithMachineSet expands a logger's context to include info about the given machineset.
-func WithMachineSet(logger log.FieldLogger, machineSet *clusterapi.MachineSet) log.FieldLogger {
+func WithMachineSet(logger log.FieldLogger, machineSet *capiv1.MachineSet) log.FieldLogger {
 	return WithGenericObject(logger, "machineset", machineSet)
 }
 
 // WithClusterDeployment expands a logger's context to include info about the given cluster deployment.
-func WithClusterDeployment(logger log.FieldLogger, clusterDeployment *clusteroperator.ClusterDeployment) log.FieldLogger {
+func WithClusterDeployment(logger log.FieldLogger, clusterDeployment *cov1.ClusterDeployment) log.FieldLogger {
 	return WithGenericObject(logger, "clusterdeployment", clusterDeployment)
 }
 
 // WithCluster expands a logger's context to include info about the given cluster.
-func WithCluster(logger log.FieldLogger, cluster *clusterapi.Cluster) log.FieldLogger {
+func WithCluster(logger log.FieldLogger, cluster *capiv1.Cluster) log.FieldLogger {
 	return WithGenericObject(logger, "cluster", cluster)
 }
 
 // WithCombinedCluster expands a logger's context to include info about the given cluster.
-func WithCombinedCluster(logger log.FieldLogger, cluster *clusteroperator.CombinedCluster) log.FieldLogger {
+func WithCombinedCluster(logger log.FieldLogger, cluster *cov1.CombinedCluster) log.FieldLogger {
 	return WithGenericObject(logger, "cluster", cluster)
 }
 
@@ -55,6 +53,6 @@ func WithGenericObject(logger log.FieldLogger, objectType string, obj metav1.Obj
 }
 
 // WithMachine expands a logger's context to include info about the given machine.
-func WithMachine(logger log.FieldLogger, machine *clusterv1.Machine) log.FieldLogger {
+func WithMachine(logger log.FieldLogger, machine *capiv1.Machine) log.FieldLogger {
 	return WithGenericObject(logger, "machine", machine)
 }

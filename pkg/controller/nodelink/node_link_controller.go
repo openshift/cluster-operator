@@ -42,9 +42,9 @@ import (
 	capiinformers "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions/cluster/v1alpha1"
 	lister "sigs.k8s.io/cluster-api/pkg/client/listers_generated/cluster/v1alpha1"
 
-	clustopclient "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
-	"github.com/openshift/cluster-operator/pkg/controller"
-	"github.com/openshift/cluster-operator/pkg/kubernetes/pkg/util/metrics"
+	coclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
+	cocontroller "github.com/openshift/cluster-operator/pkg/controller"
+	cometrics "github.com/openshift/cluster-operator/pkg/kubernetes/pkg/util/metrics"
 )
 
 const (
@@ -74,7 +74,7 @@ func NewController(
 	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: v1core.New(kubeClient.CoreV1().RESTClient()).Events("")})
 
 	if kubeClient != nil && kubeClient.CoreV1().RESTClient().GetRateLimiter() != nil {
-		metrics.RegisterMetricAndTrackRateLimiterUsage("clusteroperator_awselb_controller", kubeClient.CoreV1().RESTClient().GetRateLimiter())
+		cometrics.RegisterMetricAndTrackRateLimiterUsage("clusteroperator_awselb_controller", kubeClient.CoreV1().RESTClient().GetRateLimiter())
 	}
 
 	c := &Controller{
@@ -103,7 +103,7 @@ func NewController(
 
 // Controller monitors nodes and links them to their machines when possible, as well as applies desired labels and taints.
 type Controller struct {
-	client     clustopclient.Interface
+	client     coclientset.Interface
 	capiClient capiclient.Interface
 	kubeClient kubeclientset.Interface
 
@@ -168,11 +168,11 @@ func (c *Controller) Run(workers int, stopCh <-chan struct{}) {
 	log.Infof("Starting nodelink controller")
 	defer log.Infof("Shutting down nodelink controller")
 
-	if !controller.WaitForCacheSync("machine", stopCh, c.machinesSynced) {
+	if !cocontroller.WaitForCacheSync("machine", stopCh, c.machinesSynced) {
 		return
 	}
 
-	if !controller.WaitForCacheSync("node", stopCh, c.nodesSynced) {
+	if !cocontroller.WaitForCacheSync("node", stopCh, c.nodesSynced) {
 		return
 	}
 
@@ -184,7 +184,7 @@ func (c *Controller) Run(workers int, stopCh <-chan struct{}) {
 }
 
 func (c *Controller) enqueue(node *corev1.Node) {
-	key, err := controller.KeyFunc(node)
+	key, err := cocontroller.KeyFunc(node)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("Couldn't get key for object %#v: %v", node, err))
 		return

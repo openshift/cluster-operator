@@ -20,7 +20,7 @@ import (
 	kbatch "k8s.io/api/batch/v1"
 	kapi "k8s.io/api/core/v1"
 
-	clustop "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 )
 
 type registryStorageCreds struct {
@@ -33,8 +33,8 @@ type registryStorageCreds struct {
 type JobGeneratorExecutor struct {
 	jobGenerator        JobGenerator
 	playbooks           []string
-	cluster             *clustop.CombinedCluster
-	clusterVersion      clustop.OpenShiftConfigVersion
+	cluster             *cov1.CombinedCluster
+	clusterVersion      cov1.OpenShiftConfigVersion
 	forCluster          bool
 	forMasterMachineSet bool
 	infraSize           *int
@@ -44,7 +44,7 @@ type JobGeneratorExecutor struct {
 
 // NewJobGeneratorExecutorForCluster creates a JobGeneratorExecutor
 // that creates a job for the cluster.
-func NewJobGeneratorExecutorForCluster(jobGenerator JobGenerator, playbooks []string, cluster *clustop.CombinedCluster, clusterVersion clustop.OpenShiftConfigVersion, infraSize int) *JobGeneratorExecutor {
+func NewJobGeneratorExecutorForCluster(jobGenerator JobGenerator, playbooks []string, cluster *cov1.CombinedCluster, clusterVersion cov1.OpenShiftConfigVersion, infraSize int) *JobGeneratorExecutor {
 	return &JobGeneratorExecutor{
 		jobGenerator:   jobGenerator,
 		playbooks:      playbooks,
@@ -57,7 +57,7 @@ func NewJobGeneratorExecutorForCluster(jobGenerator JobGenerator, playbooks []st
 
 // NewJobGeneratorExecutorForMasterMachineSet creates a JobGeneratorExecutor
 // that creates a job for the master machine set of a cluster.
-func NewJobGeneratorExecutorForMasterMachineSet(jobGenerator JobGenerator, playbooks []string, cluster *clustop.CombinedCluster, clusterVersion clustop.OpenShiftConfigVersion) *JobGeneratorExecutor {
+func NewJobGeneratorExecutorForMasterMachineSet(jobGenerator JobGenerator, playbooks []string, cluster *cov1.CombinedCluster, clusterVersion cov1.OpenShiftConfigVersion) *JobGeneratorExecutor {
 	return &JobGeneratorExecutor{
 		jobGenerator:        jobGenerator,
 		playbooks:           playbooks,

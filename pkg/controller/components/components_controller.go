@@ -25,12 +25,12 @@ import (
 	batchinformers "k8s.io/client-go/informers/batch/v1"
 	kubeclientset "k8s.io/client-go/kubernetes"
 
-	"github.com/openshift/cluster-operator/pkg/ansible"
-	clustop "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
-	clustopclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
-	"github.com/openshift/cluster-operator/pkg/controller"
+	coansible "github.com/openshift/cluster-operator/pkg/ansible"
+	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	coclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
+	cocontroller "github.com/openshift/cluster-operator/pkg/controller"
 	clusterinstallcontroller "github.com/openshift/cluster-operator/pkg/controller/clusterinstall"
-	capi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	capiclientset "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 	capiinformers "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions/cluster/v1alpha1"
 )
@@ -58,7 +58,7 @@ func NewController(
 	machineSetInformer capiinformers.MachineSetInformer,
 	jobInformer batchinformers.JobInformer,
 	kubeClient kubeclientset.Interface,
-	clustopClient clustopclientset.Interface,
+	clustopClient coclientset.Interface,
 	capiClient capiclientset.Interface,
 ) *clusterinstallcontroller.Controller {
 
@@ -83,7 +83,7 @@ type installStrategy struct {
 
 var _ clusterinstallcontroller.InstallJobDecorationStrategy = (*installStrategy)(nil)
 
-func (s *installStrategy) ReadyToInstall(cluster *clustop.CombinedCluster, masterMachineSet *capi.MachineSet) bool {
+func (s *installStrategy) ReadyToInstall(cluster *cov1.CombinedCluster, masterMachineSet *capiv1.MachineSet) bool {
 	if !cluster.ClusterProviderStatus.ControlPlaneInstalled {
 		return false
 	}
@@ -91,8 +91,8 @@ func (s *installStrategy) ReadyToInstall(cluster *clustop.CombinedCluster, maste
 		cluster.ClusterProviderStatus.ComponentsInstalledJobMachineSetGeneration != masterMachineSet.Generation
 }
 
-func (s *installStrategy) DecorateJobGeneratorExecutor(executor *ansible.JobGeneratorExecutor, cluster *clustop.CombinedCluster) error {
-	infraSize, err := controller.GetInfraSize(cluster)
+func (s *installStrategy) DecorateJobGeneratorExecutor(executor *coansible.JobGeneratorExecutor, cluster *cov1.CombinedCluster) error {
+	infraSize, err := cocontroller.GetInfraSize(cluster)
 	if err != nil {
 		return err
 	}
@@ -105,7 +105,7 @@ func (s *installStrategy) DecorateJobGeneratorExecutor(executor *ansible.JobGene
 	}
 
 	registrySecretFound := true
-	registryCredsSecretName := controller.RegistryCredsSecretName(cluster.Name)
+	registryCredsSecretName := cocontroller.RegistryCredsSecretName(cluster.Name)
 	rSecret, err := s.kubeClient.CoreV1().Secrets(cluster.Namespace).Get(registryCredsSecretName, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
 		registrySecretFound = false
@@ -125,21 +125,21 @@ func (s *installStrategy) DecorateJobGeneratorExecutor(executor *ansible.JobGene
 	return nil
 }
 
-func (s *installStrategy) OnInstall(succeeded bool, cluster *clustop.CombinedCluster, masterMachineSet *capi.MachineSet, job *batchv1.Job) {
+func (s *installStrategy) OnInstall(succeeded bool, cluster *cov1.CombinedCluster, masterMachineSet *capiv1.MachineSet, job *batchv1.Job) {
 	cluster.ClusterProviderStatus.ComponentsInstalled = succeeded
 	cluster.ClusterProviderStatus.ComponentsInstalledJobClusterGeneration = cluster.Generation
 	cluster.ClusterProviderStatus.ComponentsInstalledJobMachineSetGeneration = masterMachineSet.Generation
 }
 
-func (s *installStrategy) ConvertJobSyncConditionType(conditionType controller.JobSyncConditionType) clustop.ClusterConditionType {
+func (s *installStrategy) ConvertJobSyncConditionType(conditionType cocontroller.JobSyncConditionType) cov1.ClusterConditionType {
 	switch conditionType {
-	case controller.JobSyncProcessing:
-		return clustop.ComponentsInstalling
-	case controller.JobSyncProcessed:
-		return clustop.ComponentsInstalled
-	case controller.JobSyncProcessingFailed:
-		return clustop.ComponentsInstallationFailed
+	case cocontroller.JobSyncProcessing:
+		return cov1.ComponentsInstalling
+	case cocontroller.JobSyncProcessed:
+		return cov1.ComponentsInstalled
+	case cocontroller.JobSyncProcessingFailed:
+		return cov1.ComponentsInstallationFailed
 	default:
-		return clustop.ClusterConditionType("")
+		return cov1.ClusterConditionType("")
 	}
 }

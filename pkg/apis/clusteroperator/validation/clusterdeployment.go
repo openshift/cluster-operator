@@ -21,14 +21,14 @@ import (
 	apivalidation "k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
-	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
+	coapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
 )
 
 // ValidateClusterDeploymentName validates the name of a cluster.
 var ValidateClusterDeploymentName = apivalidation.ValidateClusterName
 
 // ValidateClusterDeployment validates a cluster being created.
-func ValidateClusterDeployment(cluster *clusteroperator.ClusterDeployment) field.ErrorList {
+func ValidateClusterDeployment(cluster *coapi.ClusterDeployment) field.ErrorList {
 	allErrs := field.ErrorList{}
 
 	for _, msg := range ValidateClusterDeploymentName(cluster.Name, false) {
@@ -41,7 +41,7 @@ func ValidateClusterDeployment(cluster *clusteroperator.ClusterDeployment) field
 }
 
 // validateClusterDeploymentSpec validates the spec of a cluster.
-func validateClusterDeploymentSpec(spec *clusteroperator.ClusterDeploymentSpec, fldPath *field.Path) field.ErrorList {
+func validateClusterDeploymentSpec(spec *coapi.ClusterDeploymentSpec, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 	if spec.ClusterName == "" {
 		allErrs = append(allErrs, field.Required(fldPath.Child("clusterName"), "ClusterName must be set"))
@@ -54,7 +54,7 @@ func validateClusterDeploymentSpec(spec *clusteroperator.ClusterDeploymentSpec, 
 	for i := range spec.MachineSets {
 		machineSet := spec.MachineSets[i]
 		allErrs = append(allErrs, validateClusterMachineSet(&machineSet, machineSetsPath.Index(i))...)
-		if machineSet.NodeType == clusteroperator.NodeTypeMaster {
+		if machineSet.NodeType == coapi.NodeTypeMaster {
 			masterCount++
 			if masterCount > 1 {
 				allErrs = append(allErrs, field.Invalid(machineSetsPath.Index(i).Child("type"), machineSet.NodeType, "can only have one master machineset"))
@@ -120,14 +120,14 @@ func validateClusterDeploymentSpec(spec *clusteroperator.ClusterDeploymentSpec, 
 	return allErrs
 }
 
-func validateClusterMachineSet(machineSet *clusteroperator.ClusterMachineSet, fldPath *field.Path) field.ErrorList {
+func validateClusterMachineSet(machineSet *coapi.ClusterMachineSet, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
-	if machineSet.NodeType == clusteroperator.NodeTypeMaster {
+	if machineSet.NodeType == coapi.NodeTypeMaster {
 		if len(machineSet.ShortName) > 0 {
 			allErrs = append(allErrs, field.Invalid(fldPath.Child("shortName"), machineSet.ShortName, "short name must not be specified for master machineset"))
 		}
 	} else {
-		if machineSet.ShortName == clusteroperator.MasterMachineSetName {
+		if machineSet.ShortName == coapi.MasterMachineSetName {
 			allErrs = append(allErrs, field.Invalid(fldPath.Child("shortName"), machineSet.ShortName, "short name cannot be reserved name"))
 		}
 		for _, msg := range apivalidation.NameIsDNSLabel(machineSet.ShortName, false) {
@@ -139,7 +139,7 @@ func validateClusterMachineSet(machineSet *clusteroperator.ClusterMachineSet, fl
 }
 
 // validateClusterDeploymentStatus validates the status of a cluster.
-func validateClusterDeploymentStatus(status *clusteroperator.ClusterDeploymentStatus, fldPath *field.Path) field.ErrorList {
+func validateClusterDeploymentStatus(status *coapi.ClusterDeploymentStatus, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 
 	return allErrs
@@ -157,7 +157,7 @@ func validateSecretRef(ref *corev1.LocalObjectReference, fldPath *field.Path) fi
 }
 
 // ValidateClusterDeploymentUpdate validates an update to the spec of a cluster.
-func ValidateClusterDeploymentUpdate(new *clusteroperator.ClusterDeployment, old *clusteroperator.ClusterDeployment) field.ErrorList {
+func ValidateClusterDeploymentUpdate(new *coapi.ClusterDeployment, old *coapi.ClusterDeployment) field.ErrorList {
 	allErrs := field.ErrorList{}
 
 	allErrs = append(allErrs, validateClusterDeploymentSpec(&new.Spec, field.NewPath("spec"))...)
@@ -171,7 +171,7 @@ func ValidateClusterDeploymentUpdate(new *clusteroperator.ClusterDeployment, old
 }
 
 // ValidateClusterDeploymentStatusUpdate validates an update to the status of a cluster.
-func ValidateClusterDeploymentStatusUpdate(new *clusteroperator.ClusterDeployment, old *clusteroperator.ClusterDeployment) field.ErrorList {
+func ValidateClusterDeploymentStatusUpdate(new *coapi.ClusterDeployment, old *coapi.ClusterDeployment) field.ErrorList {
 	allErrs := field.ErrorList{}
 
 	allErrs = append(allErrs, validateClusterDeploymentStatus(&new.Status, field.NewPath("status"))...)

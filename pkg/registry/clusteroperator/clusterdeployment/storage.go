@@ -17,7 +17,7 @@ limitations under the License.
 package clusterdeployment
 
 import (
-	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
+	coapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -31,9 +31,9 @@ import (
 // Cluster resources
 func NewStorage(opts generic.RESTOptions) (clusters *registry.Store, clustersStatus *StatusREST) {
 	store := registry.Store{
-		NewFunc:                  func() runtime.Object { return &clusteroperator.ClusterDeployment{} },
-		NewListFunc:              func() runtime.Object { return &clusteroperator.ClusterDeploymentList{} },
-		DefaultQualifiedResource: clusteroperator.Resource("clusterdeployments"),
+		NewFunc:                  func() runtime.Object { return &coapi.ClusterDeployment{} },
+		NewListFunc:              func() runtime.Object { return &coapi.ClusterDeploymentList{} },
+		DefaultQualifiedResource: coapi.Resource("clusterdeployments"),
 
 		CreateStrategy:          clusterDeploymentRESTStrategies,
 		UpdateStrategy:          clusterDeploymentRESTStrategies,
@@ -61,7 +61,7 @@ type StatusREST struct {
 
 // New returns a new ClusterDeployment.
 func (r *StatusREST) New() runtime.Object {
-	return &clusteroperator.ClusterDeployment{}
+	return &coapi.ClusterDeployment{}
 }
 
 // Get retrieves the object from the storage. It is required to support Patch

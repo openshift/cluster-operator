@@ -25,8 +25,8 @@ import (
 	"k8s.io/apiserver/pkg/storage/names"
 
 	"github.com/golang/glog"
-	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
-	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator/validation"
+	coapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
+	covalidation "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/validation"
 )
 
 // NewScopeStrategy returns a new NamespaceScopedStrategy for clusterversions
@@ -68,7 +68,7 @@ var (
 
 // Canonicalize does not transform a cluster.
 func (clusterVersionRESTStrategy) Canonicalize(obj runtime.Object) {
-	_, ok := obj.(*clusteroperator.ClusterVersion)
+	_, ok := obj.(*coapi.ClusterVersion)
 	if !ok {
 		glog.Fatal("received a non-cluster version object to create")
 	}
@@ -80,7 +80,7 @@ func (clusterVersionRESTStrategy) NamespaceScoped() bool {
 }
 
 func (clusterVersionRESTStrategy) PrepareForCreate(ctx genericapirequest.Context, obj runtime.Object) {
-	cv, ok := obj.(*clusteroperator.ClusterVersion)
+	cv, ok := obj.(*coapi.ClusterVersion)
 	if !ok {
 		glog.Fatal("received a non-cluster version object to create")
 	}
@@ -88,11 +88,11 @@ func (clusterVersionRESTStrategy) PrepareForCreate(ctx genericapirequest.Context
 	// Creating a brand new object, thus it must have no
 	// status. We can't fail here if they passed a status in, so
 	// we just wipe it clean.
-	cv.Status = clusteroperator.ClusterVersionStatus{}
+	cv.Status = coapi.ClusterVersionStatus{}
 }
 
 func (clusterVersionRESTStrategy) Validate(ctx genericapirequest.Context, obj runtime.Object) field.ErrorList {
-	return validation.ValidateClusterVersion(obj.(*clusteroperator.ClusterVersion))
+	return covalidation.ValidateClusterVersion(obj.(*coapi.ClusterVersion))
 }
 
 func (clusterVersionRESTStrategy) AllowCreateOnUpdate() bool {
@@ -104,11 +104,11 @@ func (clusterVersionRESTStrategy) AllowUnconditionalUpdate() bool {
 }
 
 func (clusterVersionRESTStrategy) PrepareForUpdate(ctx genericapirequest.Context, new, old runtime.Object) {
-	newCV, ok := new.(*clusteroperator.ClusterVersion)
+	newCV, ok := new.(*coapi.ClusterVersion)
 	if !ok {
 		glog.Fatal("received a non-cluster version object to update to")
 	}
-	oldCV, ok := old.(*clusteroperator.ClusterVersion)
+	oldCV, ok := old.(*coapi.ClusterVersion)
 	if !ok {
 		glog.Fatal("received a non-cluster version object to update from")
 	}
@@ -116,26 +116,26 @@ func (clusterVersionRESTStrategy) PrepareForUpdate(ctx genericapirequest.Context
 }
 
 func (clusterVersionRESTStrategy) ValidateUpdate(ctx genericapirequest.Context, new, old runtime.Object) field.ErrorList {
-	newCV, ok := new.(*clusteroperator.ClusterVersion)
+	newCV, ok := new.(*coapi.ClusterVersion)
 	if !ok {
 		glog.Fatal("received a non-cluster version object to validate to")
 	}
-	oldCV, ok := old.(*clusteroperator.ClusterVersion)
+	oldCV, ok := old.(*coapi.ClusterVersion)
 	if !ok {
 		glog.Fatal("received a non-cluster version object to validate from")
 	}
 
 	// Cluster versions are not actually mutable yet today, this will always return an error
 	// if the spec changed.
-	return validation.ValidateClusterVersionUpdate(newCV, oldCV)
+	return covalidation.ValidateClusterVersionUpdate(newCV, oldCV)
 }
 
 func (clusterVersionStatusRESTStrategy) PrepareForUpdate(ctx genericapirequest.Context, new, old runtime.Object) {
-	newCV, ok := new.(*clusteroperator.ClusterVersion)
+	newCV, ok := new.(*coapi.ClusterVersion)
 	if !ok {
 		glog.Fatal("received a non-clusterversion object to update to")
 	}
-	oldCV, ok := old.(*clusteroperator.ClusterVersion)
+	oldCV, ok := old.(*coapi.ClusterVersion)
 	if !ok {
 		glog.Fatal("received a non-clusterversion object to update from")
 	}
@@ -144,14 +144,14 @@ func (clusterVersionStatusRESTStrategy) PrepareForUpdate(ctx genericapirequest.C
 }
 
 func (clusterVersionStatusRESTStrategy) ValidateUpdate(ctx genericapirequest.Context, new, old runtime.Object) field.ErrorList {
-	newCV, ok := new.(*clusteroperator.ClusterVersion)
+	newCV, ok := new.(*coapi.ClusterVersion)
 	if !ok {
 		glog.Fatal("received a non-clusterversion object to validate to")
 	}
-	oldCV, ok := old.(*clusteroperator.ClusterVersion)
+	oldCV, ok := old.(*coapi.ClusterVersion)
 	if !ok {
 		glog.Fatal("received a non-clusterversion object to validate from")
 	}
 
-	return validation.ValidateClusterVersionStatusUpdate(newCV, oldCV)
+	return covalidation.ValidateClusterVersionStatusUpdate(newCV, oldCV)
 }

@@ -38,7 +38,7 @@ import (
 	clientgotesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
 
-	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	"github.com/openshift/cluster-operator/test"
 )
 
@@ -141,7 +141,7 @@ func newTestControlledJob(namePrefix, nameEnding string, owner metav1.Object, ow
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            namePrefix + nameEnding,
 			OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(owner, ownerKind)},
-			Annotations:     map[string]string{clusteroperator.OwnerGenerationAnnotation: strconv.FormatInt(generation, 10)},
+			Annotations:     map[string]string{cov1.OwnerGenerationAnnotation: strconv.FormatInt(generation, 10)},
 		},
 	}
 }
@@ -152,7 +152,7 @@ func newTestControlledSuccessfulJob(namePrefix, nameEnding string, owner metav1.
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            namePrefix + nameEnding,
 			OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(owner, ownerKind)},
-			Annotations:     map[string]string{clusteroperator.OwnerGenerationAnnotation: strconv.FormatInt(generation, 10)},
+			Annotations:     map[string]string{cov1.OwnerGenerationAnnotation: strconv.FormatInt(generation, 10)},
 		},
 		Status: kbatch.JobStatus{
 			CompletionTime: &tempTime,

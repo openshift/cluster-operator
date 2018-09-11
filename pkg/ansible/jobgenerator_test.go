@@ -24,7 +24,7 @@ import (
 
 	kapi "k8s.io/api/core/v1"
 
-	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 )
 
 const (
@@ -35,7 +35,7 @@ const (
 )
 
 var (
-	testHardware = &clusteroperator.ClusterHardwareSpec{}
+	testHardware = &cov1.ClusterHardwareSpec{}
 )
 
 func TestGeneratePlaybooksJob(t *testing.T) {
@@ -57,7 +57,7 @@ func TestGeneratePlaybooksJob(t *testing.T) {
 	}
 	for _, tc := range cases {
 		generator := NewJobGenerator()
-		job, configmap := generator.GeneratePlaybooksJob(testJobName, clusteroperator.AWSClusterSpec{}, tc.playbooks, testInventory, testVars, "image-name", kapi.PullAlways)
+		job, configmap := generator.GeneratePlaybooksJob(testJobName, cov1.AWSClusterSpec{}, tc.playbooks, testInventory, testVars, "image-name", kapi.PullAlways)
 		if assert.Equal(t, len(tc.playbooks), len(job.Spec.Template.Spec.Containers)) {
 			for i, playbook := range tc.playbooks {
 				assert.Equal(t, playbook, job.Spec.Template.Spec.Containers[i].Name)

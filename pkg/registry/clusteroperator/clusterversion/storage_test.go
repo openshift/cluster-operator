@@ -26,7 +26,7 @@ import (
 	genericregistrytest "k8s.io/apiserver/pkg/registry/generic/testing"
 	etcdtesting "k8s.io/apiserver/pkg/storage/etcd/testing"
 
-	clusteroperatorapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
+	coapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
 	"github.com/openshift/cluster-operator/pkg/registry/registrytest"
 )
 
@@ -42,18 +42,18 @@ func newStorage(t *testing.T) (*genericregistry.Store, *etcdtesting.EtcdTestServ
 	return clusterVersionStorage, server
 }
 
-func validClusterVersion(name string) *clusteroperatorapi.ClusterVersion {
-	return &clusteroperatorapi.ClusterVersion{
+func validClusterVersion(name string) *coapi.ClusterVersion {
+	return &coapi.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
-		Spec: clusteroperatorapi.ClusterVersionSpec{
-			Images: clusteroperatorapi.ClusterVersionImages{
+		Spec: coapi.ClusterVersionSpec{
+			Images: coapi.ClusterVersionImages{
 				ImageFormat: "openshift/origin-${component}:v3.7.9",
 			},
-			VMImages: clusteroperatorapi.VMImages{
-				AWSImages: &clusteroperatorapi.AWSVMImages{
-					RegionAMIs: []clusteroperatorapi.AWSRegionAMIs{
+			VMImages: coapi.VMImages{
+				AWSImages: &coapi.AWSVMImages{
+					RegionAMIs: []coapi.AWSRegionAMIs{
 						{
 							Region: "us-east-1",
 							AMI:    "computeAMI_ID",
@@ -61,7 +61,7 @@ func validClusterVersion(name string) *clusteroperatorapi.ClusterVersion {
 					},
 				},
 			},
-			DeploymentType: clusteroperatorapi.ClusterDeploymentTypeOrigin,
+			DeploymentType: coapi.ClusterDeploymentTypeOrigin,
 			Version:        "v3.9.0",
 		},
 	}
@@ -78,7 +78,7 @@ func TestCreate(t *testing.T) {
 		// valid
 		cv,
 		// invalid
-		&clusteroperatorapi.ClusterVersion{
+		&coapi.ClusterVersion{
 			ObjectMeta: metav1.ObjectMeta{Name: "*BadName!"},
 		},
 	)
@@ -94,12 +94,12 @@ func TestUpdate(t *testing.T) {
 		validClusterVersion("v3.9"),
 		// updateFunc
 		func(obj runtime.Object) runtime.Object {
-			object := obj.(*clusteroperatorapi.ClusterVersion)
+			object := obj.(*coapi.ClusterVersion)
 			return object
 		},
 		//invalid update
 		func(obj runtime.Object) runtime.Object {
-			object := obj.(*clusteroperatorapi.ClusterVersion)
+			object := obj.(*coapi.ClusterVersion)
 			return object
 		},
 	)

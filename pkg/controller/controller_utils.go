@@ -37,9 +37,9 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/openshift/cluster-operator/pkg/api"
-	clusteroperator "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
-	clustoplister "github.com/openshift/cluster-operator/pkg/client/listers_generated/clusteroperator/v1alpha1"
-	clusterapi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	colisters "github.com/openshift/cluster-operator/pkg/client/listers_generated/clusteroperator/v1alpha1"
+	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	capilister "sigs.k8s.io/cluster-api/pkg/client/listers_generated/cluster/v1alpha1"
 )
 
@@ -58,9 +58,9 @@ var (
 	KeyFunc = cache.DeletionHandlingMetaNamespaceKeyFunc
 
 	// ClusterDeploymentKind is the GVK for a ClusterDeployment.
-	ClusterDeploymentKind = clusteroperator.SchemeGroupVersion.WithKind("ClusterDeployment")
+	ClusterDeploymentKind = cov1.SchemeGroupVersion.WithKind("ClusterDeployment")
 
-	clusterKind = clusterapi.SchemeGroupVersion.WithKind("Cluster")
+	clusterKind = capiv1.SchemeGroupVersion.WithKind("Cluster")
 )
 
 // WaitForCacheSync is a wrapper around cache.WaitForCacheSync that generates log messages
@@ -121,20 +121,20 @@ func shouldUpdateCondition(
 // 1) Requested status is different than existing status.
 // 2) The updateConditionCheck function returns true.
 func SetClusterCondition(
-	conditions []clusteroperator.ClusterCondition,
-	conditionType clusteroperator.ClusterConditionType,
+	conditions []cov1.ClusterCondition,
+	conditionType cov1.ClusterConditionType,
 	status corev1.ConditionStatus,
 	reason string,
 	message string,
 	updateConditionCheck UpdateConditionCheck,
-) []clusteroperator.ClusterCondition {
+) []cov1.ClusterCondition {
 	now := metav1.Now()
 	existingCondition := FindClusterCondition(conditions, conditionType)
 	if existingCondition == nil {
 		if status == corev1.ConditionTrue {
 			conditions = append(
 				conditions,
-				clusteroperator.ClusterCondition{
+				cov1.ClusterCondition{
 					Type:               conditionType,
 					Status:             status,
 					Reason:             reason,
@@ -164,7 +164,7 @@ func SetClusterCondition(
 
 // FindClusterCondition finds in the cluster the condition that has the
 // specified condition type. If none exists, then returns nil.
-func FindClusterCondition(conditions []clusteroperator.ClusterCondition, conditionType clusteroperator.ClusterConditionType) *clusteroperator.ClusterCondition {
+func FindClusterCondition(conditions []cov1.ClusterCondition, conditionType cov1.ClusterConditionType) *cov1.ClusterCondition {
 	for i, condition := range conditions {
 		if condition.Type == conditionType {
 			return &conditions[i]
@@ -183,20 +183,20 @@ func FindClusterCondition(conditions []clusteroperator.ClusterCondition, conditi
 // 1) Requested status is different than existing status.
 // 2) The updateConditionCheck function returns true.
 func SetClusterDeploymentCondition(
-	conditions []clusteroperator.ClusterDeploymentCondition,
-	conditionType clusteroperator.ClusterDeploymentConditionType,
+	conditions []cov1.ClusterDeploymentCondition,
+	conditionType cov1.ClusterDeploymentConditionType,
 	status corev1.ConditionStatus,
 	reason string,
 	message string,
 	updateConditionCheck UpdateConditionCheck,
-) []clusteroperator.ClusterDeploymentCondition {
+) []cov1.ClusterDeploymentCondition {
 	now := metav1.Now()
 	existingCondition := FindClusterDeploymentCondition(conditions, conditionType)
 	if existingCondition == nil {
 		if status == corev1.ConditionTrue {
 			conditions = append(
 				conditions,
-				clusteroperator.ClusterDeploymentCondition{
+				cov1.ClusterDeploymentCondition{
 					Type:               conditionType,
 					Status:             status,
 					Reason:             reason,
@@ -226,7 +226,7 @@ func SetClusterDeploymentCondition(
 
 // FindClusterDeploymentCondition finds in the cluster deployment the condition that has the
 // specified condition type. If none exists, then returns nil.
-func FindClusterDeploymentCondition(conditions []clusteroperator.ClusterDeploymentCondition, conditionType clusteroperator.ClusterDeploymentConditionType) *clusteroperator.ClusterDeploymentCondition {
+func FindClusterDeploymentCondition(conditions []cov1.ClusterDeploymentCondition, conditionType cov1.ClusterDeploymentConditionType) *cov1.ClusterDeploymentCondition {
 	for i, condition := range conditions {
 		if condition.Type == conditionType {
 			return &conditions[i]
@@ -245,20 +245,20 @@ func FindClusterDeploymentCondition(conditions []clusteroperator.ClusterDeployme
 // 1) Requested status is different than existing status.
 // 2) The updateConditionCheck function returns true.
 func SetAWSMachineCondition(
-	conditions []clusteroperator.AWSMachineCondition,
-	conditionType clusteroperator.AWSMachineConditionType,
+	conditions []cov1.AWSMachineCondition,
+	conditionType cov1.AWSMachineConditionType,
 	status corev1.ConditionStatus,
 	reason string,
 	message string,
 	updateConditionCheck UpdateConditionCheck,
-) []clusteroperator.AWSMachineCondition {
+) []cov1.AWSMachineCondition {
 	now := metav1.Now()
 	existingCondition := FindAWSMachineCondition(conditions, conditionType)
 	if existingCondition == nil {
 		if status == corev1.ConditionTrue {
 			conditions = append(
 				conditions,
-				clusteroperator.AWSMachineCondition{
+				cov1.AWSMachineCondition{
 					Type:               conditionType,
 					Status:             status,
 					Reason:             reason,
@@ -288,7 +288,7 @@ func SetAWSMachineCondition(
 
 // FindAWSMachineCondition finds in the machine the condition that has the
 // specified condition type. If none exists, then returns nil.
-func FindAWSMachineCondition(conditions []clusteroperator.AWSMachineCondition, conditionType clusteroperator.AWSMachineConditionType) *clusteroperator.AWSMachineCondition {
+func FindAWSMachineCondition(conditions []cov1.AWSMachineCondition, conditionType cov1.AWSMachineConditionType) *cov1.AWSMachineCondition {
 	for i, condition := range conditions {
 		if condition.Type == conditionType {
 			return &conditions[i]
@@ -329,21 +329,21 @@ func GetObjectController(
 }
 
 // ClusterForMachineSet retrieves the cluster to which a machine set belongs.
-func ClusterForMachineSet(machineSet *clusterapi.MachineSet, clusterLister capilister.ClusterLister) (*clusterapi.Cluster, error) {
+func ClusterForMachineSet(machineSet *capiv1.MachineSet, clusterLister capilister.ClusterLister) (*capiv1.Cluster, error) {
 	if machineSet.Labels == nil {
-		return nil, fmt.Errorf("missing %s label", clusteroperator.ClusterNameLabel)
+		return nil, fmt.Errorf("missing %s label", cov1.ClusterNameLabel)
 	}
-	clusterName, ok := machineSet.Labels[clusteroperator.ClusterNameLabel]
+	clusterName, ok := machineSet.Labels[cov1.ClusterNameLabel]
 	if !ok {
-		return nil, fmt.Errorf("missing %s label", clusteroperator.ClusterNameLabel)
+		return nil, fmt.Errorf("missing %s label", cov1.ClusterNameLabel)
 	}
 	return clusterLister.Clusters(machineSet.Namespace).Get(clusterName)
 }
 
 // MachineSetsForCluster retrieves the machinesets associated with the
 // specified cluster name.
-func MachineSetsForCluster(namespace string, clusterName string, machineSetsLister capilister.MachineSetLister) ([]*clusterapi.MachineSet, error) {
-	requirement, err := labels.NewRequirement(clusteroperator.ClusterNameLabel, selection.Equals, []string{clusterName})
+func MachineSetsForCluster(namespace string, clusterName string, machineSetsLister capilister.MachineSetLister) ([]*capiv1.MachineSet, error) {
+	requirement, err := labels.NewRequirement(cov1.ClusterNameLabel, selection.Equals, []string{clusterName})
 	if err != nil {
 		return nil, err
 	}
@@ -351,7 +351,7 @@ func MachineSetsForCluster(namespace string, clusterName string, machineSetsList
 }
 
 // ClusterDeploymentForCluster retrieves the cluster deployment that owns the cluster.
-func ClusterDeploymentForCluster(cluster *clusterapi.Cluster, clusterDeploymentsLister clustoplister.ClusterDeploymentLister) (*clusteroperator.ClusterDeployment, error) {
+func ClusterDeploymentForCluster(cluster *capiv1.Cluster, clusterDeploymentsLister colisters.ClusterDeploymentLister) (*cov1.ClusterDeployment, error) {
 	controller, err := GetObjectController(
 		cluster,
 		ClusterDeploymentKind,
@@ -365,7 +365,7 @@ func ClusterDeploymentForCluster(cluster *clusterapi.Cluster, clusterDeployments
 	if controller == nil {
 		return nil, nil
 	}
-	clusterDeployment, ok := controller.(*clusteroperator.ClusterDeployment)
+	clusterDeployment, ok := controller.(*cov1.ClusterDeployment)
 	if !ok {
 		return nil, fmt.Errorf("Could not convert controller into a ClusterDeployment")
 	}
@@ -373,7 +373,7 @@ func ClusterDeploymentForCluster(cluster *clusterapi.Cluster, clusterDeployments
 }
 
 // ClusterDeploymentForMachineSet retrieves the cluster deployment that owns the machine set.
-func ClusterDeploymentForMachineSet(machineSet *clusterapi.MachineSet, clusterDeploymentsLister clustoplister.ClusterDeploymentLister) (*clusteroperator.ClusterDeployment, error) {
+func ClusterDeploymentForMachineSet(machineSet *capiv1.MachineSet, clusterDeploymentsLister colisters.ClusterDeploymentLister) (*cov1.ClusterDeployment, error) {
 	controller, err := GetObjectController(
 		machineSet,
 		ClusterDeploymentKind,
@@ -387,7 +387,7 @@ func ClusterDeploymentForMachineSet(machineSet *clusterapi.MachineSet, clusterDe
 	if controller == nil {
 		return nil, nil
 	}
-	clusterDeployment, ok := controller.(*clusteroperator.ClusterDeployment)
+	clusterDeployment, ok := controller.(*cov1.ClusterDeployment)
 	if !ok {
 		return nil, fmt.Errorf("Could not convert controller into a ClusterDeployment")
 	}
@@ -400,8 +400,8 @@ func ClusterDeploymentForMachineSet(machineSet *clusterapi.MachineSet, clusterDe
 // cluster-operator Cluster, and cluster-api Cluster, or a CombinedCluster.
 func JobLabelsForClusterController(cluster metav1.Object, jobType string) map[string]string {
 	return map[string]string{
-		clusteroperator.ClusterNameLabel: cluster.GetName(),
-		JobTypeLabel:                     jobType,
+		cov1.ClusterNameLabel: cluster.GetName(),
+		JobTypeLabel:          jobType,
 	}
 }
 
@@ -419,15 +419,15 @@ func AddLabels(obj metav1.Object, additionalLabels map[string]string) {
 
 // AWSClusterProviderConfigFromCluster gets the AWSClusterProviderConfig from the
 // specified cluster-api Cluster.
-func AWSClusterProviderConfigFromCluster(cluster *clusterapi.Cluster) (*clusteroperator.AWSClusterProviderConfig, error) {
+func AWSClusterProviderConfigFromCluster(cluster *capiv1.Cluster) (*cov1.AWSClusterProviderConfig, error) {
 	if cluster.Spec.ProviderConfig.Value == nil {
 		return nil, fmt.Errorf("No Value in ProviderConfig")
 	}
-	obj, gvk, err := api.Codecs.UniversalDecoder(clusteroperator.SchemeGroupVersion).Decode([]byte(cluster.Spec.ProviderConfig.Value.Raw), nil, nil)
+	obj, gvk, err := api.Codecs.UniversalDecoder(cov1.SchemeGroupVersion).Decode([]byte(cluster.Spec.ProviderConfig.Value.Raw), nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("could not decode ProviderConfig: %v", err)
 	}
-	spec, ok := obj.(*clusteroperator.AWSClusterProviderConfig)
+	spec, ok := obj.(*cov1.AWSClusterProviderConfig)
 	if !ok {
 		return nil, fmt.Errorf("Unexpected object: %#v", gvk)
 	}
@@ -436,15 +436,15 @@ func AWSClusterProviderConfigFromCluster(cluster *clusterapi.Cluster) (*clustero
 
 // ClusterProviderStatusFromCluster gets the cluster-operator provider status from the
 // specified cluster-api Cluster.
-func ClusterProviderStatusFromCluster(cluster *clusterapi.Cluster) (*clusteroperator.ClusterProviderStatus, error) {
+func ClusterProviderStatusFromCluster(cluster *capiv1.Cluster) (*cov1.ClusterProviderStatus, error) {
 	if cluster.Status.ProviderStatus == nil {
-		return &clusteroperator.ClusterProviderStatus{}, nil
+		return &cov1.ClusterProviderStatus{}, nil
 	}
-	obj, gvk, err := api.Codecs.UniversalDecoder(clusteroperator.SchemeGroupVersion).Decode([]byte(cluster.Status.ProviderStatus.Raw), nil, nil)
+	obj, gvk, err := api.Codecs.UniversalDecoder(cov1.SchemeGroupVersion).Decode([]byte(cluster.Status.ProviderStatus.Raw), nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("could not decode ProviderStatus: %v", err)
 	}
-	status, ok := obj.(*clusteroperator.ClusterProviderStatus)
+	status, ok := obj.(*cov1.ClusterProviderStatus)
 	if !ok {
 		return nil, fmt.Errorf("Unexpected object: %#v", gvk)
 	}
@@ -453,20 +453,20 @@ func ClusterProviderStatusFromCluster(cluster *clusterapi.Cluster) (*clusteroper
 
 // BuildAWSClusterProviderConfig returns an encoded cloud provider specific RawExtension
 // for use in the cluster spec's ProviderConfig.
-func BuildAWSClusterProviderConfig(clusterDeploymentSpec *clusteroperator.ClusterDeploymentSpec, cv clusteroperator.ClusterVersionSpec) (*runtime.RawExtension, error) {
+func BuildAWSClusterProviderConfig(clusterDeploymentSpec *cov1.ClusterDeploymentSpec, cv cov1.ClusterVersionSpec) (*runtime.RawExtension, error) {
 	// TODO: drop this error when we're ready to support other clouds
 	if clusterDeploymentSpec.Hardware.AWS == nil {
 		return nil, fmt.Errorf("no AWS hardware was defined")
 	}
-	clusterProviderConfigSpec := &clusteroperator.AWSClusterProviderConfig{
+	clusterProviderConfigSpec := &cov1.AWSClusterProviderConfig{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: clusteroperator.SchemeGroupVersion.String(),
+			APIVersion: cov1.SchemeGroupVersion.String(),
 			Kind:       "AWSClusterProviderConfig",
 		},
 		Hardware: *clusterDeploymentSpec.Hardware.AWS,
-		OpenShiftConfig: clusteroperator.OpenShiftDistributionConfig{
+		OpenShiftConfig: cov1.OpenShiftDistributionConfig{
 			ClusterConfigSpec: clusterDeploymentSpec.Config,
-			Version: clusteroperator.OpenShiftConfigVersion{
+			Version: cov1.OpenShiftConfigVersion{
 				DeploymentType: cv.DeploymentType,
 				Version:        cv.Version,
 				Images:         cv.Images,
@@ -489,9 +489,9 @@ func BuildAWSClusterProviderConfig(clusterDeploymentSpec *clusteroperator.Cluste
 
 // EncodeClusterProviderStatus gets the cluster-api ProviderStatus
 // storing the cluster-operator ClusterStatus.
-func EncodeClusterProviderStatus(clusterProviderStatus *clusteroperator.ClusterProviderStatus) (*runtime.RawExtension, error) {
+func EncodeClusterProviderStatus(clusterProviderStatus *cov1.ClusterProviderStatus) (*runtime.RawExtension, error) {
 	clusterProviderStatus.TypeMeta = metav1.TypeMeta{
-		APIVersion: clusteroperator.SchemeGroupVersion.String(),
+		APIVersion: cov1.SchemeGroupVersion.String(),
 		Kind:       "ClusterProviderStatus",
 	}
 
@@ -508,15 +508,15 @@ func EncodeClusterProviderStatus(clusterProviderStatus *clusteroperator.ClusterP
 
 // MachineSetSpecFromClusterAPIMachineSpec gets the cluster-operator MachineSetSpec from the
 // specified cluster-api MachineSet.
-func MachineSetSpecFromClusterAPIMachineSpec(ms *clusterapi.MachineSpec) (*clusteroperator.MachineSetSpec, error) {
+func MachineSetSpecFromClusterAPIMachineSpec(ms *capiv1.MachineSpec) (*cov1.MachineSetSpec, error) {
 	if ms.ProviderConfig.Value == nil {
 		return nil, fmt.Errorf("No Value in ProviderConfig")
 	}
-	obj, gvk, err := api.Codecs.UniversalDecoder(clusteroperator.SchemeGroupVersion).Decode([]byte(ms.ProviderConfig.Value.Raw), nil, nil)
+	obj, gvk, err := api.Codecs.UniversalDecoder(cov1.SchemeGroupVersion).Decode([]byte(ms.ProviderConfig.Value.Raw), nil, nil)
 	if err != nil {
 		return nil, err
 	}
-	spec, ok := obj.(*clusteroperator.MachineSetProviderConfigSpec)
+	spec, ok := obj.(*cov1.MachineSetProviderConfigSpec)
 	if !ok {
 		return nil, fmt.Errorf("Unexpected object: %#v", gvk)
 	}
@@ -524,8 +524,8 @@ func MachineSetSpecFromClusterAPIMachineSpec(ms *clusterapi.MachineSpec) (*clust
 }
 
 // BuildCluster builds a cluster for the given cluster deployment.
-func BuildCluster(clusterDeployment *clusteroperator.ClusterDeployment, cv clusteroperator.ClusterVersionSpec) (*clusterapi.Cluster, error) {
-	cluster := &clusterapi.Cluster{}
+func BuildCluster(clusterDeployment *cov1.ClusterDeployment, cv cov1.ClusterVersionSpec) (*capiv1.Cluster, error) {
+	cluster := &capiv1.Cluster{}
 	cluster.Name = clusterDeployment.Spec.ClusterName
 	cluster.Labels = clusterDeployment.Labels
 	cluster.Annotations = clusterDeployment.Annotations
@@ -536,7 +536,7 @@ func BuildCluster(clusterDeployment *clusteroperator.ClusterDeployment, cv clust
 	if cluster.Annotations == nil {
 		cluster.Annotations = make(map[string]string)
 	}
-	cluster.Labels[clusteroperator.ClusterDeploymentLabel] = clusterDeployment.Name
+	cluster.Labels[cov1.ClusterDeploymentLabel] = clusterDeployment.Name
 	blockOwnerDeletion := false
 	controllerRef := metav1.NewControllerRef(clusterDeployment, ClusterDeploymentKind)
 	controllerRef.BlockOwnerDeletion = &blockOwnerDeletion
@@ -554,10 +554,10 @@ func BuildCluster(clusterDeployment *clusteroperator.ClusterDeployment, cv clust
 
 // MachineProviderConfigFromMachineSetSpec gets the cluster-api ProviderConfig for a Machine template
 // to store the cluster-operator MachineSetSpec.
-func MachineProviderConfigFromMachineSetSpec(machineSetSpec *clusteroperator.MachineSetSpec) (*runtime.RawExtension, error) {
-	msProviderConfigSpec := &clusteroperator.MachineSetProviderConfigSpec{
+func MachineProviderConfigFromMachineSetSpec(machineSetSpec *cov1.MachineSetSpec) (*runtime.RawExtension, error) {
+	msProviderConfigSpec := &cov1.MachineSetProviderConfigSpec{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: clusteroperator.SchemeGroupVersion.String(),
+			APIVersion: cov1.SchemeGroupVersion.String(),
 			Kind:       "MachineSetProviderConfigSpec",
 		},
 		MachineSetSpec: *machineSetSpec,
@@ -575,21 +575,21 @@ func MachineProviderConfigFromMachineSetSpec(machineSetSpec *clusteroperator.Mac
 
 // AWSMachineProviderStatusFromClusterAPIMachine gets the cluster-operator MachineSetSpec from the
 // specified cluster-api MachineSet.
-func AWSMachineProviderStatusFromClusterAPIMachine(m *clusterapi.Machine) (*clusteroperator.AWSMachineProviderStatus, error) {
+func AWSMachineProviderStatusFromClusterAPIMachine(m *capiv1.Machine) (*cov1.AWSMachineProviderStatus, error) {
 	return AWSMachineProviderStatusFromMachineStatus(&m.Status)
 }
 
 // AWSMachineProviderStatusFromMachineStatus gets the cluster-operator AWSMachineProviderStatus from the
 // specified cluster-api MachineStatus.
-func AWSMachineProviderStatusFromMachineStatus(s *clusterapi.MachineStatus) (*clusteroperator.AWSMachineProviderStatus, error) {
+func AWSMachineProviderStatusFromMachineStatus(s *capiv1.MachineStatus) (*cov1.AWSMachineProviderStatus, error) {
 	if s.ProviderStatus == nil {
-		return &clusteroperator.AWSMachineProviderStatus{}, nil
+		return &cov1.AWSMachineProviderStatus{}, nil
 	}
-	obj, gvk, err := api.Codecs.UniversalDecoder(clusteroperator.SchemeGroupVersion).Decode([]byte(s.ProviderStatus.Raw), nil, nil)
+	obj, gvk, err := api.Codecs.UniversalDecoder(cov1.SchemeGroupVersion).Decode([]byte(s.ProviderStatus.Raw), nil, nil)
 	if err != nil {
 		return nil, err
 	}
-	status, ok := obj.(*clusteroperator.AWSMachineProviderStatus)
+	status, ok := obj.(*cov1.AWSMachineProviderStatus)
 	if !ok {
 		return nil, fmt.Errorf("Unexpected object: %#v", gvk)
 	}
@@ -598,9 +598,9 @@ func AWSMachineProviderStatusFromMachineStatus(s *clusterapi.MachineStatus) (*cl
 
 // EncodeAWSMachineProviderStatus gets the cluster-api ProviderConfig for a Machine template
 // to store the cluster-operator MachineSetSpec.
-func EncodeAWSMachineProviderStatus(awsStatus *clusteroperator.AWSMachineProviderStatus) (*runtime.RawExtension, error) {
+func EncodeAWSMachineProviderStatus(awsStatus *cov1.AWSMachineProviderStatus) (*runtime.RawExtension, error) {
 	awsStatus.TypeMeta = metav1.TypeMeta{
-		APIVersion: clusteroperator.SchemeGroupVersion.String(),
+		APIVersion: cov1.SchemeGroupVersion.String(),
 		Kind:       "AWSMachineProviderStatus",
 	}
 	serializer := jsonserializer.NewSerializer(jsonserializer.DefaultMetaFactory, api.Scheme, api.Scheme, false)
@@ -615,8 +615,8 @@ func EncodeAWSMachineProviderStatus(awsStatus *clusteroperator.AWSMachineProvide
 }
 
 // MachineProviderConfigFromMachineSetConfig returns a RawExtension with a machine ProviderConfig from a MachineSetConfig
-func MachineProviderConfigFromMachineSetConfig(machineSetConfig *clusteroperator.MachineSetConfig, clusterDeploymentSpec *clusteroperator.ClusterDeploymentSpec, clusterVersion *clusteroperator.ClusterVersion) (*runtime.RawExtension, error) {
-	msSpec := &clusteroperator.MachineSetSpec{
+func MachineProviderConfigFromMachineSetConfig(machineSetConfig *cov1.MachineSetConfig, clusterDeploymentSpec *cov1.ClusterDeploymentSpec, clusterVersion *cov1.ClusterVersion) (*runtime.RawExtension, error) {
+	msSpec := &cov1.MachineSetSpec{
 		MachineSetConfig: *machineSetConfig,
 	}
 	vmImage, err := getImage(clusterDeploymentSpec, clusterVersion)
@@ -639,7 +639,7 @@ func MachineProviderConfigFromMachineSetConfig(machineSetConfig *clusteroperator
 }
 
 // getImage returns a specific image for the given machine and cluster version.
-func getImage(clusterSpec *clusteroperator.ClusterDeploymentSpec, clusterVersion *clusteroperator.ClusterVersion) (*clusteroperator.VMImage, error) {
+func getImage(clusterSpec *cov1.ClusterDeploymentSpec, clusterVersion *cov1.ClusterVersion) (*cov1.VMImage, error) {
 	if clusterSpec.Hardware.AWS == nil {
 		return nil, fmt.Errorf("no AWS hardware defined for cluster")
 	}
@@ -651,7 +651,7 @@ func getImage(clusterSpec *clusteroperator.ClusterDeploymentSpec, clusterVersion
 	for _, regionAMI := range clusterVersion.Spec.VMImages.AWSImages.RegionAMIs {
 		if regionAMI.Region == clusterSpec.Hardware.AWS.Region {
 			ami := regionAMI.AMI
-			return &clusteroperator.VMImage{
+			return &cov1.VMImage{
 				AWSImage: &ami,
 			}, nil
 		}
@@ -661,7 +661,7 @@ func getImage(clusterSpec *clusteroperator.ClusterDeploymentSpec, clusterVersion
 }
 
 // ApplyDefaultMachineSetHardwareSpec merges the cluster-wide hardware defaults with the machineset specific hardware specified.
-func ApplyDefaultMachineSetHardwareSpec(machineSetHardwareSpec, defaultHardwareSpec *clusteroperator.MachineSetHardwareSpec) (*clusteroperator.MachineSetHardwareSpec, error) {
+func ApplyDefaultMachineSetHardwareSpec(machineSetHardwareSpec, defaultHardwareSpec *cov1.MachineSetHardwareSpec) (*cov1.MachineSetHardwareSpec, error) {
 	if defaultHardwareSpec == nil {
 		return machineSetHardwareSpec, nil
 	}
@@ -674,7 +674,7 @@ func ApplyDefaultMachineSetHardwareSpec(machineSetHardwareSpec, defaultHardwareS
 		return nil, err
 	}
 	merged, err := strategicpatch.StrategicMergePatch(defaultHwSpecJSON, specificHwSpecJSON, machineSetHardwareSpec)
-	mergedSpec := &clusteroperator.MachineSetHardwareSpec{}
+	mergedSpec := &cov1.MachineSetHardwareSpec{}
 	if err = json.Unmarshal(merged, mergedSpec); err != nil {
 		return nil, err
 	}
@@ -682,7 +682,7 @@ func ApplyDefaultMachineSetHardwareSpec(machineSetHardwareSpec, defaultHardwareS
 }
 
 // GetInfraSize gets the size of the infra machine set for the cluster.
-func GetInfraSize(cluster *clusteroperator.CombinedCluster) (int, error) {
+func GetInfraSize(cluster *cov1.CombinedCluster) (int, error) {
 	return 1, nil
 	/*
 		for _, ms := range cluster.ClusterDeploymentSpec.MachineSets {
@@ -695,7 +695,7 @@ func GetInfraSize(cluster *clusteroperator.CombinedCluster) (int, error) {
 }
 
 // GetMasterMachineSet gets the master machine set for the cluster.
-func GetMasterMachineSet(cluster *clusteroperator.CombinedCluster, machineSetLister capilister.MachineSetLister) (*clusterapi.MachineSet, error) {
+func GetMasterMachineSet(cluster *cov1.CombinedCluster, machineSetLister capilister.MachineSetLister) (*capiv1.MachineSet, error) {
 	machineSets, err := MachineSetsForCluster(cluster.Namespace, cluster.Name, machineSetLister)
 	if err != nil {
 		return nil, err
@@ -711,16 +711,16 @@ func GetMasterMachineSet(cluster *clusteroperator.CombinedCluster, machineSetLis
 }
 
 // MachineIsMaster returns true if the machine is part of a cluster's control plane
-func MachineIsMaster(machine *clusterapi.Machine) (bool, error) {
+func MachineIsMaster(machine *capiv1.Machine) (bool, error) {
 	coMachineSetSpec, err := MachineSetSpecFromClusterAPIMachineSpec(&machine.Spec)
 	if err != nil {
 		return false, err
 	}
-	return coMachineSetSpec.NodeType == clusteroperator.NodeTypeMaster, nil
+	return coMachineSetSpec.NodeType == cov1.NodeTypeMaster, nil
 }
 
 // MachineIsInfra returns true if the machine is part of a cluster's control plane
-func MachineIsInfra(machine *clusterapi.Machine) (bool, error) {
+func MachineIsInfra(machine *capiv1.Machine) (bool, error) {
 	coMachineSetSpec, err := MachineSetSpecFromClusterAPIMachineSpec(&machine.Spec)
 	if err != nil {
 		return false, err
@@ -768,17 +768,17 @@ func trimForELBBasename(s string, maxLen int) string {
 
 // BuildMachineSet returns a clusterapi.MachineSet from the combination of various clusteroperator
 // objects (ClusterMachineSet/ClusterDeploymentSpec/ClusterVersion) in the provided 'namespace'
-func BuildMachineSet(ms *clusteroperator.ClusterMachineSet, clusterDeploymentSpec *clusteroperator.ClusterDeploymentSpec, clusterVersion *clusteroperator.ClusterVersion, namespace string) (*clusterapi.MachineSet, error) {
+func BuildMachineSet(ms *cov1.ClusterMachineSet, clusterDeploymentSpec *cov1.ClusterDeploymentSpec, clusterVersion *cov1.ClusterVersion, namespace string) (*capiv1.MachineSet, error) {
 	machineSetName := fmt.Sprintf("%s-%s", clusterDeploymentSpec.ClusterName, ms.ShortName)
-	capiMachineSet := clusterapi.MachineSet{}
+	capiMachineSet := capiv1.MachineSet{}
 	capiMachineSet.Name = machineSetName
 	capiMachineSet.Namespace = namespace
 	replicas := int32(ms.Size)
 	capiMachineSet.Spec.Replicas = &replicas
-	machineTemplate := clusterapi.MachineTemplateSpec{}
+	machineTemplate := capiv1.MachineTemplateSpec{}
 	labels := map[string]string{
-		clusteroperator.MachineSetNameLabel: machineSetName,
-		clusteroperator.ClusterNameLabel:    clusterDeploymentSpec.ClusterName,
+		cov1.MachineSetNameLabel: machineSetName,
+		cov1.ClusterNameLabel:    clusterDeploymentSpec.ClusterName,
 	}
 	capiMachineSet.Labels = labels
 	// Assign the same set of labels for the machine template and the selector:
@@ -844,7 +844,7 @@ func DeleteFinalizer(object metav1.Object, finalizer string) {
 
 // GetSecretNameFromMachineSetSpec will retrieve the secret name holding AWS credentials
 // from a machcinesetspec if it exists. Otherwise it will return an empty string.
-func GetSecretNameFromMachineSetSpec(msSpec *clusteroperator.MachineSetSpec) (string, error) {
+func GetSecretNameFromMachineSetSpec(msSpec *cov1.MachineSetSpec) (string, error) {
 	secretName := ""
 	if msSpec.ClusterHardware.AWS == nil {
 		return "", fmt.Errorf("no AWS cluster hardware set on machine spec")

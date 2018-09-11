@@ -20,7 +20,7 @@ import (
 	"io/ioutil"
 	"strings"
 
-	utiltemplate "github.com/openshift/cluster-operator/pkg/kubernetes/pkg/util/template"
+	cotemplateutil "github.com/openshift/cluster-operator/pkg/kubernetes/pkg/util/template"
 	"k8s.io/apiserver/pkg/util/flag"
 
 	"github.com/spf13/pflag"
@@ -50,7 +50,7 @@ func (s *Server) Usage() error {
 Available Flags:
 {{.Flags.FlagUsages}}`
 
-	return utiltemplate.ExecuteTemplate(s.hk.Out(), tt, s)
+	return cotemplateutil.ExecuteTemplate(s.hk.Out(), tt, s)
 }
 
 // Name returns the name of the command as derived from the usage line.

@@ -27,7 +27,7 @@ import (
 
 	"github.com/spf13/pflag"
 
-	utiltemplate "github.com/openshift/cluster-operator/pkg/kubernetes/pkg/util/template"
+	cotemplateutil "github.com/openshift/cluster-operator/pkg/kubernetes/pkg/util/template"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apiserver/pkg/server"
 	utilflag "k8s.io/apiserver/pkg/util/flag"
@@ -228,7 +228,7 @@ Servers
 Call '{{.Name}} --make-symlinks' to create symlinks for each server in the local directory.
 Call '{{.Name}} <server> --help' for help on a specific server.
 `
-	utiltemplate.ExecuteTemplate(hk.Out(), tt, hk)
+	cotemplateutil.ExecuteTemplate(hk.Out(), tt, hk)
 }
 
 // MakeSymlinks will create a symlink for each registered hyperkube server in the local directory.

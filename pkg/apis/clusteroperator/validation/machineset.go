@@ -19,11 +19,11 @@ package validation
 import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
-	"github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
+	coapi "github.com/openshift/cluster-operator/pkg/apis/clusteroperator"
 )
 
 // validateMachineSetConfig validates the configuration of a machine set
-func validateMachineSetConfig(config *clusteroperator.MachineSetConfig, fldPath *field.Path) field.ErrorList {
+func validateMachineSetConfig(config *coapi.MachineSetConfig, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 
 	allErrs = append(allErrs, validateNodeType(config.NodeType, fldPath.Child("nodeType"))...)

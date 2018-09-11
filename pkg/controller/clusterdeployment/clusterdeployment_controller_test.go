@@ -32,12 +32,12 @@ import (
 	clientgotesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
 
-	clustop "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
 	clustopclient "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset/fake"
 	clustopinformers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions"
-	"github.com/openshift/cluster-operator/pkg/controller"
+	cocontroller "github.com/openshift/cluster-operator/pkg/controller"
 
-	capi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	capiclient "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset/fake"
 	capiinformers "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions"
 )
@@ -57,10 +57,10 @@ const (
 func TestSync(t *testing.T) {
 	tests := []struct {
 		name                   string
-		clusterDeployment      *clustop.ClusterDeployment
-		clusterVersion         *clustop.ClusterVersion
-		existingCluster        *capi.Cluster
-		existingMachineSet     *capi.MachineSet
+		clusterDeployment      *cov1.ClusterDeployment
+		clusterVersion         *cov1.ClusterVersion
+		existingCluster        *capiv1.Cluster
+		existingMachineSet     *capiv1.MachineSet
 		expectedCAPIActions    []expectedClientAction
 		expectedClustopActions []expectedClientAction
 		expectErr              bool
@@ -103,7 +103,7 @@ func TestSync(t *testing.T) {
 			expectedClustopActions: []expectedClientAction{
 				clusterDeploymentStatusUpdateAction{
 					clusterDeployment: testClusterDeployment(),
-					condition:         clustop.ClusterVersionMissing,
+					condition:         cov1.ClusterVersionMissing,
 				},
 			},
 		},
@@ -114,7 +114,7 @@ func TestSync(t *testing.T) {
 			expectedClustopActions: []expectedClientAction{
 				clusterDeploymentStatusUpdateAction{
 					clusterDeployment: alternateRegionClusterDeployment(),
-					condition:         clustop.ClusterVersionIncompatible,
+					condition:         cov1.ClusterVersionIncompatible,
 				},
 			},
 		},
@@ -299,41 +299,41 @@ type expectedClientAction interface {
 }
 
 // testClusterDeployment creates a new test ClusterDeployment
-func testClusterDeployment() *clustop.ClusterDeployment {
-	clusterDeployment := &clustop.ClusterDeployment{
+func testClusterDeployment() *cov1.ClusterDeployment {
+	clusterDeployment := &cov1.ClusterDeployment{
 		ObjectMeta: metav1.ObjectMeta{
 			UID:         testClusterDeploymentUUID,
 			Name:        testClusterDeploymentName,
 			Namespace:   testNamespace,
-			Finalizers:  []string{clustop.FinalizerClusterDeployment},
+			Finalizers:  []string{cov1.FinalizerClusterDeployment},
 			Annotations: map[string]string{},
 		},
-		Spec: clustop.ClusterDeploymentSpec{
-			MachineSets: []clustop.ClusterMachineSet{
+		Spec: cov1.ClusterDeploymentSpec{
+			MachineSets: []cov1.ClusterMachineSet{
 				{
 					ShortName: "",
-					MachineSetConfig: clustop.MachineSetConfig{
+					MachineSetConfig: cov1.MachineSetConfig{
 						Infra:    true,
 						Size:     1,
-						NodeType: clustop.NodeTypeMaster,
+						NodeType: cov1.NodeTypeMaster,
 					},
 				},
 				{
 					ShortName: "compute",
-					MachineSetConfig: clustop.MachineSetConfig{
+					MachineSetConfig: cov1.MachineSetConfig{
 						Infra:    false,
 						Size:     1,
-						NodeType: clustop.NodeTypeCompute,
+						NodeType: cov1.NodeTypeCompute,
 					},
 				},
 			},
-			Hardware: clustop.ClusterHardwareSpec{
-				AWS: &clustop.AWSClusterSpec{
+			Hardware: cov1.ClusterHardwareSpec{
+				AWS: &cov1.AWSClusterSpec{
 					SSHUser: "clusteroperator",
 					Region:  testRegion,
 				},
 			},
-			ClusterVersionRef: clustop.ClusterVersionReference{
+			ClusterVersionRef: cov1.ClusterVersionReference{
 				Name:      testClusterVerName,
 				Namespace: testClusterVerNS,
 			},
@@ -342,62 +342,62 @@ func testClusterDeployment() *clustop.ClusterDeployment {
 	return clusterDeployment
 }
 
-func alternateRegionClusterDeployment() *clustop.ClusterDeployment {
+func alternateRegionClusterDeployment() *cov1.ClusterDeployment {
 	clusterDeployment := testClusterDeployment()
 	clusterDeployment.Spec.Hardware.AWS.Region = "alternate-region"
 	return clusterDeployment
 }
 
-func testClusterDeploymentWith3Masters() *clustop.ClusterDeployment {
+func testClusterDeploymentWith3Masters() *cov1.ClusterDeployment {
 	clusterDeployment := testClusterDeployment()
 	clusterDeployment.Spec.MachineSets[0].Size = 3
 	return clusterDeployment
 }
 
-func testClusterDeploymentWithoutFinalizers() *clustop.ClusterDeployment {
+func testClusterDeploymentWithoutFinalizers() *cov1.ClusterDeployment {
 	clusterDeployment := testClusterDeployment()
 	clusterDeployment.Finalizers = []string{}
 	return clusterDeployment
 }
 
-func testClusterDeploymentWithRemoteMachineSetFinalizer() *clustop.ClusterDeployment {
+func testClusterDeploymentWithRemoteMachineSetFinalizer() *cov1.ClusterDeployment {
 	clusterDeployment := testClusterDeployment()
-	clusterDeployment.Finalizers = append(clusterDeployment.Finalizers, clustop.FinalizerRemoteMachineSets)
+	clusterDeployment.Finalizers = append(clusterDeployment.Finalizers, cov1.FinalizerRemoteMachineSets)
 	return clusterDeployment
 }
 
-func testDeletedClusterDeployment() *clustop.ClusterDeployment {
+func testDeletedClusterDeployment() *cov1.ClusterDeployment {
 	clusterDeployment := testClusterDeployment()
 	now := metav1.Now()
 	clusterDeployment.DeletionTimestamp = &now
 	return clusterDeployment
 }
 
-func testExpiredClusterDeployment() *clustop.ClusterDeployment {
+func testExpiredClusterDeployment() *cov1.ClusterDeployment {
 	clusterDeployment := testClusterDeployment()
 	clusterDeployment.CreationTimestamp = metav1.Time{Time: metav1.Now().Add(-60 * time.Minute)}
 	clusterDeployment.Annotations[deleteAfterAnnotation] = "5m"
 	return clusterDeployment
 }
 
-func testCluster() *capi.Cluster {
+func testCluster() *capiv1.Cluster {
 	clusterDeployment := testClusterDeployment()
-	cluster, _ := controller.BuildCluster(clusterDeployment, testClusterVersion().Spec)
+	cluster, _ := cocontroller.BuildCluster(clusterDeployment, testClusterVersion().Spec)
 	return cluster
 }
 
-func provisionedCluster() *capi.Cluster {
+func provisionedCluster() *capiv1.Cluster {
 	cluster := testCluster()
-	clusterStatus, _ := controller.ClusterProviderStatusFromCluster(cluster)
+	clusterStatus, _ := cocontroller.ClusterProviderStatusFromCluster(cluster)
 	clusterStatus.Provisioned = true
-	cluster.Status.ProviderStatus, _ = controller.EncodeClusterProviderStatus(clusterStatus)
+	cluster.Status.ProviderStatus, _ = cocontroller.EncodeClusterProviderStatus(clusterStatus)
 	return cluster
 }
 
 // getKey gets the key for the cluster to use when checking expectations
 // set on a cluster.
 func getKey(obj metav1.Object, t *testing.T) string {
-	key, err := controller.KeyFunc(obj)
+	key, err := cocontroller.KeyFunc(obj)
 	if err != nil {
 		t.Errorf("Unexpected error getting key for resource %v: %v", obj.GetName(), err)
 		return ""
@@ -407,20 +407,20 @@ func getKey(obj metav1.Object, t *testing.T) string {
 
 // testClusterVersion will create a ClusterVersion resource.
 // Used when we want to make sure a version ref specified on a Cluster exists in the store.
-func testClusterVersion() *clustop.ClusterVersion {
-	cv := &clustop.ClusterVersion{
+func testClusterVersion() *cov1.ClusterVersion {
+	cv := &cov1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			UID:       testClusterVerUID,
 			Name:      testClusterVerName,
 			Namespace: testClusterVerNS,
 		},
-		Spec: clustop.ClusterVersionSpec{
-			Images: clustop.ClusterVersionImages{
+		Spec: cov1.ClusterVersionSpec{
+			Images: cov1.ClusterVersionImages{
 				ImageFormat: "openshift/origin-${component}:${version}",
 			},
-			VMImages: clustop.VMImages{
-				AWSImages: &clustop.AWSVMImages{
-					RegionAMIs: []clustop.AWSRegionAMIs{
+			VMImages: cov1.VMImages{
+				AWSImages: &cov1.AWSVMImages{
+					RegionAMIs: []cov1.AWSRegionAMIs{
 						{
 							Region: testRegion,
 							AMI:    "computeAMI_ID",
@@ -434,7 +434,7 @@ func testClusterVersion() *clustop.ClusterVersion {
 }
 
 // testMasterMachineSet will create a master MachineSet resource
-func testMasterMachineSet() *capi.MachineSet {
+func testMasterMachineSet() *capiv1.MachineSet {
 	clusterDeployment := testClusterDeployment()
 	cluster := testCluster()
 	clusterVersion := testClusterVersion()
@@ -443,11 +443,11 @@ func testMasterMachineSet() *capi.MachineSet {
 }
 
 type clusterCreatedAction struct {
-	clusterDeployment *clustop.ClusterDeployment
+	clusterDeployment *cov1.ClusterDeployment
 }
 
 func (a clusterCreatedAction) resource() schema.GroupVersionResource {
-	return capi.SchemeGroupVersion.WithResource("clusters")
+	return capiv1.SchemeGroupVersion.WithResource("clusters")
 }
 
 func (a clusterCreatedAction) verb() string {
@@ -461,12 +461,12 @@ func (a clusterCreatedAction) validate(t *testing.T, testName string, action cli
 		return false
 	}
 	createdObject := createAction.GetObject()
-	cluster, ok := createdObject.(*capi.Cluster)
+	cluster, ok := createdObject.(*capiv1.Cluster)
 	if !ok {
 		t.Errorf("%s: created object is not a cluster: %t", testName, createdObject)
 		return false
 	}
-	clusterDeploymentLabel, ok := cluster.Labels[clustop.ClusterDeploymentLabel]
+	clusterDeploymentLabel, ok := cluster.Labels[cov1.ClusterDeploymentLabel]
 	if !ok {
 		t.Errorf("%s: no cluster deployment label present in cluster %s/%s", testName, cluster.Namespace, cluster.Name)
 		return false
@@ -475,7 +475,7 @@ func (a clusterCreatedAction) validate(t *testing.T, testName string, action cli
 		t.Errorf("%s: cluster deployment label does not match cluster deployment name", testName)
 		return false
 	}
-	providerConfig, err := controller.BuildAWSClusterProviderConfig(&a.clusterDeployment.Spec, testClusterVersion().Spec)
+	providerConfig, err := cocontroller.BuildAWSClusterProviderConfig(&a.clusterDeployment.Spec, testClusterVersion().Spec)
 	if err != nil {
 		t.Errorf("%s: cannot obtain provider config from cluster deployment: %v", testName, err)
 		return false
@@ -488,11 +488,11 @@ func (a clusterCreatedAction) validate(t *testing.T, testName string, action cli
 }
 
 type clusterUpdateAction struct {
-	clusterDeployment *clustop.ClusterDeployment
+	clusterDeployment *cov1.ClusterDeployment
 }
 
 func (a clusterUpdateAction) resource() schema.GroupVersionResource {
-	return capi.SchemeGroupVersion.WithResource("clusters")
+	return capiv1.SchemeGroupVersion.WithResource("clusters")
 }
 
 func (a clusterUpdateAction) verb() string {
@@ -506,12 +506,12 @@ func (a clusterUpdateAction) validate(t *testing.T, testName string, action clie
 		return false
 	}
 	updatedObject := updateAction.GetObject()
-	cluster, ok := updatedObject.(*capi.Cluster)
+	cluster, ok := updatedObject.(*capiv1.Cluster)
 	if !ok {
 		t.Errorf("%s: updated object is not a cluster: %t", testName, updatedObject)
 		return false
 	}
-	providerConfig, err := controller.BuildAWSClusterProviderConfig(&a.clusterDeployment.Spec, testClusterVersion().Spec)
+	providerConfig, err := cocontroller.BuildAWSClusterProviderConfig(&a.clusterDeployment.Spec, testClusterVersion().Spec)
 	if err != nil {
 		t.Errorf("%s: cannot obtain provider config from cluster deployment: %v", testName, err)
 		return false
@@ -524,13 +524,13 @@ func (a clusterUpdateAction) validate(t *testing.T, testName string, action clie
 }
 
 type machineSetCreatedAction struct {
-	clusterDeployment *clustop.ClusterDeployment
-	clusterVersion    *clustop.ClusterVersion
-	cluster           *capi.Cluster
+	clusterDeployment *cov1.ClusterDeployment
+	clusterVersion    *cov1.ClusterVersion
+	cluster           *capiv1.Cluster
 }
 
 func (a machineSetCreatedAction) resource() schema.GroupVersionResource {
-	return capi.SchemeGroupVersion.WithResource("machinesets")
+	return capiv1.SchemeGroupVersion.WithResource("machinesets")
 }
 
 func (a machineSetCreatedAction) verb() string {
@@ -544,12 +544,12 @@ func (a machineSetCreatedAction) validate(t *testing.T, testName string, action 
 		return false
 	}
 	createdObject := createAction.GetObject()
-	machineSet, ok := createdObject.(*capi.MachineSet)
+	machineSet, ok := createdObject.(*capiv1.MachineSet)
 	if !ok {
 		t.Errorf("%s: created object is not a machineset: %t", testName, createdObject)
 		return false
 	}
-	clusterDeploymentLabel, ok := machineSet.Labels[clustop.ClusterDeploymentLabel]
+	clusterDeploymentLabel, ok := machineSet.Labels[cov1.ClusterDeploymentLabel]
 	if !ok {
 		t.Errorf("%s: no cluster deployment label present in machineset %s/%s", testName, machineSet.Namespace, machineSet.Name)
 		return false
@@ -559,7 +559,7 @@ func (a machineSetCreatedAction) validate(t *testing.T, testName string, action 
 		return false
 	}
 	machineSetConfig, _ := masterMachineSetConfig(a.clusterDeployment)
-	providerConfig, err := controller.MachineProviderConfigFromMachineSetConfig(machineSetConfig, &a.clusterDeployment.Spec, a.clusterVersion)
+	providerConfig, err := cocontroller.MachineProviderConfigFromMachineSetConfig(machineSetConfig, &a.clusterDeployment.Spec, a.clusterVersion)
 	if err != nil {
 		t.Errorf("%s: cannot obtain provider config from cluster deployment: %v", testName, err)
 		return false
@@ -572,13 +572,13 @@ func (a machineSetCreatedAction) validate(t *testing.T, testName string, action 
 }
 
 type machineSetUpdateAction struct {
-	clusterDeployment *clustop.ClusterDeployment
-	machineSetConfig  *clustop.MachineSetConfig
-	clusterVersion    *clustop.ClusterVersion
+	clusterDeployment *cov1.ClusterDeployment
+	machineSetConfig  *cov1.MachineSetConfig
+	clusterVersion    *cov1.ClusterVersion
 }
 
 func (a machineSetUpdateAction) resource() schema.GroupVersionResource {
-	return capi.SchemeGroupVersion.WithResource("machinesets")
+	return capiv1.SchemeGroupVersion.WithResource("machinesets")
 }
 
 func (a machineSetUpdateAction) verb() string {
@@ -592,7 +592,7 @@ func (a machineSetUpdateAction) validate(t *testing.T, testName string, action c
 	}
 
 	updatedObject := updateAction.GetObject()
-	machineSet, ok := updatedObject.(*capi.MachineSet)
+	machineSet, ok := updatedObject.(*capiv1.MachineSet)
 	if !ok {
 		t.Errorf("%s: updated object is not a machineset: %t", testName, updatedObject)
 		return false
@@ -603,7 +603,7 @@ func (a machineSetUpdateAction) validate(t *testing.T, testName string, action c
 		return false
 	}
 
-	providerConfig, err := controller.MachineProviderConfigFromMachineSetConfig(a.machineSetConfig, &a.clusterDeployment.Spec, a.clusterVersion)
+	providerConfig, err := cocontroller.MachineProviderConfigFromMachineSetConfig(a.machineSetConfig, &a.clusterDeployment.Spec, a.clusterVersion)
 	if err != nil {
 		t.Errorf("%s: unable to get provider config from machineset config: %v", testName, err)
 		return false
@@ -620,7 +620,7 @@ type clusterDeploymentFinalizerAddedAction struct {
 }
 
 func (a clusterDeploymentFinalizerAddedAction) resource() schema.GroupVersionResource {
-	return clustop.SchemeGroupVersion.WithResource("clusterdeployments")
+	return cov1.SchemeGroupVersion.WithResource("clusterdeployments")
 }
 
 func (a clusterDeploymentFinalizerAddedAction) verb() string {
@@ -634,12 +634,12 @@ func (a clusterDeploymentFinalizerAddedAction) validate(t *testing.T, testName s
 		return false
 	}
 	updatedObject := updateAction.GetObject()
-	clusterDeployment, ok := updatedObject.(*clustop.ClusterDeployment)
+	clusterDeployment, ok := updatedObject.(*cov1.ClusterDeployment)
 	if !ok {
 		t.Errorf("%s: updated object is not a cluster deployment: %t", testName, updatedObject)
 		return false
 	}
-	if !controller.HasFinalizer(clusterDeployment, clustop.FinalizerClusterDeployment) {
+	if !cocontroller.HasFinalizer(clusterDeployment, cov1.FinalizerClusterDeployment) {
 		t.Errorf("%s: cluster deployment does not have the expected finalizer", testName)
 		return false
 	}
@@ -650,7 +650,7 @@ type clusterFinalizerRemovedAction struct {
 }
 
 func (a clusterFinalizerRemovedAction) resource() schema.GroupVersionResource {
-	return capi.SchemeGroupVersion.WithResource("clusters")
+	return capiv1.SchemeGroupVersion.WithResource("clusters")
 }
 
 func (a clusterFinalizerRemovedAction) verb() string {
@@ -664,12 +664,12 @@ func (a clusterFinalizerRemovedAction) validate(t *testing.T, testName string, a
 		return false
 	}
 	updatedObject := updateAction.GetObject()
-	cluster, ok := updatedObject.(*capi.Cluster)
+	cluster, ok := updatedObject.(*capiv1.Cluster)
 	if !ok {
 		t.Errorf("%s: updated object is not a cluster: %t", testName, updatedObject)
 		return false
 	}
-	if controller.HasFinalizer(cluster, capi.ClusterFinalizer) {
+	if cocontroller.HasFinalizer(cluster, capiv1.ClusterFinalizer) {
 		t.Errorf("%s: cluster does has unexpected finalizer", testName)
 		return false
 	}
@@ -677,12 +677,12 @@ func (a clusterFinalizerRemovedAction) validate(t *testing.T, testName string, a
 }
 
 type clusterDeploymentStatusUpdateAction struct {
-	clusterDeployment *clustop.ClusterDeployment
-	condition         clustop.ClusterDeploymentConditionType
+	clusterDeployment *cov1.ClusterDeployment
+	condition         cov1.ClusterDeploymentConditionType
 }
 
 func (a clusterDeploymentStatusUpdateAction) resource() schema.GroupVersionResource {
-	return clustop.SchemeGroupVersion.WithResource("clusterdeployments")
+	return cov1.SchemeGroupVersion.WithResource("clusterdeployments")
 }
 
 func (a clusterDeploymentStatusUpdateAction) verb() string {
@@ -704,19 +704,19 @@ func (a clusterDeploymentStatusUpdateAction) validate(t *testing.T, testName str
 		t.Errorf("%s: cannot marshal cluster deployment: %v", testName, err)
 		return false
 	}
-	result, err := strategicpatch.StrategicMergePatch(original, patch, &clustop.ClusterDeployment{})
+	result, err := strategicpatch.StrategicMergePatch(original, patch, &cov1.ClusterDeployment{})
 	if err != nil {
 		t.Errorf("%s: cannot apply strategic merge patch: %v", testName, err)
 		return false
 	}
-	resultClusterDeployment := &clustop.ClusterDeployment{}
+	resultClusterDeployment := &cov1.ClusterDeployment{}
 	err = json.Unmarshal(result, resultClusterDeployment)
 	if err != nil {
 		t.Errorf("%s: cannot unmarshal cluster deployment: %v", testName, err)
 		return false
 	}
 
-	clusterDeploymentCondition := controller.FindClusterDeploymentCondition(resultClusterDeployment.Status.Conditions, a.condition)
+	clusterDeploymentCondition := cocontroller.FindClusterDeploymentCondition(resultClusterDeployment.Status.Conditions, a.condition)
 	if clusterDeploymentCondition == nil {
 		t.Errorf("%s: did not find expected cluster condition %s", testName, a.condition)
 		return false
@@ -732,7 +732,7 @@ type machineSetDeleteAction struct {
 }
 
 func (a machineSetDeleteAction) resource() schema.GroupVersionResource {
-	return capi.SchemeGroupVersion.WithResource("machinesets")
+	return capiv1.SchemeGroupVersion.WithResource("machinesets")
 }
 
 func (a machineSetDeleteAction) verb() string {
@@ -758,7 +758,7 @@ type clusterDeleteAction struct {
 }
 
 func (a clusterDeleteAction) resource() schema.GroupVersionResource {
-	return capi.SchemeGroupVersion.WithResource("clusters")
+	return capiv1.SchemeGroupVersion.WithResource("clusters")
 }
 
 func (a clusterDeleteAction) verb() string {
@@ -784,7 +784,7 @@ type clusterDeploymentDeleteAction struct {
 }
 
 func (a clusterDeploymentDeleteAction) resource() schema.GroupVersionResource {
-	return clustop.SchemeGroupVersion.WithResource("clusterdeployments")
+	return cov1.SchemeGroupVersion.WithResource("clusterdeployments")
 }
 
 func (a clusterDeploymentDeleteAction) verb() string {

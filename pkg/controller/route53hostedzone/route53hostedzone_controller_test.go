@@ -24,7 +24,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/route53"
 	"github.com/golang/mock/gomock"
 	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
-	clustopaws "github.com/openshift/cluster-operator/pkg/clusterapi/aws"
+	coaws "github.com/openshift/cluster-operator/pkg/clusterapi/aws"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -135,7 +135,7 @@ func TestSyncHandler(t *testing.T) {
 
 			if tc.dnsZone != nil {
 				setFakeDNSZoneInKube(ctx.mocks, tc.dnsZone)
-				ctx.controller.awsClientBuilder = func(kubeClient kubernetes.Interface, secretName, namespace, region string) (clustopaws.Client, error) {
+				ctx.controller.awsClientBuilder = func(kubeClient kubernetes.Interface, secretName, namespace, region string) (coaws.Client, error) {
 					return ctx.mocks.mockAWSClient, tc.awsClientBuilderError
 				}
 

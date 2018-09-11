@@ -39,10 +39,10 @@ import (
 
 	capiservertesting "github.com/openshift/cluster-operator/cmd/cluster-api-apiserver/testing"
 	servertesting "github.com/openshift/cluster-operator/cmd/cluster-operator-apiserver/app/testing"
-	clustopv1alpha1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
-	clustopclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
+	cov1 "github.com/openshift/cluster-operator/pkg/apis/clusteroperator/v1alpha1"
+	coclientset "github.com/openshift/cluster-operator/pkg/client/clientset_generated/clientset"
 	clustopinformers "github.com/openshift/cluster-operator/pkg/client/informers_generated/externalversions"
-	"github.com/openshift/cluster-operator/pkg/controller"
+	cocontroller "github.com/openshift/cluster-operator/pkg/controller"
 	"github.com/openshift/cluster-operator/pkg/controller/awselb"
 	clusterdeploymentcontroller "github.com/openshift/cluster-operator/pkg/controller/clusterdeployment"
 	componentscontroller "github.com/openshift/cluster-operator/pkg/controller/components"
@@ -51,7 +51,7 @@ import (
 	mastercontroller "github.com/openshift/cluster-operator/pkg/controller/master"
 	nodeconfigcontroller "github.com/openshift/cluster-operator/pkg/controller/nodeconfig"
 	registryinfracontroller "github.com/openshift/cluster-operator/pkg/controller/registryinfra"
-	capiv1alpha1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	capiclientset "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 	capifakeclientset "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset/fake"
 	capiinformers "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions"
@@ -63,33 +63,33 @@ const (
 	testClusterVersionName = "v3-9"
 )
 
-func testMachineSet(name string, replicas int32, infra bool) *capiv1alpha1.MachineSet {
-	return &capiv1alpha1.MachineSet{
+func testMachineSet(name string, replicas int32, infra bool) *capiv1.MachineSet {
+	return &capiv1.MachineSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: testNamespace,
 			Name:      name,
 			Labels: map[string]string{
-				clustopv1alpha1.ClusterNameLabel: testClusterName,
+				cov1.ClusterNameLabel: testClusterName,
 			},
 		},
-		Spec: capiv1alpha1.MachineSetSpec{
+		Spec: capiv1.MachineSetSpec{
 			Replicas: func(n int32) *int32 { return &n }(3),
 			Selector: metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"set": name,
 				},
 			},
-			Template: capiv1alpha1.MachineTemplateSpec{
+			Template: capiv1.MachineTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
 						"set": name,
 					},
 				},
-				Spec: capiv1alpha1.MachineSpec{
-					ProviderConfig: capiv1alpha1.ProviderConfig{
+				Spec: capiv1.MachineSpec{
+					ProviderConfig: capiv1.ProviderConfig{
 						Value: func() *runtime.RawExtension {
-							r, _ := controller.MachineProviderConfigFromMachineSetSpec(&clustopv1alpha1.MachineSetSpec{
-								MachineSetConfig: clustopv1alpha1.MachineSetConfig{
+							r, _ := cocontroller.MachineProviderConfigFromMachineSetSpec(&cov1.MachineSetSpec{
+								MachineSetConfig: cov1.MachineSetConfig{
 									Infra: infra,
 								},
 							})
@@ -106,15 +106,15 @@ func testMachineSet(name string, replicas int32, infra bool) *capiv1alpha1.Machi
 func TestClusterCreate(t *testing.T) {
 	cases := []struct {
 		name        string
-		machineSets []clustopv1alpha1.ClusterMachineSet
+		machineSets []cov1.ClusterMachineSet
 	}{
 		{
 			name: "no compute machine sets",
-			machineSets: []clustopv1alpha1.ClusterMachineSet{
+			machineSets: []cov1.ClusterMachineSet{
 				{
-					MachineSetConfig: clustopv1alpha1.MachineSetConfig{
+					MachineSetConfig: cov1.MachineSetConfig{
 						Size:     3,
-						NodeType: clustopv1alpha1.NodeTypeMaster,
+						NodeType: cov1.NodeTypeMaster,
 						Infra:    true,
 					},
 				},
@@ -122,19 +122,19 @@ func TestClusterCreate(t *testing.T) {
 		},
 		{
 			name: "single compute machine sets",
-			machineSets: []clustopv1alpha1.ClusterMachineSet{
+			machineSets: []cov1.ClusterMachineSet{
 				{
-					MachineSetConfig: clustopv1alpha1.MachineSetConfig{
+					MachineSetConfig: cov1.MachineSetConfig{
 						Size:     3,
-						NodeType: clustopv1alpha1.NodeTypeMaster,
+						NodeType: cov1.NodeTypeMaster,
 						Infra:    true,
 					},
 				},
 				{
 					ShortName: "first",
-					MachineSetConfig: clustopv1alpha1.MachineSetConfig{
+					MachineSetConfig: cov1.MachineSetConfig{
 						Size:     5,
-						NodeType: clustopv1alpha1.NodeTypeCompute,
+						NodeType: cov1.NodeTypeCompute,
 						Infra:    false,
 					},
 				},
@@ -142,35 +142,35 @@ func TestClusterCreate(t *testing.T) {
 		},
 		{
 			name: "multiple compute machine sets",
-			machineSets: []clustopv1alpha1.ClusterMachineSet{
+			machineSets: []cov1.ClusterMachineSet{
 				{
-					MachineSetConfig: clustopv1alpha1.MachineSetConfig{
+					MachineSetConfig: cov1.MachineSetConfig{
 						Size:     3,
-						NodeType: clustopv1alpha1.NodeTypeMaster,
+						NodeType: cov1.NodeTypeMaster,
 						Infra:    true,
 					},
 				},
 				{
 					ShortName: "first",
-					MachineSetConfig: clustopv1alpha1.MachineSetConfig{
+					MachineSetConfig: cov1.MachineSetConfig{
 						Size:     5,
-						NodeType: clustopv1alpha1.NodeTypeCompute,
+						NodeType: cov1.NodeTypeCompute,
 						Infra:    false,
 					},
 				},
 				{
 					ShortName: "second",
-					MachineSetConfig: clustopv1alpha1.MachineSetConfig{
+					MachineSetConfig: cov1.MachineSetConfig{
 						Size:     6,
-						NodeType: clustopv1alpha1.NodeTypeCompute,
+						NodeType: cov1.NodeTypeCompute,
 						Infra:    false,
 					},
 				},
 				{
 					ShortName: "3rd",
-					MachineSetConfig: clustopv1alpha1.MachineSetConfig{
+					MachineSetConfig: cov1.MachineSetConfig{
 						Size:     3,
-						NodeType: clustopv1alpha1.NodeTypeCompute,
+						NodeType: cov1.NodeTypeCompute,
 						Infra:    false,
 					},
 				},
@@ -183,20 +183,20 @@ func TestClusterCreate(t *testing.T) {
 
 			defer tearDown()
 
-			clusterVersion := &clustopv1alpha1.ClusterVersion{
+			clusterVersion := &cov1.ClusterVersion{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: testNamespace,
 					Name:      testClusterVersionName,
 				},
-				Spec: clustopv1alpha1.ClusterVersionSpec{
-					Images: clustopv1alpha1.ClusterVersionImages{
+				Spec: cov1.ClusterVersionSpec{
+					Images: cov1.ClusterVersionImages{
 						ImageFormat:                     "openshift/origin-${component}:${version}",
 						OpenshiftAnsibleImage:           func(s string) *string { return &s }("test-ansible-image"),
 						OpenshiftAnsibleImagePullPolicy: func(p kapi.PullPolicy) *kapi.PullPolicy { return &p }(kapi.PullNever),
 					},
-					VMImages: clustopv1alpha1.VMImages{
-						AWSImages: &clustopv1alpha1.AWSVMImages{
-							RegionAMIs: []clustopv1alpha1.AWSRegionAMIs{
+					VMImages: cov1.VMImages{
+						AWSImages: &cov1.AWSVMImages{
+							RegionAMIs: []cov1.AWSRegionAMIs{
 								{
 									Region: "us-east-1",
 									AMI:    "computeAMI_ID",
@@ -204,31 +204,31 @@ func TestClusterCreate(t *testing.T) {
 							},
 						},
 					},
-					DeploymentType: clustopv1alpha1.ClusterDeploymentTypeOrigin,
+					DeploymentType: cov1.ClusterDeploymentTypeOrigin,
 					Version:        "v3.7.0",
 				},
 			}
 			clustopClient.ClusteroperatorV1alpha1().ClusterVersions(testNamespace).Create(clusterVersion)
 
-			clusterDeploymentSpec := &clustopv1alpha1.ClusterDeploymentSpec{
+			clusterDeploymentSpec := &cov1.ClusterDeploymentSpec{
 				ClusterName: testClusterName + "-abcde",
-				ClusterVersionRef: clustopv1alpha1.ClusterVersionReference{
+				ClusterVersionRef: cov1.ClusterVersionReference{
 					Namespace: clusterVersion.Namespace,
 					Name:      clusterVersion.Name,
 				},
-				Hardware: clustopv1alpha1.ClusterHardwareSpec{
-					AWS: &clustopv1alpha1.AWSClusterSpec{
+				Hardware: cov1.ClusterHardwareSpec{
+					AWS: &cov1.AWSClusterSpec{
 						Region: "us-east-1",
 					},
 				},
-				DefaultHardwareSpec: &clustopv1alpha1.MachineSetHardwareSpec{
-					AWS: &clustopv1alpha1.MachineSetAWSHardwareSpec{
+				DefaultHardwareSpec: &cov1.MachineSetHardwareSpec{
+					AWS: &cov1.MachineSetAWSHardwareSpec{
 						InstanceType: "instance-type",
 					},
 				},
 				MachineSets: tc.machineSets,
 			}
-			cd := &clustopv1alpha1.ClusterDeployment{
+			cd := &cov1.ClusterDeployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: testNamespace,
 					Name:      testClusterName,
@@ -306,7 +306,7 @@ func TestClusterCreate(t *testing.T) {
 func startServerAndControllers(t *testing.T) (
 	*kubefake.Clientset,
 	watch.Interface,
-	clustopclientset.Interface,
+	coclientset.Interface,
 	capiclientset.Interface,
 	*capifakeclientset.Clientset,
 	func()) {
@@ -349,7 +349,7 @@ func startServerAndControllers(t *testing.T) (
 	capiServerClientConfig, shutdownCapiServer := capiservertesting.StartTestServerOrDie(t)
 
 	// create a cluster-operator client
-	clustopClient, err := clustopclientset.NewForConfig(apiServerClientConfig)
+	clustopClient, err := coclientset.NewForConfig(apiServerClientConfig)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
