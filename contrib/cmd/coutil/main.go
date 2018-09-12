@@ -32,6 +32,7 @@ import (
 	"github.com/openshift/cluster-operator/contrib/pkg/jenkins"
 	"github.com/openshift/cluster-operator/contrib/pkg/playbookmock"
 	"github.com/openshift/cluster-operator/contrib/pkg/provision_aws"
+	"github.com/openshift/cluster-operator/contrib/pkg/verification"
 )
 
 func main() {
@@ -65,6 +66,7 @@ func NewCOUtilityCommand() *cobra.Command {
 	cmd.AddCommand(amiid.NewGetAMIIDCommand())
 	cmd.AddCommand(provision_aws.NewProvisionClusterCommand())
 	cmd.AddCommand(deprovision_aws.NewDeprovisionClusterCommand())
+	cmd.AddCommand(verification.NewVerifyImportsCommand())
 
 	return cmd
 }
