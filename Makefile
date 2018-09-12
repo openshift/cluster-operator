@@ -28,6 +28,7 @@ BINDIR        ?= bin
 BUILD_DIR     ?= build
 COVERAGE      ?= $(CURDIR)/coverage.html
 CLUSTERAPI_BIN = $(BINDIR)/cluster-api
+VERIFY_IMPORT_CONFIG = build/verify-imports/import-rules.yaml
 CLUSTER_OPERATOR_PKG = github.com/openshift/cluster-operator
 CLUSTER_OPERATOR_ANSIBLE_IMAGE_NAME = cluster-operator-ansible
 TOP_SRC_DIRS   = cmd pkg
@@ -190,7 +191,7 @@ $(BINDIR)/e2e.test: .init
 # Util targets
 ##############
 .PHONY: verify verify-generated verify-client-gen verify-mocks
-verify: .init .generate_exes verify-generated verify-client-gen verify-mocks
+verify: .init .generate_exes verify-generated verify-client-gen verify-mocks $(BINDIR)/coutil
 	@echo Running gofmt:
 	@$(DOCKER_CMD) gofmt -l -s $(TOP_SRC_DIRS)>.out 2>&1||true
 	@[ ! -s .out ] || \
@@ -198,7 +199,7 @@ verify: .init .generate_exes verify-generated verify-client-gen verify-mocks
 	  cat .out && echo && rm .out && false)
 	@rm .out
 	@#
-	@echo Running golint and go vet:
+	@echo Running golint, go vet and coutil verify-imports:
 	@# Exclude the generated (zz) files for now, as well as defaults.go (it
 	@# observes conventions from upstream that will not pass lint checks).
 	@$(DOCKER_CMD) sh -c \
@@ -209,6 +210,7 @@ verify: .init .generate_exes verify-generated verify-client-gen verify-mocks
 	    | grep -v v1alpha1/defaults.go); \
 	  do \
 	   golint --set_exit_status $$i || exit 1; \
+	   $(BINDIR)/coutil verify-imports -c $(VERIFY_IMPORT_CONFIG) $$i || exit 1; \
 	  done'
 	@#
 	$(DOCKER_CMD) go vet ./cmd/... ./test/... ./contrib/... $(go list ./pkg/... | grep -v _generated)
