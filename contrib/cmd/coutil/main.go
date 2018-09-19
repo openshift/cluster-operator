@@ -27,6 +27,7 @@ import (
 	"github.com/openshift/cluster-operator/contrib/pkg/amibuild"
 	"github.com/openshift/cluster-operator/contrib/pkg/amiid"
 	"github.com/openshift/cluster-operator/contrib/pkg/apiservice"
+	"github.com/openshift/cluster-operator/contrib/pkg/aws_tag_deprovision"
 	"github.com/openshift/cluster-operator/contrib/pkg/cluster"
 	"github.com/openshift/cluster-operator/contrib/pkg/deprovision_aws"
 	"github.com/openshift/cluster-operator/contrib/pkg/jenkins"
@@ -67,6 +68,7 @@ func NewCOUtilityCommand() *cobra.Command {
 	cmd.AddCommand(provision_aws.NewProvisionClusterCommand())
 	cmd.AddCommand(deprovision_aws.NewDeprovisionClusterCommand())
 	cmd.AddCommand(verification.NewVerifyImportsCommand())
+	cmd.AddCommand(aws_tag_deprovision.NewDeprovisionAWSWithTagsCommand())
 
 	return cmd
 }
