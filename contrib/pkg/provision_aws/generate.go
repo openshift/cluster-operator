@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	defaultClusterOperatorImage = "registry.svc.ci.openshift.org/openshift-cluster-operator/cluster-operator:latest"
+	defaultClusterOperatorImage = "quay.io/twiest/cluster-operator:latest"
 	defaultInstanceType         = "m4.xlarge"
 	defaultSSHUser              = "centos"
 )

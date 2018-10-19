@@ -65,7 +65,6 @@ GO_BUILD       = env GOOS=$(PLATFORM) GOARCH=$(ARCH) go build -i $(GOFLAGS) \
 BASE_PATH      = $(ROOT:/src/github.com/openshift/cluster-operator/=)
 export GOPATH  = $(BASE_PATH):$(ROOT)/vendor
 
-PUBLIC_REGISTRY=quay.io/openshift/
 
 MUTABLE_TAG                         ?= canary
 DEVELOPMENT_TAG                     ?= dev

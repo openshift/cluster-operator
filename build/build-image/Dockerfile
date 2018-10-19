@@ -28,7 +28,7 @@ RUN curl -sSL https://github.com/coreos/etcd/releases/download/v3.1.10/etcd-v3.1
     | tar -vxz -C /usr/local/bin --strip=1 etcd-v3.1.10-linux-amd64/etcd
 
 # Install the golint, use this to check our source for niceness
-RUN go get -u github.com/golang/lint/golint
+RUN go get -u golang.org/x/lint/golint
 
 # Install gomock and mockgen for the mocks used in unit tests
 RUN go get -u github.com/golang/mock/gomock
