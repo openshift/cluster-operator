@@ -19,9 +19,9 @@
       cluster_version_namespace: "{{ cluster_version_namespace | default('openshift-cluster-operator') }}"
 
       # Images to deploy on target cluster
-      cluster_api_image: "{{ cluster_api_image | default('registry.svc.ci.openshift.org/openshift-cluster-operator/cluster-operator:latest') }}"
+      cluster_api_image: "{{ cluster_api_image | default('quay.io/twiest/cluster-operator:latest') }}"
       cluster_api_image_pull_policy: "{{ cluster_api_image_pull_policy | default('Always') }}"
-      machine_controller_image: "{{ machine_controller_image | default('registry.svc.ci.openshift.org/openshift-cluster-operator/cluster-operator:latest') }}"
+      machine_controller_image: "{{ machine_controller_image | default('quay.io/twiest/cluster-operator:latest') }}"
       machine_controller_image_pull_policy: "{{ machine_controller_image_pull_policy | default('Always') }}"
 
       fake_deployment: "{{ fake_deployment | default(True) }}"

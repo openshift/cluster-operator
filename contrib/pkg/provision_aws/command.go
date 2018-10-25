@@ -86,7 +86,7 @@ func NewProvisionClusterCommand() *cobra.Command {
 	flags.StringVarP(&opt.Namespace, "namespace", "", "", "Namespace to use. Defaults to current namespace")
 	flags.StringVar(&opt.AccountSecretName, "aws-creds-secret", fmt.Sprintf("%s-aws-creds", userName), "Secret to use for AWS account")
 	flags.StringVar(&opt.SSHSecretName, "ssh-secret", "libra-ssh", "Secret with SSH key")
-	flags.StringVar(&opt.AnsibleImage, "ansible-image", "registry.svc.ci.openshift.org/openshift-cluster-operator/cluster-operator-ansible:latest", "Ansible image to use for job")
+	flags.StringVar(&opt.AnsibleImage, "ansible-image", "quay.io/twiest/cluster-operator-ansible:latest", "Ansible image to use for job")
 	flags.StringVar(&opt.RPMRepositoryURL, "rpm-repository", "", "RPM repository URL for repository that contains OpenShift RPMs. This repository is used to build a new AMI")
 	flags.StringVar(&opt.RPMRepositorySource, "rpm-repository-source", "https://gcsweb-ci.svc.ci.openshift.org/gcs/origin-ci-test/releases/openshift/origin/master/origin.repo", "URL of a YUM repository file that points to an RPM repository for Openshift RPMs. This can be used instead of specifying an RPM repository URL directly")
 	flags.StringVar(&opt.VPCName, "vpc", "", "VPC to use for the cluster; if blank, a new VPC will be created")
