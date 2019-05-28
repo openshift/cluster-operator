@@ -1,3 +1,5 @@
+## **This project is deprecated.** Please see [https://github.com/openshift/hive](https://github.com/openshift/hive).
+
 # cluster-operator
 
 # Development Deployment
