@@ -47,6 +47,10 @@
 
   tasks:
 
+  - fail:
+      msg: "Please specify a template file. See contrib/examples/cluster-deployment-template.yaml for an example."
+    when: cli_template_file is undefined
+
   - import_role:
       name: kubectl-ansible
 
@@ -124,7 +128,7 @@
 
   - name: process cluster template
     oc_process:
-      template_file: "{{ playbook_dir }}/../examples/cluster-deployment-template.yaml"
+      template_file: "{{ cli_template_file }}"
       parameters:
         CLUSTER_NAME: "{{ cluster_name }}"
         CLUSTER_NAMESPACE: "{{ cluster_namespace }}"
